@@ -1,0 +1,27 @@
+v2  2026-07-02
+
+Greetings,
+
+I am writing to invite you to join a project we are calling (for now) "retrieve-or-bust": a genuine, no-hedging attempt to finally crack the ocean-color IOP inversion. If it works, we retrieve inherent optical properties from reflectance better than we ever have. If it doesn't, we will have learned that the problem waits for a better idea, better machines, or is simply intractable. Either way, I want a small group of sharp people in the room while we try.
+
+Let me say what success would look like. Not a number — I refuse to pin one on it yet — but an outcome: retrieving more independent, physically meaningful IOP components from hyperspectral reflectance than current methods manage — absorption, backscattering, and their constituents — with credible uncertainties, validated against in-situ truth. That is the bar.
+
+Most of you already know why this is hard. The inversion is degenerate: the reflectance constrains a ratio, not the pieces, and so many optical states masquerade as one another. Even worse, we don't know well what we are trying to retrieve – our basis functions are nearly infinite in possibility. No amount of clever fitting removes that. The only thing that can is external information. And here is why I believe this attempt has a real chance where earlier ones struggled: previous methods either fixed the spectral shapes by hand or lacked systematic access to information beyond the reflectance itself. We intend to supply exactly what has been missing — priors from in-situ observations, environmental context, and the history a location carries in its time series — and to explore vastly more candidate methods than hand-design has ever allowed, with modern AI as our accelerant. The timing is deliberate: AI has lurched forward so dramatically in just the past few months that a problem which felt hopeless to me a few months ago now looks genuinely worth attacking head-on.
+
+Let me be precise about that last point, because it matters. The science here is ours. The problem, the physics, the data, and the judgment of what counts as a real retrieval — those stay firmly in human hands. Think of the AI as a tireless collaborator: it proposes candidate approaches, writes and runs the code, and stress-tests the results far faster than we could by hand — always under our scientific direction, and always answering to our judgment. We are not asking a machine to divine the physics; we are using it to build and break methods at a pace no human team could match. In the near term the engine is Claude, supported by Anthropic's "AI for Science" program — and I am fortunate to have a close colleague at Anthropic who may be able to help us along.
+
+Our point of departure is BING (Bayesian INferences with Gordon coefficients; Prochaska & Frouin 2025), our open-source framework that casts the inversion as Bayesian inference on the Gordon reflectance model — and laid out the machinery honestly enough to show just how badly the degeneracy bites. I want to be clear, though: the final solution may not look anything like BING. It is a starting line, not a destination. The real scientific aim is simple to state and hard to do — to milk the most we possibly can out of hyperspectral reflectance. On a very related note, Claude and I are currently building out this: https://ioptics.readthedocs.io/en/develop/ which will be very helpful.
+
+What I am asking of you is light: your ideas and your reactions as things develop. I want this to be a small, intellectually open group where ideas, critiques, datasets, and validation perspectives are all welcome — and genuinely shape where the work goes. No data required, no deliverables, no deadlines — though if you have data or a validation angle you'd like to bring, so much the better. Come along for the ride and weigh in when something catches your interest; drift in and out as your time allows — that is completely understood and there are no hard feelings if life pulls you elsewhere. I will be honest that there is no carrot here beyond the fun of being part of an audacious attempt with good company. For the right person, that has always been enough. 🙂
+
+FWIW, you may find this additional context useful as regards what (Claude and) I have in mind. [ADDITIONAL CONTEXT LINK]
+
+If this sounds like your kind of fun, join our Slack workspace [SLACK LINK] and DM me there to be added to the private channel — for follow-up we'll use Slack rather than email, so that the conversation stays in one lively place.
+
+With genuine enthusiasm,
+
+J. Xavier Prochaska
+University of California, Santa Cruz
+
+on behalf of the retrieve-or-bust team:
+J. Xavier Prochaska (UC Santa Cruz) and Robert Frouin (Scripps Institution of Oceanography, UC San Diego)
