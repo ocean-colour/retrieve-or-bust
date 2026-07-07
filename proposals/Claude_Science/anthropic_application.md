@@ -34,7 +34,7 @@ J. Xavier Prochaska
 University of California, Santa Cruz
 
 ### Position or title at organization *(required)*
-Professor of Astronomy and Astrophysics
+Professor of Astronomy and Astrophysics; Associate of Ocean Sciences
 
 ### Website of org / research group, Google Scholar, or GitHub *(required)*
 - IOPtics (project framework): https://ioptics.readthedocs.io/en/develop/
@@ -77,7 +77,7 @@ or confirm with aiscience@anthropic.com before submitting.
 ### Team description — expertise in science **and** AI/ML — **<300 words** *(required)*
 *(note: ~215 words; Frouin's title/AI-ML line still [TBD — user]. Keep total < 300.)*
 
-Our team pairs deep ocean-optics and radiative-transfer expertise with a
+Our team pairs ocean-optics and radiative-transfer expertise with a
 substantial track record applying machine learning to spectral inference.
 
 **J. Xavier Prochaska (PI)** — Professor of Astronomy & Astrophysics, UC Santa
@@ -133,12 +133,12 @@ from remote-sensing reflectance `Rrs(λ)` to IOPs is **fundamentally degenerate*
 states produce nearly identical spectra. The literature is unanimous that
 multispectral sensors support only ~3 independent parameters, and that even the
 new hyperspectral era (NASA PACE/OCI) does **not** break the degeneracy without
-external information. **Our question: can AI construct a retrieval that reliably
+external information. **Our question**: can AI construct a retrieval algorithm that reliably
 recovers more than four independent IOP parameters — full component separation
 with calibrated uncertainties — by systematically injecting the external
-information the physics demands?**
+information the physics demands?
 
-**Methodology.** The degeneracy's only cure is information beyond `Rrs` itself.
+**Methodology.** The degeneracy's only cure is likely information beyond `Rrs` itself.
 We supply exactly that — **priors from in-situ observations, environmental
 variables, and time-series history** — and use Claude to explore the vast space
 of candidate methods (Bayesian, deep-learning, or hybrid) that couple those priors
@@ -149,16 +149,17 @@ against established truth sets: the Loisel et al. (2023) synthetic hyperspectral
 database (L23) and in-situ archives (PANGAEA/Valente 2022; GLORIA/Lehmann 2023),
 with legacy multispectral (MODIS/SeaWiFS) as a secondary target.
 
-**Expected outcomes & deliverables.** (1) An open-source, AI-derived IOP-retrieval
-algorithm integrating environmental/in-situ priors; (2) a benchmark report vs.
-GIOP, GSM, QAA, and BING on L23 and in-situ truth, reporting independent-parameter
-count, component accuracy, and uncertainty calibration; (3) the stretch target —
-**>4 independent parameters from hyperspectral `Rrs`** — with an honest accounting
-of where the degeneracy still bites; (4) an operational-scale demonstration on
-PACE granules; (5) a methods paper.
+**Expected outcomes & deliverables.** 
+(1) An open-source, AI-derived IOP-retrieval algorithm integrating 
+environmental/in-situ priors that maximally reduces the degeneracy; 
+(2) the stretch target —
+**>4 independent parameters from hyperspectral `Rrs`** to resolve phytoplankton functional types— with an honest and quantified accounting
+of where the degeneracy still bites; 
+(4) an operational-scale demonstration on NASA's PACE granules; 
+(5) a methods paper.
 
 **Timeline (3 months, Sep 1 – Dec 1).** M1: stand up infrastructure and reproduce
-baselines (BING, GIOP/GSM/QAA) on L23 and in-situ. M2: Claude-driven exploration
+baselines (e.g. BING, GIOP) on simulated and in-situ data. M2: Claude-driven exploration
 of candidate methods and prior-integration schemes. M3: evaluation, uncertainty
 calibration, benchmarking, and an operational-scale demo on PACE data.
 
@@ -169,7 +170,7 @@ Claude is the **engine that designs the solution** — the novel algorithm we ha
 not been able to construct by hand — while the science (problem, physics, data,
 and judgment of what counts as a real retrieval) stays firmly ours.
 
-1. **Method design.** Claude (Opus-class) reasons over the radiative-transfer
+1. **Method design.** Claude (Fable-class) reasons over the radiative-transfer
    physics, the degeneracy structure, and the available priors to propose
    candidate retrieval architectures — Bayesian, deep-learning, or hybrid — and
    the ways to couple environmental/in-situ priors to the forward model.
@@ -184,20 +185,20 @@ and judgment of what counts as a real retrieval) stays firmly ours.
 5. **Literature & prior synthesis.** Claude distills the ocean-optics and
    bio-optical literature into structured priors and candidate parameterizations.
 
-This is an unusually deep, genuine use of Claude: one agent reasons about the
+This is an unusually deep, genuine use of Claude: a set of agents reason about the
 physics, writes the code, runs the experiment, judges the result, and iterates —
 compressing into weeks a methods search that has stalled the field for decades.
 
 ### How will Claude Science significantly accelerate or enhance your research vs. existing methods? — **200 words max** *(required)*
 *(note: ~170 words.)*
 
-The field has been stuck not for lack of effort but because the space of possible
+The field has been stuck not for lack of effort (there are ~100 published algorithms) but because the space of possible
 retrievals — method family × prior structure × parameterization × validation
-design — is enormous, and each candidate has historically taken a graduate
-student months to build and test by hand. That is precisely why decades of
+design — is enormous, and each candidate has historically taken researchers
+many months to build and test. That is precisely why decades of
 hand-designed semi-analytical algorithms (GIOP, GSM, QAA) have plateaued at ~3
 parameters. Claude changes the economics: a single agent can propose a candidate
-method, implement it, run it across the L23 and in-situ corpora, read the
+method, implement it, run it across the Rrs corpora, read the
 diagnostics, and refine — in hours rather than months, and across many more
 hypotheses than any human team could pursue. It also unifies tasks that would
 otherwise need separate specialists: physical reasoning, code, statistical
@@ -222,7 +223,7 @@ trustworthy uncertainties — would sharpen every downstream product: phytoplank
 biomass and physiology, primary-production estimates, carbon-export models, and
 water-quality and harmful-algal-bloom monitoring. Arriving at the dawn of NASA's
 hyperspectral PACE mission, it would let the community extract far more of PACE's
-information content than current algorithms can. More broadly, demonstrating that
+information content than current algorithms. More broadly, demonstrating that
 AI can break a famously ill-posed geophysical inversion by systematically
 marshalling external information establishes a reusable template for the many
 degenerate inverse problems across the Earth and physical sciences.
