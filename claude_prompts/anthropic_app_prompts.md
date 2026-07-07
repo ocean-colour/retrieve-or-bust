@@ -13,8 +13,7 @@ Second, this file will guide the generation of the application.
 See the following:
 
 - context_summary.md
-- The Anthropic websites on their open calls
-   - https://support.claude.com/en/articles/11199177-anthropic-s-ai-for-science-program
+- The Anthropic website on Claude Science application:
    - https://docs.google.com/forms/d/e/1FAIpQLSfwDGfVg2lHJ0cc0oF_ilEnjvr_r4_paYi7VLlr5cLNXASdvA/viewform
 
 ## Prompts
@@ -24,6 +23,225 @@ See the following:
 3. Perform the 3rd Task under "Invite letter"
 4. Perform the 4th Task under "Invite letter"
 5. Perform the 5th Task under "Invite letter"
+
+6. Perform the 1st Task under "Claude Science application"
+7. Perform the 2nd Task under "Claude Science application"
+8. Perform the 3rd Task under "Claude Science application"
+9. Perform the 4th Task under "Claude Science application"
+
+## Claude Science application
+
+### Tasks
+
+1. Read the context.  Examine the form for the Claude application, which you can find here: https://docs.google.com/forms/d/e/1FAIpQLSfwDGfVg2lHJ0cc0oF_ilEnjvr_r4_paYi7VLlr5cLNXASdvA/viewform.  We wish to write a proposal for it for this project.  Please begin with a conversation about the project and the application.  Put your questions in the Q&A section. Log your work.
+
+2. I have answered your questions in the Q&A section.  If you have more questions, add them to the Q&A.  Write nothing else yet.  Log your work.
+3. I have answered your questions in the Q&A section.  If you have more questions, add them to the Q&A.  Write nothing else yet.  Log your work.
+4. I have answered your questions in the Q&A section.  You may now proceed to write the proposal.  Put it in the `proposals/Claude_Science` folder as `anthropic_application.md`.  Log your work.
+
+### Q&A
+
+Questions from Claude before drafting the Claude Science application (answers
+welcome inline). Each has my recommended default in *(rec: …)*.
+
+**Form access — a blocker to flag first**
+
+0. **I could only read page 1 of the 3-page Google Form** (it's a JS-driven
+   multi-page form; WebFetch can't page through). Page 1 = email + "Which program
+   are you applying to?". The actual proposal prompts (pages 2–3) are hidden.
+   Can you **paste the pages 2–3 questions** (or a screenshot's text) so I draft
+   to the real fields? *(rec: yes — otherwise I'll draft to a standard structure
+   [project summary, approach, how Claude is used, impact, team, compute/credits]
+   and we remap to the exact fields when you have them.)*
+
+   >A. I put a PDF of pages 2 and 3 in the `proposals/Claude_Science` folder.
+
+**Strategic choices**
+
+1. **Which track — "Claude Science Cohort" or "Standard AI for Science program"?**
+   The form makes you pick. Standard = the $20k API credits (what we discussed).
+   The Cohort likely means deeper engagement/support (and probably more
+   selective). Do you know what the Cohort entails / is that the ambition?
+   *(rec: apply to the **Claude Science Cohort** if it offers hands-on support and
+   we're eligible — retrieve-or-bust is exactly the AI-central, high-risk/high-
+   reward project a cohort wants; fall back to Standard for just the credits.
+   Confirm which.)*
+   >A. Claude Science Cohort
+
+2. **Impact framing for a biology-leaning reviewer.** The form emphasizes
+   biology, life sciences, drug discovery, agriculture. Ours is earth/ocean
+   science — but the payoff is biological/climatic: phytoplankton, primary
+   production, and ocean carbon from PACE-era hyperspectral color. Do we lead the
+   impact case with that ecosystem/carbon-cycle angle? *(rec: yes — frame IOP
+   retrieval as the bottleneck to quantifying marine phytoplankton and the ocean
+   carbon cycle; that's the high-impact, life-science-adjacent hook.)*
+   >A. Yes, frame IOP retrieval as the bottleneck to quantifying marine phytoplankton and the ocean carbon cycle; that's the high-impact, life-science-adjacent hook.
+
+**Content & scope**
+
+3. **How specific about success in the proposal?** Unlike the invite letter
+   (kept vague), a proposal can be concrete. Do we state the internal bar —
+   **>4 independent parameters from hyperspectral data, full component separation
+   (a_ph, a_dg, bb_p), with calibrated uncertainties, validated against L23 /
+   in-situ truth, benchmarked vs. GIOP/GSM/QAA**? *(rec: yes — reviewers reward a
+   crisp, falsifiable target; present >4 params as the stretch goal with the
+   honest degeneracy context.)*
+   >A. Yes, present >4 params as the stretch goal with the honest degeneracy context.
+
+4. **How concretely do we describe Claude's role?** They weight "how much Claude
+   helps." I'd describe the agentic workflow we're actually using: Claude designs,
+   implements, and stress-tests candidate inversion methods; runs the
+   experiments; synthesizes literature; and iterates — with humans owning the
+   science and judging results (the "science is ours, solution is AI" line).
+   *(rec: yes — be concrete and honest; it's a genuine, unusually deep use of
+   Claude, which is a strength here.)*
+   >A. Claude is essential.  I think it is needed to develop a new and novel algorithm to solve the IOP inversion problem.  And one that intengrates environmental and in-situ data.
+
+5. **Method openness.** Per your earlier answer, method is open (Bayesian, deep
+   learning, or hybrid — Claude picks). State that as a deliberate,
+   hypothesis-generating stance, or name a most-likely direction? *(rec: state the
+   openness as a feature — we'll let Claude explore the space — but anchor it with
+   BING + learned priors as the concrete starting point.)*
+   >A. We will state the openness as a feature — we'll let Claude explore the space — but anchor it with BING + learned priors as the concrete starting point.  We should also emphasize that for this to be truly successful, it needs to be operational, i.e. applied to the many Tb per day of data that is collected with satellites.
+
+**Logistics**
+
+6. **Applicant identity on the form.** PI = you (jxp@ucsc.edu, UC Santa Cruz),
+   Robert Frouin (Scripps) as co-investigator? And do we request the full $20k /
+   6-month credits? *(rec: you as PI with the UCSC academic email, Frouin as
+   co-I; request the full credit allotment.)*
+   >A. I will be the PI.  Robert Frouin (Scripps) will be a co-investigator.  There will be others. We will request the full $20k.
+
+7. **Compute/credit use.** Any sense of scale to state (Claude API usage for
+   code-generation, agentic experiment loops, analysis, literature synthesis)?
+   *(rec: describe usage qualitatively — sustained agentic development + large-
+   scale evaluation runs — and request the standard allotment.)*
+   >A. I don't. Please help with that.
+
+8. **Responsible use / biosecurity.** Ours is benign earth/ocean science with no
+   plausible dual-use. I'll affirm that plainly if the form asks. *(rec: yes,
+   affirm; no concerns.)*
+   >A. Agreed.
+
+---
+
+**Follow-up questions from Claude (Task 2 — after reading the actual form, pages 2–3)**
+
+Having the real form changes two things and raises a few concrete choices. Same
+*(rec: …)* convention. (Word limits are now known and tight — see the log — so the
+draft will be lean.)
+
+**Two corrections to earlier assumptions**
+
+9. **Timeline is fixed: 3 months, Sep 1 – Dec 1** (not the 6 months we assumed).
+   The proposal must lay out a 3-month plan. OK to proceed on that? *(rec: yes —
+   I'll structure it as Month 1: infrastructure + reproduce baselines (BING,
+   GIOP/GSM/QAA) on L23/in-situ; Month 2: AI-driven exploration of candidate
+   methods + prior integration; Month 3: evaluation, uncertainty calibration, and
+   an operational-scale demo.)*
+   >A. yes
+
+10. **Credit amount is now up to $30,000** (Claude Science Cohort max), not $20k.
+    Your Q6 answer said "$20k." Request the **full $30k**? *(rec: yes — request
+    the $30k max, justified by sustained agentic development plus large-scale
+    evaluation runs; I'll write the justification.)*
+    >A. Let's go for $25k
+
+**New required fields the form forces**
+
+11. **Which claude.ai account gets the credits?** The form requires an account
+    **not** governed by an institutional enterprise/commercial agreement. The form
+    was opened under `xavier@ucolick.org`; is that the intended personal account,
+    or another? (jxp@ucsc.edu may be under a UC enterprise plan and thus
+    ineligible.) *(rec: use an individual claude.ai account with no enterprise
+    governance — confirm which email.)*
+    >A. It would be jxp@ucsc.edu for which I have a Teams account at the University of California, Santa Cruz.  Confirm that is ok.
+
+12. **Do we request Modal compute (up to $2,000)?** There's a Yes/No + amount
+    ($500/$1000/$2000/NA). Do you have your own HPC (UCSC/ocean cluster) for any
+    model training / large-scale evaluation, or should we take Modal's $2k?
+    *(rec: request **$2,000** Modal compute — a hedge for deep-learning training and
+    Tb-scale evaluation — unless you'd rather run on local compute, in which case
+    "No / Not applicable.")*
+    >A. No
+
+13. **Scientific field checkboxes** (select all that apply). *(rec: check **Earth
+    Science**, **Environmental Science**, and **Biology / Life Sciences** — the
+    last carries the phytoplankton/carbon impact framing into their priority lens;
+    add **Physics** too? your call.)*
+    >A. Check **Earth Science**, **Environmental Science**, and **Biology / Life Sciences**.  Add **Physics** too.
+
+14. **Website / Google Scholar / GitHub link** (required). Which do we give —
+    your Google Scholar, the `retrieve-or-bust` GitHub, the `ocean-colour` org,
+    and/or the IOPtics readthedocs? *(rec: your Google Scholar as primary, plus
+    the GitHub repo link; send me the exact URLs.)*
+    >A. See my partial application for the Holy-Grail project for this info. It is in `Projects/PypeIt/the-holy-grail`
+
+15. **Team members listed now.** You said "there will be others." For "key team
+    members who will use Claude Science," do we list just you (PI) + Robert
+    Frouin, or name recruited co-Is too? *(rec: list you + Frouin as confirmed and
+    note additional collaborators being recruited; give me any names/titles/
+    Scholar links you want included.)*
+    >A. I will list you (PI) + Robert Frouin as confirmed and note additional collaborators being recruited.  
+
+16. **"Where did you hear about this program?"** Do we mention the referral from
+    your close colleague at Anthropic (naming them), or keep it generic? *(rec:
+    mention the referral if your colleague is comfortable being named — a warm
+    intro helps; otherwise "Anthropic Claude Science announcement.")*
+    >A. In the release notes of the Anthropic Claude Science program.
+
+17. **Project title.** Formal title with "retrieve-or-bust" as a nickname, or lead
+    with the working name? *(rec: a formal, impact-forward title — e.g. "Breaking
+    the ocean-color inversion: AI-derived retrieval of phytoplankton and IOPs from
+    hyperspectral reflectance" — with retrieve-or-bust noted as the project
+    nickname.)*
+    >A. TBD
+
+---
+
+**Final questions from Claude (Task 3 — after reading the Holy-Grail application)**
+
+Your Holy-Grail AI-for-Science draft (`Projects/PypeIt/the-holy-grail/proposals/
+ai_for_science_application.md`) gave me your title, profile links, and AI/ML
+credentials to reuse. Three things still need you before I can draft cleanly.
+
+18. ⚠️ **Credits-account eligibility — likely a blocker.** You answered (Q11)
+    `jxp@ucsc.edu`, a **UCSC Teams account**. But the form states the credits
+    account **"cannot be governed by an enterprise or commercial agreement between
+    your institution and Anthropic"** — a Teams account is exactly such an
+    agreement, so `jxp@ucsc.edu` is **probably ineligible**. (Your Holy-Grail
+    draft left this same email flagged/unresolved.) I therefore can't "confirm it
+    is ok" — I think it is likely NOT. *(rec: use an **individual** claude.ai
+    account on a personal email (Free/Pro, not UC-governed) for the credits, or
+    email aiscience@anthropic.com to confirm whether a UCSC Teams seat qualifies.
+    Which account should we list?)*
+    >A. Let's proceed assuming that this is ok or that I'll use a different email, e.g. `xavier@ucolick.org`
+
+19. **Links to feature (required "website/Scholar/GitHub" field).** From
+    Holy-Grail I have: SciXplorer
+    (https://scixplorer.org/search?...q=prochaska%2C+j...) and
+    https://profxj.github.io/. For the *code* presence, retrieve-or-bust itself is
+    brand-new/sparse — do we point instead to **IOPtics**
+    (https://ioptics.readthedocs.io/en/develop/) and/or the **ocean-colour**
+    GitHub org? *(rec: SciXplorer + profxj.github.io as the researcher links, plus
+    the IOPtics readthedocs and ocean-colour GitHub as the code presence. Confirm/
+    correct the exact URLs.)*
+    >A. Yes, point at IOPtics and the ocean-colour GitHub org
+
+20. **Robert Frouin's details for the team description** (the field wants both
+    domain and AI/ML expertise). I have him as BING co-author / ocean-color &
+    atmospheric-correction authority at Scripps, but I need his **exact title** and
+    a **Scholar/profile link**, and whether he has AI/ML experience to cite.
+    *(rec: describe him as a leading ocean-color/atmospheric-correction scientist
+    (Scripps, UC San Diego) and BING co-author; give me his title + profile link.)*
+    >A. I will fill these in later.
+
+
+    Also: unless you object, I'll **reuse your Holy-Grail bio** for the team
+    field — Professor of Astronomy & Astrophysics (UCSC), PypeIt co-founder,
+    deep-learning practitioner since 2017 (SPIT / Parks+ 2018) — and the
+    "existing Anthropic customer since 2025" line, adapted to this project.
+    >A. yes, do that.
 
 ## Invite letter
 
@@ -410,3 +628,161 @@ Note: **Fable 5 became available today** — after five straight "unavailable"
 results (2026-06-30 → 07-01), this v2 draft was produced on **Fable 5** per JXP's
 standing "use Fable if allowed" request. I fixed one `&amp;` HTML artifact from
 the model output back to `&` before saving.
+
+### 2026-07-06 (Claude Science application — Task 1: read context, examined form, posed Q&A)
+
+Executed the 1st Task under the new "Claude Science application" section: read the
+context and examined the Google application form, then opened a conversation with
+nine questions (numbered 0–8) in that section's Q&A. No proposal drafted yet.
+
+Form findings (important limitation): the application is a **3-page JS-driven
+Google Form**, and WebFetch could only retrieve **page 1**. Page 1 = (a) email,
+(b) a required dropdown **"Which program are you applying to?" → "Claude Science
+Cohort" vs "Standard AI for Science program."** The substantive proposal prompts
+on pages 2–3 are not machine-readable via WebFetch. Flagged this as Q0 and asked
+JXP to paste pages 2–3; otherwise I'll draft to a standard proposal structure and
+remap.
+
+Also noted: the form's overview now emphasizes **biology / life sciences / drug
+discovery / genetic analysis / agriculture** (more life-science-leaning than the
+earlier program article, which listed environmental/earth science as priority).
+Implication captured in Q2: we should frame impact through the biological/climate
+payoff — phytoplankton, primary production, ocean carbon cycle via PACE — rather
+than pure optics, to land in the reviewers' priority lens.
+
+The Q&A questions target the real decisions: which program track (Cohort vs
+Standard), the biology-forward impact framing, how specific to be about success
+(the proposal *can* state the internal >4-params / component-separation bar,
+unlike the deliberately-vague invite letter), how concretely to describe Claude's
+agentic role, method openness, applicant identity (JXP as PI/UCSC, Frouin co-I),
+credit request, and the benign biosecurity posture.
+
+Context change also noted: the Anthropic AI-for-Science *support-article* URL was
+removed from this file's Context section; only the Google Form URL remains, and
+the program is now referenced as "Claude Science." No Fable use requested this
+task; ran on the default model.
+
+### 2026-07-06 (Claude Science application — Task 2: read the full form; added Q9–17)
+
+Read JXP's answers to Q0–8 and the PDF he supplied
+(`proposals/Claude_Science/Application Form … _page23.pdf`), which is the FULL
+form (8 rendered pages). Added follow-up questions Q9–17 to the Q&A. No proposal
+drafted (Task 2 = questions only).
+
+Decisions locked from Q0–8: **Claude Science Cohort** track; impact framed via
+phytoplankton / primary production / ocean carbon cycle (life-science-adjacent);
+state the **>4-parameter** stretch goal with honest degeneracy context; Claude
+described as essential to developing a novel inversion algorithm that integrates
+environmental + in-situ data; method open (Claude explores; BING + learned priors
+the anchor) with a strong **operational** emphasis (apply to the many Tb/day of
+satellite data); JXP = PI, Frouin = co-I, others to come; benign biosecurity.
+
+Two facts from the real form that OVERRIDE earlier assumptions (flagged as Q9/Q10):
+- **Duration is a fixed 3 months, Sep 1 – Dec 1** — not the 6 months previously
+  assumed. Proposal needs a 3-month plan.
+- **Max award is $30,000 in credits** (Cohort), not $20k. JXP's earlier "$20k"
+  (Q6) should be revised upward.
+Plus **Modal third-party compute up to $2,000** is offered (separate Yes/No +
+amount field).
+
+Full field inventory captured for drafting: primary-contact name / org / title;
+website-or-Scholar-or-GitHub (required); where-heard; **project title**;
+**scientific-field checkboxes** (Bio/Life, Chem, Med, Environmental, Physics,
+Earth, Other); **claude.ai credit-account email** (must NOT be under an
+institutional enterprise/commercial agreement — hence Q11 about which account);
+team description **<300 words** (domain + AI/ML credentials); key team members
+(name/title/role); Scholar links; **research proposal <500 words** (question,
+methodology, expected outcomes/deliverables, timeline); **how Claude is used
+<300 words**; **acceleration vs existing tools <200 words**; **scientific impact
+<200 words**; **applications beyond discovery / paths to scale <200 words** (the
+operational Tb/day angle fits here); **credits requested + justification** (≤$30k);
+compute Yes/No + amount; **biosecurity checkboxes** (we check "None of the
+above"); "anything else"; Terms-of-Service agree. NOTE the ToS line: Anthropic
+treats submissions as non-confidential — so the proposal must contain nothing
+confidential/proprietary.
+
+Q9–17 target the open choices: accept 3-month plan; request $30k; which
+non-enterprise claude.ai account for credits; whether to take $2k Modal compute
+(or use local HPC); which field checkboxes; which Scholar/GitHub URLs; whether to
+name additional team members now; whether to name the Anthropic referral; and the
+project title. Ran on the default model (no Fable requested this task).
+
+### 2026-07-06 (Claude Science application — Task 3: read Q9–17 answers + Holy-Grail app; added Q18–20)
+
+Read JXP's answers to Q9–17 and, per his Q14 pointer, his parallel **Holy-Grail
+AI-for-Science application** at `Projects/PypeIt/the-holy-grail/proposals/
+ai_for_science_application.md`. Added final questions Q18–20. No proposal drafted.
+
+Answers locked (Q9–17): 3-month plan OK; request **$25k** (not the $30k max, not
+the old $20k); credits account = jxp@ucsc.edu **[but see Q18 — likely
+ineligible]**; **no** Modal compute; field checkboxes = Earth Science +
+Environmental Science + Biology/Life Sciences + **Physics**; team = JXP (PI) +
+Frouin, others recruited; "where heard" = "release notes of the Anthropic Claude
+Science program"; project **title TBD** (I'll propose options at draft time).
+
+Reusable assets harvested from the Holy-Grail application:
+- **JXP identity/bio:** J. Xavier Prochaska, Professor of Astronomy & Astrophysics,
+  UC Santa Cruz; PypeIt co-founder; **deep-learning practitioner since 2017**
+  (SPIT / Jankov & Prochaska 2018; Parks, Prochaska et al. 2018) — reusable AI/ML
+  credentials for the team-description field.
+- **Profile links:** SciXplorer (prochaska, j) and https://profxj.github.io/.
+- **"Existing Anthropic customer (Team account since 2025)"** line — reusable.
+- The Holy-Grail form is a slightly different variant (asks Organization-ID UUID;
+  the Cohort form we're filling asks for a **claude.ai credit-account email**
+  instead — so no Org-ID needed here).
+
+⚠️ **Key issue raised (Q18):** the Cohort form says the credits account "cannot be
+governed by an enterprise or commercial agreement." JXP's `jxp@ucsc.edu` is a
+UCSC **Teams** account — precisely such an agreement — so it is **probably
+ineligible**. The Holy-Grail draft left the very same email unresolved. Flagged;
+recommended an individual (non-UC-governed) claude.ai account or a check with
+aiscience@anthropic.com. Q19 confirms which website/Scholar/GitHub links to
+feature (SciXplorer + profxj.github.io + IOPtics readthedocs + ocean-colour GitHub,
+since retrieve-or-bust itself is new). Q20 requests Robert Frouin's exact title +
+profile link (and any AI/ML experience) for the team field, and notes I'll reuse
+JXP's Holy-Grail bio unless told otherwise.
+
+Once Q18–20 are answered, the next task can draft the full application to the
+exact fields and word limits, mirroring the Holy-Grail file's field-by-field
+layout. Ran on the default model (no Fable requested this task).
+
+### 2026-07-07 (Claude Science application — Task 4: drafted the full proposal)
+
+Executed Task 4: read JXP's answers to Q18–20 and wrote the complete application
+to **`proposals/Claude_Science/anthropic_application.md`**, laid out field-by-field
+to the exact Claude Science Cohort form (with word-cap annotations), mirroring the
+Holy-Grail file's format.
+
+Q18–20 answers folded in: proceed with `jxp@ucsc.edu` (or `xavier@ucolick.org`) for
+credits, with the eligibility caveat kept visible in the draft; feature IOPtics
+readthedocs + the ocean-colour GitHub org for the code presence (plus SciXplorer /
+profxj.github.io); reuse JXP's Holy-Grail bio (Professor of Astronomy &
+Astrophysics, PypeIt co-founder, DL since 2017 — SPIT, Parks+ 2018) and the
+"Anthropic customer since 2025" line; Frouin's title/profile/AI-ML left as
+`[TBD — user]`.
+
+Every field written within its cap: team description ~215 words (<300), project
+description ~430 (<500), how-Claude-used ~225 (300), Claude-vs-existing ~170 (200),
+scientific impact ~155 (200), applications/scale ~175 (200). Scientific-field
+checkboxes = Earth + Environmental + Biology/Life + Physics; compute = No;
+biosecurity = None of the above; credits = **$25k** with a workload-mapped
+justification table (agentic loop dominant ~$16k, judge ~$4k, synthesis ~$3k,
+contingency ~$2k).
+
+Content choices honoring the Q&A: impact led with phytoplankton / primary
+production / ocean carbon cycle (biology-adjacent hook, Q2); the honest degeneracy
+framing with **>4 independent parameters from hyperspectral** as the stretch goal
+(Q3); Claude framed as the engine that *designs the solution* while the science
+stays human-led (Q4 + the "science is ours" line); method openness anchored on
+BING + learned priors (Q5); strong **operational** emphasis — apply to the
+terabytes/day of satellite data (Q5). Validation on L23 + PANGAEA/GLORIA via the
+IOPtics framework, benchmarked vs GIOP/GSM/QAA/BING; 3-month plan (M1 baselines,
+M2 AI-driven method search, M3 eval + operational demo).
+
+Left as flagged blockers in the draft's checklist for JXP: (1) pick the **project
+title** from the three options; (2) supply **Frouin's** title / profile / AI-ML
+line; (3) resolve **credits-account eligibility** (Teams account may not qualify);
+(4) confirm the **$25k**. Also noted the "terabytes/day" figure is order-of-
+magnitude (soften if desired) and reminded that Anthropic treats the submission as
+non-confidential. No proposal content is proprietary. Ran on the default model
+(no Fable requested this task).
