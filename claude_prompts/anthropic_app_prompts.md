@@ -29,6 +29,126 @@ See the following:
 8. Perform the 3rd Task under "Claude Science application"
 9. Perform the 4th Task under "Claude Science application"
 
+10. Perform the 1st Revision under "Revisions"
+11. Perform the 2nd Revision under "Revisions"
+
+## Revisions
+
+1. Read Henry's comments on the retrieve or bust proposal, in the file `proposals/Claude_Science/hh_comments.md`.  Suggest modifications to the proposal based on his comments.  Put those in the Q&A subsection below.  Log your work.
+
+2. Read my answers to your suggested Edits in the Q&A subsection below.  Please implement them.  Log your work.
+
+### Q&A
+
+Suggested modifications from Claude in response to Henry's (HH) three comments on
+`proposals/Claude_Science/anthropic_application.md`. Each has my recommendation
+*(rec: …)*; JXP: confirm/edit and I'll apply the accepted ones to the proposal.
+
+**HH-1. Spatial context in the prior list (Methodology).**
+Henry: spatial context is analogous to time-series history and could be useful;
+suggests "…priors from in-situ observations, environmental variables, and
+spatiotemporal context, e.g., time-series history."
+
+- **Suggested edit (adopt nearly verbatim).** In the **Project description →
+  Methodology** paragraph (proposal line ~142), change:
+  > "…**priors from in-situ observations, environmental variables, and time-series
+  > history**…"
+
+  to:
+  > "…**priors from in-situ observations, environmental variables, and
+  > spatiotemporal context (e.g., time-series history and spatial covariance)**…"
+
+- **Ripple edit for consistency.** The same "time-series" phrasing recurs in
+  **How Claude is used** and the impact fields implicitly; also update the invite-
+  letter thesis language if we want the two documents aligned (out of scope for
+  this proposal edit, flagged only).
+  *(rec: adopt — it's strictly a strengthening, costs ~3 words, and "spatial
+  covariance / neighboring-pixel context" is a real, defensible prior source for
+  PACE imagery.)*
+
+>A. Yes, let's do this.
+
+**HH-1b. "Invisible" / additional spectral domains (open question, optional).**
+Henry: the proposal is PACE-centric (VIS–NIR); would be interesting to state — if
+a spectral domain would add an *independent* IOP parameter, what spectral range
+addition would be required?
+
+- **Suggested edit (light touch, one clause).** This is genuinely interesting but
+  risks widening scope in a 3-month, 500-word proposal. Rather than commit to
+  non-PACE domains, add one sentence to **Project description → Expected outcomes**
+  or the **Methodology** close, e.g.:
+  > "A secondary analysis will ask *which* additional information most reduces the
+  > degeneracy — e.g., extended spectral coverage (UV/SWIR) versus external priors —
+  > quantifying the marginal independent parameter each would buy."
+
+  *(rec: include the short sentence — it directly answers Henry's question, signals
+  rigor, and frames added spectral range as a hypothesis we can test with L23
+  rather than a deliverable we must build. Hold the full "invisible domains" thread
+  for the science discussion, not the proposal.)*
+
+>A. Yes, let's do this.
+
+**HH-2. In-situ dataset choice drives the result (Truth sets / QC).**
+Henry: different in-situ datasets carry different scatter and can steer the
+analysis in different directions (cf. his CDOM-paper reviewer exchange, where L23
+degraded an algorithmic relationship, which he argued exposes non-physical OAC
+combinations in L23). Suggests either a QC sub-step on L23 or treating it as a
+prior-specification issue in BING.
+
+- **Suggested edit A (Methodology / truth-set sentence, proposal line ~147).**
+  Add an explicit QC + cross-dataset step. After the truth-set list, add:
+  > "Because different in-situ archives carry different scatter and can bias an
+  > inversion, we treat truth-set selection as a first-class variable: we QC L23
+  > for non-physical optically-active-constituent (OAC) combinations and validate
+  > that conclusions are stable *across* independent in-situ datasets rather than
+  > tuned to any one."
+
+- **Suggested edit B (Timeline, line ~161).** Fold the QC into M1 so it's costed:
+  change M1 to "…reproduce baselines **and QC/inter-compare the truth sets (L23 vs.
+  in-situ archives)** on simulated and in-situ data."
+  *(rec: adopt both — this is a real methodological risk Henry has already hit in
+  print; naming it as a step makes the proposal more credible, not less, and it
+  fits M1. Keep the wording dataset-neutral, i.e. we test robustness rather than
+  pre-judging L23.)*
+
+>A. Yes, let's do this.
+
+**HH-3. Don't let Claude be anchored by the prior literature (How Claude is used).**
+Henry: grounding Claude's analysis in the literature risks reproducing what the
+literature already tried; more compelling to anchor on the radiative-transfer
+equations, known OAC relationships, and spatiotemporal variability — and to
+instruct Claude to take "a path less trodden."
+
+- **Suggested edit A (reframe step 5, proposal line ~185).** Change the literature
+  bullet from "distills the literature into structured priors and candidate
+  parameterizations" to something physics-first with an explicit anti-anchoring
+  guardrail, e.g.:
+  > "5. **Physics-first exploration.** Claude reasons primarily from the
+  > radiative-transfer equations, known OAC relationships, and observed
+  > spatiotemporal variability. It uses the literature for *validation and to avoid
+  > known dead-ends* — explicitly instructed to seek approaches the field has not
+  > tried, not to reproduce published algorithms."
+
+- **Suggested edit B (one line in "How Claude is used" close or "Anything else").**
+  Make the guardrail a stated design principle:
+  > "A standing instruction in the agent's system prompt directs it toward the
+  > *path less trodden* — treating the ~100 published algorithms as a baseline to
+  > beat, not a template to imitate."
+  *(rec: adopt both — this sharpens our differentiator (novelty) and answers the
+  most strategic of Henry's comments. It also aligns with our existing
+  "informed-prior solution space… including approaches a human might dismiss
+  prematurely" language in the Claude-vs-existing field.)*
+
+>A. Yes, let's do this.
+
+**Cross-cutting note for JXP.** Edits HH-1, HH-2A/B, and HH-3A/B are all small and
+fit within the current word caps (Project description is ~430/500, so there's ~70
+words of headroom; How-Claude-used is ~225/300). HH-1b adds one sentence — confirm
+you want the extra-spectral-domain thread in the proposal at all. Once you mark
+which to accept, I'll apply them to `anthropic_application.md`.
+
+>A. Yes, let's do this.
+
 ## Claude Science application
 
 ### Tasks
@@ -786,3 +906,86 @@ line; (3) resolve **credits-account eligibility** (Teams account may not qualify
 magnitude (soften if desired) and reminded that Anthropic treats the submission as
 non-confidential. No proposal content is proprietary. Ran on the default model
 (no Fable requested this task).
+
+### 2026-07-11 (Revisions — Task 1: read Henry's comments; suggested proposal edits)
+
+Executed the 1st Task under "Revisions": read Henry's (HH) three comments in
+`proposals/Claude_Science/hh_comments.md`, re-read the drafted application
+(`proposals/Claude_Science/anthropic_application.md`), and put concrete,
+line-referenced suggested modifications in the Revisions **Q&A** subsection above.
+Did **not** yet edit the proposal itself — per the task, I only *suggested*
+modifications and left them for JXP to accept before applying.
+
+Henry's three comments and how I turned each into an actionable edit:
+- **HH-1 (spatial context):** he's right that spatial context is analogous to
+  time-series history. Suggested adopting his wording nearly verbatim in the
+  Methodology prior list — "spatiotemporal context (e.g., time-series history and
+  spatial covariance)." Strictly a strengthening; ~3 words; well within the
+  500-word cap (~430 used). Also flagged HH-1b (his open question about whether an
+  added spectral domain, e.g. UV/SWIR, would buy an independent IOP parameter): I
+  recommend one optional sentence framing added spectral range as a *testable
+  hypothesis* rather than a deliverable, to answer his question without widening
+  the 3-month scope.
+- **HH-2 (in-situ dataset choice steers the result):** this echoes his CDOM-paper
+  reviewer exchange, where L23 degraded an algorithmic relationship — evidence, he
+  argues, of non-physical OAC combinations in L23. Suggested two edits: (A) a
+  Methodology sentence making truth-set selection a first-class variable — QC L23
+  for non-physical OAC combos and require conclusions stable across independent
+  in-situ datasets; (B) folding that QC/inter-comparison into the M1 timeline so
+  it's costed. Kept the wording dataset-neutral (test robustness, don't pre-judge
+  L23). Recommended adopting both — it's a real risk he's already hit in print, so
+  naming it adds credibility.
+- **HH-3 (don't let Claude be anchored by the literature):** the most strategic
+  comment. Suggested reframing the "literature synthesis" step (proposal step 5)
+  into a **physics-first** step — Claude reasons primarily from radiative transfer,
+  known OAC relationships, and spatiotemporal variability, using the literature for
+  validation and dead-end-avoidance only — plus a stated system-prompt guardrail
+  directing the agent toward the "path less trodden" (treat the ~100 published
+  algorithms as a baseline to beat, not a template). This also aligns with the
+  proposal's existing "approaches a human might dismiss prematurely" language.
+
+Cross-cutting note left for JXP: all accepted edits fit within current word caps
+(Project description has ~70 words of headroom; How-Claude-used ~75). The only
+scope decision is HH-1b (whether to admit the extra-spectral-domain thread at all).
+Once JXP marks which suggestions to accept, the follow-up task will apply them to
+`anthropic_application.md`.
+
+Ran on **Fable 5** per JXP's standing "use Fable if allowed" request (model was
+set to `claude-fable-5[1m]` this session); Fable was available.
+
+### 2026-07-11 (Revisions — Task 2: implemented the accepted edits in the proposal)
+
+Executed the 2nd Task under "Revisions": read JXP's answers in the Q&A (all six
+suggestions answered "Yes, let's do this") and applied every one to
+`proposals/Claude_Science/anthropic_application.md`.
+
+Edits made:
+- **HH-1** (Methodology prior list): "time-series history" →
+  "spatiotemporal context (e.g., time-series history and spatial covariance)."
+- **HH-1b** (new secondary analysis): added outcome **(3)** — "a secondary
+  analysis of *which* added information most reduces the degeneracy — extended
+  spectral coverage (e.g. UV/SWIR) versus external priors — quantifying the
+  marginal independent parameter each would buy." (Filled the gap in the outcomes
+  numbering, which previously skipped 3.)
+- **HH-2A** (truth-set QC): added a sentence to Methodology making truth-set
+  selection a first-class variable — QC L23 for non-physical OAC combinations and
+  require conclusions to hold across independent in-situ datasets, not tuned to one.
+- **HH-2B** (timeline): M1 now also "QC/inter-compare the truth sets (L23 vs.
+  in-situ archives)."
+- **HH-3A** (step 5 reframed): "Literature & prior synthesis" → "**Physics-first
+  exploration**" — Claude reasons primarily from radiative transfer, OAC
+  relationships, and spatiotemporal variability, using the literature only for
+  validation / dead-end avoidance, explicitly instructed to seek untried
+  approaches.
+- **HH-3B** (guardrail): added a design-principle sentence to the "How Claude is
+  used" close — a standing system-prompt instruction toward the *path less
+  trodden*, treating the ~100 published algorithms as a baseline to beat, not a
+  template.
+
+Word-cap check after edits (both capped fields I touched still fit): **Project
+description ≈ 465 / 500**; **How Claude is used ≈ 275 / 300**. Updated the
+submission-checklist word-count table to the new counts. All outstanding PI
+blockers from Task 4 (project title, Frouin's details, credits-account
+eligibility, $25k confirm) are unchanged and still flagged in the draft.
+
+Ran on **Fable 5** per JXP's standing request; Fable was available.

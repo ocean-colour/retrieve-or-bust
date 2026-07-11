@@ -140,14 +140,19 @@ information the physics demands?
 
 **Methodology.** The degeneracy's only cure is likely information beyond `Rrs` itself.
 We supply exactly that — **priors from in-situ observations, environmental
-variables, and time-series history** — and use Claude to explore the vast space
+variables, and spatiotemporal context (e.g., time-series history and spatial
+covariance)** — and use Claude to explore the vast space
 of candidate methods (Bayesian, deep-learning, or hybrid) that couple those priors
 to the Gordon reflectance forward model. Our point of departure is **BING**
 (Bayesian inference on the Gordon model); we do not assume the final method
 resembles it. All development and evaluation run on the **IOPtics** framework
 against established truth sets: the Loisel et al. (2023) synthetic hyperspectral
 database (L23) and in-situ archives (PANGAEA/Valente 2022; GLORIA/Lehmann 2023),
-with legacy multispectral (MODIS/SeaWiFS) as a secondary target.
+with legacy multispectral (MODIS/SeaWiFS) as a secondary target. Because
+different in-situ archives carry different scatter and can bias an inversion, we
+treat truth-set selection as a first-class variable: we QC L23 for non-physical
+optically-active-constituent (OAC) combinations and require that conclusions hold
+*across* independent in-situ datasets rather than being tuned to any one.
 
 **Expected outcomes & deliverables.** 
 (1) An open-source, AI-derived IOP-retrieval algorithm integrating 
@@ -155,11 +160,15 @@ environmental/in-situ priors that maximally reduces the degeneracy;
 (2) the stretch target —
 **>4 independent parameters from hyperspectral `Rrs`** to resolve phytoplankton functional types— with an honest and quantified accounting
 of where the degeneracy still bites; 
+(3) a secondary analysis of *which* added information most reduces the degeneracy —
+extended spectral coverage (e.g. UV/SWIR) versus external priors — quantifying the
+marginal independent parameter each would buy;
 (4) an operational-scale demonstration on NASA's PACE granules; 
 (5) a methods paper.
 
 **Timeline (3 months, Sep 1 – Dec 1).** M1: stand up infrastructure and reproduce
-baselines (e.g. BING, GIOP) on simulated and in-situ data. M2: Claude-driven exploration
+baselines (e.g. BING, GIOP) and QC/inter-compare the truth sets (L23 vs. in-situ
+archives) on simulated and in-situ data. M2: Claude-driven exploration
 of candidate methods and prior-integration schemes. M3: evaluation, uncertainty
 calibration, benchmarking, and an operational-scale demo on PACE data.
 
@@ -182,12 +191,18 @@ and judgment of what counts as a real retrieval) stays firmly ours.
    the core research loop, run at high reasoning effort.
 4. **Evaluation & vetting (LLM-as-judge).** Claude scores retrieved IOP spectra for
    physical plausibility and flags degeneracy artifacts, pruning the search.
-5. **Literature & prior synthesis.** Claude distills the ocean-optics and
-   bio-optical literature into structured priors and candidate parameterizations.
+5. **Physics-first exploration.** Claude reasons primarily from the
+   radiative-transfer equations, known OAC relationships, and observed
+   spatiotemporal variability — using the literature for *validation and to avoid
+   known dead-ends*, and explicitly instructed to seek approaches the field has not
+   tried rather than reproduce published algorithms.
 
 This is an unusually deep, genuine use of Claude: a set of agents reason about the
 physics, writes the code, runs the experiment, judges the result, and iterates —
-compressing into weeks a methods search that has stalled the field for decades.
+compressing into weeks a methods search that has stalled the field for decades. A
+standing instruction in the agents' system prompt directs them toward the *path
+less trodden* — treating the ~100 published algorithms as a baseline to beat, not a
+template to imitate.
 
 ### How will Claude Science significantly accelerate or enhance your research vs. existing methods? — **200 words max** *(required)*
 *(note: ~170 words.)*
@@ -323,8 +338,8 @@ put credits to work on day one.
 | Field | Cap | Count |
 |---|---|---|
 | Team description | <300 | ~215 (Frouin AI/ML line still to add — keep < 300) |
-| Project description | <500 | ~430 |
-| How Claude is used | 300 | ~225 |
+| Project description | <500 | ~465 |
+| How Claude is used | 300 | ~275 |
 | Claude vs. existing methods | 200 | ~170 |
 | Scientific impact | 200 | ~155 |
 | Applications beyond / scale | 200 | ~175 |
