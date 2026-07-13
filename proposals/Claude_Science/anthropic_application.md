@@ -113,7 +113,7 @@ perspectives.
 ### Links to Google Scholar / professional profiles
 - Prochaska: https://scixplorer.org/search?p=1&q=prochaska%2C+j&sort=score+desc&sort=date+desc&d=general ; https://profxj.github.io/
 - Frouin: **[profile link — TBD, user]**
-
+- Houskeeper: https://scholar.google.com/citations?user=gFGL2hwAAAAJ&hl ; https://www.whoi.edu/profile/henry.houskeeper/
 ---
 
 ## Research proposal
