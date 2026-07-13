@@ -107,6 +107,7 @@ perspectives.
 - **Robert Frouin** — Co-I, **[title — TBD]** (Scripps / UC San Diego). Ocean-color
   and atmospheric-correction expertise; forward-model fidelity, prior
   specification, and in-situ validation.
+- **Heidi Dierssen** - Co-I, focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
 - **Additional collaborators** (ocean optics + astrophysics) being recruited.
 
 ### Links to Google Scholar / professional profiles
