@@ -96,6 +96,8 @@ at the core of this project. An existing Anthropic customer (Team account since
 Oceanography, UC San Diego. A leading authority on ocean color and atmospheric
 correction, and BING co-author. **[AI/ML experience — TBD, user.]**
 
+**Henry Houskeeper (Co-I)** — Assistant Scientist I, Woods Hole Oceanographic Institution. Co-developer of Kelpwatch.org, a global historical map of Earth's kelp forest ecosystems. Expertise in bio-optics of aquatic environments and aquatic radiometry, with over a decade of experience in ocean color algorithm development and validation.
+
 Additional co-investigators — spanning ocean optics, remote sensing, and
 astrophysics (where ill-posed inverse problems and Bayesian priors are native) —
 are being recruited to contribute ideas, critiques, datasets, and validation
@@ -108,6 +110,7 @@ perspectives.
   and atmospheric-correction expertise; forward-model fidelity, prior
   specification, and in-situ validation.
 - **Heidi Dierssen** - Co-I, focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
+- **Henry Houskeepera** — Co-I, Assistant Scientist I (WHOI). Ocean-color expertise, in-situ data analysis and validation to inform ocean color inversion priors.
 - **Additional collaborators** (ocean optics + astrophysics) being recruited.
 
 ### Links to Google Scholar / professional profiles
