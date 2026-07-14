@@ -80,6 +80,8 @@ or confirm with aiscience@anthropic.com before submitting.
 Our team pairs ocean-optics and radiative-transfer expertise with a
 substantial track record applying machine learning to spectral inference.
 
+THIS WILL BE UPDATED ONCE THE TEAM IS COMPLETE.
+
 **J. Xavier Prochaska (PI)** — Professor of Astronomy & Astrophysics, UC Santa
 Cruz. Co-author of **BING** (Bayesian INferences with Gordon coefficients;
 Prochaska & Frouin 2025), the open-source Bayesian framework for ocean-color IOP
@@ -92,9 +94,7 @@ al. 2018) — direct precedents for the spectral pattern-recognition and inferen
 at the core of this project. An existing Anthropic customer (Team account since
 2025), already running an agentic Claude workflow to build this project.
 
-**Robert Frouin (Co-I)** — **[title — TBD, user]**, Scripps Institution of
-Oceanography, UC San Diego. A leading authority on ocean color and atmospheric
-correction, and BING co-author. **[AI/ML experience — TBD, user.]**
+Robert Frouin (Co-I) is a Researcher at Scripps Institution of Oceanography, UC San Diego, and a leading authority on radiative transfer, satellite ocean color, atmospheric correction, and inverse problems involving light scattering. A co-author of BING, he has extensive experience developing Bayesian, neural-network, principal-component, and hybrid physics–machine-learning methods for retrieving ocean and atmospheric properties from satellite observations.
 
 Additional co-investigators — spanning ocean optics, remote sensing, and
 astrophysics (where ill-posed inverse problems and Bayesian priors are native) —
@@ -104,15 +104,15 @@ perspectives.
 ### Key team members using Claude Science (name, title, role) *(required)*
 - **J. Xavier Prochaska** — PI, Professor (UCSC). Leads algorithm design; runs
   the Claude agentic experimentation loop; owns evaluation and the science.
-- **Robert Frouin** — Co-I, **[title — TBD]** (Scripps / UC San Diego). Ocean-color
-  and atmospheric-correction expertise; forward-model fidelity, prior
-  specification, and in-situ validation.
-- **Heidi Dierssen** - Co-I, focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
+
+- **Robert Frouin** -- Co-I, Researcher, Scripps Institution of Oceanography, UC San Diego. Leads the ocean-optics and radiative-transfer components and ensures that candidate retrieval methods remain consistent with the underlying physics. He will guide specification of the forward model, IOP and optically active constituent parameterizations, environmental and observational priors, and physically defensible constraints. He will also direct evaluation against synthetic and in-situ datasets, assess retrieval identifiability and uncertainty calibration, and help distinguish genuine information gains from correlations learned from a particular training dataset. Drawing on his experience in Bayesian inversion, neural-network and PCA-based atmospheric correction, satellite algorithm development, and NASA ocean-color missions, he will guide the transition from methodological experiments to a robust demonstration using PACE OCI observations.
+- **Heidi Dierssen** - Co-I, **[title - TBD]** University of Connecticut.  Dr. Dierssen focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
 - **Additional collaborators** (ocean optics + astrophysics) being recruited.
 
 ### Links to Google Scholar / professional profiles
 - Prochaska: https://scixplorer.org/search?p=1&q=prochaska%2C+j&sort=score+desc&sort=date+desc&d=general ; https://profxj.github.io/
-- Frouin: **[profile link — TBD, user]**
+- Frouin: https://scholar.google.com/citations?user=ctIbRzEAAAAJ&hl=en ;
+https://rfrouin.scrippsprofiles.ucsd.edu/; 
 
 ---
 
