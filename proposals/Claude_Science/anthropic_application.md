@@ -68,11 +68,7 @@ ill-posed ocean-color inversion with AI-learned priors."
 ## Research team
 
 ### Email of the claude.ai account to receive credits *(required)*
-**[TBD — user]** `jxp@ucsc.edu` *(or `xavier@ucolick.org`)*.
-⚠️ **Eligibility check:** the form requires this account **not** be governed by an
-institutional enterprise/commercial agreement. `jxp@ucsc.edu` is a **UCSC Teams**
-account (such an agreement) and may be **ineligible** — use an individual account,
-or confirm with aiscience@anthropic.com before submitting.
+`jxp@ucsc.edu` 
 
 ### Team description — expertise in science **and** AI/ML — **<300 words** *(required)*
 *(note: ~215 words; Frouin's title/AI-ML line still [TBD — user]. Keep total < 300.)*
