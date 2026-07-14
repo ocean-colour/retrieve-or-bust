@@ -68,11 +68,7 @@ ill-posed ocean-color inversion with AI-learned priors."
 ## Research team
 
 ### Email of the claude.ai account to receive credits *(required)*
-**[TBD — user]** `jxp@ucsc.edu` *(or `xavier@ucolick.org`)*.
-⚠️ **Eligibility check:** the form requires this account **not** be governed by an
-institutional enterprise/commercial agreement. `jxp@ucsc.edu` is a **UCSC Teams**
-account (such an agreement) and may be **ineligible** — use an individual account,
-or confirm with aiscience@anthropic.com before submitting.
+`jxp@ucsc.edu` 
 
 ### Team description — expertise in science **and** AI/ML — **<300 words** *(required)*
 *(note: ~215 words; Frouin's title/AI-ML line still [TBD — user]. Keep total < 300.)*
@@ -94,7 +90,9 @@ al. 2018) — direct precedents for the spectral pattern-recognition and inferen
 at the core of this project. An existing Anthropic customer (Team account since
 2025), already running an agentic Claude workflow to build this project.
 
-Robert Frouin (Co-I) is a Researcher at Scripps Institution of Oceanography, UC San Diego, and a leading authority on radiative transfer, satellite ocean color, atmospheric correction, and inverse problems involving light scattering. A co-author of BING, he has extensive experience developing Bayesian, neural-network, principal-component, and hybrid physics–machine-learning methods for retrieving ocean and atmospheric properties from satellite observations.
+**Robert Frouin (Co-I)** is a Researcher at Scripps Institution of Oceanography, UC San Diego, and a leading authority on radiative transfer, satellite ocean color, atmospheric correction, and inverse problems involving light scattering. A co-author of BING, he has extensive experience developing Bayesian, neural-network, principal-component, and hybrid physics–machine-learning methods for retrieving ocean and atmospheric properties from satellite observations.
+
+**Henry Houskeeper (Co-I)** — Assistant Scientist I, Woods Hole Oceanographic Institution. Co-developer of Kelpwatch.org, a global historical map of Earth's kelp forest ecosystems. Expertise in bio-optics of aquatic environments and aquatic radiometry, with over a decade of experience in ocean color algorithm development and validation.
 
 Additional co-investigators — spanning ocean optics, remote sensing, and
 astrophysics (where ill-posed inverse problems and Bayesian priors are native) —
@@ -107,13 +105,15 @@ perspectives.
 
 - **Robert Frouin** -- Co-I, Researcher, Scripps Institution of Oceanography, UC San Diego. Leads the ocean-optics and radiative-transfer components and ensures that candidate retrieval methods remain consistent with the underlying physics. He will guide specification of the forward model, IOP and optically active constituent parameterizations, environmental and observational priors, and physically defensible constraints. He will also direct evaluation against synthetic and in-situ datasets, assess retrieval identifiability and uncertainty calibration, and help distinguish genuine information gains from correlations learned from a particular training dataset. Drawing on his experience in Bayesian inversion, neural-network and PCA-based atmospheric correction, satellite algorithm development, and NASA ocean-color missions, he will guide the transition from methodological experiments to a robust demonstration using PACE OCI observations.
 - **Heidi Dierssen** - Co-I, **[title - TBD]** University of Connecticut.  Dr. Dierssen focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
+- **Heidi Dierssen** - Co-I, focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
+- **Henry Houskeepera** — Co-I, Assistant Scientist I (WHOI). Ocean-color expertise, in-situ data analysis and validation to inform ocean color inversion priors.
 - **Additional collaborators** (ocean optics + astrophysics) being recruited.
 
 ### Links to Google Scholar / professional profiles
 - Prochaska: https://scixplorer.org/search?p=1&q=prochaska%2C+j&sort=score+desc&sort=date+desc&d=general ; https://profxj.github.io/
 - Frouin: https://scholar.google.com/citations?user=ctIbRzEAAAAJ&hl=en ;
 https://rfrouin.scrippsprofiles.ucsd.edu/; 
-
+- Houskeeper: https://scholar.google.com/citations?user=gFGL2hwAAAAJ&hl ; https://www.whoi.edu/profile/henry.houskeeper/
 ---
 
 ## Research proposal
