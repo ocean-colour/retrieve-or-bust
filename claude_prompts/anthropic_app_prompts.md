@@ -34,6 +34,7 @@ See the following:
 12. Perform the 3rd Revision under "Revisions"
 13. Perform the 4th Revision under "Revisions"
 14. Perform the 5th Revision under "Revisions"
+15. Perform the 6th Revision under "Revisions"
 
 ## Revisions
 
@@ -55,6 +56,8 @@ See the following:
     - Do all of the polishing you recommend in the TODO.md file
 
 5. I am seeing in the Application that several of their prompts have restrictions of "1-2 sentences, XXX words max".  Please check my reasoning. Our application currently does not satisfy the sentence limit.  Please review the application and make sure it satisfies the sentence limit.  Log your work.
+
+6. The Table for Resource requirements will not render well in the application.  Please convert it to text only without Table formatting.  Log your work.
 
 ### Q&A
 
@@ -1130,3 +1133,20 @@ counts, all ✅) and `TODO.md` (added a Revision-5 completed section + the same
 table). Installed **pypdf** into the ocean14 env to read the PDF (poppler/pdftoppm
 were absent, so the Read tool couldn't render pages). Ran on **Fable 5** per JXP's
 standing request; Fable was available.
+
+### 2026-07-15 (Revisions — Task 6: converted the credits table to plain text)
+
+Executed the 6th Task under "Revisions": the Markdown table in **Resource
+requirements** (the credit-request breakdown) would not render in the Google Form
+textarea — a pasted `| … |` table shows as literal pipes. Converted it to **flowing
+prose** (not a bulleted list, since form fields render no Markdown at all, so `-`
+and `**` would also appear literally).
+
+The four line items are now sentences: agentic experimentation loop ~$16k (dominant
+cost, the primary quality lever); LLM-as-judge vetting ~$4k (batchable/tierable);
+literature & prior synthesis + parameterization search ~$3k; contingency ~$2k —
+totaling the requested **$25k**, followed by the "how it leads to impact" close. No
+numbers or justifications changed; only the formatting. Confirmed the components
+still sum to $25,000.
+
+Ran on **Fable 5** per JXP's standing request; Fable was available.

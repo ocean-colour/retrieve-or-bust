@@ -272,22 +272,21 @@ success here is a blueprint well beyond ocean color.
 ### How much money in credits do you anticipate? + how it leads to impact *(required; max $30,000)*
 *(note: **$25,000** requested — per PI. Justification below.)*
 
-We request **$25,000** in API credits over the 3-month project, mapped to the
-Claude workloads above (Opus-class for reasoning/design; Batch API and model
-tiering where possible; prompt caching on the shared corpus context):
-
-| Workload | Est. credits | Notes |
-|---|---|---|
-| Agentic experimentation loop (design → implement → evaluate → refine) | ~$16k | Dominant cost. Long tool-use traces over the L23 + in-situ corpora across many refinement rounds at high reasoning effort; shared context is prompt-cached. The primary lever on quality — more rounds and deeper reasoning directly improve the retrieval. |
-| LLM-as-judge vetting of retrieved IOP spectra | ~$4k | High volume but batchable (50% off) and tierable to Sonnet/Haiku. |
-| Literature & prior synthesis, parameterization search | ~$3k | |
-| Contingency | ~$2k | |
-
-**How it leads to impact:** the credits directly fund the iteration that turns
-established truth sets into a working, informed-prior retrieval — every dollar
-buys experiment rounds and search depth against L23/in-situ benchmarks, which is
-exactly the depth a genuinely new inversion method requires to generalize across
-sensors and regions.
+We request $25,000 in API credits over the 3-month project, allocated across the
+Claude workloads described above (Opus-class for reasoning/design; Batch API and
+model tiering where possible; prompt caching on the shared corpus context). The
+dominant cost — roughly $16k — is the agentic experimentation loop (design,
+implement, evaluate, refine): long tool-use traces over the L23 and in-situ corpora
+across many refinement rounds at high reasoning effort, with shared context
+prompt-cached, and it is the primary lever on quality because more rounds and deeper
+reasoning directly improve the retrieval. About $4k covers LLM-as-judge vetting of
+retrieved IOP spectra (high volume, but batchable at 50 percent off and tierable to
+Sonnet/Haiku), about $3k covers literature and prior synthesis plus the
+parameterization search, and about $2k is contingency. The credits directly fund the
+iteration that turns established truth sets into a working, informed-prior retrieval:
+every dollar buys experiment rounds and search depth against the L23 and in-situ
+benchmarks, which is exactly the depth a genuinely new inversion method requires to
+generalize across sensors and regions.
 
 ### Does your project require compute? *(Modal, up to $2,000)*
 **No.**
