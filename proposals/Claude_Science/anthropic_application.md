@@ -71,46 +71,57 @@ ill-posed ocean-color inversion with AI-learned priors."
 `jxp@ucsc.edu` 
 
 ### Team description — expertise in science **and** AI/ML — **<300 words** *(required)*
-*(note: ~215 words; Frouin's title/AI-ML line still [TBD — user]. Keep total < 300.)*
+*(note: ~290 words — within the <300 cap.)*
 
-Our team pairs ocean-optics and radiative-transfer expertise with a
-substantial track record applying machine learning to spectral inference.
-
-THIS WILL BE UPDATED ONCE THE TEAM IS COMPLETE.
+Our team pairs ocean-optics and radiative-transfer expertise with a substantial
+track record applying machine learning to spectral inference.
 
 **J. Xavier Prochaska (PI)** — Professor of Astronomy & Astrophysics, UC Santa
 Cruz. Co-author of **BING** (Bayesian INferences with Gordon coefficients;
-Prochaska & Frouin 2025), the open-source Bayesian framework for ocean-color IOP
-retrieval that quantified the inversion's fundamental degeneracy. Decades of
-expertise in spectroscopy and statistical inference, and an **active
-deep-learning practitioner since 2017** — the SPectral Image Typer (SPIT; Jankov
-& Prochaska 2018), which classifies spectrograph frames at 98.7% accuracy, and
-deep learning to detect damped Lyα systems in quasar spectra (Parks, Prochaska et
-al. 2018) — direct precedents for the spectral pattern-recognition and inference
-at the core of this project. An existing Anthropic customer (Team account since
-2025), already running an agentic Claude workflow to build this project.
+Prochaska & Frouin 2025), the open-source Bayesian framework that quantified the
+IOP inversion's fundamental degeneracy. An active deep-learning practitioner since
+2017 — the SPectral Image Typer (SPIT; Jankov & Prochaska 2018) and deep learning
+to detect damped Lyα systems in quasar spectra (Parks, Prochaska et al. 2018),
+direct precedents for the spectral inference at this project's core. An existing
+Anthropic customer, already running an agentic Claude workflow to build the project.
 
-**Robert Frouin (Co-I)** is a Researcher at Scripps Institution of Oceanography, UC San Diego, and a leading authority on radiative transfer, satellite ocean color, atmospheric correction, and inverse problems involving light scattering. A co-author of BING, he has extensive experience developing Bayesian, neural-network, principal-component, and hybrid physics–machine-learning methods for retrieving ocean and atmospheric properties from satellite observations.
+**Robert Frouin (Co-I)** — Researcher, Scripps Institution of Oceanography, UC San
+Diego; BING co-author and a leading authority on radiative transfer, satellite
+ocean color, and atmospheric correction. Extensive experience with Bayesian,
+neural-network, principal-component, and hybrid physics–machine-learning methods
+for satellite retrieval.
 
-**Henry Houskeeper (Co-I)** — Assistant Scientist I, Woods Hole Oceanographic Institution. Co-developer of Kelpwatch.org, a global historical map of Earth's kelp forest ecosystems. Expertise in bio-optics of aquatic environments and aquatic radiometry, with over a decade of experience in ocean color algorithm development and validation.
+**Heidi Dierssen (Co-I)** — University of Connecticut; NASA PACE science-team
+leader and President-Elect of The Oceanography Society. Ocean-color remote sensing
+of ecological and air–sea processes; develops algorithmic methods to map
+phytoplankton community composition and benthic habitats.
 
-**Maria Kavanaugh Co-I**, Associate Professor, Oceanography, Oregon State University. Dr. Kavanaugh develops ecological approaches to hyperspectral ocean remote sensing that combine inherent optical properties, autonomous imaging, and ecosystem observations to understand marine biodiversity, phytoplankton community structure, and biogeochemical processes. She leads the Marine Biodiversity Observation Network (MBON) for the Northern California Current, integrating satellite ocean color, imaging, and field observations into mechanistic ecological indicators spanning regional observing systems. She also leads the NOAA-funded Plankton Pipelines program to operationalize machine learning for plankton imaging and serves as a NASA PACE Early Adopter, developing ecological applications for hyperspectral satellite observations.
+**Henry Houskeeper (Co-I)** — Assistant Scientist, Woods Hole Oceanographic
+Institution; co-developer of Kelpwatch.org. A decade of ocean-color algorithm
+development, validation, and aquatic radiometry.
 
+**Maria Kavanaugh (Co-I)** — Associate Professor, Oregon State University.
+Ecological hyperspectral remote sensing; leads the NOAA-funded Plankton Pipelines
+program operationalizing machine learning for plankton imaging, and the Northern
+California Current MBON.
 
-Additional co-investigators — spanning ocean optics, remote sensing, and
-astrophysics (where ill-posed inverse problems and Bayesian priors are native) —
-are being recruited to contribute ideas, critiques, datasets, and validation
-perspectives.
+Additional collaborators across ocean optics and astrophysics — where ill-posed
+inverse problems and Bayesian priors are native — are being recruited.
 
 ### Key team members using Claude Science (name, title, role) *(required)*
 - **J. Xavier Prochaska** — PI, Professor (UCSC). Leads algorithm design; runs
   the Claude agentic experimentation loop; owns evaluation and the science.
-
-- **Robert Frouin** -- Co-I, Researcher, Scripps Institution of Oceanography, UC San Diego. Leads the ocean-optics and radiative-transfer components and ensures that candidate retrieval methods remain consistent with the underlying physics. He will guide specification of the forward model, IOP and optically active constituent parameterizations, environmental and observational priors, and physically defensible constraints. He will also direct evaluation against synthetic and in-situ datasets, assess retrieval identifiability and uncertainty calibration, and help distinguish genuine information gains from correlations learned from a particular training dataset. Drawing on his experience in Bayesian inversion, neural-network and PCA-based atmospheric correction, satellite algorithm development, and NASA ocean-color missions, he will guide the transition from methodological experiments to a robust demonstration using PACE OCI observations.
-- **Heidi Dierssen** - Co-I, **[title - TBD]** University of Connecticut.  Dr. Dierssen focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
-- **Heidi Dierssen** - Co-I, focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
-- **Henry Houskeepera** — Co-I, Assistant Scientist I (WHOI). Ocean-color expertise, in-situ data analysis and validation to inform ocean color inversion priors.
-- **Maria Kavanaugh**, Co-I, Associate Professor, Oregon State University Dr. Kavanaugh will use Claude Science to explore information content and ecological representation in hyperspectral ocean observations, integrating inherent optical properties inversion developed with other PIs and imaging.
+- **Robert Frouin** — Co-I, Researcher (Scripps / UC San Diego). Leads the
+  ocean-optics and radiative-transfer components: forward-model and prior
+  specification, physically defensible constraints, and evaluation of retrieval
+  identifiability and uncertainty, through to the PACE OCI demonstration.
+- **Heidi Dierssen** — Co-I, University of Connecticut. Guides PACE-relevant
+  validation and the ecological application of the retrievals.
+- **Henry Houskeeper** — Co-I, Assistant Scientist (WHOI). In-situ data analysis
+  and validation to inform ocean-color inversion priors.
+- **Maria Kavanaugh** — Co-I, Associate Professor (Oregon State University).
+  Explores information content and ecological representation in hyperspectral
+  observations, integrating IOP retrievals with imaging.
 - **Additional collaborators** (ocean optics + astrophysics) being recruited.
 
 ### Links to Google Scholar / professional profiles
@@ -118,8 +129,8 @@ perspectives.
 - Frouin: https://scholar.google.com/citations?user=ctIbRzEAAAAJ&hl=en ;
 https://rfrouin.scrippsprofiles.ucsd.edu/; 
 - Houskeeper: https://scholar.google.com/citations?user=gFGL2hwAAAAJ&hl ; https://www.whoi.edu/profile/henry.houskeeper/
-- Kavanaugh: **TBD**
-- Dierssen: **TBD**
+- Kavanaugh: https://scholar.google.com/citations?user=4ZO4qAgAAAAJ&hl=en ; https://ceoas.oregonstate.edu/directory/maria-kavanaugh
+- Dierssen: https://scholar.google.com/citations?user=-F_IYY8iRusC ; https://marinesciences.uconn.edu/person/heidi-dierssen/
 ---
 
 ## Research proposal
@@ -186,7 +197,7 @@ Claude is the **engine that designs the solution** — the novel algorithm we ha
 not been able to construct by hand — while the science (problem, physics, data,
 and judgment of what counts as a real retrieval) stays firmly ours.
 
-1. **Method design.** Claude (Fable-class) reasons over the radiative-transfer
+1. **Method design.** Claude (Opus-class) reasons over the radiative-transfer
    physics, the degeneracy structure, and the available priors to propose
    candidate retrieval architectures — Bayesian, deep-learning, or hybrid — and
    the ways to couple environmental/in-situ priors to the forward model.
@@ -254,7 +265,8 @@ degenerate inverse problems across the Earth and physical sciences.
 *(note: ~175 words.)*
 
 **Operational by design.** A retrieval only matters if it runs at scale: PACE and
-its heritage sensors deliver **terabytes of ocean-color data per day**. Our target
+its heritage sensors deliver **on the order of terabytes of ocean-color data per
+day**. Our target
 is an algorithm efficient and robust enough to be applied operationally to that
 full stream — turning raw global color into calibrated maps of phytoplankton and
 IOPs. That underpins concrete societal benefits: monitoring fisheries habitat and
@@ -344,7 +356,7 @@ put credits to work on day one.
 
 | Field | Cap | Count |
 |---|---|---|
-| Team description | <300 | ~215 (Frouin AI/ML line still to add — keep < 300) |
+| Team description | <300 | ~271 ✅ |
 | Project description | <500 | ~465 |
 | How Claude is used | 300 | ~275 |
 | Claude vs. existing methods | 200 | ~170 |
@@ -361,11 +373,14 @@ put credits to work on day one.
       ineligible; use individual account or confirm with Anthropic)
 - [ ] Terms of Service: check **I agree** at submission
 
-**Outstanding PI input (blocks submission):**
-- [ ] **Project title** (Q17)
-- [ ] **Robert Frouin's** exact title, profile link, and any AI/ML experience (Q20)
-- [ ] **Credits-account eligibility** (Q18)
-- [ ] Confirm **$25k** request stands (Q10)
+**Outstanding PI input (blocks submission) — see `TODO.md` for the full list:**
+- [ ] **Project title** — PI to pick (three options staged in the draft)
+- [ ] **Credits-account eligibility** (`jxp@ucsc.edu` Teams account — PI handling)
+- [x] Team description trimmed to <300 words (~271)
+- [x] Team completed to 5 (Dierssen added; all titled Co-I)
+- [x] Kavanaugh & Dierssen profile links added
+- [x] ML expertise woven into the team bios
+- [x] $25k confirmed
 
 **Claims to spot-check before submitting:** degeneracy / `u = bb/(a+bb)` and the
 ~3-parameter multispectral limit (context_summary.md); L23 / PANGAEA / GLORIA

@@ -31,12 +31,27 @@ See the following:
 
 10. Perform the 1st Revision under "Revisions"
 11. Perform the 2nd Revision under "Revisions"
+12. Perform the 3rd Revision under "Revisions"
+13. Perform the 4th Revision under "Revisions"
 
 ## Revisions
 
 1. Read Henry's comments on the retrieve or bust proposal, in the file `proposals/Claude_Science/hh_comments.md`.  Suggest modifications to the proposal based on his comments.  Put those in the Q&A subsection below.  Log your work.
 
 2. Read my answers to your suggested Edits in the Q&A subsection below.  Please implement them.  Log your work.
+
+3. I have typed in the text for several of my co-Is.  Please review the proposal and make sure the text is correct and complete.  I expect it is not, so also generate a `TODO.md` file listing what needs to be done to complete the proposal.  Log your work.
+
+4. Ok, based on the TODO.md file, please:
+    - Trim the Team description to <300 words as per your recommendations
+    - The Team is 5 persons, including Heidi
+    - I will pick the title
+    - I will deal with the eligibility 
+    - Give Heidi the title of Co-I
+    - Find profile links for Kavanaugh and Dierssen
+    - Add ML expertise as you recommend
+    - Yes, $25k
+    - Do all of the polishing you recommend in the TODO.md file
 
 ### Q&A
 
@@ -989,3 +1004,91 @@ blockers from Task 4 (project title, Frouin's details, credits-account
 eligibility, $25k confirm) are unchanged and still flagged in the draft.
 
 Ran on **Fable 5** per JXP's standing request; Fable was available.
+
+### 2026-07-15 (Revisions — Task 3: reviewed PI-typed co-I text; fixed errors; wrote TODO.md)
+
+Executed the 3rd Task under "Revisions": reviewed `anthropic_application.md` after
+JXP typed in text for several co-Is (Frouin, Houskeeper, Kavanaugh, Dierssen),
+corrected the unambiguous errors directly, and generated
+`proposals/Claude_Science/TODO.md` listing what remains.
+
+**The most important finding — a hard blocker:** the **Team description field is
+now ~399 words against a hard <300-word cap** (four full bios + intro + recruiting
+paragraph). It must be cut by ~100 words before the form will accept it. I flagged
+this prominently (in the field note, the checklist, and TODO.md) rather than
+cutting collaborators' own bios unilaterally — offered to produce a trimmed
+<300-word version on request.
+
+**Second structural issue:** the roster is inconsistent between the two team
+fields. The Team description lists 4 people (Prochaska, Frouin, Houskeeper,
+Kavanaugh); **Heidi Dierssen appears only under Key team members**. Flagged for
+JXP to reconcile (add Dierssen to the Team description, within the cap).
+
+**Mechanical errors fixed directly (correctness pass):**
+- Removed a **duplicate Heidi Dierssen** entry under Key team members (she was
+  pasted twice, near-verbatim).
+- Fixed the **"Houskeepera"** typo → "Houskeeper".
+- Normalized Kavanaugh's heading to `**Maria Kavanaugh (Co-I)**` and fixed the
+  "Oregon State University Dr. Kavanaugh" run-on (missing period).
+- Changed Frouin's `--` to an em dash for consistency with the other entries.
+- Converted the PI's inline "THIS WILL BE UPDATED…" marker to strippable italic
+  scaffolding so it follows the file's strip-before-pasting convention.
+- Updated the stale word-count row (Team description) and the outstanding-input
+  checklist in the proposal; Frouin's title/link/AI-ML — previously a blocker —
+  is now supplied, so it was removed from the blocker list.
+
+**TODO.md** groups the remaining work by severity: 🔴 blockers (trim Team
+description; reconcile roster; project title; credits-account eligibility), 🟠
+missing content (Dierssen title; Kavanaugh & Dierssen profile links; AI/ML clause
+for the three domain-only bios; confirm $25k), and 🟡 polish (make Key-team-member
+entries parallel — Frouin's/Dierssen's read as bios vs. the others' role lines;
+strip scaffolding; consistent model naming "Fable-class" vs "Opus-class";
+terabytes/day figure; ToS checkbox). It also carries a full word-limit status
+table — every other capped field is within limit; only Team description is over.
+
+Note on model naming spotted during review: the draft says Claude "(Fable-class)"
+in *How Claude is used* but "Opus-class" in the credits table — flagged in TODO to
+make consistent. Ran this review on **Fable 5** per JXP's standing request; Fable
+was available.
+
+### 2026-07-15 (Revisions — Task 4: executed the TODO.md action list)
+
+Executed the 4th Task under "Revisions": worked through JXP's instructions against
+`TODO.md` and applied every change to `anthropic_application.md`. JXP owns two
+remaining blockers himself (project title; credits-account eligibility).
+
+What I did:
+- **Trimmed the Team description from ~399 → ~271 words** (now under the <300 cap),
+  and made it a **5-person** team by folding **Heidi Dierssen** in alongside
+  Prochaska, Frouin, Houskeeper, and Kavanaugh. Compressed each bio to 2–3
+  sentences focused on domain + AI/ML.
+- **AI/ML expertise woven into the bios** per the recommendation: Prochaska (DL
+  since 2017 — SPIT, Parks+ 2018), Frouin (Bayesian / neural-net / PCA / hybrid
+  physics–ML), Kavanaugh (NOAA "Plankton Pipelines" ML program), Dierssen
+  (algorithmic mapping methods). Left Houskeeper as domain/validation — did **not**
+  invent an ML credential for him; the intro line carries the ML framing honestly.
+- **Heidi Dierssen titled "Co-I"** per instruction — removed the `[title — TBD]`
+  placeholder in Key team members. (Flagged in TODO that her official UConn page
+  lists her as *Professor* if JXP wants the academic rank added; I omitted it to
+  follow the literal instruction.)
+- **Found and added profile links** (web search): Kavanaugh — Google Scholar
+  (`user=4ZO4qAgAAAAJ`) + OSU CEOAS directory; Dierssen — Google Scholar
+  (`user=-F_IYY8iRusC`) + UConn Marine Sciences page.
+- **$25k confirmed** (no change needed; note already reflected it).
+- **Polish (all TODO 🟡 items):** made the Key-team-member entries **parallel** —
+  trimmed Frouin's paragraph-length bio and Dierssen's bio down to role statements
+  matching the others (field dropped ~271 → ~135 words); **reconciled model
+  naming** to a consistent "Opus-class" (was "Fable-class" in the *How Claude is
+  used* step 1); **softened** the PACE figure to "on the order of terabytes … per
+  day." The strip-scaffolding and ToS items are inherently submission-time, so
+  they stay as paste-time reminders in the checklist.
+- **Updated both `TODO.md` and the proposal's submission checklist** to reflect
+  the new state: word-limit table now all-green; outstanding list reduced to the
+  two PI-owned blockers (title, eligibility) plus the two submission-time mechanics.
+
+Word-cap verification after edits (script-counted): Team description **271** / 300;
+Key team members **135** (no stated cap); all other capped fields unchanged and
+within limit.
+
+Ran on **Fable 5** per JXP's standing request; Fable was available. Two web
+searches were used to source the Kavanaugh and Dierssen profile links.
