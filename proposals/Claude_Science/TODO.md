@@ -27,6 +27,17 @@ Last reviewed: 2026-07-15 (Claude, Revision 4).
 
 ---
 
+## ✅ Completed in Revision 5 (2026-07-15)
+
+- **Enforced the form's "1-2 sentences" limit.** Verified against
+  `context/Application.pdf` that four fields carry a **"1-2 sentences, N words
+  max"** restriction — *How Claude is used* (300), *Claude vs. existing methods*
+  (200), *Scientific impact* (200), *Applications beyond / scale* (200). Each was
+  previously multi-paragraph/bulleted and violated the limit; all four are now
+  rewritten as exactly **2 sentences**, still within their word caps (217, 155,
+  148, 158). The Team description (<300 words), Key members, and Project
+  description (<500 words) have **no** sentence limit and were left as prose.
+
 ## ✅ Completed in Revision 4 (2026-07-15)
 
 - **Team description trimmed to <300 words** (now ~271), covering all **5**
@@ -56,15 +67,15 @@ Last reviewed: 2026-07-15 (Claude, Revision 4).
 
 ## Word-limit status (all fields)
 
-| Field | Cap | Current | Status |
-|---|---|---|---|
-| Team description | <300 | ~271 | ✅ |
-| Project description | <500 | ~465 | ✅ |
-| How Claude is used | 300 | ~275 | ✅ |
-| Claude vs. existing methods | 200 | ~170 | ✅ |
-| Scientific impact | 200 | ~155 | ✅ |
-| Applications beyond / scale | 200 | ~175 | ✅ |
-| Key team members | (no stated cap) | ~135 | ✅ |
+| Field | Cap | Words | Sentences | Status |
+|---|---|---|---|---|
+| Team description | <300 words | ~271 | — | ✅ |
+| Key team members | (none) | ~135 | — | ✅ |
+| Project description | <500 words | ~465 | — | ✅ |
+| How Claude is used | 1-2 sent, 300 words | 217 | 2 | ✅ |
+| Claude vs. existing methods | 1-2 sent, 200 words | 155 | 2 | ✅ |
+| Scientific impact | 1-2 sent, 200 words | 148 | 2 | ✅ |
+| Applications beyond / scale | 1-2 sent, 200 words | 158 | 2 | ✅ |
 
 **Note on Dierssen's title:** per PI instruction she is listed simply as **Co-I**
 (academic rank omitted). Her official UConn page lists her as **Professor**,

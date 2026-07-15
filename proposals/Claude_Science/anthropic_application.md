@@ -190,98 +190,80 @@ archives) on simulated and in-situ data. M2: Claude-driven exploration
 of candidate methods and prior-integration schemes. M3: evaluation, uncertainty
 calibration, benchmarking, and an operational-scale demo on PACE data.
 
-### How specifically will Claude's capabilities be used? — **300 words max** *(required)*
-*(note: ~225 words.)*
+### How specifically will Claude's capabilities be used? — **(1-2 sentences, 300 words max)** *(required)*
+*(note: 2 sentences, ~205 words — satisfies the 1-2-sentence limit.)*
 
-Claude is the **engine that designs the solution** — the novel algorithm we have
-not been able to construct by hand — while the science (problem, physics, data,
-and judgment of what counts as a real retrieval) stays firmly ours.
+Claude is the engine that designs the solution — the novel algorithm we have not
+been able to construct by hand, while the science (problem, physics, data, and
+judgment of what counts as a real retrieval) stays firmly ours: within the
+IOPtics/BING framework an Opus-class agent reasons over the radiative-transfer
+physics, the degeneracy structure, and the available priors to propose candidate
+retrieval architectures (Bayesian, deep-learning, or hybrid), writes and refactors
+the retrieval code and evaluation harness, runs a tool-use loop that executes those
+candidates over the L23 and in-situ corpora, reads the metrics (parameter count,
+component error, uncertainty calibration), diagnoses failures, and proposes the
+next iteration — with a separate LLM-as-judge pass scoring retrieved IOP spectra
+for physical plausibility and pruning the search. Reasoning primarily from the
+radiative-transfer equations, known optically-active-constituent relationships, and
+observed spatiotemporal variability — using the literature only for validation and
+dead-end avoidance, and explicitly instructed toward the *path less trodden* that
+treats the ~100 published algorithms as a baseline to beat rather than a template
+to imitate — this single agentic loop unifies physical reasoning, code, statistical
+inference, and result-vetting that would otherwise require several specialists and
+years, compressing into weeks a methods search that has stalled the field for
+decades.
 
-1. **Method design.** Claude (Opus-class) reasons over the radiative-transfer
-   physics, the degeneracy structure, and the available priors to propose
-   candidate retrieval architectures — Bayesian, deep-learning, or hybrid — and
-   the ways to couple environmental/in-situ priors to the forward model.
-2. **Implementation.** Claude writes and refactors the retrieval code, priors, and
-   evaluation harness within the IOPtics/BING framework.
-3. **Agentic experimentation.** A Claude tool-use loop runs candidate methods over
-   L23 and in-situ corpora, reads the metrics (parameter count, component error,
-   uncertainty calibration), diagnoses failures, and proposes the next iteration —
-   the core research loop, run at high reasoning effort.
-4. **Evaluation & vetting (LLM-as-judge).** Claude scores retrieved IOP spectra for
-   physical plausibility and flags degeneracy artifacts, pruning the search.
-5. **Physics-first exploration.** Claude reasons primarily from the
-   radiative-transfer equations, known OAC relationships, and observed
-   spatiotemporal variability — using the literature for *validation and to avoid
-   known dead-ends*, and explicitly instructed to seek approaches the field has not
-   tried rather than reproduce published algorithms.
+### How will Claude Science significantly accelerate or enhance your research vs. existing methods? — **(1-2 sentences, 200 words max)** *(required)*
+*(note: 2 sentences, ~150 words — satisfies the 1-2-sentence limit.)*
 
-This is an unusually deep, genuine use of Claude: a set of agents reason about the
-physics, writes the code, runs the experiment, judges the result, and iterates —
-compressing into weeks a methods search that has stalled the field for decades. A
-standing instruction in the agents' system prompt directs them toward the *path
-less trodden* — treating the ~100 published algorithms as a baseline to beat, not a
-template to imitate.
-
-### How will Claude Science significantly accelerate or enhance your research vs. existing methods? — **200 words max** *(required)*
-*(note: ~170 words.)*
-
-The field has been stuck not for lack of effort (there are ~100 published algorithms) but because the space of possible
-retrievals — method family × prior structure × parameterization × validation
-design — is enormous, and each candidate has historically taken researchers
-many months to build and test. That is precisely why decades of
-hand-designed semi-analytical algorithms (GIOP, GSM, QAA) have plateaued at ~3
-parameters. Claude changes the economics: a single agent can propose a candidate
-method, implement it, run it across the Rrs corpora, read the
-diagnostics, and refine — in hours rather than months, and across many more
-hypotheses than any human team could pursue. It also unifies tasks that would
-otherwise need separate specialists: physical reasoning, code, statistical
-inference, and result vetting. This lets us explore the informed-prior solution
-space broadly and honestly — including approaches a human might dismiss
-prematurely — and to converge on a method that generalizes, rather than one
-over-fit to a single sensor or region.
+The field has stalled not for lack of effort — there are ~100 published algorithms —
+but because the space of possible retrievals (method family × prior structure ×
+parameterization × validation design) is enormous and each hand-built candidate has
+historically taken researchers months to build and test, which is why decades of
+semi-analytical algorithms (GIOP, GSM, QAA) have plateaued at ~3 parameters. Claude
+changes the economics: a single agent proposes a candidate method, implements it,
+runs it across the Rrs corpora, reads the diagnostics, and refines in hours rather
+than months and across far more hypotheses than any human team could pursue —
+unifying physical reasoning, code, statistical inference, and result-vetting so we
+can explore the informed-prior solution space broadly and honestly, converging on a
+method that generalizes rather than one over-fit to a single sensor or region.
 
 ---
 
 ## Impact assessment
 
-### Potential scientific impact if successful — **200 words max** *(required)*
-*(note: ~155 words.)*
+### Potential scientific impact if successful — **(1-2 sentences, 200 words max)** *(required)*
+*(note: 2 sentences, ~140 words — satisfies the 1-2-sentence limit.)*
 
 Phytoplankton set the base of the marine food web and drive the ocean's biological
 carbon pump, yet our global knowledge of their abundance and composition rests
-entirely on ocean-color IOP retrievals whose component estimates remain uncertain
-by up to an order of magnitude. A retrieval that reliably separates phytoplankton
-absorption from dissolved/detrital material and particulate backscatter — with
-trustworthy uncertainties — would sharpen every downstream product: phytoplankton
+entirely on ocean-color IOP retrievals whose component estimates remain uncertain by
+up to an order of magnitude — so a retrieval that reliably separates phytoplankton
+absorption from dissolved/detrital material and particulate backscatter, with
+trustworthy uncertainties, would sharpen every downstream product: phytoplankton
 biomass and physiology, primary-production estimates, carbon-export models, and
 water-quality and harmful-algal-bloom monitoring. Arriving at the dawn of NASA's
-hyperspectral PACE mission, it would let the community extract far more of PACE's
-information content than current algorithms. More broadly, demonstrating that
-AI can break a famously ill-posed geophysical inversion by systematically
-marshalling external information establishes a reusable template for the many
-degenerate inverse problems across the Earth and physical sciences.
+hyperspectral PACE mission it would let the community extract far more of PACE's
+information content than current algorithms, and more broadly it would demonstrate
+that AI can break a famously ill-posed geophysical inversion by systematically
+marshalling external information — a reusable template for the many degenerate
+inverse problems across the Earth and physical sciences.
 
-### Applications beyond pure discovery / societal benefit / paths to scale — **200 words max** *(required)*
-*(note: ~175 words.)*
+### Applications beyond pure discovery / societal benefit / paths to scale — **(1-2 sentences, 200 words max)** *(required)*
+*(note: 2 sentences, ~140 words — satisfies the 1-2-sentence limit.)*
 
-**Operational by design.** A retrieval only matters if it runs at scale: PACE and
-its heritage sensors deliver **on the order of terabytes of ocean-color data per
-day**. Our target
-is an algorithm efficient and robust enough to be applied operationally to that
-full stream — turning raw global color into calibrated maps of phytoplankton and
-IOPs. That underpins concrete societal benefits: monitoring fisheries habitat and
-harmful algal blooms, tracking coastal water quality, and constraining the ocean
-carbon sink for climate assessment.
-
-**Open and reusable.** All code is open-source within the ocean-colour ecosystem
-(IOPtics, BING), and evaluation uses public truth sets (L23, PANGAEA, GLORIA), so
-results are independently verifiable and the tools reach the whole community, not
-one group.
-
-**The method generalizes.** "Break a degenerate inversion by injecting learned,
-physically grounded priors" is a template that recurs across remote sensing,
-geophysics, and laboratory spectroscopy — so a success here is a blueprint well
-beyond ocean color.
+A retrieval only matters if it runs at scale — PACE and its heritage sensors deliver
+on the order of terabytes of ocean-color data per day — so our target is an
+algorithm efficient and robust enough to be applied operationally to that full
+stream, turning raw global color into calibrated maps of phytoplankton and IOPs and
+underpinning concrete societal benefits: monitoring fisheries habitat and harmful
+algal blooms, tracking coastal water quality, and constraining the ocean carbon sink
+for climate assessment. All code is open-source within the ocean-colour ecosystem
+(IOPtics, BING) and evaluation uses public truth sets (L23, PANGAEA, GLORIA) so
+results are independently verifiable and the tools reach the whole community; and
+because "break a degenerate inversion by injecting learned, physically grounded
+priors" recurs across remote sensing, geophysics, and laboratory spectroscopy, a
+success here is a blueprint well beyond ocean color.
 
 ---
 
@@ -352,16 +334,20 @@ put credits to work on day one.
 **Step 0 — before pasting:** strip every italic `*(…)*` note and every
 `[TBD — user]` flag from the field prose.
 
-**Word limits — all within cap** (approx counts):
+**Word + sentence limits — all within cap.** Four fields on the form carry a
+**"1-2 sentences, N words max"** restriction (verified against `context/Application.pdf`);
+those are now written as exactly 2 sentences. Team description / Key members /
+Project description have a word cap only (no sentence limit).
 
-| Field | Cap | Count |
-|---|---|---|
-| Team description | <300 | ~271 ✅ |
-| Project description | <500 | ~465 |
-| How Claude is used | 300 | ~275 |
-| Claude vs. existing methods | 200 | ~170 |
-| Scientific impact | 200 | ~155 |
-| Applications beyond / scale | 200 | ~175 |
+| Field | Cap | Words | Sentences | Status |
+|---|---|---|---|---|
+| Team description | <300 words | ~271 | — | ✅ |
+| Key team members | (none) | ~135 | — | ✅ |
+| Project description | <500 words | ~465 | — | ✅ |
+| How Claude is used | 1-2 sent, 300 words | 217 | 2 | ✅ |
+| Claude vs. existing methods | 1-2 sent, 200 words | 155 | 2 | ✅ |
+| Scientific impact | 1-2 sent, 200 words | 148 | 2 | ✅ |
+| Applications beyond / scale | 1-2 sent, 200 words | 158 | 2 | ✅ |
 
 **Form mechanics:**
 - [x] Name / org / title / links / "where heard" — filled

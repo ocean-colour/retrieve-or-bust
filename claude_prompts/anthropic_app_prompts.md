@@ -33,6 +33,7 @@ See the following:
 11. Perform the 2nd Revision under "Revisions"
 12. Perform the 3rd Revision under "Revisions"
 13. Perform the 4th Revision under "Revisions"
+14. Perform the 5th Revision under "Revisions"
 
 ## Revisions
 
@@ -53,7 +54,7 @@ See the following:
     - Yes, $25k
     - Do all of the polishing you recommend in the TODO.md file
 
-5. I am seeing in the Application that several of their prompts have restrictions of "1-2 sentences, XXX words max".  Our application currwently does not satisfy the setence limit.  Please review the application and make sure it satisfies the sentence limit.  Log your work.
+5. I am seeing in the Application that several of their prompts have restrictions of "1-2 sentences, XXX words max".  Please check my reasoning. Our application currently does not satisfy the sentence limit.  Please review the application and make sure it satisfies the sentence limit.  Log your work.
 
 ### Q&A
 
@@ -1094,3 +1095,38 @@ within limit.
 
 Ran on **Fable 5** per JXP's standing request; Fable was available. Two web
 searches were used to source the Kavanaugh and Dierssen profile links.
+
+### 2026-07-15 (Revisions — Task 5: enforced the form's "1-2 sentences" limit)
+
+Executed the 5th Task under "Revisions": checked JXP's reasoning against the actual
+form and fixed the sentence-limit violations. JXP put a fresh copy of the form at
+`context/Application.pdf`; I extracted its text (pypdf via the ocean14 Python) and
+confirmed the field restrictions.
+
+**JXP's reasoning is correct.** Four fields carry a **"(1-2 sentences, N words
+max)"** restriction, and our drafts violated the sentence count:
+- *How specifically will Claude's capabilities be used* — 1-2 sentences, 300 words
+  (we had 5 numbered bullets + 2 paragraphs).
+- *How will Claude Science accelerate/enhance vs. existing methods* — 1-2 sentences,
+  200 words (we had a ~9-sentence paragraph).
+- *Potential scientific impact* — 1-2 sentences, 200 words (multi-sentence).
+- *Applications beyond pure discovery / paths to scale* — 1-2 sentences, 200 words
+  (three bolded mini-paragraphs).
+
+The form's phrasing is internally odd ("1-2 sentences" yet a 200–300-word cap), but
+JXP wants literal compliance, so I rewrote all four as **exactly 2 dense sentences**
+(colons/semicolons/em-dashes carry the substance) while staying well under each word
+cap: How-Claude-used 217/300; vs-existing 155/200; impact 148/200; applications
+158/200. Verified sentence counts with a script (accounting for the heading "?",
+"e.g.", "et al.", decimals, and `u = bb/(a+bb)`), then by hand — 2 sentences each.
+
+Fields with a **word-only** cap and no sentence limit were left as structured prose:
+Team description (<300), Key team members, Project description (<500). The fifth
+"1-2 sentence" field on the form — biosecurity safeguards — applies only if a
+biosecurity box is checked; we check "None of the above," so it stays blank.
+
+Updated the proposal's submission-checklist table (now shows both word and sentence
+counts, all ✅) and `TODO.md` (added a Revision-5 completed section + the same
+table). Installed **pypdf** into the ocean14 env to read the PDF (poppler/pdftoppm
+were absent, so the Read tool couldn't render pages). Ran on **Fable 5** per JXP's
+standing request; Fable was available.
