@@ -94,6 +94,9 @@ at the core of this project. An existing Anthropic customer (Team account since
 
 **Henry Houskeeper (Co-I)** — Assistant Scientist I, Woods Hole Oceanographic Institution. Co-developer of Kelpwatch.org, a global historical map of Earth's kelp forest ecosystems. Expertise in bio-optics of aquatic environments and aquatic radiometry, with over a decade of experience in ocean color algorithm development and validation.
 
+**Maria Kavanaugh Co-I**, Associate Professor, Oceanography, Oregon State University. Dr. Kavanaugh develops ecological approaches to hyperspectral ocean remote sensing that combine inherent optical properties, autonomous imaging, and ecosystem observations to understand marine biodiversity, phytoplankton community structure, and biogeochemical processes. She leads the Marine Biodiversity Observation Network (MBON) for the Northern California Current, integrating satellite ocean color, imaging, and field observations into mechanistic ecological indicators spanning regional observing systems. She also leads the NOAA-funded Plankton Pipelines program to operationalize machine learning for plankton imaging and serves as a NASA PACE Early Adopter, developing ecological applications for hyperspectral satellite observations.
+
+
 Additional co-investigators — spanning ocean optics, remote sensing, and
 astrophysics (where ill-posed inverse problems and Bayesian priors are native) —
 are being recruited to contribute ideas, critiques, datasets, and validation
@@ -107,6 +110,7 @@ perspectives.
 - **Heidi Dierssen** - Co-I, **[title - TBD]** University of Connecticut.  Dr. Dierssen focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
 - **Heidi Dierssen** - Co-I, focuses on the development and application of ocean color remote sensing to understand ecological processes, biogeochemical cycling, and air–sea interactions across the global ocean. She currently serves as President-Elect of The Oceanography Society and was the Science and Applications Team Leader for NASA’s Plankton, Aerosol, Cloud, ocean Ecosystem (PACE) mission, a flagship hyperspectral satellite mission designed to advance observations of ocean ecosystems. She also contributes her expertise to numerous international steering committees and working groups focused on aquatic hyperspectral remote sensing.
 - **Henry Houskeepera** — Co-I, Assistant Scientist I (WHOI). Ocean-color expertise, in-situ data analysis and validation to inform ocean color inversion priors.
+- **Maria Kavanaugh**, Co-I, Associate Professor, Oregon State University Dr. Kavanaugh will use Claude Science to explore information content and ecological representation in hyperspectral ocean observations, integrating inherent optical properties inversion developed with other PIs and imaging.
 - **Additional collaborators** (ocean optics + astrophysics) being recruited.
 
 ### Links to Google Scholar / professional profiles
@@ -114,6 +118,8 @@ perspectives.
 - Frouin: https://scholar.google.com/citations?user=ctIbRzEAAAAJ&hl=en ;
 https://rfrouin.scrippsprofiles.ucsd.edu/; 
 - Houskeeper: https://scholar.google.com/citations?user=gFGL2hwAAAAJ&hl ; https://www.whoi.edu/profile/henry.houskeeper/
+- Kavanaugh: **TBD**
+- Dierssen: **TBD**
 ---
 
 ## Research proposal
