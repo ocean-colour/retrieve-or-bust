@@ -53,6 +53,8 @@ See the following:
     - Yes, $25k
     - Do all of the polishing you recommend in the TODO.md file
 
+5. I am seeing in the Application that several of their prompts have restrictions of "1-2 sentences, XXX words max".  Our application currwently does not satisfy the setence limit.  Please review the application and make sure it satisfies the sentence limit.  Log your work.
+
 ### Q&A
 
 Suggested modifications from Claude in response to Henry's (HH) three comments on
