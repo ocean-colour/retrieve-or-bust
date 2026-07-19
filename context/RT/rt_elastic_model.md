@@ -49,7 +49,7 @@ it breaks, and how each successive scheme repairs it.
 (`bb_w`) and particulate (`bb_p`) sources, because those have different volume
 scattering functions. At fixed `u`, `rrs` still moves with `bb_p`.
 
-![rrs is not univocal in u](RT/fig_rrs_vs_u.png)
+![rrs is not univocal in u](fig_rrs_vs_u.png)
 
 *L23 elastic (3320 Hydrolight scenes). At each wavelength the standard Gordon curve
 (red) is a single line in `u`, but the simulations scatter around it and the
@@ -189,7 +189,7 @@ JXP's BING work fit the Gordon coefficients directly to the **L23 elastic** data
 The recipe ladder — recomputed here from L23 rather than quoted — shows what each
 term buys:
 
-![rRMS ladder](RT/fig_rrms_ladder.png)
+![rRMS ladder](fig_rrms_ladder.png)
 
 *Per-wavelength rRMS vs Hydrolight (`rrs`-space), recomputed from L23 elastic with
 unregularized per-λ fits. Standard Gordon degrades monotonically to ~9% at 700 nm.
@@ -202,7 +202,7 @@ ties everywhere (550 nm reaches 0.76% — from the BING logs).*
 
 The fitted enrichment terms have clear wavelength structure:
 
-![G0 and Gb vs wavelength](RT/fig_G_lambda.png)
+![G0 and Gb vs wavelength](fig_G_lambda.png)
 
 *`G0(λ)` changes sign near 510 nm — the one wavelength where neither a pure offset
 nor a pure `bb_p` slope is clean, and where trophic state (the water-vs-particle

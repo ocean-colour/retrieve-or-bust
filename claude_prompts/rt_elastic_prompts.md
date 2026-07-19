@@ -41,6 +41,8 @@ If you need to run Python use the `ocean14` conda environment.
 
 4. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Now proceed to write the report.  Be sure to include figures.  Generate them with Python and save the script(s) to the `context/RT/` folder. Use Fable if you can.  Log your work.  Note that I have put the L23 data on this laptop now in `$OS_COLOR_DATA/Loisel2023/`.
 
+5. I decided to move the report into the `context/RT/` folder.  Please update it so the figures render properly.  Use Fable if you can.  Log your work.
+
 ## Q&A
 
 ### Setup
@@ -372,3 +374,15 @@ independent corroboration of the BING result from the raw Hydrolight data.
 
 Next: await review of `context/rt_elastic_model.md` (and any request to add the O25
 bivariate curve to the ladder figure, per roadmap step 1).
+
+### 2026-07-19 (Report moved to context/RT/; fixed figure paths)
+
+Executed the 5th Setup prompt. JXP had already moved the report to
+`context/RT/rt_elastic_model.md` (co-located with the figures and the figure
+script). Updated the three image links from `](RT/fig_*.png)` to `](fig_*.png)` so
+they resolve now that the report sits in `context/RT/`. Verified all three links
+(`fig_rrs_vs_u.png`, `fig_rrms_ladder.png`, `fig_G_lambda.png`) point at the
+co-located PNGs. The remaining `RT/`-prefixed strings in the report are prose repo
+paths (Hansen PDF, BING CSVs, the figure script), not image links, and stay correct.
+No content changes. The figure script's `HERE`-based output path already writes into
+`context/RT/`, so re-running it stays consistent with the new location.
