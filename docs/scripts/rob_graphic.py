@@ -40,20 +40,28 @@ TEAL = "#3FA7A0"
 CYAN = "#7FD1E3"
 
 THEMES = {
+    # talk: light, large fonts, tightly packed to fill the 16:9 frame
     "talk": dict(
         out="rob_graphic_talk.png",
-        bg="#F6F8FB", ink="#0B2545", sub="#436",
+        bg="#F6F8FB", ink="#0B2545", sub="#3A5573",
         card="#FFFFFF", card_edge=GOLD, card_shadow="#00000018",
         line_a=DEEP, line_bb=OCEAN, faint="#9BB4C9", tight=OCEAN,
-        fs_title=40, fs_tag=20, fs_stage=23, fs_body=16, fs_small=14, fs_foot=15,
+        fs_title=48, fs_tag=22, fs_stage=27, fs_body=23, fs_small=19,
+        fs_cap=17, fs_chip=16, fs_foot=20,
+        title_y=0.910, sub_y=0.840, foot_y1=0.070, foot_y2=0.030, stage_dy=0.030,
+        yc=0.180, hc=0.560, yc2=0.140, hc2=0.600, ymid=0.470,
         dpi=150,
     ),
+    # readme: dark, smaller fonts (embedded in README)
     "readme": dict(
         out="rob_graphic_readme.png",
         bg="#0A1826", ink="#EAF2F8", sub="#9FC0D8",
         card="#11273D", card_edge=GOLD, card_shadow="#00000000",
         line_a=GOLD, line_bb=CYAN, faint="#43607A", tight=CYAN,
-        fs_title=30, fs_tag=15, fs_stage=17, fs_body=12, fs_small=11, fs_foot=12,
+        fs_title=30, fs_tag=15, fs_stage=17, fs_body=12, fs_small=11,
+        fs_cap=11, fs_chip=11, fs_foot=12,
+        title_y=0.930, sub_y=0.840, foot_y1=0.075, foot_y2=0.038, stage_dy=0.028,
+        yc=0.300, hc=0.440, yc2=0.265, hc2=0.500, ymid=0.500,
         dpi=140,
     ),
 }
@@ -128,26 +136,20 @@ def build(theme_name):
 
     wl = np.linspace(400, 700, 300)
 
-    # ---- title band ----
-    fig.text(0.045, 0.925, "RETRIEVE", color=th["ink"], fontsize=th["fs_title"],
+    # ---- title band ---- (clean single-weight title + a gold accent rule)
+    ty = th["title_y"]
+    fig.text(0.045, ty, "Retrieve or Bust", color=th["ink"], fontsize=th["fs_title"],
              fontweight="bold", ha="left", va="center")
-    fig.text(0.295, 0.925, "or", color=th["sub"], fontsize=th["fs_title"] * 0.7,
-             style="italic", ha="left", va="center")
-    fig.text(0.340, 0.925, "BUST", color=GOLD, fontsize=th["fs_title"],
-             fontweight="bold", ha="left", va="center")
-    # a small star accent (from the logo)
-    fig.text(0.470, 0.938, "★", color=GOLD, fontsize=th["fs_title"] * 0.62,
-             ha="left", va="center")
-    fig.text(0.045, 0.862,
-             "Cracking the ocean-color IOP inversion — priors + AI supply the "
-             "information reflectance alone cannot.",
+    fig.add_artist(Line2D([0.047, 0.305], [ty - 0.052, ty - 0.052],
+                          transform=fig.transFigure, color=GOLD, lw=4.5,
+                          solid_capstyle="round"))
+    fig.text(0.045, th["sub_y"],
+             "The ocean-color IOP inversion is degenerate — priors + AI break it.",
              color=th["sub"], fontsize=th["fs_tag"], ha="left", va="center")
 
-    yc = 0.30           # card bottom
-    hc = 0.44           # card height
-    yc2 = 0.265         # centerpiece card bottom (a touch taller)
-    hc2 = 0.50
-    ymid = 0.50         # arrow height / vertical mid of cards
+    yc = th["yc"]; hc = th["hc"]
+    yc2 = th["yc2"]; hc2 = th["hc2"]
+    ymid = th["ymid"]   # arrow height / vertical mid of cards
 
     # card x-geometry (stage 2 is the wide centerpiece); gaps left for arrows
     c1 = (0.040, 0.155)   # ends 0.195
@@ -189,8 +191,8 @@ def build(theme_name):
              fontsize=th["fs_body"], rotation=90, va="center", ha="center")
     fig.text(c1[0] + c1[1] / 2, yc + 0.052, "wavelength (nm)", color=th["sub"],
              fontsize=th["fs_small"], ha="center")
-    fig.text(c1[0] + c1[1] / 2, yc + 0.018, "hyperspectral reflectance",
-             color=th["ink"], fontsize=th["fs_small"], ha="center", style="italic")
+    fig.text(c1[0] + c1[1] / 2, yc + 0.018, r"hyperspectral $R_{rs}$",
+             color=th["ink"], fontsize=th["fs_cap"], ha="center", style="italic")
 
     # ------------------------------ (2) Break the degeneracy: fan -> collapse
     ax2 = inset(fig, c2[0] + 0.016, yc2 + 0.050, c2[1] - 0.032, hc2 - 0.105)
@@ -202,13 +204,11 @@ def build(theme_name):
         spread = (k / 14 - 0.5) * 2                       # -1 .. 1
         curve = 0.5 + spread * (0.05 + 0.45 * (xf - 0.02) / 0.17)
         ax2.plot(xf, np.clip(curve, 0.06, 0.94), color=th["faint"], lw=1.0, alpha=0.75)
-    ax2.text(0.105, 0.995, "many (a, b$_b$)\nmimic one $R_{rs}$", color=th["sub"],
-             fontsize=th["fs_small"], ha="center", va="top", linespacing=1.0)
+    ax2.text(0.0, 0.99, "many (a, b$_b$)\nmimic one $R_{rs}$", color=th["sub"],
+             fontsize=th["fs_cap"], ha="left", va="top", linespacing=1.0)
 
     # three prior inputs (labeled chips), fed into the funnel
-    cw, ch, cx0 = 0.275, 0.135, 0.215
-    ax2.text(cx0 + cw / 2, 0.985, "PRIORS", color=GOLD, fontsize=th["fs_small"],
-             fontweight="bold", ha="center", va="top")
+    cw, ch, cx0 = 0.340, 0.150, 0.185
     priors = ["in-situ", "environmental", "time-series"]
     py = [0.76, 0.50, 0.24]
     for name, yy in zip(priors, py):
@@ -218,31 +218,33 @@ def build(theme_name):
                       ec=CYAN, lw=1.3, zorder=3))
         ax2.text(cx0 + cw / 2, yy, name,
                  color="white" if theme_name == "talk" else CYAN,
-                 fontsize=th["fs_small"], ha="center", va="center", zorder=4)
-        ax2.annotate("", xy=(0.60, 0.5 + (yy - 0.5) * 0.28), xytext=(0.495, yy),
-                     arrowprops=dict(arrowstyle="-|>", color=CYAN, lw=1.6), zorder=2)
+                 fontsize=th["fs_chip"], ha="center", va="center", zorder=4)
+        ax2.annotate("", xy=(0.605, 0.5 + (yy - 0.5) * 0.24), xytext=(0.535, yy),
+                     arrowprops=dict(arrowstyle="-|>", color=CYAN, lw=1.8), zorder=2)
 
     # funnel (wedge) collapsing the fan, throat at the AI node
-    fun = plt.Polygon([[0.60, 0.06], [0.60, 0.94], [0.80, 0.60], [0.80, 0.40]],
+    fun = plt.Polygon([[0.605, 0.06], [0.605, 0.94], [0.78, 0.60], [0.78, 0.40]],
                       closed=True, fc=GOLD, ec="none", alpha=0.16, zorder=1)
     ax2.add_patch(fun)
-    ax2.plot([0.60, 0.80], [0.94, 0.60], color=GOLD, lw=2.0)
-    ax2.plot([0.60, 0.80], [0.06, 0.40], color=GOLD, lw=2.0)
+    ax2.plot([0.605, 0.78], [0.94, 0.60], color=GOLD, lw=2.0)
+    ax2.plot([0.605, 0.78], [0.06, 0.40], color=GOLD, lw=2.0)
 
     # AI node at the funnel throat (explicit, per GQ7)
-    ax2.add_patch(Circle((0.82, 0.50), 0.075, fc=GOLD, ec=th["ink"], lw=1.6, zorder=5))
-    ax2.text(0.82, 0.50, "AI", color=DEEP, fontsize=th["fs_body"],
+    ax2.add_patch(Circle((0.795, 0.50), 0.075, fc=GOLD, ec=th["ink"], lw=1.6, zorder=5))
+    ax2.text(0.795, 0.50, "AI", color=DEEP, fontsize=th["fs_body"],
              fontweight="bold", ha="center", va="center", zorder=6)
-    ax2.text(0.82, 0.40, "Claude", color=th["ink"], fontsize=th["fs_small"],
+    ax2.text(0.795, 0.405, "Claude", color=th["ink"], fontsize=th["fs_cap"],
              ha="center", va="top", zorder=6)
 
-    # collapsed, tight solution on the right
+    # collapsed, tight solution emerging on the far right
     xt = np.linspace(0.90, 1.0, 24)
-    for dz in (-0.02, 0.0, 0.02):
-        ax2.plot(xt, 0.62 + dz - 0.04 * (xt - 0.90) / 0.10,
-                 color=th["tight"], lw=2.2, alpha=0.95)
-    ax2.text(0.95, 0.44, "one\nsolution", color=th["tight"],
-             fontsize=th["fs_small"], ha="center", va="top", linespacing=1.0)
+    for dz in (-0.018, 0.0, 0.018):
+        ax2.plot(xt, 0.55 + dz - 0.02 * (xt - 0.90) / 0.10,
+                 color=th["tight"], lw=2.6, alpha=0.95)
+    # panel-2 bottom caption carries the "one solution" idea (keeps right side clear)
+    fig.text(c2[0] + c2[1] / 2, yc2 + 0.020,
+             "priors + AI  →  one solution", color=th["ink"],
+             fontsize=th["fs_cap"], ha="center", style="italic")
 
     # ---------------------------------------- (3) Retrieve: IOPs + errors ----
     ax3 = inset(fig, c3[0] + 0.024, yc + 0.075, c3[1] - 0.044, hc - 0.145)
@@ -263,7 +265,7 @@ def build(theme_name):
     fig.text(c3[0] + c3[1] / 2, yc + 0.052, "wavelength (nm)", color=th["sub"],
              fontsize=th["fs_small"], ha="center")
     fig.text(c3[0] + c3[1] / 2, yc + 0.018, "IOPs with uncertainty",
-             color=th["ink"], fontsize=th["fs_small"], ha="center", style="italic")
+             color=th["ink"], fontsize=th["fs_cap"], ha="center", style="italic")
 
     # -------------------------------------------- (4) Validate: 1:1 scatter --
     ax4 = inset(fig, c4[0] + 0.024, yc + 0.075, c4[1] - 0.044, hc - 0.145)
@@ -281,14 +283,14 @@ def build(theme_name):
     fig.text(c4[0] + c4[1] / 2, yc + 0.052, "in-situ truth", color=th["sub"],
              fontsize=th["fs_small"], ha="center")
     fig.text(c4[0] + c4[1] / 2, yc + 0.018, "validate vs truth",
-             color=th["ink"], fontsize=th["fs_small"], ha="center", style="italic")
+             color=th["ink"], fontsize=th["fs_cap"], ha="center", style="italic")
     fig.text(c4[0] + 0.012, yc + hc / 2 + 0.02, "retrieved", color=th["sub"],
              fontsize=th["fs_small"], rotation=90, va="center", ha="center")
 
     # ---- footer ----
-    fig.text(0.045, 0.075, TEAM, color=th["sub"], fontsize=th["fs_foot"],
+    fig.text(0.045, th["foot_y1"], TEAM, color=th["sub"], fontsize=th["fs_foot"],
              ha="left", va="center")
-    fig.text(0.045, 0.038,
+    fig.text(0.045, th["foot_y2"],
              "retrieve-or-bust  ·  Sea Meets the Stars  ·  hyperspectral · AI-accelerated",
              color=GOLD, fontsize=th["fs_foot"], ha="left", va="center", fontweight="bold")
 

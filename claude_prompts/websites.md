@@ -32,6 +32,16 @@ In addition, create a new graphic which summarizes the project.  Use your imagin
 
 3. I have answered the next round of Q&A.  Please read them and proceed to create the graphic.  Note the new name for the script is `rob_graphic.py`. Log your work.  Use Fable if you can
 
+4. Ok, the graphic for the README.md file looks very good.  But the one for the talk needs these edits:
+
+    - There is too much wasted white space
+    - Many of the fonts are too small
+    - the ends of "environmental" is cut off
+    - The "Claude" text overlaps "one solution" text
+    - The "Retrieve or bust" title is too strange and the * isn't needed
+
+Please improve that graphic.  Log your work.  Use Fable if you can
+
 ### Q&A
 
 Before building `docs/scripts/ioptics_graphic.py`, a few questions so the graphic
@@ -208,3 +218,35 @@ cards (1)/(2) overlapping and panel-2 chip text clipped — fixed the card x-geo
 chips, PRIORS label repositioned). Both renders verified visually.
 
 Next: await feedback / any refinements to `rob_graphic.py`.
+
+### 2026-07-22 (Reworked the talk render of rob_graphic.py per task-4 feedback)
+
+Executed the 4th GitHub Website task — five fixes to the **talk** graphic (the README
+render was fine). Refactored the script so packing (card geometry, title/subtitle/
+footer y's) and font sizes are **per-theme**, letting me repack/enlarge the talk
+render without disturbing the README one.
+
+1. **Wasted white space** — the talk theme now packs tighter: taller cards
+   (`hc` 0.44→0.56, centerpiece 0.50→0.60), lower card band (`yc` 0.30→0.18), title
+   up at 0.91, footer at 0.07. Cards now fill the 16:9 frame.
+2. **Fonts too small** — bumped the talk sizes (title 40→48, stage 23→27, body
+   16→23, small 14→19, footer 15→20); added dedicated `fs_cap` (17) for the italic
+   panel captions and `fs_chip` (16) for the prior chips.
+3. **"environmental" cut off** — widened the prior chips (0.275→0.340) and set them
+   in `fs_chip`; the full word now fits.
+4. **"Claude" overlapped "one solution"** — removed the inline "one solution" text;
+   the idea now lives in a panel-2 bottom caption "priors + AI → one solution", so
+   the AI node / Claude label and the tight-solution bundle no longer collide.
+5. **Title too strange, star not needed** — replaced the tri-colour "RETRIEVE *or*
+   BUST ★" with a clean single-weight "Retrieve or Bust" plus a short gold accent
+   rule beneath; dropped the star.
+
+Also shortened the subtitle to one line ("The ocean-color IOP inversion is
+degenerate — priors + AI break it."), removed the redundant "PRIORS" label (the
+three chips + the bottom caption already convey it), and left-cleared the
+"many (a,b_b) mimic one R_rs" note. Fixed one README regression introduced by the
+new title rule (it struck through the dark-theme subtitle) by lowering that
+subtitle. Both renders regenerated to `docs/figs/` and verified visually; the README
+embed points at `rob_graphic_readme.png` and updates in place.
+
+Next: await feedback / any further refinements.
