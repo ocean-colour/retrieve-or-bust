@@ -136,13 +136,10 @@ def build(theme_name):
 
     wl = np.linspace(400, 700, 300)
 
-    # ---- title band ---- (clean single-weight title + a gold accent rule)
+    # ---- title band ---- (clean single-weight title)
     ty = th["title_y"]
     fig.text(0.045, ty, "Retrieve or Bust", color=th["ink"], fontsize=th["fs_title"],
              fontweight="bold", ha="left", va="center")
-    fig.add_artist(Line2D([0.047, 0.305], [ty - 0.052, ty - 0.052],
-                          transform=fig.transFigure, color=GOLD, lw=4.5,
-                          solid_capstyle="round"))
     fig.text(0.045, th["sub_y"],
              "The ocean-color IOP inversion is degenerate — priors + AI break it.",
              color=th["sub"], fontsize=th["fs_tag"], ha="left", va="center")
@@ -182,7 +179,8 @@ def build(theme_name):
     for (chl, cdom, bbp0), col in zip(waters, cmap):
         rrs, _, _ = toy_rrs(wl, chl, cdom, bbp0)
         ax1.plot(wl, rrs, color=col, lw=2.4)
-    ax1.set_xlim(400, 700); ax1.set_ylim(bottom=0)
+    ax1.set_xlim(394, 706)                     # small margin so curves clear the axis
+    ax1.set_ylim(0, ax1.get_ylim()[1] * 1.12)
     ax1.annotate("", xy=(0.0, 1.02), xytext=(0.0, 0.0), xycoords="axes fraction",
                  arrowprops=dict(arrowstyle="-", color=th["ink"], lw=1.4))
     ax1.annotate("", xy=(1.02, 0.0), xytext=(0.0, 0.0), xycoords="axes fraction",
@@ -199,16 +197,16 @@ def build(theme_name):
     ax2.set_xlim(0, 1); ax2.set_ylim(0, 1)
 
     # left: a fan of many candidate IOP spectra (all consistent with one Rrs)
-    xf = np.linspace(0.02, 0.19, 40)
+    xf = np.linspace(0.02, 0.135, 40)
     for k in range(15):
         spread = (k / 14 - 0.5) * 2                       # -1 .. 1
-        curve = 0.5 + spread * (0.05 + 0.45 * (xf - 0.02) / 0.17)
+        curve = 0.5 + spread * (0.05 + 0.45 * (xf - 0.02) / 0.115)
         ax2.plot(xf, np.clip(curve, 0.06, 0.94), color=th["faint"], lw=1.0, alpha=0.75)
     ax2.text(0.0, 0.99, "many (a, b$_b$)\nmimic one $R_{rs}$", color=th["sub"],
              fontsize=th["fs_cap"], ha="left", va="top", linespacing=1.0)
 
     # three prior inputs (labeled chips), fed into the funnel
-    cw, ch, cx0 = 0.340, 0.150, 0.185
+    cw, ch, cx0 = 0.380, 0.150, 0.160
     priors = ["in-situ", "environmental", "time-series"]
     py = [0.76, 0.50, 0.24]
     for name, yy in zip(priors, py):
@@ -219,7 +217,7 @@ def build(theme_name):
         ax2.text(cx0 + cw / 2, yy, name,
                  color="white" if theme_name == "talk" else CYAN,
                  fontsize=th["fs_chip"], ha="center", va="center", zorder=4)
-        ax2.annotate("", xy=(0.605, 0.5 + (yy - 0.5) * 0.24), xytext=(0.535, yy),
+        ax2.annotate("", xy=(0.605, 0.5 + (yy - 0.5) * 0.24), xytext=(0.555, yy),
                      arrowprops=dict(arrowstyle="-|>", color=CYAN, lw=1.8), zorder=2)
 
     # funnel (wedge) collapsing the fan, throat at the AI node
@@ -249,19 +247,20 @@ def build(theme_name):
     # ---------------------------------------- (3) Retrieve: IOPs + errors ----
     ax3 = inset(fig, c3[0] + 0.024, yc + 0.075, c3[1] - 0.044, hc - 0.145)
     _, a, bb = toy_rrs(wl, 1.5, 0.08, 0.003)
-    a_n = a / a.max()
-    bb_n = bb / bb.max()
+    a_n = a / a.max() * 0.88          # peaks below 1 so the legend clears the curves
+    bb_n = bb / bb.max() * 0.88
     ax3.plot(wl, a_n, color=th["line_a"], lw=2.6, label=r"$a(\lambda)$")
     ax3.fill_between(wl, a_n * 0.9, a_n * 1.1, color=th["line_a"], alpha=0.12)
     ax3.plot(wl, bb_n, color=th["line_bb"], lw=2.6, label=r"$b_b(\lambda)$")
     ax3.fill_between(wl, bb_n * 0.85, bb_n * 1.15, color=th["line_bb"], alpha=0.12)
-    ax3.set_xlim(400, 700); ax3.set_ylim(0, 1.15)
+    ax3.set_xlim(394, 706); ax3.set_ylim(0, 1.10)
     ax3.annotate("", xy=(0.0, 1.02), xytext=(0.0, 0.0), xycoords="axes fraction",
                  arrowprops=dict(arrowstyle="-", color=th["ink"], lw=1.4))
     ax3.annotate("", xy=(1.02, 0.0), xytext=(0.0, 0.0), xycoords="axes fraction",
                  arrowprops=dict(arrowstyle="-", color=th["ink"], lw=1.4))
-    leg = ax3.legend(loc="upper right", fontsize=th["fs_small"], frameon=False,
-                     labelcolor=th["ink"], handlelength=1.2)
+    leg = ax3.legend(loc="upper center", fontsize=th["fs_small"], frameon=False,
+                     labelcolor=th["ink"], handlelength=1.2, ncol=2,
+                     columnspacing=1.2, bbox_to_anchor=(0.5, 1.02))
     fig.text(c3[0] + c3[1] / 2, yc + 0.052, "wavelength (nm)", color=th["sub"],
              fontsize=th["fs_small"], ha="center")
     fig.text(c3[0] + c3[1] / 2, yc + 0.018, "IOPs with uncertainty",
@@ -270,12 +269,12 @@ def build(theme_name):
     # -------------------------------------------- (4) Validate: 1:1 scatter --
     ax4 = inset(fig, c4[0] + 0.024, yc + 0.075, c4[1] - 0.044, hc - 0.145)
     rng = np.random.default_rng(11)
-    tv = rng.uniform(0.08, 0.95, 40)
+    tv = rng.uniform(0.12, 0.92, 40)
     rv = tv + rng.normal(0, 0.05, tv.size)
-    ax4.plot([0, 1], [0, 1], color=GOLD, lw=2.0, ls="--")
+    ax4.plot([0.04, 0.98], [0.04, 0.98], color=GOLD, lw=2.0, ls="--")
     ax4.scatter(tv, rv, s=32, color=th["line_bb"], edgecolor=th["ink"],
                 linewidth=0.5, alpha=0.9, zorder=3)
-    ax4.set_xlim(0, 1); ax4.set_ylim(0, 1)
+    ax4.set_xlim(-0.06, 1.06); ax4.set_ylim(-0.06, 1.06)   # keep points off the axes
     ax4.annotate("", xy=(0.0, 1.02), xytext=(0.0, 0.0), xycoords="axes fraction",
                  arrowprops=dict(arrowstyle="-", color=th["ink"], lw=1.4))
     ax4.annotate("", xy=(1.02, 0.0), xytext=(0.0, 0.0), xycoords="axes fraction",
@@ -289,7 +288,7 @@ def build(theme_name):
 
     # ---- footer ----
     fig.text(0.045, th["foot_y1"], TEAM, color=th["sub"], fontsize=th["fs_foot"],
-             ha="left", va="center")
+             ha="left", va="center", fontweight="bold")
     fig.text(0.045, th["foot_y2"],
              "retrieve-or-bust  ·  Sea Meets the Stars  ·  hyperspectral · AI-accelerated",
              color=GOLD, fontsize=th["fs_foot"], ha="left", va="center", fontweight="bold")

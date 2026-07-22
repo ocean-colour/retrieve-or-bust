@@ -42,6 +42,13 @@ In addition, create a new graphic which summarizes the project.  Use your imagin
 
 Please improve that graphic.  Log your work.  Use Fable if you can
 
+5. That's much better.  Now:
+
+    - Get rid of the line under the title
+    - Make all the names bold
+    - Make sure the text doesn't touch the axes of the figures in each panel
+    - "environmental" is still a little cut off; fix
+
 ### Q&A
 
 Before building `docs/scripts/ioptics_graphic.py`, a few questions so the graphic
