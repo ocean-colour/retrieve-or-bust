@@ -257,3 +257,25 @@ subtitle. Both renders regenerated to `docs/figs/` and verified visually; the RE
 embed points at `rob_graphic_readme.png` and updates in place.
 
 Next: await feedback / any further refinements.
+
+### 2026-07-22 (Task-5 polish to rob_graphic.py — both renders)
+
+Executed the 5th GitHub Website task; four edits, applied to both renders:
+
+1. **Removed the line under the title** — deleted the gold accent rule; the title is
+   now just the clean bold "Retrieve or Bust".
+2. **Bolded all the names** — the footer team line (`Bontemps · Dierssen · …`) is now
+   `fontweight="bold"`.
+3. **Text no longer touches the panel axes** — added data margins so nothing sits on
+   the axis lines: panel 1 `xlim(394,706)` + 12% top headroom; panel 3 curves scaled
+   to peak 0.88 with `xlim(394,706)`, and the legend moved to a horizontal two-column
+   block at top-center (was overlapping the rising `a(λ)` at upper-right); panel 4
+   `xlim/ylim(-0.06,1.06)` with the scatter drawn in [0.12,0.92] and the 1:1 line
+   inset, so points/line clear the axes.
+4. **"environmental" still clipped** — widened the prior chips again (0.34→0.38) and
+   shortened the fan so it stays left of the chips; the word now has clear margin.
+
+Both renders regenerated to `docs/figs/` and verified visually; the README embed
+updates in place. (The now-unused `Line2D` import is left in the script; harmless.)
+
+Next: await feedback.
