@@ -43,6 +43,24 @@ If you need to run Python use the `ocean14` conda environment.
 
 5. I decided to move the report into the `context/RT/` folder.  Please update it so the figures render properly.  Use Fable if you can.  Log your work.
 
+### Edits
+
+1. I've pasted in comments from Robert Frouin on the RT.  Please review them and revise the report accordingly.  Use Fable if you can.  Log your work.
+
+## Comments
+
+### Robert's
+
+Most analytical models other than ZTT (Twardowski and Tonizzo, 2018) do not treat the particle phase function, or parameters describing its shape, as explicit and independently adjustable inputs. Instead, phase-function effects are incorporated implicitly into coefficients or LUTs derived from RT simulations using prescribed phase functions. Consequently, the models cannot explicitly represent independent variability in particle phase-function shape. Because the phase function is a primary determinant of the angular distribution of water-leaving radiance, this limitation can introduce geometry-dependent forward-model errors and associated biases in retrieved IOPs.  ZTT largely addresses this limitation by introducing the backward VSF and related phase-function parameters explicitly into the analytical forward model.
+
+My recommendation would be to use a full radiative-transfer solver (most naturally HydroLight) as the reference forward model, with particle phase-function parameters explicitly varied. For computational retrieval, construct a fast differentiable emulator of that solver. You may use ZTT as the principal analytical benchmark and possibly as the physical backbone of a hybrid emulator. Retain O25 as a BRDF/retrieval comparison model, not as the final physical reference.
+
+A hybrid architecture would be particularly attractive:
+
+Rrs(model) = Rrs(ZTT) + deltaRrs(simulator)
+
+where ZTT supplies the physically interpretable backbone and a small emulator learns the remaining multiple-scattering and phase-function effects. This preserves physical scaling and geometry while avoiding the unrestricted behavior of a wholly black-box model.
+
 ## Q&A
 
 ### Setup
@@ -386,3 +404,47 @@ co-located PNGs. The remaining `RT/`-prefixed strings in the report are prose re
 paths (Hansen PDF, BING CSVs, the figure script), not image links, and stay correct.
 No content changes. The figure script's `HERE`-based output path already writes into
 `context/RT/`, so re-running it stays consistent with the new location.
+
+### 2026-07-31 (Revised context/RT/rt_elastic_model.md per Robert Frouin's RT comments)
+
+Executed the 1st Edits prompt: reviewed R. Frouin's pasted comments and revised the
+report. His two thrusts — (1) most analytical models bury the particle phase function
+in coefficients/LUTs from a *prescribed* phase function and so cannot represent
+independent phase-function-shape variability, causing geometry-dependent forward-model
+error and IOP bias, with **ZTT (Twardowski & Tonizzo 2018)** the exception; (2) target
+a **full-RT (HydroLight) reference** with phase-function parameters varied, a **fast
+differentiable emulator** for retrieval, **ZTT** as analytical benchmark/backbone, the
+**hybrid** `Rrs = Rrs(ZTT) + ΔRrs(emulator)`, and **O25 demoted to a comparison model**.
+
+**Changes made.**
+- Header: added an "Advisory input (R. Frouin)" note; broadened scope to
+  `Rrs(λ; a, bb, phase function, geometry)`; added ZTT + HydroLight to the arc.
+- §2: new paragraph making the **phase-function shape** the deeper axis behind
+  `rrs ≠ f(u)` — most models hide it; only ZTT exposes it; it drives geometry-dependent
+  bias. Framed as the single most important structural gap for our goal.
+- §3.4: retitled O25 from "the recommended evolution" to "the modern semi-analytical
+  **benchmark**"; noted its phase function is implicit (PB24 FF), so it is a
+  BRDF/retrieval *comparison*, not the physical reference.
+- §3.5 (new): **ZTT** — backward VSF / phase-function parameters explicit; analytical
+  benchmark and candidate physical backbone. Hansen renumbered to §3.6.
+- §5 table: added **ZTT** and **HydroLight (reference)** rows and a "Phase function"
+  column (prescribed/implicit vs explicit/adjustable); rewrote the through-line to end
+  on the phase-function axis.
+- §6: restructured into three roles — **physical reference = HydroLight** (PF varied);
+  **analytical benchmark/backbone = ZTT**; **comparison = PR05, O25/L11**; and the
+  retrieval operator as our-own-approach with the **hybrid (c) now advisor-recommended**
+  (`Rrs = Rrs(ZTT) + ΔRrs(emulator)`), keeping Q10=d's three options.
+- §7 roadmap: now 6 steps — reproduce on L23 (+ overlay O25 & ZTT) → retrieval-impact
+  MAPE → **build the HydroLight reference with the phase function varied** (PB24 in
+  parallel) → **stand up ZTT** benchmark → **differentiable emulator + hybrid**, O25/PR05
+  as comparisons → conventions. Geometry **and phase-function shape** are first-class.
+- §8: added Twardowski & Tonizzo (2018) and Mobley/HydroLight references.
+
+Note: reconciled with prior answers — Q7 already flagged "our own new approach" and
+Q10=d left it open, so Robert's steer *fills in* the concrete architecture (hybrid,
+ZTT backbone, HydroLight reference) and reframes O25 from "evolution to adopt" to
+"comparison model" without contradicting JXP. Did not read the ZTT PDF (not in the
+folder); represented it from Robert's description + the β(π)/bb physics already cited.
+
+Next: await review; if wanted, add a ZTT/O25 overlay to the L23 ladder figure
+(roadmap step 1) and/or source the ZTT paper to deepen §3.5.

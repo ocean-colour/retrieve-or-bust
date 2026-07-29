@@ -1,15 +1,23 @@
 # Elastic Radiative Transfer for Ocean-Color IOP Retrieval
 
-*A synthesis of the elastic forward model — Gordon → Park & Ruddick → Lee/Pitarch —
-alongside the BING wavelength-dependent Gordon deep-dive, with a starting roadmap
-for retrieve-or-bust.*
+*A synthesis of the elastic forward model — Gordon → Park & Ruddick → Lee/Pitarch,
+with ZTT and a full-RT (HydroLight) reference — alongside the BING wavelength-dependent
+Gordon deep-dive, and a starting roadmap for retrieve-or-bust.*
 
 Scope: **elastic** radiative transfer only — the map from inherent optical
-properties (IOPs) and Sun–sensor geometry to remote-sensing reflectance,
-`Rrs(λ; a, bb, geometry)`, with no inelastic processes (Raman scattering, CDOM or
-chlorophyll fluorescence). Inelastic terms are a later layer and are noted here
-only as a boundary. This document is a synthesis plus roadmap; it does not
-document the BING package wiring.
+properties (IOPs), the **particle phase-function shape**, and Sun–sensor geometry to
+remote-sensing reflectance, `Rrs(λ; a, bb, phase function, geometry)`, with no
+inelastic processes (Raman scattering, CDOM or chlorophyll fluorescence). Inelastic
+terms are a later layer and are noted here only as a boundary. This document is a
+synthesis plus roadmap; it does not document the BING package wiring.
+
+> **Advisory input (R. Frouin, incorporated 2026-07-31).** This revision elevates the
+> particle **phase function** as an explicit, independently-adjustable input (§2, §3.5),
+> adds **ZTT** (Twardowski & Tonizzo 2018) as the principal analytical benchmark, and
+> reframes the target architecture (§6–§7) around a **full-RT (HydroLight) reference
+> forward model with phase-function parameters varied**, a **fast differentiable
+> emulator** for retrieval, and a **hybrid** `Rrs = Rrs(ZTT) + ΔRrs(emulator)`. O25 is
+> retained as a BRDF/retrieval *comparison* model, not the final physical reference.
 
 ---
 
@@ -63,6 +71,22 @@ proportional to the backscatter VSF `β(π)/bb`, which is **0.23 sr⁻¹ for pur
 vs **0.12–0.16 sr⁻¹ for particles** (Zhang 2009; Twardowski & Tonizzo 2018). So for
 a given `u`, clearer (higher molecular-fraction) water yields a different `rrs` than
 turbid water — the relationship genuinely has (at least) two dimensions, not one.
+
+**The deeper axis is the particle phase-function *shape*, and most models hide it.**
+The water-vs-particle split is really a special case of a more general truth: the
+angular distribution of water-leaving radiance is set by the *volume scattering
+function*, and in the backward direction `β(π)/bb` is a property of the phase-function
+shape, not of `bb`. Nearly all analytical models (Gordon, PR05, O25) do **not** expose
+the phase function or shape parameters as explicit, independently-adjustable inputs;
+instead they bake phase-function effects into coefficients or LUTs derived from RT runs
+with a *prescribed* phase function (typically Fournier–Forand). Consequently they
+**cannot represent independent variability in phase-function shape**, and — because the
+phase function primarily governs the angular (bidirectional) distribution of `Rrs` —
+this omission introduces **geometry-dependent forward-model errors and associated
+biases in retrieved IOPs**. The exception is **ZTT** (§3.5), which introduces the
+backward VSF and related phase-function parameters explicitly into the analytical
+forward model. This is the single most important structural gap for a project whose
+goal is unbiased component IOPs across geometry.
 
 ---
 
@@ -137,7 +161,7 @@ still be a poor *inversion* engine for components. Forward-model rRMS is necessa
 but not sufficient; the retrieval-impact test is the one that matters (and is the
 one BING's own logs repeatedly flag as unclosed).
 
-### 3.4 Lee (2011) / Pitarch et al. (2025, "O25") — the recommended evolution
+### 3.4 Lee (2011) / Pitarch et al. (2025, "O25") — the modern semi-analytical benchmark
 
 The current state of the art in the elastic Gordon→QAA lineage replaces PR05's
 `γb`-indexed 4th-order polynomial with a **bivariate quadratic** that splits the
@@ -164,10 +188,27 @@ Fournier–Forand phase functions chosen over the older Petzold average.
 
 Because retrieve-or-bust already models `bb_w` (a known constant of pure water) and
 `bb_p` separately, **the O25 water/particle split is essentially free for us** — no
-`γb` iteration is required. This is the single strongest reason to treat O25/L11 as
-the evolution beyond PR05.
+`γb` iteration is required, which is why O25/L11 is the natural semi-analytical
+*benchmark* to beat. **But O25 is not a physical reference.** Its geometry-only
+coefficients are calibrated on PB24's *prescribed* Fournier–Forand phase functions, so
+phase-function-shape variability is implicit in the fit, not an adjustable input
+(§2) — exactly the limitation R. Frouin flags. We therefore keep O25/L11 as a
+**BRDF/retrieval comparison model**, not as the elastic project's physical reference.
 
-### 3.5 Hansen (1971) — background
+### 3.5 Twardowski & Tonizzo (2018, "ZTT") — the phase function made explicit
+
+ZTT is the outlier that addresses §2's structural gap: it introduces the **backward
+volume scattering function and related phase-function shape parameters explicitly**
+into the analytical forward model, rather than absorbing them into coefficients fit to
+a prescribed phase function. Backscatter is decomposed into its molecular and particle
+contributions with the particle backward VSF as an adjustable input, so ZTT can
+represent independent variability in phase-function shape and its bidirectional
+signature — the degree of freedom that Gordon, PR05, and O25 cannot expose. That makes
+ZTT the natural **analytical benchmark**, and a candidate **physical backbone** for a
+hybrid forward model (§6): it carries interpretable physical scaling and geometry,
+onto which a learned term can add the residual multiple-scattering effects.
+
+### 3.6 Hansen (1971) — background
 
 Hansen's planetary-atmosphere work is the multiple-scattering / **doubling-method**
 lineage that underpins how reflectance relates to single-scattering albedo in a
@@ -224,80 +265,108 @@ be relatively weighted, or `G2` runs away at red wavelengths.)
 
 ## 5. Synthesis: one picture
 
-| Scheme | Form | Extra structure beyond `u` | Geometry | Calibration | For component IOPs |
+| Scheme | Form | Extra structure beyond `u` | Phase function | Geometry | For component IOPs |
 |---|---|---|---|---|---|
-| Gordon 1988 | `l1·u + l2·u²` | none | in `Q`, fixed `l_i` | MC RT | crude; ±20% |
-| **PR05 (baseline)** | 4th-order in `ωb` | `γb = bbp/bb` (phase fn) | full LUT (θo,θv,Δφ) | Hydrolight + FF | needs `γb` iter; Tan: biased |
-| BING G0/Gb | `+G0(λ)`, `+Gb·bbp` | offset + `bb_p` slope | fixed | L23 elastic | best fwd rRMS; retrieval untested |
-| **L11 / O25** | bivariate `(ωbw, ωbp)` | water/particle split | geometry-only coeffs | PB24 (FF, multi-angle) | ranks above PR05; split is free for us |
+| Gordon 1988 | `l1·u + l2·u²` | none | prescribed (implicit) | in `Q`, fixed `l_i` | crude; ±20% |
+| **PR05 (baseline)** | 4th-order in `ωb` | `γb = bbp/bb` | prescribed FF (implicit) | full LUT (θo,θv,Δφ) | needs `γb` iter; Tan: biased |
+| BING G0/Gb | `+G0(λ)`, `+Gb·bbp` | offset + `bb_p` slope | prescribed (implicit) | fixed | best fwd rRMS; retrieval untested |
+| L11 / O25 (benchmark) | bivariate `(ωbw, ωbp)` | water/particle split | prescribed FF (implicit) | geometry-only coeffs | strong benchmark; split free for us |
+| **ZTT 2018** | analytic w/ backward VSF | **explicit phase-fn shape** | **explicit, adjustable** | analytic | interpretable backbone |
+| **HydroLight (reference)** | full RT solve | full (all orders) | **explicit input** | full | reference truth; slow → emulate |
 
 The through-line: **each advance re-introduces a dimension the constant
 single-variable Gordon form discarded** — first wavelength (BING), then the
-phase-function / water-vs-particle axis (PR05's `γb`, BING's `Gb`, O25's split),
-and geometry (PR05 LUT, O25's geometry-only coefficients).
+water-vs-particle axis (PR05's `γb`, BING's `Gb`, O25's split), then geometry (PR05
+LUT, O25's geometry-only coefficients) — but only **ZTT and a full RT solve** expose
+the **particle phase-function shape** itself as an explicit, adjustable input. That is
+the axis this project must control to deliver unbiased IOPs across geometry.
 
 ---
 
-## 6. Baseline decision and recommendation
+## 6. Recommendation: reference, benchmarks, and the forward-model architecture
 
-- **Baseline (as chosen):** PR05. It is a defensible, physically-grounded reference
-  and the right point of departure — it names the `γb` axis explicitly.
-- **Recommended evolution:** the **L11 / O25 bivariate `(ωbw, ωbp)`** form. It ranks
-  above PR05 in independent tests, needs no `γb` inversion, its coefficients are
-  clean functions of geometry only, and — decisively — its water/particle split
-  maps onto retrieve-or-bust's component model for free and is the same physics
-  BING found via `G0`/`Gb`.
-- **Our own approach — an open choice (three options, to be decided).** The RT
-  forward model for retrieve-or-bust is not committed. Three viable directions,
-  carried forward as options rather than a decision:
+The revised recommendation (incorporating R. Frouin's advisory input) separates three
+distinct roles that earlier drafts conflated — the *physical reference*, the
+*benchmarks*, and the *retrieval-time operator*.
+
+- **Physical reference forward model: a full RT solver (HydroLight),** run with the
+  particle **phase-function parameters explicitly varied** (not a single prescribed
+  Fournier–Forand). This is the ground truth against which every fast model is scored,
+  and the only way to sample the phase-function-shape axis of §2 honestly. It is too
+  slow for inversion, hence the emulator below.
+- **Analytical benchmark / candidate backbone: ZTT.** The one analytical model that
+  makes the backward VSF explicit; use it as the principal analytical benchmark and as
+  the physical backbone of the hybrid.
+- **Comparison models (not the reference): PR05 and L11/O25.** PR05 remains the named
+  literature baseline; O25/L11 is the modern semi-analytical benchmark and BRDF
+  comparison. Both bury the phase function in prescribed-PF coefficients, so neither is
+  the physical reference.
+
+- **Retrieval-time operator — our own approach (Q10 left this open; three options,
+  with (c) now the advisor-recommended concrete instantiation):**
 
   - **(a) Analytic / physically-structured.** Extend the BING-`G0/Gb` ↔ O25-split
-    family (more terms, better parameterization). *Pro:* interpretable, few
-    parameters, keeps the inversion analytic and differentiable in closed form.
-    *Con:* a polynomial ceiling — the `~2%` blue residual and the 510 nm behavior
-    suggest diminishing returns.
-  - **(b) Learned forward model.** A neural emulator of RT, `(IOPs, geometry) → Rrs`.
-    *Pro:* highest accuracy, naturally BRDF-aware, differentiable for gradient-based
-    or amortized inversion. *Con:* a black box; data-hungry; extrapolation risk
-    outside the training manifold.
-  - **(c) Hybrid.** An analytic backbone (O25-style water/particle split) plus a
-    learned residual or coefficient network. *Pro:* keeps the physics and
-    interpretability while learning what the polynomial misses; the residual is
-    small and smooth, so the network is light. *Con:* two moving parts to validate.
+    family. *Pro:* interpretable, closed-form differentiable. *Con:* a polynomial
+    ceiling (the ~2% blue residual, the 510 nm behavior), and no explicit phase
+    function.
+  - **(b) Learned forward model.** A neural emulator of the HydroLight reference,
+    `(IOPs, phase-function params, geometry) → Rrs`. *Pro:* highest accuracy,
+    BRDF-aware, differentiable for gradient-based / amortized inversion. *Con:* a black
+    box; data-hungry; extrapolation risk.
+  - **(c) Hybrid — recommended (R. Frouin).** A physically interpretable analytical
+    backbone plus a small learned residual emulator:
 
-  The choice interacts with the data plan (§7): (b)/(c) want the multi-angular PB24
-  set sooner; (a) can mature on L23 first.
+    ```
+    Rrs(model) = Rrs(ZTT) + ΔRrs(emulator)
+    ```
+
+    ZTT supplies physical scaling, geometry, and the explicit phase-function
+    dependence; the emulator learns only the remaining multiple-scattering and
+    phase-function effects. *Pro:* preserves physics/geometry and stays close to the
+    reference while avoiding the unrestricted behavior of a wholly black-box model; the
+    residual is small and smooth, so the network is light and its extrapolation is
+    bounded. *Con:* two components to fit and validate.
+
+  The choice interacts with the data plan (§7): all three want the HydroLight reference
+  with varied phase functions; (b)/(c) also want the multi-angular PB24 set for
+  cross-comparison; (a) can mature on L23 first.
 
 ---
 
 ## 7. Starting roadmap for retrieve-or-bust RT
 
-Ordered, with **variable geometry (BRDF) treated as first-class** and the truth-data
-plan **L23-first, PB24-second**.
+Ordered, with **variable geometry (BRDF) and phase-function shape treated as
+first-class**, and the truth-data plan **L23-first, then HydroLight/PB24**.
 
 1. **Reproduce the elastic baseline on L23 (fixed geometry).** Re-fit the Gordon
-   ladder (`standard → +G0 → +Gb → joint`) and the O25 bivariate `(ωbw, ωbp)` form
-   on L23 elastic; confirm the rRMS ladder above and add the O25 form to the same
-   plot. Deliverable: a single elastic forward operator with a documented rRMS
-   surface over (λ, water type). *(The figure script here is the seed.)*
+   ladder (`standard → +G0 → +Gb → joint`), the O25 bivariate `(ωbw, ωbp)` form, and a
+   ZTT run on L23 elastic; confirm the rRMS ladder above and overlay O25 and ZTT.
+   Deliverable: a first elastic forward operator with a documented rRMS surface over
+   (λ, water type). *(The figure script here is the seed.)*
 2. **Close the retrieval-impact gap (Tan's warning).** For each candidate operator,
    run the component inversion (`a_ph`, `a_dg`, `bb_p`) and report per-IOP MAPE, not
    just forward `Rrs` rRMS. This is the test PR05 fails in Tan (2018) and the one
-   BING never ran. It decides whether forward accuracy actually buys retrieval
-   accuracy.
-3. **Go multi-angular with PB24 (phase 2).** L23 is a single nominal geometry;
-   introduce PB24 (5000 IOPs × 1300 geometries, Fournier–Forand) to fit and test
-   **geometry-dependent** coefficients. Target O25's geometry-only-coefficient
-   design so BRDF is native, not bolted on. Cross-check against O25's published
-   coefficients and `github.com/jaipipor/O25`.
-4. **Decide the forward-model architecture (§6 a/b/c).** With (1)–(3) in hand,
-   choose analytic / learned / hybrid on the evidence: does a learned residual beat
-   the analytic ceiling by enough to justify the black-box cost, measured in
-   *retrieval* MAPE (step 2), across geometry?
-5. **Nail down conventions once.** `Rrs↔rrs` (`A=0.52, B=1.7`), the `bb_w`/`bb_p`
-   split, wavelength grid (PACE/OCI 340–895 vs L23 350–750), and the geometry
-   parameterization — one config, asserted at load, so results are comparable
-   across steps.
+   BING never ran — it decides whether forward accuracy buys *retrieval* accuracy.
+3. **Build the full-RT reference with the phase function varied.** Generate a
+   HydroLight (or open RT-solver) reference set that spans geometry **and** particle
+   phase-function shape as explicit inputs — the axis L23/PB24's prescribed
+   Fournier–Forand functions do not sample. This is the ground truth for steps 4–5 and
+   the honest test of the geometry-/phase-function-dependent bias R. Frouin flags.
+   Use **PB24** (5000 IOPs × 1300 geometries) as a ready-made multi-angular
+   cross-comparison in parallel.
+4. **Stand up ZTT as the analytical benchmark.** Implement ZTT with the backward VSF /
+   phase-function parameters exposed; score it against the HydroLight reference across
+   geometry and phase-function shape. This both benchmarks the analytical ceiling and
+   provides the backbone for step 5.
+5. **Build the differentiable emulator and the hybrid.** Train a fast, differentiable
+   emulator of the HydroLight reference, `(IOPs, phase-function params, geometry) →
+   Rrs`; then form the recommended hybrid `Rrs = Rrs(ZTT) + ΔRrs(emulator)` and compare
+   it against the pure-learned (b) and pure-analytic (a) options on *retrieval* MAPE
+   (step 2), across geometry. Keep O25/L11 and PR05 as comparison models throughout.
+6. **Nail down conventions once.** `Rrs↔rrs` (`A=0.52, B=1.7`), the `bb_w`/`bb_p`
+   split, the phase-function parameterization, wavelength grid (PACE/OCI 340–895 vs
+   L23 350–750), and the geometry grid — one config, asserted at load, so results are
+   comparable across steps.
 
 Out of scope here (elastic-only): Raman scattering and CDOM/chlorophyll
 fluorescence. They matter for real `Rrs` (Tan shows the 665–685 nm and NIR effects)
@@ -319,8 +388,12 @@ wins.
   bidirectional reflectance across water types (O25). *Remote Sens. Environ.* 329,
   114920. — builds on Lee et al. (2011, "L11") and PB24 (Pitarch & Brando 2025,
   *ESSD* 17, 435–460).
+- Twardowski, M., & Tonizzo, A. (2018). Ocean color analytical model explicitly
+  dependent on the volume scattering function (ZTT). *Appl. Sci.* 8(12), 2684.
 - Hansen, J. E. (1971). Multiple scattering of polarized light in planetary
   atmospheres (doubling method). *J. Atmos. Sci.* — background.
+- Mobley, C. D. (1994; and HydroLight technical documentation). *Light and Water:
+  Radiative Transfer in Natural Waters* — the full-RT reference solver.
 - Loisel, H., et al. (2023). A synthetic optical database (L23). *ESSD* 15,
   3711–3731.
 - BING Gordon deep-dive: `bing/prompts/gordon.md` logs; coefficient tables in
