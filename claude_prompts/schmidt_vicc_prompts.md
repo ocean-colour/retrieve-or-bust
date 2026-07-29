@@ -286,3 +286,42 @@ ranking of dominant uncertainties (inversion + conversion first; validation/CRM 
 atmospheric correction next tier). Gave my lean on each.
 
 Next: await BQ1–BQ6, then revise `reports/biomass_summary.md` accordingly.
+
+### 2026-07-31 (Revised biomass_summary.md per BQ answers; added 4 Python-generated figures)
+
+Executed the 4th EOI task. Applied JXP's BQ answers and rewrote
+`reports/biomass_summary.md`, adding figures from a new module `reports/py/biomass_figs.py`
+(PNGs in `reports/figs/`).
+
+**BQ answers applied.**
+- **BQ1 (ocean-only, note vs terrestrial):** new §1 orientation — ocean phytoplankton
+  ~0.78–1.0 Gt C vs terrestrial vegetation ~450–650 Gt C (~0.2%), yet ~half of global
+  NPP; small/fast pool. Fig. 2.
+- **BQ2 (map to VICC pitch):** kept, as a fenced §4 mapping.
+- **BQ3 (all four quantities + subsurface in scope):** Cphyto/POC/NPP/export all
+  covered; subsurface promoted from "boundary" to an **in-scope** section (§2.6) with
+  the BGC-Argo/lidar fusion path. Fig. 4.
+- **BQ4 (unbiased; don't trust literature error bars):** new §3 "A caution on the
+  uncertainty numbers themselves" — reported errors are in-sample, conversion-only, and
+  lack ground truth (no CRM for POC), so they are optimistic lower bounds; the honest
+  measure is cross-method disagreement. Fig. 3 recast as "factor of disagreement
+  (max÷min)" rather than accepting any single ±. No committed target number.
+- **BQ5 (add all suggested refs):** folded in Kostadinov (size-class carbon),
+  Bellacicco (NAP — its own §2.3), Stramski 2008 & 2022 (POC algorithms),
+  Martínez-Vicente 2013 (bbp→C 30,100 slope), DeVries/Siegel/Nowicki (export), Cael
+  (POC/export statistics), plus Bar-On 2018 & Field 1998 for the terrestrial context.
+- **BQ6 (I rank):** §4 gives my ranking — conversion non-universality > NAP separation
+  > ill-posed inversion > validation/CRM gap > subsurface > NPP-model/atm-correction.
+
+**Figures (reports/py/biomass_figs.py → reports/figs/).** All values compiled from the
+cited literature (not new analysis), and built to show *disagreement across estimates*
+per BQ4: (1) bbp→Cphyto conversion-slope fan + resulting 218–771 Tg stock spread;
+(2) ocean vs terrestrial biomass & NPP (log scale); (3) factor-of-disagreement cascade
+(bbp 2.5×, Cphyto 3.5×, NPP 2.5×, export 3×) with a footnote flagging single-study bars
+as lower bounds; (4) first-optical-depth profile with BGC-Argo/lidar as the path to
+depth. All four verified visually.
+
+Report notes provenance (which refs were read in full vs from the web scan) and flags
+that several 2024–26 refs need author/volume confirmation before formal Vancouver use.
+
+Next: await feedback; VQ1–VQ6 (EOI angle) still open for the EOI draft itself.
