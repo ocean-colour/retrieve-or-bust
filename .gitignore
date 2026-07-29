@@ -6,6 +6,13 @@ __pycache__/
 # C extensions
 *.so
 
+# Papers
+context/papers/Biomass/
+context/RT/*.pdf
+
+# PDFs
+proposals/Schmidt_Sciences/*.pdf
+
 # Distribution / packaging
 .Python
 build/

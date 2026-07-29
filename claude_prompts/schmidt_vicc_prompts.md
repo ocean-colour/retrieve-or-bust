@@ -16,13 +16,23 @@ See the following:
 - The Request for Expressions of Intent PDF named `VICC_Phase2_EOI.pdf` in the `proposals/Schmidt_Sciences` folder.
 - The VICC program: `https://www.schmidtsciences.org/vicc/`
 
+Read the papers in the `context/papers/Biomass` folder.
+
 ## Prompts
 
 1. Perform the 1st Task under "EOI"
+2. Perform the 2nd Task under "EOI"
 
 ## EOI
 
 1. Read all of the files in the Context section above.  We are going to discuss possible angles for a research proposal for the VICC program.  Put your questions in the Q&A section.  Log your work.  Use Fable if you can.
+
+2. Read all of the literature in the `context/papers/Biomass` folder which discuss aspects of biomass on Earth.  Then search for the latest related papers.  Then write a summary of the literature in `reports/biomass_summary.md` with emphasis on the uncertainty in the primary carbon measurements.
+Log your work. Use Fable if you can.
+
+3. Please ask me questions about the biomass literature.  You will use my responses to improve your report.  Use Fable if you can.  Log your work.
+
+4. I have answered your BQ questions.  Please use my responses to improve your report.  Be sure to include figures in the report.  Generate them with Python scripts and place those in one or moduels in the `reports/py` folder. Use Fable if you can.  Log your work.
 
 ### Q&A
 
@@ -122,6 +132,63 @@ Prochaska/UCSC) is strong on ocean-color→biogeochemistry — do we add a
 
 VQ6:
 
+#### Round 2 — Biomass literature (2026-07-30)
+
+Questions to sharpen `reports/biomass_summary.md`. (The report currently covers ocean
+phytoplankton/particulate carbon — Cphyto, POC, NPP, export — with the uncertainty in
+the primary carbon measurements as its spine, and ends with a VICC-pitch mapping.)
+
+**BQ1 — Scope: ocean-only, or broaden to "biomass on Earth"?** The `Biomass` folder is
+entirely ocean phytoplankton, but Task 2's wording ("biomass on Earth") and VICC's
+land+ocean span could argue for adding a terrestrial section (above-ground biomass /
+forest carbon from EO — the CLARiTy lane). Keep it **ocean-only** (my lean, matches the
+papers and our expertise), or add a short **terrestrial-biomass** contrast so the
+report speaks to VICC's whole carbon budget?
+
+BQ1:  Ocean only, but note its values relative to the terrestrial biomass.
+
+**BQ2 — Framing: VICC-pitch or neutral review?** Should the report keep its closing
+"mapping to the VICC pitch" (retrieve-or-bust reduces the inversion + conversion
+uncertainties), or read as a **neutral standalone review** with the VICC framing pulled
+into a separate EOI doc? (Lean: keep a short pitch mapping, but clearly fenced.)
+
+BQ2: Map to the VICC pitch.
+
+**BQ3 — Which carbon quantity to foreground, and where's the scope boundary?** Lead
+with **Cphyto** (where optics adds the most and the bbp→C slope problem is sharpest),
+**POC** (the mature satellite product), **NPP**, or **export**? And do we treat the
+**subsurface / first-optical-depth** gap (85% of Cphyto below 1/Kd) as *in scope* (via
+BGC-Argo/lidar synergy) or as an explicit **boundary** we don't claim to solve?
+(Lean: foreground Cphyto + POC; subsurface as an honest boundary.)
+
+BQ3: All 4 quantities and sub-surface is in scope.
+
+**BQ4 — The headline uncertainty number.** For emphasis, should the report commit to a
+specific "number to beat"? Candidates from the literature: satellite **Cphyto MAPE
+~32%** (Stoer & Fennel), the **~3.5× global-stock spread** from conversion-slope
+choice (218–771 Tg), or the **POC 47%→28%** composition gain (Koestner). Which anchors
+the story — and do you have a defensible **target** (e.g., halve Cphyto MAPE)?
+
+BQ4: No, the report should give an unbiased view of the current state of the effort and their uncertainties.  Do not blindly accept error estimates from the literature itself.
+
+**BQ5 — Missing must-cite literature.** Beyond the 14 papers, are there works you'd
+want folded in? Candidates I'd suggest: **Kostadinov** (size-class carbon), **Bellacicco**
+(NAP / non-algal backscatter), **Stramski 2008/2022** (POC algorithms), **Martínez-Vicente
+2013** (bbp→C), **DeVries / Siegel / Nowicki** (export), **Cael** (POC/statistics). Also:
+can you supply/confirm the 2024–26 refs I pulled from web search (entries 7, 14, 19–24)
+so I can verify authors/volumes before the Vancouver list?
+
+BQ5: Use all of the ones you have recommended.
+
+**BQ6 — Do you agree with the uncertainty ranking?** The report argues the two
+dominant, *addressable* uncertainties are (i) the ill-posed **IOP inversion** (satellite
+bbp/aph error) and (ii) the **non-universal optics→carbon conversion** (taxonomy/NAP),
+with the in-situ **validation/CRM gap** and **atmospheric correction** as the next tier.
+Do you rank these the same, or would you elevate one (e.g., the "no certified reference
+material for POC" problem, or NAP separation) as the real bottleneck?
+
+BQ6:  I leave it to you to rank as you best decide.
+
 ## Logs
 
 ### 2026-07-27 (Read the VICC EOI materials; posed Round-1 Q&A on proposal angles)
@@ -159,3 +226,63 @@ collaboration vs COCO2 & InMOS, and team/PI gaps (add a BGC modeler / air–sea 
 BGC-Argo / international partner).
 
 Next: await VQ1–VQ6, then converge on an angle and draft the EOI.
+
+### 2026-07-30 (Read the Biomass literature; wrote reports/biomass_summary.md)
+
+Executed the 2nd EOI task (independent of the VQ answers, which are still open). Read
+all 14 PDFs in `context/papers/Biomass` (pypdf text extraction), scanned the 2024–2026
+literature via web search, and wrote `reports/biomass_summary.md` with the emphasis on
+**uncertainty in the primary carbon measurements**.
+
+**Method.** Extracted text from all 14 papers; summarized in three parallel subagent
+clusters — (i) phytoplankton-carbon/bbp (Behrenfeld 2016; Graff 2012/2015; Bisson
+2023; Fox 2022); (ii) NPP (Behrenfeld 2005; Kulk 2020; Ryan-Keogh 2025; Taylor 2018);
+(iii) POC/backscatter/review (Brewin 2023 review; Bisson 2020/21; Li 2024; Wu 2023;
+Stoer & Fennel 2024) — each told to extract quantified uncertainty. Ran web searches
+for the latest PACE-era carbon/NPP/POC uncertainty work.
+
+**Key findings captured (the uncertainty spine).**
+- **Cphyto←bbp conversion slope is non-universal** — the biggest lever: published
+  slopes 8,372–30,100 (median 15,124), taxonomy-driven 3,770–27,697; propagates to a
+  ~3.5× global-stock range (218–771 Tg) and MAPE ~32% (Stoer & Fennel).
+- **POC←bbp** high uncertainty from particle-assemblage variability; adding Chl cuts
+  it ~47%→28% (Koestner 2024); no certified reference material for POC; GF/F loses
+  ~3–6× of cells.
+- **Chl is a weak carbon proxy** — C:Chl spans 31–408; >55% of Chl anomalies are
+  photoacclimation, not biomass.
+- **NPP** global spread 32–79 Pg C yr⁻¹; ±1σ P–I → ±~45%; six algorithms disagree on
+  the sign of the trend; CMIP6 ΔNPP −0.76 ± 3.44 (SD>4× mean).
+- **Export/BCP** still 5–15 Gt C yr⁻¹ (unchanged since the 1980s); 6.1 vs 10.6 across
+  methods.
+- **Upstream**: satellite bbp MPE 18–45% (biased low) → ±50% basin-scale Cphyto;
+  first-optical-depth blindness (85% Cphyto below 1/Kd).
+- **Latest**: PACE OCI L2 BGC v3.1 (2025) now ships carbon_phyto *with* a per-pixel
+  uncertainty product — the field is moving to carbon-centric, composition-aware,
+  uncertainty-quantified retrievals, exactly the retrieve-or-bust levers.
+
+The report ends with a headline uncertainty table and the mapping to the VICC pitch:
+the two largest, most quantifiable uncertainties (ill-posed inversion + non-universal
+conversion) are what an AI + priors + honest-UQ hyperspectral engine can reduce; the
+subsurface term is an honest scope boundary.
+
+Caveat logged in the report: a few 2024–26 web-scan references need author/volume
+verification before formal (Vancouver) use.
+
+Next: await VQ1–VQ6 to converge on the EOI angle.
+
+### 2026-07-30 (Posed Round-2 Q&A — biomass-literature questions to improve the report)
+
+Executed the 3rd EOI task: posed six questions (BQ1–BQ6, Q&A Round 2) whose answers
+will sharpen `reports/biomass_summary.md`. They target the genuine open choices from
+the review: **scope** (ocean-only vs broaden to terrestrial "biomass on Earth" per
+Task 2's wording + VICC's land+ocean span); **framing** (keep the VICC-pitch mapping
+vs neutral standalone review); **which carbon quantity to foreground** and whether the
+subsurface/first-optical-depth gap is in-scope or an honest boundary; **the headline
+uncertainty number** to anchor the story (Cphyto MAPE ~32% / ~3.5× stock spread / POC
+47%→28%) and whether to commit to a target; **missing must-cite literature** (Kostadinov,
+Bellacicco, Stramski, Martínez-Vicente, DeVries/Siegel/Nowicki, Cael) plus asking JXP
+to confirm the web-scan refs I couldn't fully verify; and a **framing check** on the
+ranking of dominant uncertainties (inversion + conversion first; validation/CRM and
+atmospheric correction next tier). Gave my lean on each.
+
+Next: await BQ1–BQ6, then revise `reports/biomass_summary.md` accordingly.
