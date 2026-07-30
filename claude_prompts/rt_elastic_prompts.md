@@ -47,6 +47,12 @@ If you need to run Python use the `ocean14` conda environment.
 
 1. I've pasted in comments from Robert Frouin on the RT.  Please review them and revise the report accordingly.  Use Fable if you can.  Log your work.
 
+### Design
+
+1. Ok, let's generate a plan together for how to proceed.  We are going to write a design document for this elastic RT effort.  We will name it `design/rt_elastic_model.md`.  Please ask me a set of questions in Q&A/Design before writing the document.  Use Fable if you can.  Log your work.
+
+2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Ask another round of questions if needed.  Use Fable if you can.  Log your work.
+
 ## Comments
 
 ### Robert's
@@ -62,6 +68,79 @@ Rrs(model) = Rrs(ZTT) + deltaRrs(simulator)
 where ZTT supplies the physically interpretable backbone and a small emulator learns the remaining multiple-scattering and phase-function effects. This preserves physical scaling and geometry while avoiding the unrestricted behavior of a wholly black-box model.
 
 ## Q&A
+
+### Design
+
+#### Round 1 (2026-07-31)
+
+We have the synthesis + roadmap (`context/RT/rt_elastic_model.md`) and Robert's steer:
+a full-RT (HydroLight) **reference** with the phase function varied → a fast
+**differentiable emulator** for retrieval → a **hybrid** `Rrs = Rrs(ZTT) + ΔRrs(emulator)`,
+with O25/PR05 as comparisons; data L23-first then HydroLight/PB24; elastic-only;
+geometry + phase-function shape first-class. The design doc `design/rt_elastic_model.md`
+should turn that into a buildable plan. Six questions to scope it:
+
+**DQ1 — Design-doc horizon & code home.** Which should the doc be?
+  (a) Near-term buildable plan (~6–12 mo): stand up the reference-data generator, ZTT,
+      a first emulator, and the hybrid on L23/PB24 — at module/API detail.
+  (b) Full multi-year architecture through operational PACE retrieval + priors —
+      conceptual + milestones.
+  (c) Both, layered: a concrete near-term build section inside a longer architecture
+      map. [Claude's lean]
+  Also: should the forward model live as a new `robust/rt/` subpackage exposing a
+  single `forward(iops, phase_params, geometry) → Rrs` API (my proposal)?
+
+DQ1: (a) near-term buildable plan.  I anticipate it only taking one week to get our first high quality prototype.
+
+**DQ2 — RT reference solver & access.** Robert says HydroLight "most naturally." Do we
+have a HydroLight license/machine to run batches, or should the design target an
+**open** solver as the reference of record (OSOAA, a polarized Monte Carlo, PlanarRad)?
+  (a) HydroLight is available — make it the reference.
+  (b) Design to a **solver-agnostic interface** with an open MC/OSOAA as the
+      reproducible default, HydroLight as a cross-check where available. [lean]
+  (c) Other / you'll provide access details.
+
+DQ2: (a); and we have in hand a significant set of outputs from Loisel+2023
+
+**DQ3 — Autodiff stack.** For the differentiable emulator + hybrid (and eventual
+gradient-based inversion): **JAX** or **PyTorch**? And do we implement ZTT analytically
+in the same framework so `Rrs = Rrs(ZTT) + ΔRrs(emulator)` is differentiable
+end-to-end? (Lean: **JAX** — natural for differentiable physics, analytic ZTT, and
+`vmap` over geometry; happy to use PyTorch if the team is PyTorch-native.)
+
+DQ3:  JAX; and yes, we should implement ZTT analytically in the same framework so `Rrs = Rrs(ZTT) + ΔRrs(emulator)` is differentiable end-to-end.
+
+**DQ4 — Phase-function parameterization (the explicit axis).** How should the particle
+phase function enter as an explicit, adjustable input?
+  (a) Fournier–Forand via (backscatter ratio, Junge slope) — matches L23/PB24.
+  (b) ZTT-style **backward-VSF parameters** (β(π)/bb + a backward-shape term) as the
+      primary axis, with FF (a) as the training-data generator so it ties to L23/PB24.
+      [lean]
+  (c) Henyey–Greenstein / two-term-HG mixtures.
+  (d) A low-dimensional basis learned from measured VSFs (Petzold + field VSFs).
+
+DQ4:  I am not sure about this one.  Let's start with a simple approach for now.  Your pick
+
+**DQ5 — Inversion coupling / scope of this doc.** Is `design/rt_elastic_model.md`:
+  (a) **Forward-model only** (reference + emulator + hybrid + validation); inversion
+      deferred to a companion design doc. 
+  (b) Forward **+ inversion**, and if so — reuse BING's MCMC, or move to
+      **gradient-based / amortized simulation-based inference (SBI)** that exploits the
+      differentiable forward model and the project's learned priors?
+  (Lean: forward model in depth **+ a clear inversion interface and recommended path**
+  — differentiable → gradient/SBI + priors — with the full inversion design deferred.)
+
+DQ5:  Forward-model only, but differentiable.
+
+**DQ6 — Acceptance criteria / validation protocol.** What defines "done" for the
+forward model? Candidates to bake in: forward rRMS vs the reference (per λ, geometry,
+phase-function shape); **held-out generalization** across geometry & phase function;
+and the decisive one — **component retrieval MAPE** (a_ph, a_dg, bb_p) vs L23/PB24
+truth. Hard target numbers, or **protocol-only** (report spreads, no blind target —
+consistent with the "unbiased view" stance from the biomass report)? (Lean:
+protocol-only with fixed held-out splits.)
+
+DQ6:  This is difficult to answer.  We want something that is fast and accurate and differentiable.
 
 ### Setup
 
@@ -448,3 +527,26 @@ folder); represented it from Robert's description + the β(π)/bb physics alread
 
 Next: await review; if wanted, add a ZTT/O25 overlay to the L23 ladder figure
 (roadmap step 1) and/or source the ZTT paper to deepen §3.5.
+
+### 2026-07-31 (Posed Round-1 Design Q&A before writing design/rt_elastic_model.md)
+
+Executed the 1st Design prompt: posed six questions (DQ1–DQ6 in Q&A/Design) to scope
+the design document, which will turn the synthesis roadmap + Robert's architecture
+(HydroLight reference → differentiable emulator → ZTT-backbone hybrid; O25/PR05 as
+comparisons; L23→HydroLight/PB24; elastic-only) into a buildable engineering plan.
+
+The questions target the concrete build decisions the synthesis left open: DQ1
+doc horizon (near-term buildable vs full multi-year vs layered — lean layered) and
+code home (a `robust/rt/` subpackage with a single `forward(iops, phase_params,
+geometry)→Rrs` API); DQ2 the RT reference solver & whether HydroLight is actually
+available vs a solver-agnostic interface with an open MC/OSOAA default; DQ3 the autodiff
+stack (JAX vs PyTorch; ZTT analytic in-framework for end-to-end differentiability —
+lean JAX); DQ4 the phase-function parameterization (FF / ZTT backward-VSF / HG / learned
+VSF basis — lean ZTT backward-VSF as primary, FF as the training-data generator); DQ5
+inversion coupling / scope (forward-only vs forward+inversion; reuse BING MCMC vs
+gradient/amortized SBI with priors — lean forward-in-depth + inversion interface,
+full inversion deferred); DQ6 acceptance criteria (protocol-only with held-out
+geometry/phase-function splits + component-retrieval MAPE, no blind target — consistent
+with the biomass report's stance). Gave my lean on each.
+
+Next: await DQ1–DQ6, then write `design/rt_elastic_model.md`.
