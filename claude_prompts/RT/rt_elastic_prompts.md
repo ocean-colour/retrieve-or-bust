@@ -57,6 +57,8 @@ If you need to run Python use the `ocean14` conda environment.
 
 4. I have answered your questions in the Q&A section below.  Please review them and proceed to write the coding plan.  Use Fable if you can.  Log your work.
 
+5. The coding plan looks great!  Please generate a series of prompt docs to execute the coding plan.  Name them `claude_prompts/RT/rt_elastic_coding_prompt_1.md`, `claude_prompts/RT/rt_elastic_coding_prompt_2.md`, etc.  Model them after the ones in the PAB repository (in that `claude_prompts` folder). Use Fable if you can.  Log your work.
+
 ## Comments
 
 ### Robert's
@@ -694,3 +696,30 @@ gradient-correctness and golden-value tests are first-class; accuracy gates are
 backbone as ZTT de-risking.
 
 Next: on approval, create the `rt-elastic-prototype` branch and start M0.
+
+### 2026-07-31 (Generated the M0–M5 coding prompt docs, modeled on PAB)
+
+Executed the 5th Design prompt: created six execution prompt docs
+`claude_prompts/RT/rt_elastic_coding_prompt_{1..6}.md`, one per milestone (M0→1 … M5→6),
+modeled after the PAB repo's `claude_prompts/coding_stage*.md` / `initial_coding.md`
+style.
+
+Studied PAB's pattern first (`PAB/claude_prompts/{start_up,initial_coding,coding_stage4}.md`):
+each stage doc has Goals → Claude (Skills + Working agreements) → Context (files to read
++ existing seams) → Prompts (numbered, "Execute the Nth task in section X") → the
+Stage/Tasks section with explicit gates → Q&A → pointer to next → Logging/Logs; PAB also
+keeps a running `*_implementation.md` record.
+
+Each RT prompt doc mirrors that: shared Working agreements (git by JXP on the
+`rt-elastic-prototype` branch; ocean14; CPU-only JAX; reuse ocpy/bing; BING test layout;
+pytest-gated; Fable; log), milestone-specific Context, numbered Prompts, a gated Tasks
+section, an empty Q&A, and a Next pointer. Mapping: **1**=M0 env+scaffold (+ creates the
+running record `design/rt_elastic_implementation.md`); **2**=M1 data+conventions (L23
+loader, B_p, splits, golden-value gate); **3**=M2 ZTT-in-JAX (transcribe
+`twardowski2018.pdf`; reference-case + grad-vs-FD gates; Gordon/O25 placeholder de-risk);
+**4**=M3 emulator+hybrid (beat-Gordon + grad + throughput gates); **5**=M4 validation =
+prototype done (CQ6 held-out splits; acceptance gate; a PR section like PAB's);
+**6**=M5 beyond-week-1, deliberately a coarse placeholder to be detailed from M4 results
+(HydroLight PF/BRDF, PB24, ZTT backward-VSF params, freeze API).
+
+Next: on approval, execute `rt_elastic_coding_prompt_1.md` (M0).
