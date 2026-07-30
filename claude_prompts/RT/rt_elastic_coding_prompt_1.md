@@ -43,6 +43,8 @@ Read before coding:
 2. Read this doc. Execute the 2nd task in the "M0" section below. If you have any questions, ask me in the Q&A section below.
 3. Read this doc. Execute the 3rd task in the "M0" section below.  Check my answers in Q&A. If you have any additional questions, ask me in the Q&A section below.  Use Fable if you can.
 
+4. Please add a Jupyter Notebook (or two) to explain what you have done so far.  Place it in the `notebooks/RT/` folder.  Name it `rt_elastic_coding_1.ipynb`.  Use Fable if you can.
+
 ## M0
 
 ### Tasks
@@ -265,3 +267,79 @@ Branch remains `rt-elastic-prototype`. New: `robust/rt/` (9 files),
 `robust/tests/` (4 files). Modified: `setup.py` (Q1 revert),
 `design/rt_elastic_implementation.md` (v0.3). Ready for JXP to commit — **M0
 complete**; next is `rt_elastic_coding_prompt_2.md` (M1: data & conventions).
+*(Committed by JXP as `ccbc0cc "M0 done"`.)*
+
+### 2026-07-31 (M0 explainer notebook — notebooks/RT/rt_elastic_coding_1.ipynb)
+
+Added the M0 explainer notebook: 27 cells (16 markdown, 11 code), **executed**
+via `jupyter nbconvert --execute` so it ships with outputs and two figures and
+reads without a kernel. Flow: where M0 sits in M0–M5 → the environment → why JAX
+→ why float64 → the scaffold → the gate → a preview of the L23 reference data →
+what M1 does next. One notebook, not two: M0 is a single coherent story and a
+second file would have been padding.
+
+The pedagogical spine is *why each piece is shaped the way it is*, since the code
+itself is nearly contentless at this milestone. Two cells do the real work.
+
+**1. Why JAX.** A live `jax.grad` on the standard Gordon relation gives
+`∂Rrs/∂a = -0.0131` and `∂Rrs/∂bb = +0.328` at a plausible coastal operating
+point — right signs (absorption removes photons, backscatter returns them) and,
+more interestingly, `Rrs` is **25× more sensitive to bb than to a** there. That
+is exactly the conditioning information an inversion needs and a black-box
+emulator cannot hand you. Labelled unambiguously as an *illustration*, not
+`robust.rt.forward`, because M0 implements no physics and a reader skimming
+figures should not come away thinking otherwise.
+
+**2. Why float64 — measured, not asserted (figure 1).** Relative error of a
+central finite-difference derivative against `jax.grad`, swept over 33 step sizes
+in both dtypes. Result: at a 1e-6 tolerance **float32 meets it at 0 of 33 step
+sizes and float64 at 21 of 33** (best error 1.2e-5 vs 8.5e-12, ~6 orders apart).
+So the sharp statement is not "float32 is less accurate" but: an M2 gate in
+float32 would have to be loosened to ~1e-4 *or* tuned to one lucky `h` — it would
+be testing the step size rather than the gradient. In float64 it passes across
+three decades of `h`. That is the quantitative justification for the `jax_x64`
+fixture, replacing the hand-wave in the earlier log.
+
+**A trap I hit while writing that cell, now documented in the notebook because
+M2 will meet it.** My first version passed *Python floats* to the model function.
+Python floats are float64 and the function body is plain arithmetic — so both
+curves were silently computed in float64 and the "float32" one came out ~1e-7:
+a wrong answer that looks like a good one, and one I would have shipped had I not
+dry-run the cell as a script first. The dtype must be pinned on the arrays
+(`jnp.asarray(x, dtype=...)`) and asserted. When M2 writes the real FD gate, a
+float64 perturbation around a float32 model will silently test something else.
+
+**Figures were checked, not eyeballed.** For the two-series pair I computed OKLab
+ΔE under simulated deuteranopia/protanopia/tritanopia rather than trusting that
+blue-vs-orange "looks fine": ΔE 31 for normal vision, 29–45 under CVD (target
+≥ 8), contrast 3.9 and 5.2 on white. I also *rendered and looked at* both
+figures, which caught two defects a numeric check never would: the direct labels
+overprinted each other at the right edge, and the float32 curve vanished
+underneath float64 wherever the two coincide — it looked like missing data.
+Fixed by labelling at the left ends (where the curves are far apart), drawing
+float32 as markers over a bare float64 line, and annotating *why* they merge
+(truncation-dominated, so dtype stops mattering). Figure 2 uses a single hue
+light→dark for `a`(440) — sequential magnitude, never a rainbow — truncated at
+30 % so the palest spectrum still has contrast on white.
+
+**Two findings from making it run.** (1) `robust` is **not** pip-installed in
+`ocean14` — a consequence of Q1 keeping the JAX stack out of `setup.py`. My
+earlier "12 passed" only worked because `pytest` ran from the repo root, which
+puts the cwd on `sys.path`. The notebook therefore bootstraps by walking up to
+the directory containing `robust/__init__.py`; the same asymmetry means **`pytest`
+must be run from the repo root**, and I recorded that in the implementation
+record before someone runs it from `robust/tests/` and files a bug. (2) The L23
+preview confirms the data end to end: 3320 × 81, 350–750 nm, and
+`B_p(440)` median **0.0126** — inside the design's expected ~[0.004, 0.03], so
+§4.2's phase-function parameter is consistent with the file we will actually
+train on.
+
+Also added a "Notebooks" entry to the implementation record's cross-cutting
+conventions (one executed explainer per milestone in `notebooks/RT/`,
+data-dependent sections degrading gracefully) so M1–M4 have a pattern to follow
+rather than reinventing one each time.
+
+New: `notebooks/RT/rt_elastic_coding_1.ipynb`. Modified:
+`design/rt_elastic_implementation.md` (v0.4 — added §2.6 Notebook, the figure and
+`sys.path` conventions, module index). Suite still 12 passed. Branch
+`rt-elastic-prototype`, on top of `ccbc0cc`, for JXP to commit.

@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.3
+**Version:** 0.4
 **Date:** 2026-07-31
 **Authors:** JXP and Claude
 
@@ -45,7 +45,8 @@ latency are **reported** here, not thresholded. The gradient-correctness check
 
 **Verification (current).** `pytest -q` → **12 passed** in ~1.2 s (`ocean14`);
 `ruff check robust/` → clean. The suite is green both with and without the L23
-reference data on disk (missing data skips, never fails).
+reference data on disk (missing data skips, never fails). The M0 notebook
+(`notebooks/RT/rt_elastic_coding_1.ipynb`) executes end to end with no errors.
 
 ---
 
@@ -234,6 +235,47 @@ above is whatever the installed ruff defaults to; see the open question in
 `ruff.toml` and whether to adopt `ruff format` (which would rewrite quote style
 package-wide).
 
+### 2.6 Notebook
+
+`notebooks/RT/rt_elastic_coding_1.ipynb` — the M0 explainer (27 cells, executed,
+ships with outputs and two figures). Structure: where M0 sits in M0–M5 → the
+environment → **why JAX** (a live `jax.grad` on the standard Gordon relation,
+which is *not* the model, since M0 implements no physics) → **why float64**
+(figure 1) → the scaffold (module tree, pinned signatures, the stubs raising) →
+the gate (`pytest` run inline) → a preview of the L23 reference data (figure 2) →
+what M1 does next.
+
+Two things in it are worth more than their word count:
+
+- **Figure 1 measures the finite-difference/dtype problem instead of asserting
+  it.** Relative error of a central FD derivative against `jax.grad`, swept over
+  33 step sizes in float32 and float64. At a 1e-6 tolerance, **float32 meets it
+  at 0 of 33 step sizes; float64 at 21 of 33** (best error 1.2e-5 vs 8.5e-12).
+  So the M2 gate in float32 would have to be loosened to ~1e-4 *or* tuned to one
+  lucky `h` — it would test the step size, not the gradient. That is the
+  quantitative case for the `jax_x64` fixture.
+- **A trap the notebook documents because M2 will meet it.** The first draft of
+  that cell passed *Python floats* to the model function. Python floats are
+  float64 and the body is plain arithmetic, so both curves were silently computed
+  in float64 and the "float32" one came out ~1e-7 — a wrong answer that looks
+  like a good one. The dtype has to be pinned on the arrays. When M2 writes the
+  real FD gate, a float64 perturbation around a float32 model will silently test
+  something other than what was meant.
+
+**Note on running it.** `robust` is *not* pip-installed in `ocean14` (Q1: the JAX
+stack is declared in `requirements.txt` only), so the notebook puts the repo root
+on `sys.path` by walking up to the directory containing `robust/__init__.py`. The
+same asymmetry means `pytest` must be run **from the repo root** — from a
+subdirectory, `robust` is not importable. Not a problem today; worth knowing
+before someone runs the suite from `robust/tests/` and reports a bug.
+
+Figure conventions, so later milestones' figures match: recessive grid and
+frame, text in ink colours rather than series colours, legend plus direct labels
+so identity is never carried by colour alone, a single hue light→dark for
+sequential magnitude (`a`(440) in figure 2), and the two-series categorical pair
+`#0072B2` / `#D55E00` — checked, not eyeballed, at OKLab ΔE 31 for normal vision
+and 29–45 under simulated deuteranopia / protanopia / tritanopia (target ≥ 8).
+
 ---
 
 ## 3. M1 — Data & conventions
@@ -277,6 +319,13 @@ prototype's definition of done.)*
   annotations on public signatures.
 - **Units** — m⁻¹ (`a`, `b`, `bb`), sr⁻¹ (`Rrs`, `rrs`), nm (λ), degrees
   (geometry angles), m s⁻¹ (wind); `B_p = bb_p / b_p` dimensionless.
+- **Notebooks** — one explainer per milestone in `notebooks/RT/`
+  (`rt_elastic_coding_<M>.ipynb`), committed **with outputs** (executed via
+  `jupyter nbconvert --execute`) so it reads without a kernel, and written so any
+  data-dependent section degrades to a message when `$OS_COLOR` is absent. Same
+  split as the prose docs: the notebook *explains and demonstrates*, the
+  implementation record *states current fact*, the prompt Logs carry the dated
+  narrative.
 
 ---
 
@@ -301,6 +350,9 @@ robust/
     conftest.py        ✅ needs_l23 marker, jax_x64 fixture
     files/             ✅ empty (.gitkeep); M1 caches an L23 batch here
     test_env.py        ✅ 12 tests — the M0 gate
+
+notebooks/RT/
+  rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
 ```
 
 *Living document; updated at the close of each milestone.*
