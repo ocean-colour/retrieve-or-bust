@@ -550,3 +550,34 @@ geometry/phase-function splits + component-retrieval MAPE, no blind target — c
 with the biomass report's stance). Gave my lean on each.
 
 Next: await DQ1–DQ6, then write `design/rt_elastic_model.md`.
+
+### 2026-07-31 (Reviewed DQ answers; wrote design/rt_elastic_model.md)
+
+Executed the 2nd Design prompt. The DQ answers were complete enough to write the design
+doc without another Q&A round (DQ4 was explicitly delegated to me; DQ6 gave clear
+acceptance themes), so I proceeded rather than asking again.
+
+**DQ answers applied.** DQ1=(a) near-term buildable, ~1-week first prototype → the doc
+centers a concrete Week-1 milestone. DQ2=(a) HydroLight available + L23 outputs in hand
+→ prototype uses L23 as the in-hand reference; confirmed L23 elastic (X=1) exists at 3
+solar-zenith angles (`Hydrolight100/130/160.nc` = 0/30/60°, nadir, fixed FF), so the
+solar-zenith geometry axis is exercisable now. DQ3=JAX + analytic ZTT in-framework,
+end-to-end differentiable. DQ4="your pick, keep it simple" → I chose the **particulate
+backscattering ratio B_p = bb_p/b_p** (Fournier–Forand, one scalar; directly available
+in L23 as bbnw/bnw), with the ZTT backward-VSF parameterization documented as the
+planned generalization. DQ5=forward-model only but differentiable → inversion out of
+scope, API kept inversion-ready. DQ6="fast, accurate, differentiable" → a protocol-only
+validation section (no blind targets): accuracy (rRMS vs reference per λ/geometry/B_p +
+held-out generalization, alongside Gordon/PR05/O25), speed (throughput/latency), and a
+gradient-correctness gate (jax.grad vs finite differences).
+
+**Doc `design/rt_elastic_model.md`** (new `design/` dir): goals/non-goals; the hybrid
+architecture diagram; the `robust/rt/` subpackage layout + `forward(iops, phase_params,
+geometry) → Rrs` API; components (reference data, phase-function param, ZTT-in-JAX,
+residual emulator, hybrid); JAX/Flax/Optax stack + conventions (A=0.52, B=1.7); the §6
+validation protocol; the §7 one-week prototype definition and sequence; the beyond-week-1
+forward-model track; and a §9 "decisions I made on your behalf" list flagging the DQ4
+pick, the prototype target, and the protocol-only acceptance for correction.
+
+Next: await review of `design/rt_elastic_model.md`; on approval, scaffold `robust/rt/`
+and build the Week-1 prototype.
