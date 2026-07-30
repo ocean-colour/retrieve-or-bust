@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.2
+**Version:** 0.3
 **Date:** 2026-07-31
 **Authors:** JXP and Claude
 
@@ -25,7 +25,7 @@ every bump.
 
 | M | Goal | Status | Package surface |
 |---|------|--------|-----------------|
-| **M0** | Environment & scaffold | 🟡 in progress | `robust.rt` (stubs), `robust/tests/` |
+| **M0** | Environment & scaffold | ✅ done | `robust.rt` (stubs), `robust/tests/` |
 | **M1** | Data & conventions | ⬜ not started | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | ⬜ not started | `robust.rt.ztt` |
 | **M3** | Residual emulator + hybrid | ⬜ not started | `robust.rt.{emulator,hybrid}` |
@@ -43,9 +43,9 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** JAX 0.11.0 imports and runs on the CPU backend in
-`ocean14` (§2.3). No test suite yet — M0 task 3 (scaffold + the `pytest` gate) is
-outstanding; see §2.
+**Verification (current).** `pytest -q` → **12 passed** in ~1.2 s (`ocean14`);
+`ruff check robust/` → clean. The suite is green both with and without the L23
+reference data on disk (missing data skips, never fails).
 
 ---
 
@@ -63,25 +63,49 @@ stub package, and `robust/tests/` in BING layout. Nothing scientific.
 |---|------|--------|
 | 1 | Implementation record (`design/rt_elastic_implementation.md`) | ✅ done |
 | 2 | Dependencies: `jax`, `flax`, `optax`, `jaxtyping` (CPU) in `requirements.txt` + `ocean14` | ✅ done |
-| 3 | Scaffold `robust/rt/` + `robust/tests/`; pass the `pytest` gate | ⬜ pending |
+| 3 | Scaffold `robust/rt/` + `robust/tests/`; pass the `pytest` gate | ✅ done |
 
 ### 2.2 Modules added
 
-*(none yet — task 3.)* Planned stubs, per the coding plan's package layout:
+The full layout from the coding plan, as documented stubs:
 
 ```
 robust/rt/
-  __init__.py         # will export forward(), public types
-  types.py            # IOPs, PhaseParams, Geometry pytrees (jaxtyping)
-  conventions.py      # A=0.52, B=1.7; wavelength grid; bb_w model; asserts
-  data/l23.py         # L23 loader via ocpy.hydrolight.loisel23
-  ztt.py              # Rrs_ZTT analytic backbone (JAX)
-  emulator.py         # Flax MLP ΔRrs + Optax training
-  hybrid.py           # forward(): Rrs_ZTT + ΔRrs; mode flag
-  validation.py       # rRMS / speed / gradient protocol
+  __init__.py         eager-imports every submodule; re-exports forward()
+  conventions.py      docstring-only (M1): A/B, wavelength grid, bb_w, asserts
+  types.py            docstring-only (M1): IOPs/PhaseParams/Geometry pytrees
+  data/__init__.py    re-exports l23
+  data/l23.py         docstring-only (M1): L23 elastic batch loader + splits
+  ztt.py              Rrs_ZTT(iops, phase_params, geometry, wave) -> raises (M2)
+  emulator.py         docstring-only (M3): Flax MLP + Optax training
+  hybrid.py           MODES; forward(iops, phase_params, geometry, wave, mode)
+                      -> raises (M3)
+  validation.py       docstring-only (M4): rRMS / speed / gradient protocol
 robust/tests/
-  conftest.py, files/, test_env.py
+  __init__.py, conftest.py, files/.gitkeep, test_env.py
 ```
+
+**What "stub" means here.** Two of the modules carry their **final public
+signatures** already — `hybrid.forward` (design §3) and `ztt.Rrs_ZTT` (coding
+plan M2) — and raise `NotImplementedError` naming the milestone that fills them
+in. The rest are docstring-only, each stating its role and its milestone. So the
+scaffold pins the interface without faking any physics: a caller gets a loud
+error, never a plausible-looking array. `MODES = ('ztt', 'emulator', 'hybrid')`
+is declared in `hybrid.py` because the three-way comparison is a design
+commitment (§4.5), not an implementation detail.
+
+**Import cost.** `from robust import rt` currently pulls **no** heavy
+dependency — not even `jax` — because the stubs have no module-level imports;
+it measures ~0.00 s. Per the sibling-project convention, `emulator.py` will
+import `flax`/`optax` *inside* its functions so the analytic-only path never pays
+for the ML stack. This changes once M2 puts `import jax.numpy` at `ztt.py`'s
+module scope, which is fine and expected — noted so the change is not mistaken
+for a regression.
+
+**Not added: a `pytest.ini`.** Bare `pytest -q` from the repo root already
+collects exactly `robust/tests/` (there is no other `test_*.py` in the tree), so
+config would be ceremony. Worth revisiting only if collection ever picks up
+something it should not.
 
 ### 2.3 Environment
 
@@ -108,13 +132,17 @@ Transitive additions (all new, nothing upgraded or removed): `absl-py`,
 `rich`, `simplejson`, `tensorstore`, `treescope`, `uvloop`, `wadler-lindig`.
 
 **Dependency declaration.** `requirements.txt` gains a CPU-JAX block (`jax`,
-`flax`, `optax`, `jaxtyping`) and the same four are mirrored into `setup.py`'s
-`install_requires`, matching this repo's existing practice of keeping the two
-lists in sync. `jaxlib` is deliberately *not* pinned separately — `jax` requires
-the matching version, so listing it would only invite version skew. Unpinned,
-like every other entry in the file. A GPU build would be `jax[cuda12]`; on macOS
-arm64 the plain wheel is CPU-only (Metal would be a separate `jax-metal`
-plugin), so "CPU-only" needs no extra machinery here.
+`flax`, `optax`, `jaxtyping`) and is the **sole** declaration — `setup.py`'s
+`install_requires` deliberately does *not* list them (JXP's call, Q1 in the
+prompt's Q&A), so `pip install -e .` for non-RT work never has to pull `jaxlib`.
+A comment in `setup.py` records that, so the asymmetry does not get "helpfully"
+undone. Install the RT stack with `pip install -r requirements.txt`.
+
+`jaxlib` is deliberately *not* listed separately — `jax` requires the matching
+version, so a second entry would only invite version skew. Unpinned, like every
+other entry in the file; exact versions live in the table above. A GPU build
+would be `jax[cuda12]`; on macOS arm64 the plain wheel is CPU-only (Metal would
+be a separate `jax-metal` plugin), so "CPU-only" needs no extra machinery here.
 
 **Verification (task-2 gate).** In `ocean14`:
 
@@ -140,15 +168,71 @@ stubs exist.
 
 ### 2.4 Tests
 
-*(none yet — task 3.)* `test_env.py` will cover: `import jax` +
-`jax.numpy.ones(3)` on the CPU backend (asserting the default device platform is
-`cpu`), and `from robust import rt`.
+`robust/tests/` follows the BING layout (`test_*.py`, `conftest.py`, `files/`).
 
-### 2.5 Results
+**`conftest.py`** holds the two things every later module needs:
 
-Task 2 verified by hand (§2.3): JAX 0.11.0 on the CPU backend, float64
-available, `jax.grad` working, `ocean14` otherwise unchanged. The same checks
-become the automated `test_env.py` gate in task 3; `pytest` has not been run yet.
+- `l23_available()` + the `needs_l23` skip marker. The L23 files (~17 MB each)
+  live outside the repo, resolved from `$OS_COLOR`, so from M1 on the data
+  dependency is declared once and **absence becomes a skip, not a failure** —
+  `pytest -q` stays meaningful on a machine without the dataset. Ported from
+  BING's `conftest.py`, which solves the same problem for the same files;
+  narrowed here to the three *elastic* files (`Hydrolight100/130/160.nc`).
+- The `jax_x64` fixture: enables float64 for one test and **restores the previous
+  setting afterwards**, so a float64 test cannot silently change the dtype regime
+  the rest of the suite runs under. (`jax.experimental.enable_x64`, the context
+  manager older JAX docs suggest, was removed by JAX 0.11 — hence the explicit
+  set/restore.)
+
+**`test_env.py`** — 12 tests, deliberately more than the gate's letter, split
+three ways:
+
+- *JAX (6)*: `jax.numpy.ones(3)` returns the right values on `CpuDevice`;
+  `default_backend() == "cpu"` **and every device is CPU** (CQ5 is CPU-only, so an
+  accelerator sneaking in should fail here); float64 reachable via the fixture;
+  the fixture restores float32 afterwards; `jax.grad` correct; `jax.jit`
+  compiles and computes; `flax`/`optax` import.
+- *`robust.rt` (4)*: `from robust import rt` works; every module of the planned
+  layout is present and re-exported (incl. `rt.data.l23`) and `rt.forward` is
+  callable; the two signature-carrying stubs raise `NotImplementedError`; `MODES`
+  is declared.
+- *Reference data (2)*: `l23_available()` returns a bool without raising
+  whatever the environment (it gates every M1+ data test, so it must never be
+  the thing that breaks); `ocpy.hydrolight.loisel23` imports.
+
+The float64, `jit`, and grad tests exceed what M0 strictly needs. They are here
+because M2's finite-difference gradient gate and the design's `jit`/`vmap`
+requirement depend on them, and a broken XLA install should surface now rather
+than three milestones later.
+
+### 2.5 Results — M0 gate ✅
+
+```
+$ pytest -q          # repo root, ocean14
+............                                                          [100%]
+12 passed in 1.20s
+
+$ ruff check robust/
+All checks passed!
+```
+
+The gate's two required assertions both hold: `import jax` works on CPU, and
+`from robust import rt` succeeds.
+
+**Also checked, because a green suite on one machine proves less than it looks
+like.** Re-ran with `OS_COLOR` pointed at a nonexistent path: `l23_available()`
+returns `False` rather than raising, and all 12 tests still pass. That is the
+property M1's data tests will lean on, verified rather than assumed.
+
+**Lint.** `robust/` is clean under `ruff check` with two documented `noqa`s, both
+deliberate: `RUF022` on `__all__` (grouped by role and ordered as the pipeline
+runs, not alphabetically) and `BLE001` on the `except Exception` in
+`l23_available` (any failure there genuinely means "no data" — same call BING's
+conftest makes). Note there is **no ruff config in this repo**, so the rule set
+above is whatever the installed ruff defaults to; see the open question in
+`claude_prompts/RT/rt_elastic_coding_prompt_1.md` §Q&A (Q2) about pinning a
+`ruff.toml` and whether to adopt `ruff format` (which would rewrite quote style
+package-wide).
 
 ---
 
@@ -201,8 +285,22 @@ prototype's definition of done.)*
 ```
 robust/
   __init__.py          ✅ package root (pre-existing)
-  rt/                  ⬜ M0 task 3
-  tests/               ⬜ M0 task 3
+  rt/
+    __init__.py        ✅ submodule imports + forward() re-export
+    conventions.py     ⬜ M1  A/B, wavelength grid, bb_w, asserts
+    types.py           ⬜ M1  IOPs / PhaseParams / Geometry pytrees
+    data/
+      __init__.py      ✅ re-exports l23
+      l23.py           ⬜ M1  L23 elastic batches + seeded splits
+    ztt.py             ⬜ M2  Rrs_ZTT — signature pinned, body pending
+    emulator.py        ⬜ M3  Flax MLP ΔRrs + Optax training
+    hybrid.py          ⬜ M3  forward() — signature + MODES pinned, body pending
+    validation.py      ⬜ M4  rRMS / speed / gradient protocol
+  tests/
+    __init__.py        ✅
+    conftest.py        ✅ needs_l23 marker, jax_x64 fixture
+    files/             ✅ empty (.gitkeep); M1 caches an L23 batch here
+    test_env.py        ✅ 12 tests — the M0 gate
 ```
 
 *Living document; updated at the close of each milestone.*

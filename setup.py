@@ -25,9 +25,10 @@ setup_keywords['install_requires'] = [
     'xarray', 'h5netcdf', 'cftime', 'scikit-learn',
     'tqdm', 'IPython', 'pytest',
     # Retrieval / inference engine and plotting
-    'emcee', 'corner', 'bokeh',
-    # Differentiable RT forward model (robust/rt); CPU-only JAX
-    'jax', 'flax', 'optax', 'jaxtyping']
+    'emcee', 'corner', 'bokeh']
+# The JAX stack for the differentiable RT forward model (robust/rt) is declared
+# in requirements.txt only, deliberately: `pip install -e .` for non-RT work
+# should not have to pull jaxlib. Install it with `pip install -r requirements.txt`.
 # The sibling packages BING and ocpy are not on PyPI; install them from
 # source / GitHub via requirements.txt (git+https://github.com/ocean-colour/...).
 setup_keywords['zip_safe'] = False
