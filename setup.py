@@ -25,7 +25,9 @@ setup_keywords['install_requires'] = [
     'xarray', 'h5netcdf', 'cftime', 'scikit-learn',
     'tqdm', 'IPython', 'pytest',
     # Retrieval / inference engine and plotting
-    'emcee', 'corner', 'bokeh']
+    'emcee', 'corner', 'bokeh',
+    # Differentiable RT forward model (robust/rt); CPU-only JAX
+    'jax', 'flax', 'optax', 'jaxtyping']
 # The sibling packages BING and ocpy are not on PyPI; install them from
 # source / GitHub via requirements.txt (git+https://github.com/ocean-colour/...).
 setup_keywords['zip_safe'] = False
