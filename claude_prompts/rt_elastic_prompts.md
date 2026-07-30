@@ -53,6 +53,10 @@ If you need to run Python use the `ocean14` conda environment.
 
 2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Ask another round of questions if needed.  Use Fable if you can.  Log your work.
 
+3. The design document looks great!  Please generate a separate coding plan with a staged implementation plan including milestones.  Name it `design/rt_elastic_model_coding_plan.md`.  Please ask me a set of questions in Q&A/Coding before writing the document.  Use Fable if you can.  Log your work.
+
+4. I have answered your questions in the Q&A section below.  Please review them and proceed to write the coding plan.  Use Fable if you can.  Log your work.
+
 ## Comments
 
 ### Robert's
@@ -141,6 +145,68 @@ consistent with the "unbiased view" stance from the biomass report)? (Lean:
 protocol-only with fixed held-out splits.)
 
 DQ6:  This is difficult to answer.  We want something that is fast and accurate and differentiable.
+
+### Coding
+
+#### Round 1 (2026-07-31)
+
+Questions to shape `design/rt_elastic_model_coding_plan.md` — the staged implementation
+plan with milestones. (Locked by the design doc: JAX/Flax/Optax; `robust/rt/` with a
+`forward(iops, phase_params, geometry)→Rrs` API; ZTT analytic backbone + residual
+emulator hybrid; L23 elastic (3 solar zeniths) as the in-hand reference; `B_p` phase
+param; forward-model-only, differentiable; ~1-week first prototype.)
+
+**CQ1 — Execution model (most important).** Should Claude **implement** the prototype
+now — scaffolding `robust/rt/` and building the stages on a branch, with JXP running all
+git (commits/PRs to review), per CLAUDE.md — or is this coding plan a **spec/handoff**
+for you (or others) to implement? (Lean: Claude implements on a branch; each milestone a
+reviewable commit/PR; JXP does the git.)
+
+CQ1: Claude will implement the prototype now.  I will run git and review the commits.
+
+**CQ2 — Milestone structure & cadence.** How to stage it?
+  (a) **Milestone-gated** (M1 scaffold+data → M2 ZTT-in-JAX → M3 emulator+hybrid →
+      M4 validation → M5 HydroLight/BRDF+phase-function), each with an explicit
+      acceptance gate; fine-grained (task-level) for the Week-1 milestones, coarser
+      after. [lean]
+  (b) A flat ordered task list.
+  (c) Time-boxed (day-by-day for week 1).
+
+CQ2: (a)
+
+**CQ3 — ZTT equations source (a real dependency).** ZTT (Twardowski & Tonizzo 2018) is
+the analytic backbone, but the paper is **not** in `context/RT/`. To implement
+`Rrs_ZTT` in JAX we need its equations. Should I:
+  (a) Source the paper / equations myself (web) and transcribe them;
+  (b) You will provide the ZTT equations / a PDF;
+  (c) Start with an **analytic placeholder backbone** (Gordon/O25 in JAX) so the
+      pipeline is end-to-end first, then swap in true ZTT once its equations are in
+      hand. [lean: (c) in parallel with (a)]
+
+CQ3: I have provided the paper in `context/RT/` and named it twardowski2018.pdf 
+
+**CQ4 — Testing, tooling & conventions.** Gate each milestone with **pytest** (unit +
+the gradient-correctness check)? Formatting/linting (ruff/black), type hints
+(jaxtyping)? Should I follow any **existing retrieve-or-bust / BING conventions** (test
+layout, CI), or set them up fresh here? (Lean: pytest gates + ruff + light jaxtyping;
+match BING's layout if present.)
+
+CQ4: Yes, gate each milestone with pytest.  I will follow the BING conventions.
+
+**CQ5 — Environment & compute.** `ocean14` almost certainly lacks `jax/flax/optax`.
+Add them to `ocean14`, or create a dedicated env (e.g. `rt-jax`)? And is the Week-1
+prototype **CPU-only** (fine for L23-scale), or is a **GPU** available if we want it?
+(Lean: CPU-only JAX added to a dedicated env to avoid disturbing `ocean14`.)
+
+CQ5: CPU-only for now.  Feel free to update the requirements file as needed and add packages to `ocean14` 
+
+**CQ6 — Validation split policy (the acceptance gate).** For "held-out generalization,"
+hold out (a) a **seeded random 20% of scenes**, and (b) **one solar-zenith angle** (e.g.
+train 0°/30°, test 60°) to probe geometry generalization — with the M4 gate = beats
+standard Gordon on both splits and passes the gradient check. Agree, or a different
+split?
+
+CQ6: Agree
 
 ### Setup
 
@@ -581,3 +647,50 @@ pick, the prototype target, and the protocol-only acceptance for correction.
 
 Next: await review of `design/rt_elastic_model.md`; on approval, scaffold `robust/rt/`
 and build the Week-1 prototype.
+
+### 2026-07-31 (Posed Round-1 Coding Q&A before writing the coding plan)
+
+Executed the 3rd Design prompt: posed six questions (CQ1–CQ6 in Q&A/Coding) to scope
+`design/rt_elastic_model_coding_plan.md` (the staged implementation plan + milestones).
+The design doc already fixed architecture/stack, so these target the process/
+implementation decisions still open: CQ1 execution model (Claude implements on a branch
+with JXP running git, vs a spec/handoff — lean Claude implements); CQ2 milestone
+structure (milestone-gated M1–M5 with acceptance gates, fine-grained for week 1);
+CQ3 the **ZTT equations dependency** — the paper isn't in `context/RT/`, so source it /
+JXP provides / start with a Gordon-O25 analytic placeholder backbone and swap ZTT in
+(lean: placeholder now + source in parallel); CQ4 testing/tooling (pytest gates incl.
+the gradient check, ruff, jaxtyping; match BING conventions); CQ5 environment (add
+jax/flax/optax to a dedicated env vs ocean14; CPU vs GPU); CQ6 the validation split
+policy / M4 gate (random-20% scenes + hold out one solar-zenith angle). Gave my lean on
+each. CQ3 and CQ1 are the load-bearing ones.
+
+Next: await CQ1–CQ6, then write `design/rt_elastic_model_coding_plan.md`.
+
+### 2026-07-31 (Reviewed CQ answers; wrote design/rt_elastic_model_coding_plan.md)
+
+Executed the 4th Design prompt. CQ answers: CQ1 Claude implements now on a branch, JXP
+runs git & reviews; CQ2 milestone-gated; CQ3 the ZTT paper is now in the repo
+(`context/RT/twardowski2018.pdf`, confirmed 30 pp, extractable); CQ4 pytest-gate each
+milestone, follow BING conventions; CQ5 CPU-only, may update requirements + ocean14;
+CQ6 agreed split (random 20% scenes + hold out 60° zenith).
+
+Recon before writing: confirmed retrieve-or-bust layout (`robust/` package, one
+`__init__.py`; requirements.txt already has pytest/xarray/ocpy/bing; no tests yet), and
+BING's test convention (`bing/bing/tests/test_*.py` + `conftest.py` + `files/`) → mirror
+as `robust/tests/`. Confirmed the ZTT PDF is Twardowski & Tonizzo 2018 (*Applied
+Sciences*, VSF-explicit ocean-color model) and extractable for M2.
+
+**Doc `design/rt_elastic_model_coding_plan.md`.** Ground rules from the CQ answers;
+`robust/rt/` + `robust/tests/` layout mirroring BING; a milestone table and detailed
+**M0–M5**: M0 env+scaffold (add jax/flax/optax CPU, update requirements) → M1 data+
+conventions (L23 loader via ocpy, A/B, `B_p`, golden-value gate) → M2 ZTT-in-JAX
+(transcribe twardowski2018; gates = reproduce a paper reference case + grad-vs-FD) →
+M3 emulator+hybrid (Flax MLP ΔRrs, Optax, relative weighting; gate = beat standard
+Gordon + grad check) → **M4 validation = prototype done** (CQ6 held-out splits; gate =
+beat Gordon on both splits + grad gate; table+figures) → M5 beyond-week-1 (HydroLight
+PF/BRDF, ZTT backward-VSF params, freeze API). Each milestone pytest-gated; the
+gradient-correctness and golden-value tests are first-class; accuracy gates are
+*relative* (no blind targets). Risks section keeps the Gordon/O25-in-JAX placeholder
+backbone as ZTT de-risking.
+
+Next: on approval, create the `rt-elastic-prototype` branch and start M0.
