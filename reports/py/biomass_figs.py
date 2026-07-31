@@ -213,11 +213,50 @@ def fig4_subsurface():
     fig.savefig(out, dpi=150); plt.close(fig); print("wrote", out)
 
 
+# ---------------------------------------------------------------- Fig 5 -----
+def fig5_export_budget():
+    """Illustrative attribution of the uncertainty in the 5-15 Gt C/yr export estimate.
+
+    These shares are an expert-judgment, literature-informed attribution (Henson et al.
+    2022; Nowicki et al. 2022; Siegel et al. 2016; Comm. Earth Environ. 2024; Doney et
+    al. 2024) — NOT a formal variance decomposition. They convey *where* the ~3x spread
+    in export comes from, consistent with the report's "spread, not a single ±" stance.
+    """
+    cats = [
+        ("Export ratio (e-ratio / ef) parameterization", 30, RUST),
+        ("Surface NPP input", 22, OCEAN),
+        ("Transfer efficiency (flux attenuation w/ depth)", 18, TEAL),
+        ("Ecosystem structure & zooplankton pathways", 15, GOLD),
+        ("Depth horizon & flux definition (100 m vs Ez)", 8, GREEN),
+        ("Sampling & inter-method disagreement", 7, "#8A6FA8"),
+    ]
+    vals = [v for _, v, _ in cats]
+    cols = [c for *_, c in cats]
+    labels = [f"{name}  ({v}%)" for name, v, _ in cats]
+
+    fig, ax = plt.subplots(figsize=(9.6, 5.6))
+    wedges, _ = ax.pie(vals, colors=cols, startangle=90, counterclock=False,
+                       wedgeprops=dict(width=0.42, edgecolor="white", linewidth=1.6))
+    ax.set(aspect="equal")
+    ax.text(0, 0, "5–15\nGt C yr$^{-1}$\n(≈3×)", ha="center", va="center",
+            fontsize=14, fontweight="bold", color=INK, linespacing=1.1)
+    ax.legend(wedges, labels, loc="center left", bbox_to_anchor=(0.98, 0.5),
+              frameon=False, fontsize=9.5,
+              title="Contribution to export-flux uncertainty")
+    ax.set_title("Where the uncertainty in ocean carbon export comes from\n"
+                 "(illustrative literature-informed attribution — not a formal "
+                 "variance decomposition)", fontsize=12)
+    fig.tight_layout()
+    out = os.path.join(FIGS, "fig5_export_budget.png")
+    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig); print("wrote", out)
+
+
 def main():
     fig1_conversion_slopes()
     fig2_ocean_vs_land()
     fig3_uncertainty_cascade()
     fig4_subsurface()
+    fig5_export_budget()
 
 
 if __name__ == "__main__":

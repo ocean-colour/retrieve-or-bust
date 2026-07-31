@@ -34,6 +34,14 @@ Log your work. Use Fable if you can.
 
 4. I have answered your BQ questions.  Please use my responses to improve your report.  Be sure to include figures in the report.  Generate them with Python scripts and place those in one or moduels in the `reports/py` folder. Use Fable if you can.  Log your work.
 
+5. Here are additional items/questions for you to address in the report:
+
+ .  - How reliable is the 5-15 Gt C yr^-1 estimate of export from the literature?  Please generate a pie chart (or similar figure) describing the error budget.
+    - Please add DOIs for all of the references in the report.
+    - The current uncertainties in the report are unclear as to whether these are 1-sigma, 68% confidence, or other.  Please clarify each.  Ideally, provide 95% confidence intervals.
+
+6. Thanks.  The title of the report says "from Optics".  Is there another approach for the ocean?  If so, include its measurements and uncertainties.  If not, make that clear.  Use Fable if you can.  Log your work.
+
 ### Q&A
 
 #### Round 1 (2026-07-27)
@@ -325,3 +333,63 @@ Report notes provenance (which refs were read in full vs from the web scan) and 
 that several 2024–26 refs need author/volume confirmation before formal Vancouver use.
 
 Next: await feedback; VQ1–VQ6 (EOI angle) still open for the EOI draft itself.
+
+### 2026-07-31 (Addressed the 3 items in EOI prompt 5: export reliability + pie, DOIs, uncertainty conventions)
+
+Executed the 5th EOI prompt — three additions to `reports/biomass_summary.md`.
+
+1. **Reliability of the 5–15 Gt C yr⁻¹ export estimate + error-budget pie.** New §2.5.1:
+   the 5–15 range is a spread of best estimates (not a CI) that has not narrowed in ~40
+   yr; the two most recent globals (model-ensemble 6.08 ± 1.17; hydrographic
+   10.64 ± 0.80) have **non-overlapping 95% intervals** → method disagreement, not
+   sampling error, dominates. Added **Fig. 5** (`fig5_export_budget` in
+   `reports/py/biomass_figs.py`): a donut attributing the export uncertainty to
+   e-ratio/ef parameterization (30%), surface NPP (22%), transfer efficiency (18%),
+   ecosystem/zooplankton pathways (15%), depth/definition (8%), sampling (7%) — labeled
+   explicitly as an **illustrative literature-informed attribution, not a formal variance
+   decomposition** (grounded in Henson 2022, Nowicki 2022, Siegel 2016, Doney 2024,
+   Comm. Earth Environ. 2024).
+2. **DOIs for all references.** Added DOIs to every entry; **verified** the trickier ones
+   by web search (Martínez-Vicente 10.1002/grl.50252; Kostadinov 10.5194/os-12-561-2016;
+   Koestner 2022 10.3389/fmars.2022.941950 + 2023 10.3389/fmars.2023.1197953 — fixed the
+   earlier mislabelled "Koestner 2024"; Bellacicco 2019 10.1029/2019GL084078; Nowicki
+   10.1029/2021GB007083; Ryan-Keogh 10.1038/s43247-025-02051-4). Added 3 new refs (30
+   hydrographic Nature 2023; 31 Henson 2022 Nat Geosci; 32 Comm. Earth Environ. 2024).
+   Flagged the few I could not fully verify (15 Cael, 24 Siegel-EXPORTS, 29 PACE dataset
+   DOI, 30 first author, the RSE-2024 article number) with explicit "*(confirm)*" notes.
+3. **Uncertainty conventions clarified.** Added a conventions box up top defining
+   ranges (min–max spread, not a CI), `x ± s` (1σ ≈ 68%), MAPE/median-%-error, R²/RMSE;
+   and annotated the key ± figures inline with **95% CIs** (export 6.08→3.8–8.4;
+   10.64→9.1–12.2; CMIP6 ΔNPP −0.76 ± 3.44 → −7.5 to +6.0). Also corrected the §2.2 POC
+   text (dropped the unverifiable "Stramski 2022" claim; cite Koestner 2022/2023).
+
+Figures regenerated (fig5 added); report verified. Next: await feedback / the EOI draft
+(VQ1–VQ6 still open).
+
+### 2026-07-31 (EOI prompt 6: added §5 on non-optical approaches to ocean carbon)
+
+Executed the 6th EOI prompt: the report is titled "from Optics," and JXP asked whether
+there is another approach and, if so, to include its measurements and uncertainties.
+**Answer: yes** — the in-situ / geochemical methods. Added a new **§5** (and a pointer
+in the scope note) making this explicit.
+
+§5 frames optics as one of several approaches — uniquely global/synoptic but *indirect*
+— and surveys the non-optical alternatives as the *calibration backbone* (and the only
+direct route to export flux, gross production, and air–sea CO₂ flux). A table gives, per
+quantity, the method + what it measures + typical uncertainty (with type): POC —
+filtration+CHN (no CRM; GF/F loss); Cphyto — sorting/microscopy (biovolume→C spans ~an
+order of magnitude); NPP/GPP — ¹⁴C / ¹³C / ¹⁷Δ (methods disagree ~2×; ¹⁷Δ-GPP ≈ ±20%);
+NCP — O₂/Ar & NO₃/DIC drawdown (k ±20–30%; advection up to ~38%); export — ²³⁴Th /
+traps / UVP (C:²³⁴Th ~2–3×; trap efficiency ~0.5–2×); air–sea CO₂ flux — pCO₂/SOCAT +
+inversions (model-vs-product discrepancy ~0.4–0.6 Gt C yr⁻¹). Bottom line: no gold
+standard; each geochemical method carries its own factor-~2 uncertainty, reinforcing
+§3's point that the "truth" validating optics is itself uncertain — hence the fusion /
+cross-calibration path (in-situ + BGC-Argo as priors & validation), which is exactly
+retrieve-or-bust's thesis and complementary to air–sea-flux programs (COCO2).
+
+Grounded the numbers + refs via web search; added **6 new references (33–39)** with
+verified DOIs (Claustre 2020 BGC-Argo; Marra 2009 ¹⁴C; Juranek & Quay 2013 triple-O;
+Reuer 2007 O₂/Ar; Buesseler 2006 C:²³⁴Th; Le Moigne 2013 ²³⁴Th database; Friedlingstein
+GCB 2023). Report verified; provenance note updated.
+
+Next: await feedback / the EOI draft (VQ1–VQ6 still open).
