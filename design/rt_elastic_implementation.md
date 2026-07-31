@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.5
+**Version:** 0.6
 **Date:** 2026-07-31
 **Authors:** JXP and Claude
 
@@ -26,7 +26,7 @@ every bump.
 | M | Goal | Status | Package surface |
 |---|------|--------|-----------------|
 | **M0** | Environment & scaffold | ✅ done | `robust.rt` (stubs), `robust/tests/` |
-| **M1** | Data & conventions | ⬜ not started | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
+| **M1** | Data & conventions | 🟡 in progress | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | ⬜ not started | `robust.rt.ztt` |
 | **M3** | Residual emulator + hybrid | ⬜ not started | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation`, `design/py/run_validation.py` |
@@ -38,17 +38,18 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started.
 a reviewable commit for JXP (Claude runs no state-changing git — see
 `CLAUDE.md`).
 
-**CI.** `.github/workflows/ci.yml` runs `pytest` on Python 3.12 and 3.14 plus a
-pinned `ruff` lint, on every branch and pull request — §10 for the design and the
-one packaging bug it surfaced.
+**CI.** `.github/workflows/ci.yml` runs `pytest` on Python 3.12 and 3.14 plus
+`ruff check` and `ruff format --check`, on every branch and pull request — §10 for
+the design and the one packaging bug it surfaced.
 
 **Acceptance philosophy.** Accuracy gates are *relative* ("beats standard
 Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **12 passed** in ~1.2 s (`ocean14`);
-`ruff check robust/` → clean. The suite is green both with and without the L23
+**Verification (current).** `pytest -q` → **39 passed** in ~2.3 s (`ocean14`);
+with `$OS_COLOR` unset, 36 passed + 3 skipped. `ruff check robust/` and `ruff
+format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). The M0 notebook
 (`notebooks/RT/rt_elastic_coding_1.ipynb`) executes end to end with no errors.
 
@@ -287,7 +288,103 @@ and 29–45 under simulated deuteranopia / protanopia / tritanopia (target ≥ 8
 
 ## 3. M1 — Data & conventions
 
-*(not started; see the coding plan §M1.)*
+**Goal.** The shared conventions and the data layer every later milestone
+consumes: `Rrs↔rrs`, the IOP/phase/geometry pytrees, and a one-call L23 loader
+with `B_p` and the seeded splits.
+
+### 3.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | `conventions.py` — A/B, `Rrs↔rrs`, wavelength grid, `bb_w(λ)`, validators | ✅ done |
+| 2 | `types.py` — `IOPs` / `PhaseParams` / `Geometry` pytrees | ⬜ pending |
+| 3 | `data/l23.py` — L23 batches, `B_p`, seeded splits | ⬜ pending |
+| 4 | `notebooks/RT/rt_elastic_coding_2.ipynb` — the M1 explainer | ⬜ pending |
+
+### 3.2 Modules added
+
+**`robust/rt/conventions.py`** — the first implemented module in `robust/rt/`.
+
+- `A_RRS = 0.52`, `B_RRS = 1.7` (Lee et al. 2002), plus `Rrs_to_rrs` /
+  `rrs_to_Rrs` — pure, `jit`-able, differentiable, exact inverses of each other.
+- `RRS_POLE = 1/B_RRS ≈ 0.588`, the `rrs` value where `rrs_to_Rrs` diverges and
+  past which it returns *negative* Rrs. Named because it is the signature of a
+  unit error, and `check_rrs` looks for it.
+- The canonical grid: `WAVE_MIN/MAX/STEP`, `N_WAVE = 81`, the NumPy constant
+  `WAVE`, and `canonical_wave(dtype=None)` returning a JAX array. `WAVE` is
+  deliberately **NumPy, not `jnp`** — a device array built at import would fix
+  its dtype before a caller can enable float64. The values are exact multiples
+  of 5, so float32 holds them without error either way.
+- `BB_W_L23` (81 values) and `bb_w(wave)`, which interpolates it.
+- Boundary validators `check_wave`, `check_iop`, `check_rrs`.
+
+**Key decision — `bb_w` is L23's own water, embedded as a table.**
+`bb_w = bb − bbnw` taken from the L23 elastic file. For a model trained against
+L23 this is not an approximation of the water model, it *is* the water model, and
+any other choice would push a bias straight into `bb_p = bb − bb_w`. Two
+supporting findings:
+
+- **It is scene-independent**, verified before relying on it: the difference is
+  constant to 1.6e-7 relative (float32 storage noise) across all 3320 scenes,
+  all three solar zeniths, and both X=1 and X=4 (X=1 vs X=4 are bit-identical).
+  So there is no scene to choose. `bing`'s `bbNWModel.init_bbw` and
+  `ocpy.water.scattering.bbw_from_l23` compute the same quantity but each picks
+  an arbitrary index (0 and 170 — the latter commented "Random choie") *without*
+  checking that it does not matter. It does not, but now that is a test.
+- **The physical alternative is a dead end today.** Both of those functions carry
+  a TODO pointing at Zhang, Hu & He (2009) for a proper T/S-dependent
+  calculation. `ocpy.water.scattering.betasw_ZHH2009` exists but raises
+  `ValueError("THIS IS NOT SUCCESFULLY CONVERTED YET")` on the first line — an
+  unfinished MATLAB port. Recorded so nobody re-discovers it; it matters at M5,
+  when new HydroLight runs may not share L23's water column.
+
+Embedding the 81 values (rather than reading the netCDF) keeps `conventions.py`
+importable with no data — which is what lets CI run it — and a `needs_l23` test
+re-derives the table from the file so it cannot drift.
+
+**Validators raise `ValueError`, not `assert`.** `python -O` strips `assert`, and
+a convention check that silently disappears is worse than none. They are
+documented as *boundary* checks: they read concrete values, so they cannot run
+inside `jit`, and are meant for where data enters the package — the loader, a
+constructor — leaving `forward` clean.
+
+**Note on import cost.** `conventions.py` imports `jax.numpy` at module scope, so
+`from robust import rt` now pulls JAX (M0 recorded that it pulled nothing). This
+is the expected transition, one milestone earlier than predicted.
+
+### 3.3 Tests
+
+**`robust/tests/test_conventions.py`** — 27 tests.
+
+- *Round trip*: `Rrs→rrs→Rrs` at **float32 to 1e-6** and at **float64 to
+  1e-12**, plus the reverse direction. Measured errors are 2.0e-7 and 2.6e-16,
+  so the float32 gate has ~5× of headroom — asserted in both regimes precisely
+  so nobody later tightens the float32 one into a test of the dtype.
+- *Agreement with BING*: `A_RRS`/`B_RRS` equal `bing.rt.A_Rrs`/`B_Rrs`, under
+  `importorskip` since CI installs a lean set. Fixing the constants only buys
+  anything if the package sharing `rrs` agrees, so it is asserted, not commented.
+- *Differentiability*: both conversions and `bb_w` survive `jit` and `grad`, with
+  the sign of each derivative checked (`bb_w` falls toward the red).
+- *The pole*: `rrs_to_Rrs` diverges just below `RRS_POLE` and goes negative past
+  it.
+- *Grid*: shape/ends/spacing, `canonical_wave()` follows `jax_enable_x64`, and a
+  `needs_l23` golden check that `WAVE` **is** L23's `Lambda`, not a lookalike.
+- *`bb_w`*: positive, monotone, fitted slope λ^-4.2 within a sanity band of
+  Morel's -4.32; exact on the grid; interpolates at midpoints and *clamps*
+  outside 350–750 nm rather than extrapolating; two `needs_l23` golden checks
+  (matches `bb − bbnw`; is scene-independent).
+- *Validators*: each rejects its failure mode (wrong length, shifted grid, wrong
+  spacing; negative/NaN/inf IOPs; negative, non-finite, and beyond-the-pole
+  `rrs`) and accepts valid input. The shifted-grid test also asserts the error
+  message reports the offset, since a validator that says only "bad grid" costs
+  more time than it saves.
+
+### 3.4 Results
+
+`pytest -q` → **39 passed** (12 M0 + 27 M1). With `$OS_COLOR` unset: **36 passed,
+3 skipped** — exactly the three `needs_l23` golden tests, so CI stays green
+without the reference data. `ruff check robust/` and `ruff format --check
+robust/` both clean.
 
 ## 4. M2 — ZTT analytic backbone (JAX)
 
@@ -322,8 +419,18 @@ prototype's definition of done.)*
   values** (pinned against the raw L23 netCDF and the ZTT paper).
 - **Differentiability** — everything on the `forward` path is pure JAX, `jit`/
   `vmap`-friendly, and gradient-checked.
-- **Lint/format** — `ruff`; Google-style docstrings; light `jaxtyping`
-  annotations on public signatures.
+- **Lint/format** — `ruff`, configured in `ruff.toml` at the repo root:
+  `select = E/F/I/W/UP/B`, line length 88, `target-version = py312`, and
+  `quote-style = "double"` for the formatter. Matching the sibling PAB project,
+  so the two repos lint the same way (JXP's answer to Q2). Both `ruff check` and
+  `ruff format --check` are CI-gated, scoped to `robust/` — the pre-existing
+  scripts under `reports/py/` and `context/RT/` predate the config and report 48
+  findings, mostly `E702` (`import glob, os`) and `E501`; cleaning them is a
+  separate decision. Two rules are ignored **because of `jaxtyping`**: `F722`
+  (pyflakes parses a shape string like `" 81"` as a forward reference and reports
+  a syntax error) and `UP037` (pyupgrade offers to strip quotes that are the
+  shape specification). Docstrings are NumPy-style with `Parameters`/`Returns`,
+  plus light `jaxtyping` annotations on public signatures.
 - **Units** — m⁻¹ (`a`, `b`, `bb`), sr⁻¹ (`Rrs`, `rrs`), nm (λ), degrees
   (geometry angles), m s⁻¹ (wind); `B_p = bb_p / b_p` dimensionless.
 - **Notebooks** — one explainer per milestone in `notebooks/RT/`
@@ -343,7 +450,7 @@ robust/
   __init__.py          ✅ package root (pre-existing)
   rt/
     __init__.py        ✅ submodule imports + forward() re-export
-    conventions.py     ⬜ M1  A/B, wavelength grid, bb_w, asserts
+    conventions.py     ✅ M1  A/B, Rrs<->rrs, grid, bb_w, validators
     types.py           ⬜ M1  IOPs / PhaseParams / Geometry pytrees
     data/
       __init__.py      ✅ re-exports l23
@@ -357,12 +464,14 @@ robust/
     conftest.py        ✅ needs_l23 marker, jax_x64 fixture
     files/             ✅ empty (.gitkeep); M1 caches an L23 batch here
     test_env.py        ✅ 12 tests — the M0 gate
+    test_conventions.py ✅ 27 tests — M1 task 1
 
 notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
 
 .github/workflows/
-  ci.yml                     ✅ pytest (py3.12, py3.14) + ruff
+  ci.yml                     ✅ pytest (py3.12, py3.14) + ruff check/format
+ruff.toml                    ✅ lint + format configuration
 ```
 
 ---
@@ -396,10 +505,12 @@ Two deliberate departures from `pip install -r requirements.txt`:
 a test cross-checking `A_RRS`/`B_RRS` against `bing.rt` — when it does, either add
 `bing` here or guard the test with `pytest.importorskip`.
 
-**Job `lint`** — `ruff check robust/` with **`ruff==0.16.0` pinned**. Unpinned,
-a ruff release could change the default rule set and turn CI red with no code
-change — the same fragility as the open Q2. Pinning a `ruff.toml` would be the
-better fix and would let the pin relax.
+**Job `lint`** — `ruff check robust/` **and** `ruff format --check robust/`, with
+`ruff==0.16.0` pinned. Q2 is now resolved (JXP: yes to both), so `ruff.toml` pins
+the rule selection and "clean" is a property of the repo rather than of whichever
+ruff got installed; the version pin stays for determinism, since a new ruff can
+still add rules inside the selected categories. Scoped to `robust/` because the
+pre-existing scripts under `reports/py/` and `context/RT/` predate the config.
 
 **Why the suite is green in CI without the reference data.** `$OS_COLOR` is unset
 on the runner, so `ocpy` warns and falls back to `./`, `l23_available()` returns

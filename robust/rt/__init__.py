@@ -34,10 +34,11 @@ hybrid
 validation
     The accuracy / speed / gradient protocol.
 
-**Status: scaffold (M0).** Every module here is a documented stub; the callables
-raise :class:`NotImplementedError` naming the milestone that fills them in. The
-signatures are already those of the design, so nothing downstream has to change
-as the bodies land.
+**Status.** ``conventions`` is implemented (M1). The rest are documented stubs
+whose callables raise :class:`NotImplementedError` naming the milestone that
+fills them in — ``types`` and ``data.l23`` at M1, ``ztt`` at M2, ``emulator`` and
+``hybrid`` at M3, ``validation`` at M4. The signatures are already those of the
+design, so nothing downstream has to change as the bodies land.
 """
 
 from . import conventions, data, emulator, hybrid, types, validation, ztt
@@ -48,13 +49,13 @@ from .hybrid import forward
 # the point. Hence the noqa.
 __all__ = [  # noqa: RUF022
     # Submodules
-    'conventions',
-    'types',
-    'data',
-    'ztt',
-    'emulator',
-    'hybrid',
-    'validation',
+    "conventions",
+    "types",
+    "data",
+    "ztt",
+    "emulator",
+    "hybrid",
+    "validation",
     # Public API
-    'forward',
+    "forward",
 ]

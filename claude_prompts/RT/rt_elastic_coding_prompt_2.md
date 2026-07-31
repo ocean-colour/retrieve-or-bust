@@ -98,12 +98,12 @@ and use a commented `noqa` where a default rule is wrong for the code.
 
 ## Prompts
 
-1. Read this doc. Execute the 1st task in the "M1" section below.
+1. Read this doc. Execute the 1st task in the "M1" section below. See my answers on ruff in the 1st prompt doc.  If you have any questions, ask me in the Q&A section below.  Use Fable if you can.
 2. Read this doc. Execute the 2nd task in the "M1" section below. If you have any
-   questions, ask me in the Q&A section below.
+   questions, ask me in the Q&A section below.  Use Fable if you can. Log your work.
 3. Read this doc. Execute the 3rd task in the "M1" section below. Check my answers in
-   Q&A. If you have any additional questions, ask me in the Q&A section below.
-4. Read this doc. Execute the 4th task — the notebook. Use Fable if you can.
+   Q&A. If you have any additional questions, ask me in the Q&A section below.  Use Fable if you can. Log your work.
+4. Read this doc. Execute the 4th task — the notebook. Use Fable if you can. Log your work.
 
 ## M1
 
@@ -183,3 +183,93 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-07-31 (M1 task 1 — conventions.py, plus the ruff config JXP approved)
+
+`pytest -q` → **39 passed** (12 M0 + 27 new). With `$OS_COLOR` unset: **36 passed,
+3 skipped** — exactly the three `needs_l23` golden tests, so CI stays green
+without the reference data. `ruff check robust/` and `ruff format --check robust/`
+clean. Implementation record at v0.6 with a new §3.
+
+**First, Q2 from prompt 1** (JXP: yes to both). Added `ruff.toml` — `select =
+E/F/I/W/UP/B`, line length 88, `target-version = py312`, formatter
+`quote-style = "double"` — matching PAB so the two repos lint alike. Then ran
+`ruff format robust/` (6 files reformatted) *before* writing new code, so
+`conventions.py` was authored in the final style rather than reformatted after.
+Also added `ruff format --check` to the CI lint job and rewrote its now-stale
+comment about there being no config.
+
+Two rules are ignored, both **because of `jaxtyping`**: `F722` (pyflakes tries to
+parse a shape string like `" 81"` as a forward reference and calls it a syntax
+error) and `UP037` (pyupgrade offers to delete quotes that *are* the shape
+specification). The coding plan asks for light jaxtyping on public signatures, so
+the rules go rather than the annotations. Worth knowing: `ruff check .` across the
+whole repo reports **48** findings, all in pre-existing non-package scripts
+(`setup.py`, `reports/py/`, `context/RT/`) — mostly `E702` from `import glob, os`
+and long lines. I left them alone and scoped CI to `robust/`; say the word if you
+want that swept.
+
+**`conventions.py`.** `A_RRS`/`B_RRS`, `Rrs_to_rrs`/`rrs_to_Rrs`, the canonical
+grid, `bb_w(λ)`, and three boundary validators. Decisions worth recording:
+
+- **`WAVE` is NumPy, not `jnp`.** A device array built at import would freeze its
+  dtype before a caller can enable float64; `canonical_wave()` converts on demand
+  so it follows `jax_enable_x64`. The values are exact multiples of 5, so float32
+  holds them without error either way. A test asserts the x64 behaviour.
+- **Validators raise `ValueError`, not `assert`.** `python -O` strips `assert`,
+  and a convention check that silently vanishes is worse than none. They are
+  documented as *boundary* checks — they read concrete values, so they cannot run
+  under `jit`, and are for where data enters the package, leaving `forward` clean.
+- **`RRS_POLE` is named and checked.** `rrs_to_Rrs` diverges at `rrs = 1/B ≈
+  0.588` and goes *negative* past it. Ocean `rrs` is ~1e-3–5e-2, so the only way
+  to get there is a unit error — exactly the kind that otherwise surfaces as an
+  inexplicable negative Rrs at M3. `check_rrs` looks for it and says "check the
+  units".
+
+**On `bb_w`, the one number that came from data — I followed the "reuse" rule and
+it led somewhere useful.** Both `bing.bbNWModel.init_bbw` and
+`ocpy.water.scattering.bbw_from_l23` compute pure-water backscattering as
+`bb − bbnw` from an L23 file, and **both carry a TODO** saying to replace it with
+a proper calculation. Chasing that: `ocpy.water.scattering.betasw_ZHH2009` (Zhang,
+Hu & He 2009, the T/S-dependent physical model both TODOs point at) **raises
+`ValueError("THIS IS NOT SUCCESFULLY CONVERTED YET")` on its first line** — an
+unfinished MATLAB port. So the physical path does not exist yet in either package,
+which is *why* both fall back to the difference. Recorded in the module and the
+record so nobody re-discovers it; it matters at M5, when new HydroLight runs may
+not share L23's water column.
+
+For our purposes the L23 difference is not a fallback but the *correct* choice:
+the model is trained against L23, so any other `bb_w` would put a bias straight
+into `bb_p = bb − bb_w`. But both existing implementations take that difference at
+an **arbitrary scene index** (bing: 0; ocpy: 170, commented "Random choie")
+without checking that the choice is immaterial. So I checked: `bb − bbnw` is
+constant to **1.6e-7 relative** (float32 storage noise) across all 3320 scenes,
+all three solar zeniths, and both X=1 and X=4 — X=1 vs X=4 are bit-identical.
+That makes a single 81-value table legitimate, so I embedded it: no data
+dependency at import, which is what lets CI exercise the module, and two
+`needs_l23` tests re-derive it from the netCDF and re-assert the
+scene-independence so neither claim can rot.
+
+**Tests (27).** The round trip is asserted in **both** dtype regimes — float32 to
+1e-6 (measured 2.0e-7, so ~5× headroom) and float64 to 1e-12 (measured 2.6e-16) —
+specifically so the float32 tolerance cannot later be tightened into a test of the
+dtype, which is the trap M0's notebook §4 measured. `A_RRS`/`B_RRS` are asserted
+equal to `bing.rt`'s under `importorskip` (CI has no bing): fixing the constants
+only buys something if the package we share `rrs` with agrees. Both conversions
+and `bb_w` are checked under `jit` and `grad` with derivative *signs* verified,
+since they sit on the `forward` path. `bb_w`'s slope is fitted at λ^-4.2 against a
+sanity band around Morel's -4.32 — a band, not a gate, because L23's water is
+close to but not identical with pure molecular scattering. And the shifted-grid
+test asserts the error message reports the offset, because a validator that says
+only "bad grid" costs more time than it saves.
+
+One consequence to note: `conventions.py` imports `jax.numpy` at module scope, so
+`from robust import rt` now pulls JAX. M0 recorded that it pulled nothing and
+predicted this would change at M2; it changed at M1. Expected, not a regression.
+
+New: `ruff.toml`, `robust/rt/conventions.py` (implemented), `robust/tests/
+test_conventions.py`. Modified: `robust/rt/__init__.py` (its docstring claimed
+every module was a stub), `.github/workflows/ci.yml` (format check + stale
+comment), `design/rt_elastic_implementation.md` (v0.6, new §3, lint conventions,
+module index), and the 6 files `ruff format` touched. Branch
+`rt-elastic-prototype` for JXP to commit. Next: task 2, the `types.py` pytrees.

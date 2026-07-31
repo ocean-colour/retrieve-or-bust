@@ -7,12 +7,14 @@ all?". It checks the three JAX properties the later milestones actually rely on
 scaffold imports and exposes the designed API, and that the unimplemented pieces
 say so loudly instead of returning something wrong.
 """
+
 import numpy as np
 import pytest
 
 from robust.tests.conftest import l23_available
 
 # ------------------------------------------------------------------ JAX -----
+
 
 def test_jax_imports_and_runs_on_cpu():
     """``import jax; jax.numpy.ones(3)`` works, on the CPU backend."""
@@ -22,10 +24,10 @@ def test_jax_imports_and_runs_on_cpu():
     x = jnp.ones(3)
 
     np.testing.assert_array_equal(np.asarray(x), np.ones(3))
-    assert jax.default_backend() == 'cpu'
+    assert jax.default_backend() == "cpu"
     # CPU-only for now (coding plan CQ5): no accelerator should sneak in.
-    assert [d.platform for d in jax.devices()] == ['cpu']
-    assert all(d.platform == 'cpu' for d in x.devices())
+    assert [d.platform for d in jax.devices()] == ["cpu"]
+    assert all(d.platform == "cpu" for d in x.devices())
 
 
 def test_jax_float64_available(jax_x64):
@@ -53,7 +55,7 @@ def test_jax_grad_works():
     import jax
     import jax.numpy as jnp
 
-    grad = jax.grad(lambda v: jnp.sum(v ** 2))(3.0)
+    grad = jax.grad(lambda v: jnp.sum(v**2))(3.0)
 
     assert float(grad) == pytest.approx(6.0)
 
@@ -67,7 +69,7 @@ def test_jax_jit_works():
     import jax
     import jax.numpy as jnp
 
-    f = jax.jit(lambda v: jnp.sum(v ** 2))
+    f = jax.jit(lambda v: jnp.sum(v**2))
 
     assert float(f(jnp.arange(4.0))) == pytest.approx(14.0)
 
@@ -83,6 +85,7 @@ def test_ml_stack_imports():
 
 # ------------------------------------------------------------ robust.rt -----
 
+
 def test_robust_rt_imports():
     """``from robust import rt`` succeeds."""
     from robust import rt
@@ -94,12 +97,19 @@ def test_rt_exposes_scaffold_modules():
     """Every module of the planned layout is importable and re-exported."""
     from robust import rt
 
-    expected = ['conventions', 'types', 'data', 'ztt', 'emulator', 'hybrid',
-                'validation']
+    expected = [
+        "conventions",
+        "types",
+        "data",
+        "ztt",
+        "emulator",
+        "hybrid",
+        "validation",
+    ]
 
     for name in expected:
-        assert hasattr(rt, name), f'robust.rt.{name} missing'
-    assert hasattr(rt.data, 'l23')
+        assert hasattr(rt, name), f"robust.rt.{name} missing"
+    assert hasattr(rt.data, "l23")
     # The public entry point of the design is exported from day one.
     assert callable(rt.forward)
 
@@ -123,10 +133,11 @@ def test_hybrid_modes_declared():
     """The three comparable configurations are named (design §4.5)."""
     from robust import rt
 
-    assert rt.hybrid.MODES == ('ztt', 'emulator', 'hybrid')
+    assert rt.hybrid.MODES == ("ztt", "emulator", "hybrid")
 
 
 # ------------------------------------------------------- reference data -----
+
 
 def test_l23_availability_check_runs():
     """The conftest data probe answers without raising, either way.
@@ -138,7 +149,7 @@ def test_l23_availability_check_runs():
 
 
 def test_ocpy_l23_loader_importable():
-    """``ocpy``'s L23 loader is installed — M1 builds on it rather than reimplementing."""
+    """``ocpy``'s L23 loader is installed — M1 builds on it, not its own copy."""
     from ocpy.hydrolight import loisel23
 
-    assert hasattr(loisel23, 'l23_path')
+    assert hasattr(loisel23, "l23_path")

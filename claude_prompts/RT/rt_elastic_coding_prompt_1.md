@@ -105,6 +105,8 @@ mine does; its `__init__.py` import style trips `I001`). Two questions:
 I left `robust/` clean under `ruff check` either way, with two documented
 `noqa`s. — *No answer needed to proceed with M1.*
 
+>A. Yes, generate a ruff.toml file.  And, yes, let's use ruff format to format the package.
+
 ## Next
 
 → `rt_elastic_coding_prompt_2.md` (M1: Data & conventions).

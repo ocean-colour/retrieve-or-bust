@@ -76,13 +76,18 @@ jobs:
           python-version: '3.12'
           cache: pip
 
-      # Pinned on purpose. This repo has no ruff.toml, so an unpinned ruff would
-      # change the rule set under us on every release and turn CI red without a
-      # code change. Pinning to the version used locally makes the check
-      # reproducible; see Q2 in claude_prompts/RT/rt_elastic_coding_prompt_1.md
-      # about pinning a ruff.toml instead, which would be the better fix.
+      # `ruff.toml` at the repo root pins the rule selection (E/F/I/W/UP/B, line
+      # length 88, py312), so what "clean" means is now a property of the repo
+      # rather than of whichever ruff got installed. The version pin stays for
+      # determinism: a new ruff can still add rules within those categories.
       - name: Install ruff
         run: pip install ruff==0.16.0
 
+      # Scoped to robust/ deliberately: the pre-existing scripts under
+      # reports/py/ and context/RT/ predate the config and are not part of the
+      # package.
       - name: Lint the package
         run: ruff check robust/
+
+      - name: Check formatting
+        run: ruff format --check robust/
