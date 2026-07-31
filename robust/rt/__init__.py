@@ -34,15 +34,16 @@ hybrid
 validation
     The accuracy / speed / gradient protocol.
 
-**Status.** ``conventions`` is implemented (M1). The rest are documented stubs
-whose callables raise :class:`NotImplementedError` naming the milestone that
-fills them in — ``types`` and ``data.l23`` at M1, ``ztt`` at M2, ``emulator`` and
+**Status.** ``conventions`` and ``types`` are implemented (M1). The rest are
+documented stubs whose callables raise :class:`NotImplementedError` naming the
+milestone that fills them in — ``data.l23`` at M1, ``ztt`` at M2, ``emulator`` and
 ``hybrid`` at M3, ``validation`` at M4. The signatures are already those of the
 design, so nothing downstream has to change as the bodies land.
 """
 
 from . import conventions, data, emulator, hybrid, types, validation, ztt
 from .hybrid import forward
+from .types import Geometry, IOPs, PhaseParams
 
 # Grouped by role, and ordered as the pipeline runs (conventions -> data ->
 # backbone -> emulator -> hybrid -> validation), not alphabetically: the order is
@@ -58,4 +59,8 @@ __all__ = [  # noqa: RUF022
     "validation",
     # Public API
     "forward",
+    # Public types — the arguments of forward(), in signature order
+    "IOPs",
+    "PhaseParams",
+    "Geometry",
 ]
