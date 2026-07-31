@@ -184,6 +184,85 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-07-31 (M1 task 2 — types.py: the three forward() pytrees)
+
+`pytest -q` → **71 passed** (12 M0 + 27 conventions + 32 types); with `$OS_COLOR`
+unset, 68 passed + 3 skipped. `ruff check` and `ruff format --check` clean. Record
+at v0.7. `IOPs`, `PhaseParams`, and `Geometry` are implemented and re-exported
+from `robust.rt`, per the coding plan's "`__init__.py` exports `forward()`, public
+types".
+
+**The pytree-registration decision, and a rationale I had to discard.** The task
+said to pick between `flax.struct.dataclass` and `jax.tree_util.register_dataclass`
+and say why. My first instinct was import cost — M0 recorded a convention of
+keeping Flax off the analytic path — so I measured it: **`flax` adds only ~0.08 s
+once `jax` is loaded** (it lazy-imports; 116 modules appear in `sys.modules` but
+little is actually executed). That killed the argument I was about to make, so I
+went with the one that survives: **dependency direction**. These types sit on the
+analytic path — M2's ZTT backbone needs them and needs nothing from Flax — so
+having the core data model import a neural-network library to describe a container
+is backwards. JAX's own mechanism is more primitive and stable, and stdlib
+`dataclasses` gives `replace()` and a sane `repr` for free. Flax arrives at M3
+inside `emulator.py`, where it earns its place. The measured 0.08 s is in the
+record so the convention rests on structure rather than on a speed claim that
+would not have survived scrutiny.
+
+I prototyped the choice before writing the module and confirmed all of it:
+field inference works with no explicit `data_fields`; `jax.grad` of a scalar of an
+`IOPs` returns **an `IOPs`** with per-field derivatives (the shape the future
+inversion wants, and the whole reason these are containers); `vmap`, `tree_map`,
+`jit`, `dataclasses.replace`, and an extra optional field all behave.
+
+**A subtlety worth the memory: `bb_w` is broadcast to the batch shape.** Storing
+it as a bare `(81,)` spectrum is more honest about the physics — water is the same
+in every scene — but it makes every leaf *not* share a batch axis, so
+`jax.vmap(f, in_axes=0)` would fail and each caller would have to spell out
+`in_axes=IOPs(a=0, bb_w=None, bb_p=0)`. Broadcasting costs ~1 MB for a full L23
+batch. I took the convenience and documented the trade, with a test asserting the
+payoff (plain `vmap` over a batched `IOPs` works).
+
+**Validation stays out of `__post_init__`, and a test enforces that.** Under `jit`
+or `vmap` the fields are tracers with no concrete value, so a constructor-time
+check would either crash or pass vacuously — the second being much worse. So each
+type has an explicit `validate()`, and one test asserts it raises
+`jax.errors.TracerArrayConversionError` inside `jit`. That pins the contract: if
+someone later "improves" the class by validating on construction, the suite says
+no.
+
+**`PhaseParams` is the extension point, and the M5 promise is now tested rather
+than asserted.** A local variant with an extra optional field goes through `jit`
+and `grad` in the test suite. Two things that emerged: an unset optional field
+contributes **no leaves** (so gradients and `tree_map` ignore it), but the
+*treedef* does change once set, so `jit` recompiles once per variant — correct and
+cheap, but worth knowing before someone sees it in a profile. I deliberately did
+**not** invent names for the M5 backward-VSF fields; the contract is documented and
+demonstrated, the naming waits for the physics.
+
+I also kept the tight `B_p ∈ ~[0.004, 0.03]` range **out** of the type.
+`PhaseParams.validate()` checks only the definitional bound `(0, 1]` — it is a
+ratio, not a coefficient. The narrow band is the loader's business (task 3),
+because M2/M3 need to sweep `B_p` outside the L23 range to probe the model, and a
+type-level invariant would fight that.
+
+**Two things I wrote badly and fixed rather than shipped.** (1) A test named
+`test_geometry_validate_rejects_radians` did nothing of the sort — its own comment
+admitted the radians case passes, and the assertion it actually made (>90° is
+rejected) duplicated another test. The honest fact is that 30° in radians is 0.52,
+which sits happily inside `[0, 90]`, so the range check **cannot** catch that
+mix-up; it would surface at M3 as a poor fit. I replaced it with
+`test_validate_cannot_detect_radians_a_known_limitation`, which pins the blind
+spot, and corrected the `validate()` docstring, which had claimed the reverse.
+A validator's gaps matter as much as its coverage, and a test whose name overstates
+its coverage is worse than no test. (2) A `pytest.raises(Exception)` with a
+`noqa: B017` became the specific `jax.errors.TracerArrayConversionError` once I
+checked which error JAX actually raises.
+
+New: `robust/rt/types.py` (implemented), `robust/tests/test_types.py`. Modified:
+`robust/rt/__init__.py` (status docstring; re-export the three types and add them
+to `__all__`), `design/rt_elastic_implementation.md` (v0.7). Branch
+`rt-elastic-prototype` for JXP to commit. Next: task 3, the L23 loader and the
+seeded splits — where the `B_p` range gets checked across all 81 bands.
+
 ### 2026-07-31 (M1 task 1 — conventions.py, plus the ruff config JXP approved)
 
 `pytest -q` → **39 passed** (12 M0 + 27 new). With `$OS_COLOR` unset: **36 passed,

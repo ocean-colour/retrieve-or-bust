@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.6
+**Version:** 0.7
 **Date:** 2026-07-31
 **Authors:** JXP and Claude
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **39 passed** in ~2.3 s (`ocean14`);
-with `$OS_COLOR` unset, 36 passed + 3 skipped. `ruff check robust/` and `ruff
+**Verification (current).** `pytest -q` → **71 passed** in ~3.3 s (`ocean14`);
+with `$OS_COLOR` unset, 68 passed + 3 skipped. `ruff check robust/` and `ruff
 format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). The M0 notebook
 (`notebooks/RT/rt_elastic_coding_1.ipynb`) executes end to end with no errors.
@@ -297,7 +297,7 @@ with `B_p` and the seeded splits.
 | # | Task | Status |
 |---|------|--------|
 | 1 | `conventions.py` — A/B, `Rrs↔rrs`, wavelength grid, `bb_w(λ)`, validators | ✅ done |
-| 2 | `types.py` — `IOPs` / `PhaseParams` / `Geometry` pytrees | ⬜ pending |
+| 2 | `types.py` — `IOPs` / `PhaseParams` / `Geometry` pytrees | ✅ done |
 | 3 | `data/l23.py` — L23 batches, `B_p`, seeded splits | ⬜ pending |
 | 4 | `notebooks/RT/rt_elastic_coding_2.ipynb` — the M1 explainer | ⬜ pending |
 
@@ -352,6 +352,63 @@ constructor — leaving `forward` clean.
 `from robust import rt` now pulls JAX (M0 recorded that it pulled nothing). This
 is the expected transition, one milestone earlier than predicted.
 
+**`robust/rt/types.py`** — the three arguments of `forward`, as registered JAX
+pytrees with light `jaxtyping` annotations (`Spectrum = Float[Array, "*batch
+wave"]`, `Scalar = Float[Array, "*batch"]`).
+
+- `IOPs(a, bb_w, bb_p)` with derived `bb`, `u = bb/(a+bb)`, and `n_wave`
+  properties (properties, so they are *not* pytree leaves); a `from_total_bb`
+  constructor; and `validate()`.
+- `PhaseParams(B_p)` with `validate()`.
+- `Geometry(theta_s, theta_v, dphi, wind=None)`, **degrees**, with a `nadir()`
+  constructor for the L23 case and `validate()`.
+- All three re-exported from `robust.rt`, per the coding plan's "`__init__.py`
+  exports `forward()`, public types".
+
+**Key decision — `jax.tree_util.register_dataclass`, not
+`flax.struct.dataclass`.** Both work; the argument is dependency direction. These
+types sit on the analytic path — the M2 ZTT backbone needs them and needs nothing
+from Flax — so having the core data model import a neural-network library to
+describe a container would be backwards. JAX's own mechanism is more primitive and
+stable, and stdlib `dataclasses` gives `dataclasses.replace` and a sane `repr` for
+free. Flax arrives at M3 inside `emulator.py`, where it earns its place. Import
+cost was explicitly *not* the argument: measured, `flax` adds only ~0.08 s once
+`jax` is loaded, so the convention recorded at M0 ("keep flax out of the analytic
+path") rests on structure, not on a speed claim that would not have survived
+scrutiny.
+
+Verified behaviour of the choice: field inference works with no explicit
+`data_fields`; `grad` of a scalar of an `IOPs` returns an **`IOPs`** with
+per-field derivatives (the shape the future inversion wants, and the reason these
+are containers at all); `vmap`, `tree_map`, `jit`, and `dataclasses.replace` all
+traverse them.
+
+**Key decision — `bb_w` is broadcast to the batch shape** in `from_total_bb`.
+Storing it as a bare `(81,)` spectrum would be more honest about the physics
+(water is the same everywhere) but would force every caller to spell out
+`in_axes=IOPs(a=0, bb_w=None, bb_p=0)` to use `vmap`. Broadcasting costs ~1 MB for
+a full L23 batch and makes plain `vmap(f, in_axes=0)` work; a test asserts that
+payoff.
+
+**Key decision — validation is explicit, never `__post_init__`.** Under `jit` or
+`vmap` the fields are tracers with no concrete value, so a constructor-time check
+would either crash or pass vacuously. Each type therefore has `validate()`, called
+where data enters. A test asserts `validate()` raises
+`jax.errors.TracerArrayConversionError` under `jit` — pinning the contract, so a
+future "improvement" that moves it into `__post_init__` fails loudly.
+
+**`PhaseParams` is the API's extension point.** Week 1 carries only `B_p`; at M5
+the ZTT backward-VSF descriptors join as *additional optional fields defaulting to
+`None`*, which changes neither `forward`'s signature nor any call site. Two
+consequences, both tested: an unset optional field contributes no leaves, but the
+*treedef* does change once it is set, so `jit` recompiles once per variant —
+correct and cheap, but visible in a profile.
+
+`PhaseParams.validate()` checks only the definitional bound `B_p ∈ (0, 1]`, not
+the ~[0.004, 0.03] expected of real particles. That tighter range is the loader's
+business (task 3): a synthetic `B_p` sweep at M2/M3 must be able to probe outside
+it without fighting a type-level invariant.
+
 ### 3.3 Tests
 
 **`robust/tests/test_conventions.py`** — 27 tests.
@@ -379,12 +436,34 @@ is the expected transition, one milestone earlier than predicted.
   message reports the offset, since a validator that says only "bad grid" costs
   more time than it saves.
 
+**`robust/tests/test_types.py`** — 32 tests. Because the point of these types is
+that they are pytrees, most of the suite is JAX behaviour rather than attribute
+access.
+
+- *Pytree mechanics*: leaf counts (3 for `IOPs` — the properties are not leaves),
+  frozen-ness, `dataclasses.replace`, `tree_map`, `jit`, `vmap`, and all three
+  containers through one traced call in `forward`'s argument order.
+- *`grad` returns the container*: `jax.grad` of a scalar of an `IOPs` is an
+  `IOPs`, with `∂/∂a < 0` and `∂/∂bb_p > 0` — sensitivities stay labelled instead
+  of arriving as an anonymous flat vector.
+- *`from_total_bb`*: splits water off correctly, broadcasts so `vmap(in_axes=0)`
+  needs no custom `in_axes`, and — the documented failure mode — produces a
+  negative `bb_p` when handed *non-water* `bb`, which `validate()` then catches.
+- *Extensibility*: a local M5-shaped `PhaseParams` variant with an extra optional
+  field is pushed through `jit` and `grad`, so the design's extension promise is
+  exercised rather than merely written down.
+- *Validators*: shape mismatch, non-finite, wrong grid length; `B_p` outside
+  `(0, 1]`; out-of-range angles per field; negative wind. Plus one test that pins
+  a **blind spot** rather than a guarantee: 30° expressed in radians is 0.52,
+  which sits inside `[0, 90]`, so the range check *cannot* detect that mix-up. It
+  is recorded so nobody relies on protection that is not there.
+
 ### 3.4 Results
 
-`pytest -q` → **39 passed** (12 M0 + 27 M1). With `$OS_COLOR` unset: **36 passed,
-3 skipped** — exactly the three `needs_l23` golden tests, so CI stays green
-without the reference data. `ruff check robust/` and `ruff format --check
-robust/` both clean.
+`pytest -q` → **71 passed** (12 M0 + 27 conventions + 32 types). With
+`$OS_COLOR` unset: **68 passed, 3 skipped** — exactly the three `needs_l23` golden
+tests, so CI stays green without the reference data. `ruff check robust/` and
+`ruff format --check robust/` both clean.
 
 ## 4. M2 — ZTT analytic backbone (JAX)
 
@@ -451,7 +530,7 @@ robust/
   rt/
     __init__.py        ✅ submodule imports + forward() re-export
     conventions.py     ✅ M1  A/B, Rrs<->rrs, grid, bb_w, validators
-    types.py           ⬜ M1  IOPs / PhaseParams / Geometry pytrees
+    types.py           ✅ M1  IOPs / PhaseParams / Geometry pytrees
     data/
       __init__.py      ✅ re-exports l23
       l23.py           ⬜ M1  L23 elastic batches + seeded splits
@@ -465,6 +544,7 @@ robust/
     files/             ✅ empty (.gitkeep); M1 caches an L23 batch here
     test_env.py        ✅ 12 tests — the M0 gate
     test_conventions.py ✅ 27 tests — M1 task 1
+    test_types.py      ✅ 32 tests — M1 task 2
 
 notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
