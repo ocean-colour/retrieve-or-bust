@@ -18,7 +18,11 @@ setup_keywords['long_description'] = ''
 if os.path.exists('README.md'):
     with open('README.md') as readme:
         setup_keywords['long_description'] = readme.read()
-setup_keywords['provides'] = [setup_keywords['name']]
+# NB: no `provides` key. It is legacy distutils metadata (superseded by
+# Provides-Dist) and it must be a *module* name, so the hyphen in
+# 'retrieve-or-bust' made it illegal: `pip install .` died with
+# "ValueError: illegal provides specification". bing/ocpy carry the same line
+# harmlessly because their names have no hyphen.
 setup_keywords['python_requires'] = '>=3.12'
 setup_keywords['install_requires'] = [
     'numpy', 'scipy', 'pandas', 'matplotlib', 'seaborn',
@@ -26,6 +30,9 @@ setup_keywords['install_requires'] = [
     'tqdm', 'IPython', 'pytest',
     # Retrieval / inference engine and plotting
     'emcee', 'corner', 'bokeh']
+# The JAX stack for the differentiable RT forward model (robust/rt) is declared
+# in requirements.txt only, deliberately: `pip install -e .` for non-RT work
+# should not have to pull jaxlib. Install it with `pip install -r requirements.txt`.
 # The sibling packages BING and ocpy are not on PyPI; install them from
 # source / GitHub via requirements.txt (git+https://github.com/ocean-colour/...).
 setup_keywords['zip_safe'] = False
