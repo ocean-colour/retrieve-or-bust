@@ -1,0 +1,88 @@
+name: CI
+
+# Runs on every branch (all milestone work happens on feature branches such as
+# rt-elastic-prototype, so main-only CI would give no signal while a milestone is
+# being built) and on pull requests. The concurrency group cancels superseded
+# runs on the same ref so a rapid series of pushes does not queue up.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12 is the floor declared in setup.py (and jax 0.11 requires >= 3.12);
+        # 3.14 is what the ocean14 development environment runs.
+        python-version: ['3.12', '3.14']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # Deliberately NOT `pip install -r requirements.txt`. That file is the
+      # developer's full environment: it pulls ocpy's heavy extras (cartopy,
+      # geopandas, healpy, netcdf4) plus bing/emcee/bokeh/seaborn, none of which
+      # the test suite imports. Installing only what the tests actually use keeps
+      # CI fast and makes a red build mean "our code broke", not "a geospatial
+      # wheel failed to build". CPU-only JAX: the plain wheel is CPU on Linux.
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install jax flax optax jaxtyping numpy scipy xarray pytest
+
+      # ocpy supplies the Loisel+2023 loader that robust.rt.data.l23 builds on
+      # (M1 onward). --no-deps for the reason above: robust only touches
+      # ocpy.hydrolight.loisel23, which needs numpy + xarray, already installed.
+      - name: Install ocpy (L23 loader), without its heavy extras
+        run: pip install --no-deps git+https://github.com/ocean-colour/ocpy
+
+      - name: Install the package
+        run: pip install -e . --no-deps
+
+      - name: Show the environment
+        run: |
+          python -c "import jax; print('jax', jax.__version__, jax.default_backend(), jax.devices())"
+          pip list
+
+      # The L23 netCDFs (~17 MB each) are not in the repo and $OS_COLOR is unset
+      # here, so the data-dependent tests skip rather than fail (see
+      # robust/tests/conftest.py). -ra prints the skip reasons, so a skip that
+      # should have been a pass is visible in the log instead of silent.
+      - name: Run the test suite
+        run: pytest -q -ra
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      # Pinned on purpose. This repo has no ruff.toml, so an unpinned ruff would
+      # change the rule set under us on every release and turn CI red without a
+      # code change. Pinning to the version used locally makes the check
+      # reproducible; see Q2 in claude_prompts/RT/rt_elastic_coding_prompt_1.md
+      # about pinning a ruff.toml instead, which would be the better fix.
+      - name: Install ruff
+        run: pip install ruff==0.16.0
+
+      - name: Lint the package
+        run: ruff check robust/

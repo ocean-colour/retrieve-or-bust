@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.4
+**Version:** 0.5
 **Date:** 2026-07-31
 **Authors:** JXP and Claude
 
@@ -37,6 +37,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started.
 **Branch.** All milestone work lands on `rt-elastic-prototype`; each milestone is
 a reviewable commit for JXP (Claude runs no state-changing git — see
 `CLAUDE.md`).
+
+**CI.** `.github/workflows/ci.yml` runs `pytest` on Python 3.12 and 3.14 plus a
+pinned `ruff` lint, on every branch and pull request — §10 for the design and the
+one packaging bug it surfaced.
 
 **Acceptance philosophy.** Accuracy gates are *relative* ("beats standard
 Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
@@ -262,12 +266,15 @@ Two things in it are worth more than their word count:
   real FD gate, a float64 perturbation around a float32 model will silently test
   something other than what was meant.
 
-**Note on running it.** `robust` is *not* pip-installed in `ocean14` (Q1: the JAX
-stack is declared in `requirements.txt` only), so the notebook puts the repo root
-on `sys.path` by walking up to the directory containing `robust/__init__.py`. The
-same asymmetry means `pytest` must be run **from the repo root** — from a
-subdirectory, `robust` is not importable. Not a problem today; worth knowing
-before someone runs the suite from `robust/tests/` and reports a bug.
+**Note on running it.** `robust` is *not* pip-installed in `ocean14`, so the
+notebook puts the repo root on `sys.path` by walking up to the directory
+containing `robust/__init__.py`; that also means `pytest` must be run **from the
+repo root**. This note originally guessed the cause was Q1 (the JAX stack living
+only in `requirements.txt`) — **that was wrong**. The real cause, found while
+setting up CI (§10), was a bug in `setup.py`: `provides = ['retrieve-or-bust']`
+is illegal distutils metadata because of the hyphen, so `pip install -e .` failed
+outright. Fixed; the package is installable again, and the `sys.path` bootstrap
+now merely makes the notebook work whether or not anyone has installed it.
 
 Figure conventions, so later milestones' figures match: recessive grid and
 frame, text in ink colours rather than series colours, legend plus direct labels
@@ -353,6 +360,64 @@ robust/
 
 notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
+
+.github/workflows/
+  ci.yml                     ✅ pytest (py3.12, py3.14) + ruff
 ```
+
+---
+
+## 10. Continuous integration
+
+`.github/workflows/ci.yml` — runs on **every branch** and on pull requests (all
+milestone work happens on feature branches, so a main-only trigger would give no
+signal while a milestone is being built), with a concurrency group so superseded
+runs on the same ref cancel.
+
+**Job `test`** — matrix `python-version: [3.12, 3.14]`, `fail-fast: false`. 3.12
+is the floor declared in `setup.py` (and `jax` 0.11 requires ≥ 3.12); 3.14 is what
+`ocean14` runs. Steps: install a **lean** dependency set
+(`jax flax optax jaxtyping numpy scipy xarray pytest`), then `ocpy` with
+`--no-deps`, then `pip install -e . --no-deps`, then `pytest -q -ra`.
+
+Two deliberate departures from `pip install -r requirements.txt`:
+
+- **The lean set.** `requirements.txt` is the developer's full environment. Via
+  `ocpy` it pulls `cartopy`, `geopandas`, `healpy`, `netcdf4`, plus
+  `bing`/`emcee`/`bokeh`/`seaborn` — none of which the test suite imports.
+  Installing only what the tests use keeps CI fast and makes a red build mean
+  "our code broke" rather than "a geospatial wheel failed to build".
+- **`ocpy --no-deps`.** `robust` touches exactly one ocpy module,
+  `ocpy.hydrolight.loisel23`, which needs only `numpy` + `xarray`. So the real
+  integration is exercised without the heavy extras. If a later test reaches a
+  part of ocpy that needs more, that is the moment to add the dependency.
+
+`bing` is **not** installed in CI: nothing in the suite imports it yet. M1 may add
+a test cross-checking `A_RRS`/`B_RRS` against `bing.rt` — when it does, either add
+`bing` here or guard the test with `pytest.importorskip`.
+
+**Job `lint`** — `ruff check robust/` with **`ruff==0.16.0` pinned**. Unpinned,
+a ruff release could change the default rule set and turn CI red with no code
+change — the same fragility as the open Q2. Pinning a `ruff.toml` would be the
+better fix and would let the pin relax.
+
+**Why the suite is green in CI without the reference data.** `$OS_COLOR` is unset
+on the runner, so `ocpy` warns and falls back to `./`, `l23_available()` returns
+`False`, and the `needs_l23` tests skip. Verified locally with `OS_COLOR` unset:
+**12 passed, 1 warning**. `-ra` prints the skip reasons, so a skip that should
+have been a pass shows up in the log instead of passing silently.
+
+**One bug fixed to get here.** `setup.py` set `provides = ['retrieve-or-bust']`;
+`provides` is legacy distutils metadata that must be a *module* name, so the
+hyphen made `pip install -e .` fail with `ValueError: illegal provides
+specification`. That is why nothing was ever pip-installed in `ocean14` and why
+`pytest` only worked from the repo root. The key is removed (it is superseded by
+`Provides-Dist` and does nothing useful); `pip install -e . --no-deps` now
+succeeds. `bing`/`ocpy` carry the same line harmlessly because their names have no
+hyphen.
+
+**Badge** in `README.md`. It will read "no status" until `ci.yml` reaches the
+default branch — the workflow file has to exist on `main` for the badge's default
+view to resolve.
 
 *Living document; updated at the close of each milestone.*

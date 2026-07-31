@@ -82,9 +82,11 @@ Python 3.14.6, CPU backend. `jax.experimental.enable_x64` **does not exist** in 
 
 **Two gotchas M0 paid for:**
 
-1. **`robust` is not pip-installed** in `ocean14` (the JAX stack is declared in
-   `requirements.txt` only). So `pytest` must be run **from the repo root**, and a
-   notebook must put the repo root on `sys.path` (M0's notebook shows the pattern).
+1. **`robust` may not be pip-installed** in `ocean14`. `pip install -e .` was in fact
+   *broken* until CI setup exposed why (`setup.py` declared an illegal `provides`
+   value; now fixed), so nothing was ever installed and `pytest` has only ever been
+   run **from the repo root**. Keep doing that, and keep the `sys.path` bootstrap in
+   the notebook (M0's notebook shows the pattern) so it works either way.
 2. **JAX defaults to float32.** A "round-trips to 1e-6" test has barely one digit of
    headroom at float32 (eps ≈ 1.2e-7). Either run it under `jax_x64` or state the
    tolerance as explicitly relative and justify it — do not let a tolerance silently

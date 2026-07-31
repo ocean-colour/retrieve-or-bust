@@ -47,6 +47,8 @@ Read before coding:
 
 5. The Notebook looks great.  Please modify the next prompt doc, `rt_elastic_coding_prompt_2.md`, to reflect the changes you have made.  Include the creation of a Notebook.  Log your work
 
+6. Please add the necessary files to turn on CI on GitHub.  Log your work.
+
 ## M0
 
 ### Tasks
@@ -409,3 +411,76 @@ be guessing. Better done at the head of each milestone, as this one was.
 
 Modified: `claude_prompts/RT/rt_elastic_coding_prompt_2.md`. No code changes;
 suite untouched at 12 passed. Branch `rt-elastic-prototype` for JXP to commit.
+
+### 2026-07-31 (CI on GitHub Actions — and the packaging bug it exposed)
+
+Added `.github/workflows/ci.yml` (two jobs), a badge in `README.md` with a short
+Development section, and §10 of the implementation record documenting the design.
+**Fixed one pre-existing bug in `setup.py` along the way — see below; it is the
+most consequential thing in this entry.**
+
+**Job `test`** — matrix Python **3.12** (the floor `setup.py` declares, and `jax`
+0.11 requires ≥ 3.12) and **3.14** (what `ocean14` runs), `fail-fast: false` so one
+version's failure still reports the other. Installs a lean set, then `ocpy`
+`--no-deps`, then `pip install -e . --no-deps`, then `pytest -q -ra`. **Job
+`lint`** — `ruff check robust/` with `ruff==0.16.0` pinned. Triggers on **every
+branch** plus PRs, with a concurrency group cancelling superseded runs: main-only
+CI would give no signal at all right now, since every milestone is built on
+`rt-elastic-prototype` before it merges.
+
+**Why not `pip install -r requirements.txt`.** That file is the developer's whole
+environment. Via `ocpy` it pulls `cartopy`, `geopandas`, `healpy`, `netcdf4`, plus
+`bing`/`emcee`/`bokeh`/`seaborn` — and the suite imports *none* of them. I checked
+ocpy's `install_requires` before deciding rather than assuming it was light.
+Installing only what the tests use keeps CI fast and, more importantly, makes a
+red build mean "our code broke" instead of "a geospatial wheel failed to build".
+Same reasoning for `ocpy --no-deps`: `robust` touches exactly one ocpy module,
+`ocpy.hydrolight.loisel23`, which needs only numpy + xarray, so the real
+integration is exercised without the extras. `bing` is left out entirely (nothing
+imports it yet) with a note that M1's constants cross-check should either add it
+or use `importorskip`.
+
+**The bug.** The CI step `pip install -e . --no-deps` failed on a dry run:
+`ValueError: illegal provides specification: 'retrieve-or-bust'`. `setup.py` had
+`provides = [name]`, and `provides` is legacy distutils metadata that must be a
+*module* name — the hyphen makes it invalid. So **`pip install .` has never worked
+in this repo**. Two things fall out of that. First, it explains a fact I had
+already recorded but explained *wrongly*: I had written that `robust` isn't
+pip-installed in `ocean14` "per Q1, because the JAX stack lives only in
+requirements.txt". That was a guess, and it was wrong — the install was simply
+broken. I corrected the claim in both the implementation record and prompt 2
+rather than leaving a plausible-sounding wrong reason in the docs. Second, it
+would have hit anyone setting up the project from a clean clone. Fix: removed the
+key (superseded by `Provides-Dist`, and it does nothing useful); `pip install -e .
+--no-deps` now resolves to "Would install retrieve-or-bust-0.0.dev0". `bing` and
+`ocpy` carry the identical line harmlessly — I checked — because their names have
+no hyphen; this repo inherited the template and the hyphen broke it.
+
+**Verified rather than hoped.** (1) The YAML parses, and I asserted the parsed job
+names, triggers, matrix, and step list rather than eyeballing indentation.
+(2) `pytest -q -ra` with **`OS_COLOR` unset** — the actual CI condition, not the
+bogus-path variant I tested at M0 — gives **12 passed, 1 warning**: `ocpy` warns
+and falls back to `./`, `l23_available()` returns `False`, and the data tests skip.
+So CI will be green without the ~17 MB netCDFs, which is exactly what M0's
+conftest was built for. (3) The editable install now dry-runs clean. (4) Both
+sibling repos are public (HTTP 200), so the `git+` install of ocpy will resolve.
+
+I also confirmed mid-task that `ocpy/hydrolight/__init__.py` was **missing from
+GitHub `main`** while present in the local checkout — which would have made
+`pip install git+…/ocpy` omit the whole subpackage and break the CI step. JXP
+pushed the fix; re-checked the GitHub tree and the file is there now.
+
+Conservative choices worth flagging: `actions/checkout@v4` and
+`actions/setup-python@v5` rather than the newest majors, to minimise the chance of
+a first run failing on a bad action reference; and the ruff pin, which exists only
+because Q2 is unresolved — a `ruff.toml` would be the better fix and would let the
+pin relax. If the 3.14 job cannot find an interpreter on the runner, drop it to
+3.13; `fail-fast: false` means the 3.12 job still reports either way. The badge
+will read "no status" until `ci.yml` exists on the default branch.
+
+New: `.github/workflows/ci.yml`. Modified: `setup.py` (the `provides` fix),
+`README.md` (badge + Development), `design/rt_elastic_implementation.md` (v0.5 —
+new §10, CI line in §1, corrected the pip-install note in §2.6),
+`claude_prompts/RT/rt_elastic_coding_prompt_2.md` (corrected the same claim).
+Suite 12 passed; `ruff check robust/` clean. Branch `rt-elastic-prototype` for JXP
+to commit — CI starts reporting on the next push.
