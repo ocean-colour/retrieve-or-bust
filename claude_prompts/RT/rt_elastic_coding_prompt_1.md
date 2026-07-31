@@ -45,6 +45,8 @@ Read before coding:
 
 4. Please add a Jupyter Notebook (or two) to explain what you have done so far.  Place it in the `notebooks/RT/` folder.  Name it `rt_elastic_coding_1.ipynb`.  Use Fable if you can.
 
+5. The Notebook looks great.  Please modify the next prompt doc, `rt_elastic_coding_prompt_2.md`, to reflect the changes you have made.  Include the creation of a Notebook.  Log your work
+
 ## M0
 
 ### Tasks
@@ -343,3 +345,67 @@ New: `notebooks/RT/rt_elastic_coding_1.ipynb`. Modified:
 `design/rt_elastic_implementation.md` (v0.4 — added §2.6 Notebook, the figure and
 `sys.path` conventions, module index). Suite still 12 passed. Branch
 `rt-elastic-prototype`, on top of `ccbc0cc`, for JXP to commit.
+
+### 2026-07-31 (Updated prompt 2 for M1 with what M0 actually established)
+
+Rewrote `rt_elastic_coding_prompt_2.md` so M1 starts from what M0 built rather
+than from the pre-M0 plan. The three M1 tasks are unchanged in substance — the
+work was folding in the facts, conventions, and traps that only exist now.
+
+**Added a fourth task: the notebook.** `notebooks/RT/rt_elastic_coding_2.ipynb`,
+with the conventions M0 set spelled out rather than left to be rediscovered:
+executed and committed with outputs, data cells degrading to a message without
+`$OS_COLOR`, the `sys.path` bootstrap, the figure style (recessive frame, ink-
+coloured text, legend + direct labels, one hue light→dark for magnitude, the
+CVD-checked `#0072B2`/`#D55E00` pair), and *render-and-look-at-it* called out
+explicitly because that is what caught M0's two label collisions. I also told it
+what to explain — the *decisions* (why `rrs` is the fitting space, why `bb_w`
+stays split from `bb_p`, what the hold-outs protect against) — and what **not** to
+re-explain, since notebook 1 already covers JAX and the float64 argument.
+
+**Added a "Status entering M1" section.** M1's real risk is rebuilding what
+exists, so this names the inheritance: the three stubs to fill (docstrings
+already list their planned contents — fill the bodies, keep the docs), the
+`needs_l23` marker and `l23_available()` to use instead of new skip logic, the
+`jax_x64` fixture, and `robust/tests/files/` sitting empty for exactly the cached
+L23 batch M1 should put there.
+
+**One factual correction.** The old draft pointed at `$OS_COLOR_DATA/Loisel2023/`
+— that variable is **unset**. The variable actually set is `$OS_COLOR`, and
+`ocpy` resolves `loisel23.l23_path` from it. I checked the hardcoded laptop path
+the draft also quoted (`/Users/xavier/data/Color/Loisel2023`) before "fixing" it,
+and it turns out to be the *same directory* — `Projects/Oceanography/data` is a
+symlink to `~/data`, same device and inode — so the draft was not wrong about the
+data, only about the variable. Recorded it that way instead of overstating the
+error, and made the instruction "resolve through `ocpy`, never a hardcoded path".
+
+**Carried the two gotchas forward** so M1 does not rediscover them: `pytest` must
+run from the repo root (`robust` is not pip-installed, per Q1), and JAX's float32
+default leaves barely one digit of headroom under M1's own "round-trips to 1e-6"
+gate (float32 eps ≈ 1.2e-7) — so that test should either use `jax_x64` or justify
+its tolerance, rather than let the tolerance quietly become a test of the dtype.
+
+**Turned M0's one measurement into a real gate reference.** M1's plan asserts
+`B_p ∈ ~[0.004, 0.03]`. M0 measured it at 440 nm only: median 0.0126, 1st–99th
+percentile 0.0105–0.0180. The prompt now says so, and instructs M1 to check the
+range across all 81 bands and all three zeniths and to *report rather than clip*
+a failure — an assert tuned to 440 nm that fires at 350 nm would otherwise be
+found at M3, when it is expensive.
+
+**Verified every API I told M1 to use**, having just corrected a stale path in the
+same document: `jax.tree_util.register_dataclass` ✓ and `flax.struct.dataclass` ✓
+both exist in the installed versions (offered as the two pytree-registration
+options); `bing.rt.A_Rrs` = **0.52** and `B_Rrs` = **1.7**, so the "assert our
+constants equal BING's" test I recommend will actually pass; `bbNWModel.init_bbw`
+✓ exists, so the suggestion to check BING before writing our own `bb_w(λ)` is
+real; and `Lambda` spacing is exactly 5 nm across 350–750 (81 bands). Also
+recorded the dataset anatomy — dims `IOP_Scenario`/`Lambda`, the full variable
+list — so M1 does not have to open a file to learn the schema.
+
+**Not touched: prompts 3–6.** They will each need the same notebook task and a
+similar status hand-off, but their content depends on results that do not exist
+yet (M2's ZTT transcription, M3's training outcome), so updating them now would
+be guessing. Better done at the head of each milestone, as this one was.
+
+Modified: `claude_prompts/RT/rt_elastic_coding_prompt_2.md`. No code changes;
+suite untouched at 12 passed. Branch `rt-elastic-prototype` for JXP to commit.
