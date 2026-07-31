@@ -135,7 +135,7 @@ and use a commented `noqa` where a default rule is wrong for the code.
 3. **L23 loader + splits.** `robust/rt/data/l23.py`: load the elastic set via `ocpy`
    for Y∈{0,30,60}; assemble `(IOPs, Geometry, Rrs)` JAX batches; compute
    `B_p = bbnw / bnw`; expose the **seeded splits** (random 20% of scenes; and the
-   solar-zenith hold-out: train 0°/30°, test 60°).
+   solar-zenith hold-out: train 0°/30°, test 60°).  
 
    Measured in M0, so the range assert has a real reference: at **440 nm**, `B_p` has
    median **0.0126** and 1st–99th percentiles **0.0105–0.0180** — comfortably inside the
@@ -168,7 +168,30 @@ and use a commented `noqa` where a default rule is wrong for the code.
      assert), and the reference `Rrs` spectra grouped by split so the hold-out is visible
      rather than asserted.
 
+Also read my answer to Q3 in the Q&A section below.
+
 ### Q&A
+
+**Q3 (M1 task 3, Claude → JXP).** This doc said `robust/tests/files/` was
+"intended for a small cached L23 batch so the data tests do not re-read the ~17 MB
+netCDFs", and that M1 would use it. **I did not put anything there**, for two
+reasons. Reading a file turns out to cost only ~0.27 s, so a session-scoped
+`l23_batch` fixture (loads once per run) already removes the repetition — the full
+suite is 4.1 s. And the coverage motive is better served another way: the split
+logic is now tested against a *synthetic* batch, so it runs in CI, with no data at
+all.
+
+What a committed fixture would still buy is CI exercising the **loader itself**
+against real numbers, rather than skipping all 16 data tests. A 50-scene ×
+3-zenith `.npz` would be ~150–250 KB.
+
+I did not do it unilaterally because it means **committing data derived from
+someone else's dataset** (L23, Dryad) into a public repo — a licensing and
+repo-hygiene call that is yours, not mine. Say the word and it is a small change:
+a `write_test_fixture()` helper plus a `files/`-backed branch in the fixture.
+— *No answer needed; task 4 is unaffected.*
+
+>A. Yes, please do generate a small L23 batch
 
 ## Next
 
@@ -183,6 +206,159 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-01 (M1 task 4 — the explainer notebook, plus the cached fixture from Q3)
+
+`pytest -q` → **116 passed**; with `$OS_COLOR` unset, **99 passed + 17 skipped** (was
+90 + 17). `ruff` clean. Record at v0.9, **M1 complete**.
+
+**First, Q3, which you answered yes to.** `robust/tests/files/l23_small.npz` now
+exists: 50 scenes × 3 zeniths, **213 kB** compressed. The design choice that makes
+it worth having is what it stores. A snapshot of `load_batch`'s *output* could only
+ever be checked for staleness — the loader itself would not run. So the fixture
+stores the loader's **input**: the raw per-file fields, behind a new injectable
+`reader` seam (`load_batch(..., reader=...)`, `write_fixture`, `npz_reader`, the
+same pattern PAB uses for its cloud reader). The real `load_batch` therefore
+executes against real L23 numbers wherever the fixture is present. Concretely, CI
+went from **90 to 99** passing tests: shapes, the `B_p` band per wavelength, the
+`bb_w`-vs-`conventions` cross-check, the zenith ratios, the golden value, and
+splits/`select` over genuine scene labels all now run with no dataset. `npz_reader`
+refuses a scenario or zenith it does not hold, because silently serving the wrong
+sun angle would be far worse than failing. One test also asserts the fixture stays
+under 512 kB, so it cannot quietly grow into a data dump in git history.
+
+**The notebook** (`notebooks/RT/rt_elastic_coding_2.ipynb`, 23 cells, executed,
+three figures) is organised around M1's four *decisions*, not its call signatures,
+and deliberately does not re-explain M0's JAX material.
+
+**Two things writing it taught me that the code alone had not said.**
+
+(1) **The water/particle split matters more than I had been claiming.** I had
+written that keeping `bb_w` separate was "load-bearing" on the design's authority.
+Actually measuring the share: for the median L23 scene pure water is **~72% of
+total backscatter at 400 nm**, ~50% at 550, and still **~29% at 750** (37–87% at
+400 nm across scenes). So `bb_w` is not a small correction one could fold into
+`bb` — over much of the spectrum it is the *larger* term. My first draft of that
+paragraph guessed "roughly half at 400 nm, a few per cent by 750" and was wrong in
+both directions; the printed table caught it before it shipped.
+
+(2) **The `rrs` fitting space is not cosmetic.** If `Rrs → rrs` were a constant
+scaling, the choice would be presentational — a relative error in one space would
+be the same in the other. It is not: the true conversion sits **6% below a linear
+rescaling at `Rrs` = 0.02 and 14% below at 0.05**. That is the concrete reason the
+design's protocol specifies rRMS *in `rrs` space*.
+
+**Figures — and looking at them earned its keep again.** The first render had three
+defects no assertion would have caught. The `Rrs↔rrs` annotation arrow pointed at
+the wrong x (I had used the value at the array's last element, not at the `Rrs` =
+0.02 it claimed), and the accompanying prose said "drifts ~6%" when the plotted
+range reaches 14%. The pole panel was truncated at `ylim=0.09`, so the divergence
+it existed to show was off-screen — fixed with a log y-axis, which makes the
+asymptote and the decade of headroom above ocean `rrs` both visible. And the
+zenith-ratio y-label rendered as literal `R_rs(0u00b0)`, because `°` inside an
+**r-string** is not an escape sequence; the surrounding f-strings interpreted theirs
+fine, which is exactly why it slipped through.
+
+Figure 2 does the most work: `B_p` percentiles per wavelength against the design
+band. It answers prompt 2's question (the range holds at every one of the 81 bands)
+and simultaneously shows the caveat — L23 fills a **1.75×** slice of a band
+spanning **7.5×** — in one picture. Figure 3 draws the zenith hold-out as
+`Rrs(θ)/Rrs(0°)` with a dashed line at 1.0, which *is* standard Gordon's
+assumption; that makes the M3/M4 comparison legible rather than something the
+reader has to take on faith.
+
+New: `notebooks/RT/rt_elastic_coding_2.ipynb`, `robust/tests/files/l23_small.npz`.
+Modified: `robust/rt/data/l23.py` (the `reader` seam, `write_fixture`,
+`npz_reader`), `robust/tests/conftest.py` (`l23_small_batch` fixture, `FILES`,
+`L23_SMALL_FIXTURE`), `robust/tests/test_l23.py` (9 fixture-backed tests; the module
+docstring now describes three layers rather than two),
+`design/rt_elastic_implementation.md` (v0.9 — M1 ✅, new §3.4 Notebook, §3.5
+Results). Branch `rt-elastic-prototype` for JXP to commit. **M1 is done**; next is
+`rt_elastic_coding_prompt_3.md` (M2: the ZTT backbone in JAX).
+
+### 2026-08-01 (M1 task 3 — the L23 loader, seeded splits, and what the data says)
+
+`pytest -q` → **107 passed** (12 M0 + 27 conventions + 32 types + 36 L23); with
+`$OS_COLOR` unset, 90 passed + 17 skipped. `ruff check` and `ruff format --check`
+clean. Record at v0.8. `load_batch`, `make_splits`, and `select` are implemented.
+
+**First, the measurement this doc asked for — and the answer is reassuring.** The
+worry was that a `B_p` range assert tuned to 440 nm might fire in the UV or the far
+red. It does not: across **all 81 bands, all 3320 scenes, and all three zeniths**
+(268,920 values) `B_p` lies in **[0.01026, 0.01800]**, entirely inside the design's
+nominal ~[0.004, 0.03]. So the assert needs no wavelength-dependent escape hatch.
+I test it **per band** rather than only globally, since a narrow band-specific
+excursion would hide inside a global min/max. Also checked the division: `bnw`
+never gets near zero (minimum 6.1e-3), so `B_p = bbnw/bnw` is safe.
+
+**But the same measurement carries an honest limitation, which I would rather
+record now than have someone discover at M5.** L23 spans a factor of only **~1.75**
+in `B_p` where the design's nominal band spans ~7. The prototype therefore trains
+on a *narrow slice* of phase-function space, so "explicit phase-function
+dependence" — the headline argument for the ZTT backbone over Gordon — is only
+weakly exercised until M5's HydroLight runs vary the phase function properly. That
+is a real caveat on what M4 can claim.
+
+**Three more properties of the release, each now a test.** (1) The IOP fields are
+**bit-identical** across the three zenith files — the same 3320 water bodies
+illuminated three ways, with only `Rrs` differing. (2) `Rrs` falls with solar
+zenith: median ratios **0.990** at 30° and **0.949** at 60°. That ~5% is the only
+geometry signal in hand, and it is exactly what standard Gordon *cannot* express
+(it has no solar-zenith dependence at all) — so it is the lever the M3/M4
+comparison pulls. (3) `B_p` **varies with wavelength** within a scene (0.0134 at
+350 nm → 0.0125 at 750 nm), so it is carried as a spectrum, not collapsed to a
+per-scene scalar. Good thing `types.py` left that open.
+
+On (1): I deliberately did **not** exploit the identity to store one copy of the
+IOPs and tile it. The saving is ~13 MB; the cost would be silent breakage if a
+future release ever varied them per zenith. The loader reads each file's own IOPs
+and concatenates, so the identity is an *observation with a test*, not a
+dependency.
+
+**The split is by scene, and that is the single most consequential line in the
+module.** Each water body appears three times, once per zenith. A per-*sample*
+split would put the same IOPs in both train and test at different sun angles, and
+every held-out number afterwards would be quietly optimistic — the M4 gate would
+be measuring memorisation. `make_splits` draws *scenes* and expands to a sample
+mask, and a test asserts the two scene sets are disjoint and jointly complete.
+Because this is the property the whole acceptance gate rests on, I also test it
+against a **synthetic** batch, so the split logic runs in CI where there is no
+dataset. `make_splits` also refuses to build a split whose zenith hold-out would be
+empty: a vacuous gate is worse than a failing one.
+
+**Design choices worth recording.** One flat sample axis (9960 samples), so every
+leaf shares the batch shape and `vmap(in_axes=0)` needs no per-field spec.
+`L23Batch` is deliberately **not** a registered pytree — it is an analysis
+container, and `scene` is host-side integer metadata that must never be traced or
+differentiated; a test pins that. And `bb_w`/`bb_p` come from the **file**
+(`bb − bbnw`, `bbnw`) rather than from `conventions`, so a batch is exactly what
+L23 says, with a test tying the loader's `bb_w` back to the embedded table.
+
+**That last test taught me something, after failing.** I first asserted agreement
+at `rtol=1e-6` and it failed on 0.1% of elements, by up to **3.4e-6 relative**. Not
+a bug in either module: L23 stores float32, and the two paths differ only in *where*
+the subtraction happens — the embedded table was extracted with float32 arithmetic
+(what the file's own dtype gives), while the loader upcasts to float64 first, which
+is slightly *more* accurate. The disagreement is worst in the red tail, where
+`bb_w ≈ 3e-4` and the cancellation is relatively largest. So the tolerance was
+simply tighter than the reference data's own precision. I set it to 1e-5 and
+documented why, rather than nudging a number until green — the fix is knowing which
+of the two values is "right" (neither; they bracket float32 noise) and saying so.
+
+I also raised **Q3**: this doc expected M1 to put a cached batch in
+`robust/tests/files/`, and I did not. Loading costs only 0.27 s per file, so a
+session-scoped fixture already removes the repetition, and the coverage motive is
+better served by the synthetic batch that runs in CI. What a committed fixture
+would still buy is CI exercising the *loader* against real numbers instead of
+skipping 16 tests — but that means committing data derived from someone else's
+dataset into a public repo, which is your call, not mine.
+
+New: `robust/rt/data/l23.py` (implemented), `robust/tests/test_l23.py`. Modified:
+`robust/tests/conftest.py` (session-scoped `l23_batch` fixture that skips rather
+than errors when the data is absent), `design/rt_elastic_implementation.md` (v0.8 —
+§3.2 loader decisions, a new §3.2.1 table of measured properties, §3.3 tests, §3.4
+results). Branch `rt-elastic-prototype` for JXP to commit. **M1 tasks 1–3 are
+done**; next is task 4, the notebook.
 
 ### 2026-07-31 (M1 task 2 — types.py: the three forward() pytrees)
 

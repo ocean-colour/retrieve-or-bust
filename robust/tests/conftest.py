@@ -21,12 +21,23 @@ explicit set/restore.
 """
 
 import os
+import pathlib
 
 import pytest
 
 #: The L23 *elastic* files (X=1, no inelastic) at the three solar-zenith angles
 #: Y = 0/30/60 deg. The prototype needs all three (coding plan M1).
 L23_ELASTIC_FILES = ("Hydrolight100.nc", "Hydrolight130.nc", "Hydrolight160.nc")
+
+#: Fixtures directory (BING layout).
+FILES = pathlib.Path(__file__).parent / "files"
+
+#: A committed 50-scene x 3-zenith snapshot of the **raw** L23 fields, ~213 kB.
+#: Because it holds the loader's *input* rather than its output, the real
+#: :func:`robust.rt.data.l23.load_batch` runs against real numbers wherever this
+#: file is present -- CI included, with no ``$OS_COLOR`` mount. Regenerate with
+#: ``l23.write_fixture(path, n_scene=50)``.
+L23_SMALL_FIXTURE = FILES / "l23_small.npz"
 
 
 def l23_available():
@@ -52,6 +63,46 @@ def l23_available():
 needs_l23 = pytest.mark.skipif(
     not l23_available(), reason="L23 elastic Hydrolight data not available ($OS_COLOR)"
 )
+
+
+@pytest.fixture(scope="session")
+def l23_small_batch():
+    """A 50-scene L23 batch, loaded through the real loader from the committed fixture.
+
+    Needs no ``$OS_COLOR``: :data:`L23_SMALL_FIXTURE` stores the loader's *input*,
+    so ``load_batch`` genuinely runs here rather than a snapshot of its output
+    being checked for staleness.
+
+    Returns
+    -------
+    robust.rt.data.l23.L23Batch
+    """
+    if not L23_SMALL_FIXTURE.is_file():
+        pytest.skip(f"cached L23 fixture missing: {L23_SMALL_FIXTURE}")
+
+    from robust.rt.data import l23
+
+    return l23.load_batch(reader=l23.npz_reader(L23_SMALL_FIXTURE))
+
+
+@pytest.fixture(scope="session")
+def l23_batch():
+    """The full L23 elastic batch (3 zeniths x 3320 scenes), loaded once.
+
+    Session-scoped because reading the three netCDFs costs ~0.3 s each and every
+    data test wants the same batch. Skips rather than errors when the dataset is
+    absent, so it is safe even if a test forgets the :data:`needs_l23` marker.
+
+    Yields
+    ------
+    robust.rt.data.l23.L23Batch
+    """
+    if not l23_available():
+        pytest.skip("L23 elastic Hydrolight data not available ($OS_COLOR)")
+
+    from robust.rt.data import l23
+
+    return l23.load_batch()
 
 
 @pytest.fixture

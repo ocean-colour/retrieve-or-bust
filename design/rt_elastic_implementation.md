@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.7
-**Date:** 2026-07-31
+**Version:** 0.9
+**Date:** 2026-08-01
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -26,7 +26,7 @@ every bump.
 | M | Goal | Status | Package surface |
 |---|------|--------|-----------------|
 | **M0** | Environment & scaffold | ✅ done | `robust.rt` (stubs), `robust/tests/` |
-| **M1** | Data & conventions | 🟡 in progress | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
+| **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | ⬜ not started | `robust.rt.ztt` |
 | **M3** | Residual emulator + hybrid | ⬜ not started | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation`, `design/py/run_validation.py` |
@@ -47,11 +47,12 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **71 passed** in ~3.3 s (`ocean14`);
-with `$OS_COLOR` unset, 68 passed + 3 skipped. `ruff check robust/` and `ruff
+**Verification (current).** `pytest -q` → **116 passed** in ~4.5 s (`ocean14`);
+with `$OS_COLOR` unset, **99 passed + 17 skipped** — the loader itself is exercised
+without the dataset, against a committed 50-scene fixture. `ruff check robust/` and `ruff
 format --check robust/` → clean. The suite is green both with and without the L23
-reference data on disk (missing data skips, never fails). The M0 notebook
-(`notebooks/RT/rt_elastic_coding_1.ipynb`) executes end to end with no errors.
+reference data on disk (missing data skips, never fails). Both notebooks in
+`notebooks/RT/` execute end to end with no errors.
 
 ---
 
@@ -298,8 +299,8 @@ with `B_p` and the seeded splits.
 |---|------|--------|
 | 1 | `conventions.py` — A/B, `Rrs↔rrs`, wavelength grid, `bb_w(λ)`, validators | ✅ done |
 | 2 | `types.py` — `IOPs` / `PhaseParams` / `Geometry` pytrees | ✅ done |
-| 3 | `data/l23.py` — L23 batches, `B_p`, seeded splits | ⬜ pending |
-| 4 | `notebooks/RT/rt_elastic_coding_2.ipynb` — the M1 explainer | ⬜ pending |
+| 3 | `data/l23.py` — L23 batches, `B_p`, seeded splits | ✅ done |
+| 4 | `notebooks/RT/rt_elastic_coding_2.ipynb` — the M1 explainer | ✅ done |
 
 ### 3.2 Modules added
 
@@ -409,6 +410,83 @@ the ~[0.004, 0.03] expected of real particles. That tighter range is the loader'
 business (task 3): a synthetic `B_p` sweep at M2/M3 must be able to probe outside
 it without fighting a type-level invariant.
 
+**`robust/rt/data/l23.py`** — the one-call L23 loader and the seeded splits.
+
+- `load_batch(zeniths=ZENITHS, *, x=ELASTIC_X, scenes=None, validate=True)` →
+  `L23Batch`, holding `IOPs`, `PhaseParams`, `Geometry`, the reference `Rrs`, the
+  wavelength grid, and per-sample `scene` labels.
+- `make_splits(batch, *, seed=SPLIT_SEED, ...)` → `Splits`: four boolean masks
+  (`scene_train/test`, `zenith_train/test`) plus the held-out scene indices.
+- `select(batch, mask)` → a subset batch, for M3/M4 to train and score on.
+- Constants: `ELASTIC_X = 1`, `ZENITHS = (0, 30, 60)`, `N_SCENES = 3320`,
+  `B_P_EXPECTED = (0.004, 0.03)`, `SPLIT_SEED = 23`, `TEST_FRACTION = 0.2`,
+  `HELD_OUT_ZENITH = 60`.
+
+**Key decision — one flat sample axis.** The batch stacks `n_zenith × n_scene =
+9960` samples along a single leading axis, so every leaf shares the batch shape
+and `jax.vmap(f, in_axes=0)` works with no per-field `in_axes`. `scene` and
+`geometry.theta_s` label each sample, which is what makes both the per-zenith
+metrics and the splits expressible as boolean masks.
+
+**Key decision — the split is by *scene*, not by sample.** Each water body appears
+three times (once per zenith). Splitting per sample would put the same IOPs in
+both train and test at different sun angles, and every held-out number after that
+would be optimistic. `make_splits` draws scenes and then expands to a sample mask;
+a test asserts the train and test scene sets are disjoint. This is the property the
+whole M4 acceptance gate rests on, so it is tested on a **synthetic** batch too and
+therefore runs in CI, without the dataset.
+
+**Key decision — `L23Batch` is deliberately *not* a registered pytree.** It is an
+analysis container, and `scene` is host-side integer metadata that has no business
+being traced or differentiated. The model inputs it holds are pytrees; the box
+around them is not. A test pins that.
+
+**Key decision — `bb_w`/`bb_p` come from the file, not from `conventions`.** The
+loader uses `bb_w = bb − bbnw` and `bb_p = bbnw`, so a batch is exactly what L23
+says with no convention drift. A test asserts the loader's `bb_w` agrees with the
+embedded `BB_W_L23` table, closing the loop between the two modules — at `rtol =
+1e-5`, and the reason is instructive: L23 stores float32, and the two paths differ
+only in *where* the subtraction happens (the table was extracted with float32
+arithmetic; the loader upcasts to float64 first). In the red tail, where `bb_w ≈
+3e-4`, that shows as up to **3.4e-6 relative** disagreement on ~0.1% of elements.
+Both are inside the reference data's own precision, so the tolerance follows
+float32 rather than pretending to a precision the netCDF does not carry.
+
+**`B_p` is reported, never clipped.** `load_batch` *warns* if `B_p` leaves
+`B_P_EXPECTED`; it does not raise and does not clamp, because silently squashing it
+would hide a change in the reference data.
+
+### 3.2.1 Measured properties of the L23 elastic release
+
+Answering the question prompt 2 raised — is the `B_p` range assert safe outside
+440 nm? — and a few things found alongside. Each has a test.
+
+| Property | Measurement |
+|---|---|
+| `B_p` range, all bands & zeniths | **[0.01026, 0.01800]** over 268,920 values |
+| Inside design's ~[0.004, 0.03]? | **100%** — no UV or far-red failure |
+| `bnw` minimum | 6.1e-3, so `B_p = bbnw/bnw` never divides by ~0 |
+| `B_p` vs λ | **varies** within a scene (0.0134 at 350 nm → 0.0125 at 750 nm), so it is carried as a spectrum |
+| IOPs across the three zenith files | **bit-identical** — the same 3320 water bodies, illuminated three ways |
+| `Rrs(30°)/Rrs(0°)` | median **0.990** |
+| `Rrs(60°)/Rrs(0°)` | median **0.949** |
+
+Two consequences worth carrying forward.
+
+**The range assert is safe at every wavelength**, so it needs no
+wavelength-dependent escape hatch — the concern prompt 2 flagged does not
+materialise. Tested per band, not just globally, since a narrow band-specific
+excursion would otherwise hide inside the global min/max.
+
+**L23 covers a narrow slice of phase-function space.** `B_p` spans a factor ~1.75
+(0.0103–0.0180) where the design's nominal band spans ~7. So "explicit
+phase-function dependence" is only weakly exercised before M5's HydroLight runs
+vary it properly — an honest limit on what the week-1 prototype can demonstrate,
+recorded now rather than discovered at M5. The `Rrs`-vs-zenith numbers are the
+flip side: a ~5% effect at 60° *is* real signal, and standard Gordon has no
+solar-zenith dependence at all, which is precisely what the M3/M4 comparison
+exploits.
+
 ### 3.3 Tests
 
 **`robust/tests/test_conventions.py`** — 27 tests.
@@ -458,12 +536,63 @@ access.
   which sits inside `[0, 90]`, so the range check *cannot* detect that mix-up. It
   is recorded so nobody relies on protection that is not there.
 
-### 3.4 Results
+**`robust/tests/test_l23.py`** — 36 tests, split deliberately in two.
 
-`pytest -q` → **71 passed** (12 M0 + 27 conventions + 32 types). With
-`$OS_COLOR` unset: **68 passed, 3 skipped** — exactly the three `needs_l23` golden
-tests, so CI stays green without the reference data. `ruff check robust/` and
-`ruff format --check robust/` both clean.
+*Logic tests run everywhere* (20), on a synthetic batch built in the test module
+with no netCDF access: container shapes and `validate` failure modes; the
+scene-split fraction, complementarity, determinism-per-seed, and **no-leakage**
+property; the zenith hold-out; `select` correctness and its mask errors; the `B_p`
+warning firing without clipping. Putting the split logic on a synthetic batch is
+the point — the splits *are* the M4 gate, so they must be covered on machines
+(CI included) that have no dataset.
+
+*Data tests carry `needs_l23`* (16) and pin the measurements above: shapes and
+grid; `a, bb ≥ 0` and `Rrs > 0`; `B_p` inside the design band **per wavelength**;
+the observed `B_p` extremes; `B_p` varying with λ; the loader's `bb_w` against the
+`conventions` table; IOPs identical across zeniths; `Rrs` falling with zenith at
+the measured ratios; `scenes=` subsetting; and the splits sized on the real 3320.
+
+Two independent golden checks, because they fail for different reasons. One
+**re-reads the netCDF** and compares row by row, so a transposed axis, an
+off-by-one in the scene labels, or a mis-ordered zenith concatenation shows up.
+The other **pins the absolute numbers** (`Rrs(440, scene 0, 0°) = 8.5333e-03`,
+etc.), which the first would not catch if the underlying release changed.
+
+### 3.4 Notebook
+
+`notebooks/RT/rt_elastic_coding_2.ipynb` — 23 cells, executed, three figures.
+Organised around the four M1 *decisions* rather than the call signatures, and
+deliberately not repeating M0's JAX material: why the fitting space is `rrs`; why
+`bb_w` stays apart from `bb_p`; what `B_p` looks like in the reference data; and
+what the two held-out splits protect against.
+
+Two things the notebook produced that the code alone did not say:
+
+- **The water/particle split matters more than expected.** For the median L23
+  scene, pure water contributes **~72% of total backscatter at 400 nm**, ~50% at
+  550 nm, and still **~29% at 750 nm** (across scenes, 37–87% at 400 nm). So
+  `bb_w` is not a small correction to be absorbed into `bb` — over much of the
+  spectrum it is the *larger* term, which is the quantitative case for keeping the
+  split explicit.
+- **The `rrs` fitting space is not cosmetic.** The true conversion sits **6% below
+  a linear rescaling at `Rrs` = 0.02 and 14% below at 0.05**, so a relative error
+  in `Rrs` space is not the same relative error in `rrs` space — which is why the
+  design's protocol specifies rRMS in `rrs`.
+
+Figures: (1) the `Rrs↔rrs` departure from linearity, and the pole on a log axis
+showing it sits more than a decade beyond the ocean range; (2) `B_p` percentiles
+per wavelength against the design band — the visual answer to "does the range hold
+outside 440 nm?" *and* to "how much of the band does L23 actually cover?";
+(3) the two splits, with the random hold-out drawn as interleaved spectra and the
+zenith hold-out drawn as `Rrs(θ)/Rrs(0°)`, where the 1.0 line is exactly what
+standard Gordon assumes.
+
+### 3.5 Results
+
+`pytest -q` → **116 passed** (12 M0 + 27 conventions + 32 types + 45 L23). With
+`$OS_COLOR` unset: **99 passed, 17 skipped** — every skip is a full-release
+`needs_l23` test; the loader, splits, and `select` all still run in CI against the
+committed fixture. `ruff check robust/` and `ruff format --check robust/` clean.
 
 ## 4. M2 — ZTT analytic backbone (JAX)
 
@@ -533,7 +662,7 @@ robust/
     types.py           ✅ M1  IOPs / PhaseParams / Geometry pytrees
     data/
       __init__.py      ✅ re-exports l23
-      l23.py           ⬜ M1  L23 elastic batches + seeded splits
+      l23.py           ✅ M1  L23 elastic batches + seeded splits
     ztt.py             ⬜ M2  Rrs_ZTT — signature pinned, body pending
     emulator.py        ⬜ M3  Flax MLP ΔRrs + Optax training
     hybrid.py          ⬜ M3  forward() — signature + MODES pinned, body pending
@@ -545,9 +674,12 @@ robust/
     test_env.py        ✅ 12 tests — the M0 gate
     test_conventions.py ✅ 27 tests — M1 task 1
     test_types.py      ✅ 32 tests — M1 task 2
+    test_l23.py        ✅ 45 tests — M1 task 3 (+ cached-fixture layer)
+    files/l23_small.npz ✅ 213 kB, 50 scenes x 3 zeniths (raw fields)
 
 notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
+  rt_elastic_coding_2.ipynb  ✅ M1 explainer (executed, 3 figures)
 
 .github/workflows/
   ci.yml                     ✅ pytest (py3.12, py3.14) + ruff check/format
