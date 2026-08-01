@@ -22,6 +22,7 @@ M2 gates this against a reference case quoted in the paper *and* against
 ambiguous, the coding plan's de-risking fallback is a Gordon/O25-in-JAX backbone
 behind this same interface — a swap that must not reach :func:`robust.rt.forward`.
 """
+
 from __future__ import annotations
 
 
@@ -50,4 +51,5 @@ def Rrs_ZTT(iops, phase_params, geometry, wave):
         Always, in the M0 scaffold.
     """
     raise NotImplementedError(
-        'Rrs_ZTT lands in M2 (see design/rt_elastic_model_coding_plan.md)')
+        "Rrs_ZTT lands in M2 (see design/rt_elastic_model_coding_plan.md)"
+    )

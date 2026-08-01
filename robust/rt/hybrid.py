@@ -11,13 +11,14 @@ inversion is out of scope (design §1), but it is the caller this interface is
 shaped for: ``jax.grad`` / ``jax.jacobian`` of :func:`forward` give the input
 sensitivities it will need.
 """
+
 from __future__ import annotations
 
 #: The three comparable configurations (design §4.5).
-MODES = ('ztt', 'emulator', 'hybrid')
+MODES = ("ztt", "emulator", "hybrid")
 
 
-def forward(iops, phase_params, geometry, wave, mode='hybrid'):
+def forward(iops, phase_params, geometry, wave, mode="hybrid"):
     """Elastic remote-sensing reflectance ``Rrs(wave)``.
 
     Differentiable in JAX and batched over leading axes, so a full L23 batch
@@ -47,5 +48,6 @@ def forward(iops, phase_params, geometry, wave, mode='hybrid'):
         Always, in the M0 scaffold.
     """
     raise NotImplementedError(
-        'forward lands in M3 (see design/rt_elastic_model_coding_plan.md); '
-        f'mode={mode!r}')
+        "forward lands in M3 (see design/rt_elastic_model_coding_plan.md); "
+        f"mode={mode!r}"
+    )
