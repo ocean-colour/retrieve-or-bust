@@ -319,6 +319,32 @@ def test_fixture_splits_and_select_on_real_labels(l23_small_batch):
     held.validate()
 
 
+def test_fixture_iops_are_identical_across_zeniths(l23_small_batch):
+    """The zenith-invariance claim, checkable without the dataset.
+
+    The full-release version of this test is the authority; this one makes the
+    same claim fail loudly in CI, where the netCDFs are absent. Added with the
+    PR #9 review fix, on the principle that a claim worth asserting is worth
+    asserting where the suite actually runs.
+    """
+    fields = {
+        "a": l23_small_batch.iops.a,
+        "bb_w": l23_small_batch.iops.bb_w,
+        "bb_p": l23_small_batch.iops.bb_p,
+        "B_p": l23_small_batch.phase_params.B_p,
+    }
+    n_scene = l23_small_batch.n_sample // len(L.ZENITHS)
+
+    for name, values in fields.items():
+        stacked = np.asarray(values).reshape(len(L.ZENITHS), n_scene, C.N_WAVE)
+        for zi, zenith in enumerate(L.ZENITHS[1:], start=1):
+            np.testing.assert_array_equal(
+                stacked[0],
+                stacked[zi],
+                err_msg=f"{name} differs between {L.ZENITHS[0]} deg and {zenith} deg",
+            )
+
+
 def test_npz_reader_refuses_the_wrong_scenario():
     """Serving the wrong angle or scenario silently would be far worse."""
     from robust.tests.conftest import L23_SMALL_FIXTURE
@@ -493,13 +519,28 @@ def test_iops_are_identical_across_zeniths(l23_batch):
     The same 3320 water bodies are illuminated three ways, so only ``Rrs``
     differs. The loader reads each file's own IOPs anyway -- this test is what
     would tell us if that ever stopped being true.
-    """
-    a = np.asarray(l23_batch.iops.a).reshape(len(L.ZENITHS), L.N_SCENES, C.N_WAVE)
-    bb = np.asarray(l23_batch.iops.bb_p).reshape(len(L.ZENITHS), L.N_SCENES, C.N_WAVE)
 
-    np.testing.assert_array_equal(a[0], a[1])
-    np.testing.assert_array_equal(a[0], a[2])
-    np.testing.assert_array_equal(bb[0], bb[2])
+    Every field is compared against every other zenith rather than a hand-picked
+    pair or two. The first version of this test checked ``a`` at all three angles
+    but ``bb_p`` only at 0 deg and 60 deg, so a 30 deg mismatch could not have
+    failed it -- caught in review (PR #9). Looping over the fields removes the
+    class of omission, not just the instance.
+    """
+    fields = {
+        "a": l23_batch.iops.a,
+        "bb_w": l23_batch.iops.bb_w,
+        "bb_p": l23_batch.iops.bb_p,
+        "B_p": l23_batch.phase_params.B_p,
+    }
+
+    for name, values in fields.items():
+        stacked = np.asarray(values).reshape(len(L.ZENITHS), L.N_SCENES, C.N_WAVE)
+        for zi, zenith in enumerate(L.ZENITHS[1:], start=1):
+            np.testing.assert_array_equal(
+                stacked[0],
+                stacked[zi],
+                err_msg=f"{name} differs between {L.ZENITHS[0]} deg and {zenith} deg",
+            )
 
 
 @needs_l23

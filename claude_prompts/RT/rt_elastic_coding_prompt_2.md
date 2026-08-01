@@ -104,6 +104,8 @@ and use a commented `noqa` where a default rule is wrong for the code.
 3. Read this doc. Execute the 3rd task in the "M1" section below. Check my answers in
    Q&A. If you have any additional questions, ask me in the Q&A section below.  Use Fable if you can. Log your work.
 4. Read this doc. Execute the 4th task — the notebook. Use Fable if you can. Log your work.
+5. Read this doc. Execute the 5th task — responding to the PR review. Use Fable if you can. Log your work.
+6. Read this doc. Execute the 6th task — modifying the next prompt doc `rt_elastic_coding_prompt_3.md`. Use Fable if you can. Log your work.
 
 ## M1
 
@@ -170,6 +172,10 @@ and use a commented `noqa` where a default rule is wrong for the code.
 
 Also read my answer to Q3 in the Q&A section below.
 
+5. **PR Review** I have had Cursor perform a review of our PR.  Please address its comments.  Log your work.
+
+6. **Finally** Modify the next prompt doc `rt_elastic_coding_prompt_3.md` given what we have done here.  Use Fable if you can. Log your work.
+
 ### Q&A
 
 **Q3 (M1 task 3, Claude → JXP).** This doc said `robust/tests/files/` was
@@ -206,6 +212,61 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-01 (M1 task 5 — addressed the Cursor Bugbot review on PR #9)
+
+`pytest -q` → **117 passed**; without `$OS_COLOR`, **100 passed + 17 skipped**.
+`ruff` clean. Record at v0.9.1.
+
+`gh` is not authenticated in this environment, so I read the review through the
+public REST API (`/repos/ocean-colour/retrieve-or-bust/pulls/9/{comments,reviews}`).
+Bugbot raised **one** issue, medium severity, and it was a fair catch. I also
+checked PR #7 (same branch, M0): a review exists but with no inline comments, so
+nothing outstanding there.
+
+**The finding.** In `test_iops_are_identical_across_zeniths`, absorption was
+compared at all three zeniths but `bb_p` only between 0° and 60°:
+
+```python
+np.testing.assert_array_equal(a[0], a[1])
+np.testing.assert_array_equal(a[0], a[2])
+np.testing.assert_array_equal(bb[0], bb[2])   # 30 deg never checked
+```
+
+So a 30° `bb_p` mismatch could not have failed the test, even though its docstring
+claims the IOP *fields* are identical across the zenith files. Exactly the kind of
+gap I have been warning about in these logs — a test whose name and docstring
+promise more than its assertions deliver — and I wrote it anyway.
+
+**The fix goes after the class, not the instance.** Patching in the one missing
+line would have left the same hand-written-pair structure that produced the
+omission. Instead the test now loops over every field the batch carries (`a`,
+`bb_w`, `bb_p`, **and** `B_p`, which the earlier version did not check at all) ×
+every non-zero zenith, with an `err_msg` naming the field and angle that differ. So
+the assertions now cover the docstring's claim exactly, and adding a field to the
+batch cannot silently escape the check.
+
+**Verified the fix catches the specific gap**, rather than just re-running green: I
+perturbed `bb_p` at 30° only and confirmed the strengthened loop fails with
+`bb_p differs 0 vs 30`. A fix for a missing assertion should be demonstrated to
+assert.
+
+I then swept for the same pattern elsewhere in the module — the only other
+zenith-indexed tests are the `Rrs`-ratio ones, which already use all three angles.
+
+**One extension beyond the letter of the review.** The full-release test carries
+`needs_l23`, so the claim it defends was unchecked in CI. Since the review's real
+point was "a claim is under-covered", I added the same loop against the committed
+50-scene fixture (`test_fixture_iops_are_identical_across_zeniths`), which runs
+without the dataset. That is the 117th test, and it is why the no-data count went
+from 99 to 100.
+
+I could not reply on the PR or resolve the thread — no authenticated `gh`, and
+posting to GitHub is an outward-facing action I would not take unasked. The commit
+message or a reply from you can close it out.
+
+Modified: `robust/tests/test_l23.py`, `design/rt_elastic_implementation.md`
+(v0.9.1). Branch `rt-elastic-prototype` for JXP to commit.
 
 ### 2026-08-01 (M1 task 4 — the explainer notebook, plus the cached fixture from Q3)
 

@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.9
+**Version:** 0.9.1
 **Date:** 2026-08-01
 **Authors:** JXP and Claude
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **116 passed** in ~4.5 s (`ocean14`);
-with `$OS_COLOR` unset, **99 passed + 17 skipped** — the loader itself is exercised
+**Verification (current).** `pytest -q` → **117 passed** in ~4.5 s (`ocean14`);
+with `$OS_COLOR` unset, **100 passed + 17 skipped** — the loader itself is exercised
 without the dataset, against a committed 50-scene fixture. `ruff check robust/` and `ruff
 format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). Both notebooks in
@@ -589,8 +589,8 @@ standard Gordon assumes.
 
 ### 3.5 Results
 
-`pytest -q` → **116 passed** (12 M0 + 27 conventions + 32 types + 45 L23). With
-`$OS_COLOR` unset: **99 passed, 17 skipped** — every skip is a full-release
+`pytest -q` → **117 passed** (12 M0 + 27 conventions + 32 types + 46 L23). With
+`$OS_COLOR` unset: **100 passed, 17 skipped** — every skip is a full-release
 `needs_l23` test; the loader, splits, and `select` all still run in CI against the
 committed fixture. `ruff check robust/` and `ruff format --check robust/` clean.
 
@@ -674,7 +674,7 @@ robust/
     test_env.py        ✅ 12 tests — the M0 gate
     test_conventions.py ✅ 27 tests — M1 task 1
     test_types.py      ✅ 32 tests — M1 task 2
-    test_l23.py        ✅ 45 tests — M1 task 3 (+ cached-fixture layer)
+    test_l23.py        ✅ 46 tests — M1 task 3 (+ cached-fixture layer)
     files/l23_small.npz ✅ 213 kB, 50 scenes x 3 zeniths (raw fields)
 
 notebooks/RT/
