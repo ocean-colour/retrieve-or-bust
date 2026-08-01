@@ -12,7 +12,11 @@ most honest measure of uncertainty here is the *disagreement among independent
 estimates*, which is what the figures show. Although this report is titled *from Optics*
 and §§1–4 concern optics-derived carbon, **the answer to "is there another approach?" is
 yes** — §5 surveys the **non-optical (in-situ / geochemical) methods**, which are the
-calibration backbone for optics and carry their own, often large, uncertainties.
+calibration backbone for optics and carry their own, often large, uncertainties. §6 then
+takes up the **physical** side of the problem: §§1–5 treat only the *biological* pathway,
+and §6 makes explicit that the physical (circulation, ventilation, solubility) terms are
+**not** negligible — for the anthropogenic inventory they dominate — and revises the §4
+ranking and the VICC framing accordingly.
 
 Sources: the 14 papers in `context/papers/Biomass`, read in full, plus a 2024–2026
 literature scan and the additional works requested in Q&A. Citations are numbered
@@ -301,6 +305,187 @@ the air–sea-flux programs (e.g. COCO2) that constrain the *sink* rather than t
 
 ---
 
+## 6. Physical vs biological control — response to three questions on the physics
+
+*A collaborator (a physical oceanographer) raised three questions that go to this
+report's foundations: **(MQ1)** does it assume the pure physical-component uncertainty
+is negligible? **(MQ2)** is the working hypothesis that determining NCP is the key to
+reducing ocean carbon inventory uncertainty? **(MQ3)** do we know how the carbon-content
+variability from physical components compares with that from biological ones? Short
+version: the first assumption was implicit here and is **not defensible**; the second
+hypothesis, as stated, is **wrong**; the third has a clear answer that inverts depending
+on which question you ask of the ocean.*
+
+### 6.1 MQ1 — Does the report assume the physical uncertainty is negligible?
+
+**As written, §§1–5 did assume exactly that, and the assumption does not survive contact
+with the literature.** Every uncertainty catalogued so far — the bbp→Cphyto slope, NAP
+separation, the ill-posed inversion, the NPP model, the export ratio — lives in the
+*biological* pathway. That was a scope choice (the report is about carbon *from optics*),
+but left unstated it implies the physical terms are either small or already known.
+Neither holds.
+
+- **Circulation alone reorganises more carbon than the entire anthropogenic inventory.**
+  In Marinov et al.'s model ensemble [40], with the biological parameterisation held
+  *fixed* and only the circulation altered, the soft-tissue carbon store spans
+  **1,278–2,350 Pg C** (a 1,072 Pg C range) and equilibrium atmospheric pCO₂ spans
+  **321–423 ppm** (102 ppm). The entire anthropogenic inventory accumulated from 1800 to
+  1994 is **118 ± 19 Pg C** [42]. A modest physical error in the preformed-nutrient field
+  therefore outweighs a large fractional error in any biological term. Ödalen et al. [41]
+  reach the same conclusion from the other side: a model's CO₂ drawdown potential is set
+  almost entirely by its circulation-determined preformed-nutrient ratio P\*, and removing
+  all climate feedbacks changes it by only **4–7 ppm**.
+- **The largest reduction in ocean-carbon-sink uncertainty achieved to date came from a
+  physical predictor.** Terhaar et al. [47] constrained the Southern Ocean anthropogenic
+  sink with observed **sea-surface salinity** — a purely physical variable indexing the
+  frontal-zone freshwater cycle — cutting multi-model uncertainty by **46–54%**
+  (cumulative 1850–2100 sink 158 ± 6 Pg C under SSP1-2.6; 279 ± 14 Pg C under SSP5-8.5).
+  Their global follow-up [48] tightened the 1990–2020 ocean Cant sink to
+  **80.7 ± 2.5 Pg C**, against 81 ± 7 Pg C from surface-pCO₂ observations and 68 ± 8 Pg C
+  from unconstrained hindcasts. In the RECCAP2 model assessment [49] the residual
+  inter-model spread in Atlantic anthropogenic uptake tracks simulated **AMOC strength**
+  (RAPID observes 16.93 ± 0.57 Sv; one participating model ran at 3.5 Sv until a
+  salinity-restoring fix moved it to 14.4 Sv).
+- **Even the interior-carbon methods fail on physics first.** Matsumoto & Gruber [45] show
+  the ΔC\* back-calculation's steady-state bias is **+7% globally** (**+14%** in the Indian
+  Ocean) and — importantly — that it enters through *air–sea disequilibrium and preformed
+  properties*, not through remineralisation, because export changes are largely absorbed
+  by the method's own biological correction term. Its other large sensitivity is
+  stoichiometric: a 13% shift in the C:O₂ remineralisation ratio moves basin inventories
+  by **+20% / −15%**. Clement & Gruber [46] find eMLR(C\*) recovers decadal ΔCant to about
+  **±10%** globally, the larger sub-basin errors attributed to *"temporal variations in
+  ocean circulation and ocean biogeochemistry."*
+
+**The correction to make.** Nothing in §§2–4 is wrong, but every number there is
+**conditional on the physics**, not independent of it. Optics constrains a *concentration
+field*; turning that into a carbon *inventory* or *flux* requires a circulation, and that
+circulation carries an error this report had not been counting.
+
+### 6.2 MQ2 — Is determining NCP the key to reducing ocean carbon inventory uncertainty?
+
+**No — and we should not claim it.** As a blanket statement the hypothesis is falsified by
+the evidence above. But it is not simply wrong either: it is *quantity-dependent*, and
+separating the cases is what makes the pitch defensible.
+
+| Question being asked | Dominant control | Is better NCP the lever? |
+|---|---|---|
+| Contemporary **anthropogenic** inventory & sink | Physical (ventilation, circulation, buffer factor) | **No** — to first order Cant is transported as a passive tracer |
+| **Preindustrial / natural** DIC distribution & vertical gradient | Biological (soft-tissue pump) | **Yes**, but this is a mean-state control, not a decadal-change term |
+| **Decadal variability** of the sink | Physical leads; biology partly compensates | Partly — and the two are entangled |
+| **Future** stocks, fluxes, abrupt change | Biological uncertainty grows with time | **Yes** — it dominates here |
+| The **non-steady-state residual** every Cant estimate discards | Both | **Yes — this is the real target** |
+
+The strongest single result against the naive hypothesis is Hauck et al. [50]: integrated
+over a full annual cycle south of 30°S, climate-driven changes in *natural* CO₂ exchange
+offset the uptake trend **only ~10%**, with **negligible impact of climate effects on
+anthropogenic CO₂ uptake**. In the same models the Southern Annular Mode's fertilisation
+effect *"can nearly balance the circulation-driven outgassing of natural carbon"* — the
+physical and biological terms are individually large and substantially **cancel**, which
+is exactly why the net is insensitive to either alone. DeVries et al. [52] see the same
+compensation in the decadal record: the ocean may account for up to **40% of the decadal
+variability in atmospheric CO₂ accumulation**, yet models with strong decadal variability
+in biological export tend to have *weak* decadal variability in climate-forced uptake.
+
+**Where NCP genuinely is the key.** Every operational Cant estimate assumes the natural
+carbon cycle is in steady state and discards the residual. That discarded term is neither
+small nor stationary:
+
+- **13 ± 10 Pg C** over the industrial era (~9% of net inventory change), and **6.3 Pg C**
+  over 1989–2007 — about **18%** of net ocean storage in that window [51];
+- **5 ± 3 Pg C** for 1994–2007 [43];
+- **7.9 ± 3.8 Pg C dec⁻¹** for 1994–2004, falling to **0.9 ± 2.9 Pg C dec⁻¹** for
+  2004–2014 [44] — and under an alternative temperature-adjusted flux product the second
+  decade **changes sign** (−4.0 ± 2.9).
+
+That is **0.4–0.8 Pg C yr⁻¹**, roughly **10–20% of the decadal ocean sink**. It is
+currently **undetectable**: the multi-method signal is +0.1 to +0.5 Pg C yr⁻¹ against a
+propagated uncertainty of **±0.6–0.8 Pg C yr⁻¹** [51], and Müller et al.'s residual carries
+a 1σ nearly half the signal itself [44]. It also cannot be folded into a fixed error bar,
+since it varies by a factor of several between decades.
+
+Nor can it be *verified* on the timescale over which it is assumed. Detection-time analyses
+put emergence of a soft-tissue-pump trend at **23 yr globally, 27–85 yr regionally** [53],
+export production at **25–40 yr** [54] and export flux at 100 m at **32.0 yr** — against
+**13.9 yr** for surface pH and **15.5 yr** for SST [55], **10 yr** for the CaCO₃ pump and
+**14 yr** for the anthropogenic CO₂ invasion flux [53]. Physical and chemical signals emerge
+in 10–20 years; biological ones need a generation. Henson et al. [55] add that the existing
+observatory network samples only **9–15% of the global ocean surface**.
+
+**The defensible hypothesis, restated:** *determining NCP and the biological pump is not the
+key to the contemporary anthropogenic inventory — physics is. It is the key to bounding the
+one term physical constraints structurally cannot supply: the non-steady-state
+natural-carbon residual, currently 10–20% of the sink and formally undetectable.* This is a
+stronger pitch than the naive version precisely because it does not compete with the
+physical-constraint programmes (Terhaar-style emergent constraints; COCO2) — it closes the
+term they leave open.
+
+### 6.3 MQ3 — How does carbon-content variability from physics compare with that from biology?
+
+Partly known — and the answer inverts depending on the quantity, which is why it has to be
+asked four ways rather than once.
+
+**By stock.** The soft-tissue pump maintains **1,278–2,350 Pg C** of DIC [40] — roughly
+**10–20× the entire anthropogenic inventory** and **3–6%** of the ~37,000–38,500 Pg C total.
+On this measure biology moves far more carbon. The caveat is decisive: in Marinov's ensemble
+that *entire* 1,072 Pg C range is produced by changing the **circulation** with biology
+unchanged [40]. The soft-tissue reservoir is biologically *built* but physically *sized*;
+attributing it to one or the other is not a well-posed question.
+
+**By rate of change.** The ranking reverses. The anthropogenic inventory grows at
+**2.6 ± 0.3 Pg C yr⁻¹** [43] (**29 ± 3** then **27 ± 3 Pg C dec⁻¹** [44]) — physically
+controlled, and the largest and best-determined signal in the system. The natural/biological
+residual over the same interval is **0.4–0.8 Pg C yr⁻¹** with a 1σ of comparable size
+[43,44,51]. Physics supplies the signal; biology supplies a residual currently
+indistinguishable from noise.
+
+**By variability.** The two terms are large, opposed and largely cancelling — the key
+structural fact, and what makes attribution hard rather than merely uncertain. In the
+Southern Ocean the seasonal-to-interannual carbon signal is dominated by mixed-layer
+**entrainment of carbon-rich deep water**, which sets even the zonal asymmetry of outgassing
+(concentrated in the Indo-Pacific sector) [56]; the boundary between thermally and
+non-thermally driven pCO₂ regimes is itself set by mixed-layer physics [57]. Biological
+drawdown then opposes that physical supply and nearly balances it [50]. The net air–sea flux
+is therefore a small difference of two large terms, so a modest fractional error in *either*
+propagates disproportionately into the net — the strongest argument for treating them
+jointly rather than ranking them.
+
+**By detectability.** Physical/chemical, 10–20 yr; biological, 23–32+ yr and up to 85 yr
+regionally [53,54,55]. Satellite biological records remain too short to separate trend from
+variability: Behrenfeld et al.'s [17] ~1,930 Tg C yr⁻¹ NPP swing across the 1997–99 El
+Niño/La Niña transition is ENSO variability, not a secular trend, and Gregg & Rousseaux's
+[58] **−0.8 Pg C yr⁻¹ dec⁻¹ (−2.1% dec⁻¹)** global PP decline comes with the authors' own
+caution that the record *"is still too short to unequivocally distinguish natural variability
+from long-term trends."*
+
+![Physical vs biological control of ocean carbon](figs/fig6_physical_vs_biological.png)
+
+*Fig. 6. (a) The biologically-maintained DIC reservoir is ~10–20× the anthropogenic
+inventory — but the anthropogenic term is the one changing. (b) With biology held fixed,
+circulation alone moves 1,072 Pg C of soft-tissue carbon and 102 ppm of equilibrium pCO₂
+(Marinov et al. 2008 [40], 8 model states). (c) Physical/chemical signals emerge from noise
+in 10–20 yr, biological signals in 23–32+ yr [53,54,55]. (d) The non-steady-state
+natural-carbon term that every Cant reconstruction discards, against its own ±0.6–0.8
+Pg C yr⁻¹ detection threshold [43,44,51]. All values read from the cited papers.*
+
+**Where the honest answer is "we don't know."** There is **no published formal variance
+decomposition of ocean DIC into physically- and biologically-driven components** at global
+scale. The comparison above is assembled from sensitivity experiments, emergent constraints
+and budget residuals — not from a single controlled attribution. Per §3's stance, that gap
+should be stated rather than papered over, and it is a legitimate target in its own right.
+
+**Consequences for the VICC pitch (§4).** The §4 ranking stands *within the optical retrieval
+problem*, but it is not a ranking of ocean-carbon uncertainty overall. Two amendments follow.
+(i) Position the project as reducing the **biological** limb while explicitly inheriting —
+and propagating — the **physical** limb, rather than as reducing ocean-carbon uncertainty
+*tout court*. (ii) The natural target for an optics + AI + honest-UQ engine is the
+**non-steady-state residual** of §6.2: the term physical constraints cannot reach, worth
+10–20% of the sink, formally undetectable today, and whose 23–32 yr detection time is exactly
+what a global, daily, uncertainty-quantified satellite record could shorten. That reframing
+also answers the collaborator's implied challenge — it makes the biological programme
+*complementary* to the physical one rather than a competitor with the weaker case.
+
+---
+
 ## References
 
 1. Brewin RJW, Sathyendranath S, Kulk G, et al. Ocean carbon from space: current status and priorities for the next decade. *Earth-Sci Rev.* 2023;240:104386. doi:10.1016/j.earscirev.2023.104386
@@ -343,13 +528,39 @@ the air–sea-flux programs (e.g. COCO2) that constrain the *sink* rather than t
 38. Le Moigne FAC, Henson SA, Sanders RJ, Madsen E. Global database of surface ocean particulate organic carbon export fluxes derived from the ²³⁴Th technique. *Earth Syst Sci Data.* 2013;5:295–304. doi:10.5194/essd-5-295-2013
 39. Friedlingstein P, et al. Global Carbon Budget 2023. *Earth Syst Sci Data.* 2023;15:5301–5369. doi:10.5194/essd-15-5301-2023
 
+40. Marinov I, Gnanadesikan A, Sarmiento JL, Toggweiler JR, Follows M, Mignone BK. Impact of oceanic circulation on biological carbon storage in the ocean and atmospheric pCO₂. *Global Biogeochem Cycles.* 2008;22(3):GB3007. doi:10.1029/2007GB002958
+41. Ödalen M, Nycander J, Oliver KIC, Brodeau L, Ridgwell A. The influence of the ocean circulation state on ocean carbon storage and CO₂ drawdown potential in an Earth system model. *Biogeosciences.* 2018;15(5):1367–1393. doi:10.5194/bg-15-1367-2018
+42. Sabine CL, Feely RA, Gruber N, Key RM, et al. The oceanic sink for anthropogenic CO₂. *Science.* 2004;305(5682):367–371. doi:10.1126/science.1097403
+43. Gruber N, Clement D, Carter BR, et al. The oceanic sink for anthropogenic CO₂ from 1994 to 2007. *Science.* 2019;363(6432):1193–1199. doi:10.1126/science.aau5153
+44. Müller JD, Gruber N, Carter B, Feely R, et al. Decadal trends in the oceanic storage of anthropogenic carbon from 1994 to 2014. *AGU Advances.* 2023;4(4):e2023AV000875. doi:10.1029/2023AV000875
+45. Matsumoto K, Gruber N. How accurate is the estimation of anthropogenic carbon in the ocean? An evaluation of the ΔC\* method. *Global Biogeochem Cycles.* 2005;19(3):GB3014. doi:10.1029/2004GB002397
+46. Clement D, Gruber N. The eMLR(C\*) method to determine decadal changes in the global ocean storage of anthropogenic CO₂. *Global Biogeochem Cycles.* 2018;32(4):654–679. doi:10.1002/2017GB005819
+47. Terhaar J, Frölicher TL, Joos F. Southern Ocean anthropogenic carbon sink constrained by sea surface salinity. *Sci Adv.* 2021;7(18):eabd5964. doi:10.1126/sciadv.abd5964
+48. Terhaar J, Frölicher TL, Joos F. Observation-constrained estimates of the global ocean carbon sink from Earth system models. *Biogeosciences.* 2022;19(18):4431–4457. doi:10.5194/bg-19-4431-2022
+49. Terhaar J, Goris N, Müller JD, DeVries T, Gruber N, Hauck J, Perez FF, Séférian R. Assessment of global ocean biogeochemistry models for ocean carbon sink estimates in RECCAP2 and recommendations for future studies. *J Adv Model Earth Syst.* 2024;16(3):e2023MS003840. doi:10.1029/2023MS003840
+50. Hauck J, Völker C, Wolf-Gladrow DA, Laufkötter C, et al. On the Southern Ocean CO₂ uptake and the role of the biological carbon pump in the 21st century. *Global Biogeochem Cycles.* 2015;29(9):1451–1470. doi:10.1002/2015GB005140
+51. McNeil BI, Matear RJ. The non-steady state oceanic CO₂ signal: its importance, magnitude and a novel way to detect it. *Biogeosciences.* 2013;10(4):2219–2228. doi:10.5194/bg-10-2219-2013
+52. DeVries T, Le Quéré C, Andrews O, Berthet S, et al. Decadal trends in the ocean carbon sink. *PNAS.* 2019;116(24):11646–11651. doi:10.1073/pnas.1900371116
+53. Schlunegger S, Rodgers KB, Sarmiento JL, Frölicher TL, et al. Emergence of anthropogenic signals in the ocean carbon cycle. *Nat Clim Change.* 2019;9(9):719–725. doi:10.1038/s41558-019-0553-2
+54. Schlunegger S, Rodgers KB, Sarmiento JL, Ilyina T, et al. Time of emergence and large ensemble intercomparison for ocean biogeochemical trends. *Global Biogeochem Cycles.* 2020;34(8):e2019GB006453. doi:10.1029/2019GB006453
+55. Henson SA, Beaulieu C, Lampitt R. Observing climate change trends in ocean biogeochemistry: when and where. *Glob Change Biol.* 2016;22(4):1561–1571. doi:10.1111/gcb.13152
+56. Prend CJ, Gray AR, Talley LD, Gille ST, et al. Indo-Pacific sector dominates Southern Ocean carbon outgassing. *Global Biogeochem Cycles.* 2022;36(7):e2021GB007226. doi:10.1029/2021GB007226
+57. Prend CJ, Hunt JM, Mazloff MR, Gille ST, Talley LD. Controls on the boundary between thermally and non-thermally driven pCO₂ regimes in the South Pacific. *Geophys Res Lett.* 2022;49(9):e2021GL095797. doi:10.1029/2021GL095797
+58. Gregg WW, Rousseaux CS. Global ocean primary production trends in the modern ocean color satellite record (1998–2015). *Environ Res Lett.* 2019;14(12):124011. doi:10.1088/1748-9326/ab4667
+
 **Additional 2024–2026 works consulted (with DOIs; a few flagged to confirm):**
 Refining marine NPP uncertainty via probability-prediction models, *Biogeosciences* 22:5463 (2025), doi:10.5194/bg-22-5463-2025; Global declines in NPP in the ocean-color era, *Nat Commun* (2025), doi:10.1038/s41467-025-60906-y; Sensitivity of a carbon-based PP model to satellite ocean-color products, *Remote Sens Environ* (2024), doi:10.1016/j.rse.2024.114218 *(article no. to confirm)*; Phytoplankton-carbon proxies in oligotrophic waters, *Biogeosciences* 23:2641 (2026), doi:10.5194/bg-23-2641-2026; BGC-Argo + satellite bbp water-column reconstruction, *Ocean Sci* 21:1677 (2025), doi:10.5194/os-21-1677-2025; multi-model global NPP data product, *ESSD* 15:4829 (2023), doi:10.5194/essd-15-4829-2023; Li Z, et al. Ocean-scale drivers of phytoplankton biomass, *Sci Adv* 10:eadm7556 (2024), doi:10.1126/sciadv.adm7556.
 
 *Provenance:* refs 6–10, 17–20, 26, 28 were read in full from `context/papers/Biomass`;
 DOIs for refs 1–4, 6–14, 16–23, 25–26, 28, 31–39 and the ESSD/BG/OS/*Sci Adv* additional
-items were verified via crossref/publisher during this pass. The §5 non-optical
-references (33–39) were sourced during the same pass. Items explicitly flagged
-"*(confirm)*" (refs 15, 24, 29, 30; the RSE-2024 article number) still need author/volume/
-DOI verification before use in a formal Vancouver reference list. Figures:
+items were verified via crossref/publisher during earlier passes. The §5 non-optical
+references (33–39) were sourced in the same way. The §6 references (**40–58**) were added
+in the physical-vs-biological pass: the numbers quoted in §6 were read from the full text
+of Marinov 2008 [40] (Table 2 values used directly in Fig. 6b), Ödalen 2018 [41], Hauck
+2015 [50], Terhaar 2021/2022/2024 [47–49], Matsumoto & Gruber 2005 [45], Gruber 2019 [43],
+Müller 2023 [44], McNeil & Matear 2013 [51], DeVries 2019 [52], Henson 2016 [55],
+Schlunegger 2019/2020 [53,54] and Prend 2022 [56,57]; **all 18 new DOIs were verified
+against DOI/crossref metadata (first author, journal, year) during this pass**. Items
+still flagged "*(confirm)*" (refs 15, 24, 29, 30; the RSE-2024 article number) need
+author/volume/DOI verification before use in a formal Vancouver reference list. Figures:
 `reports/py/biomass_figs.py`.

@@ -13,6 +13,9 @@ Figures (written to reports/figs/):
   fig2_ocean_vs_land.png      — ocean phytoplankton carbon vs terrestrial biomass & NPP
   fig3_uncertainty_cascade.png— factor-of-disagreement along the carbon chain
   fig4_subsurface.png         — first-optical-depth blindness & the path to depth
+  fig5_export_budget.png      — where the uncertainty in the 5-15 Gt C/yr export sits
+  fig6_physical_vs_biological.png
+                              — physical vs biological control of ocean carbon content
 
 Run in the `ocean14` conda environment:
     python reports/py/biomass_figs.py
@@ -251,12 +254,162 @@ def fig5_export_budget():
     fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig); print("wrote", out)
 
 
+# ---------------------------------------------------------------- Fig 6 -----
+def fig6_physical_vs_biological():
+    """Physical vs biological control of ocean carbon content (report section 6).
+
+    Four panels answering the reviewer's questions (MQ1-MQ3):
+      (a) stocks: the biologically-maintained DIC reservoir dwarfs the anthropogenic
+          inventory, but the anthropogenic term is the one that is changing;
+      (b) Marinov et al. 2008 Table 2 -- with BIOLOGY UNCHANGED, circulation alone
+          moves the soft-tissue carbon store by ~1,070 Pg C and equilibrium pCO2 by
+          ~102 ppm.  This is the direct answer to "is the physical uncertainty
+          negligible?";
+      (c) time of emergence: physical/chemical signals emerge in 10-20 yr,
+          biological ones in 23-32+ yr, i.e. the biological pump cannot be verified
+          on the timescale over which its steady state is assumed;
+      (d) the non-steady-state ("natural") carbon term that every Cant reconstruction
+          discards, against its own detection threshold.
+
+    All values are read from the cited papers; nothing here is a new analysis.
+    """
+    fig, axes = plt.subplots(2, 2, figsize=(13.4, 9.6))
+    (axA, axB), (axC, axD) = axes
+
+    PHYS, BIOL, BOTH = OCEAN, GREEN, GOLD
+
+    # --- (a) stocks -----------------------------------------------------------
+    # (label, lo, hi, colour, annotation)
+    stocks = [
+        ("Total ocean DIC", 37000, 38500, BOTH, "~37,000–38,500 Pg C"),
+        ("Soft-tissue (biological)\ncarbon store", 1278, 2350, BIOL,
+         "1,278–2,350 Pg C"),
+        ("Anthropogenic C inventory\n(1800–1994)", 99, 137, PHYS, "118 ± 19 Pg C"),
+        ("ΔC$_{ant}$ 1994–2007", 30, 38, PHYS, "34 ± 4 Pg C"),
+        ("Natural-C (non-steady-state)\nterm 1994–2007", 2, 8, BOTH, "5 ± 3 Pg C"),
+    ]
+    y = np.arange(len(stocks))[::-1]
+    for yi, (lab, lo, hi, c, note) in zip(y, stocks):
+        axA.plot([lo, hi], [yi, yi], color=c, lw=9, solid_capstyle="round", alpha=0.88)
+        axA.text(hi * 1.3, yi, note, va="center", fontsize=9.2)
+    axA.set_yticks(y)
+    axA.set_yticklabels([s[0] for s in stocks], fontsize=8.8)
+    axA.set_xscale("log")
+    axA.set_xlim(1, 4e5)
+    axA.set_xlabel("carbon stock (Pg C, log scale)")
+    axA.set_title("(a) The biological reservoir is ~10–20× the anthropogenic\n"
+                  "inventory — but it is the anthropogenic term that is changing",
+                  fontsize=10.8)
+    axA.grid(axis="x", which="major", alpha=0.25)
+    axA.legend(handles=[Patch(color=PHYS, label="set by physics (solubility, circulation)"),
+                        Patch(color=BIOL, label="set by the biological pump"),
+                        Patch(color=BOTH, label="jointly set / residual")],
+               fontsize=7.6, frameon=False, loc="lower right")
+
+    # --- (b) Marinov et al. 2008, Table 2: circulation-only sensitivity -------
+    # 8 circulation states, biology unchanged (fast gas exchange columns).
+    ocs_soft = np.array([2350, 2266, 2072, 1773, 1534, 1388, 1413, 1278])   # Pg C
+    pco2_atm = np.array([321.0, 328.3, 343.3, 372.4, 395.9, 410.9, 408.2, 422.7])  # ppm
+    axB.scatter(ocs_soft, pco2_atm, s=95, color=PHYS, zorder=3,
+                edgecolor="white", linewidth=1.2)
+    k = np.polyfit(ocs_soft, pco2_atm, 1)
+    xs = np.linspace(ocs_soft.min() * 0.96, ocs_soft.max() * 1.04, 50)
+    axB.plot(xs, np.polyval(k, xs), color="0.55", lw=1.4, ls="--", zorder=1)
+    axB.annotate("", xy=(ocs_soft.min(), 300), xytext=(ocs_soft.max(), 300),
+                 arrowprops=dict(arrowstyle="<->", color=INK, lw=1.5))
+    axB.text(ocs_soft.mean(), 292,
+             f"circulation alone moves {ocs_soft.max()-ocs_soft.min():,.0f} Pg C",
+             ha="center", fontsize=9, color=INK, fontweight="bold")
+    axB.annotate("", xy=(2450, pco2_atm.min()), xytext=(2450, pco2_atm.max()),
+                 arrowprops=dict(arrowstyle="<->", color=INK, lw=1.5))
+    axB.text(2415, pco2_atm.mean(), f"{pco2_atm.max()-pco2_atm.min():.0f} ppm",
+             rotation=90, va="center", ha="center", fontsize=9.5,
+             color=INK, fontweight="bold")
+    axB.set_xlim(1150, 2560); axB.set_ylim(285, 440)
+    axB.set_xlabel("soft-tissue carbon store  OCS$_{soft}$  (Pg C)")
+    axB.set_ylabel("equilibrium atmospheric pCO$_2$  (ppm)")
+    axB.set_title("(b) With biology held FIXED, circulation alone reorganises the\n"
+                  "biological carbon store  (Marinov et al. 2008, 8 model states)",
+                  fontsize=10.8)
+
+    # --- (c) time of emergence ------------------------------------------------
+    # (label, n* years, lo, hi (None if single), physical?, source tag)
+    toe = [
+        ("CaCO$_3$ pump",                10.0, None, None, True),
+        ("surface pH",                   13.9, None, None, True),
+        ("C$_{ant}$ invasion flux",      14.0, None, None, True),
+        ("SST",                          15.5, None, None, True),
+        ("air–sea CO$_2$ flux",          25.0, 20,   30,   True),
+        ("soft-tissue (biol.) pump",     23.0, 27,   85,   False),
+        ("oxygen (200–600 m)",           26.3, None, None, False),
+        ("surface nitrate",              29.7, None, None, False),
+        ("chlorophyll",                  31.5, None, None, False),
+        ("export flux (100 m)",          32.0, None, None, False),
+        ("integrated primary prod.",     32.3, None, None, False),
+    ]
+    yy = np.arange(len(toe))[::-1]
+    for yi, (lab, v, lo, hi, phys) in zip(yy, toe):
+        c = PHYS if phys else BIOL
+        axC.barh(yi, v, color=c, height=0.62, zorder=2)
+        if lo is not None:
+            axC.plot([lo, hi], [yi, yi], color="0.3", lw=1.6, zorder=3)
+            axC.plot([lo, lo], [yi - .18, yi + .18], color="0.3", lw=1.6, zorder=3)
+            axC.plot([hi, hi], [yi - .18, yi + .18], color="0.3", lw=1.6, zorder=3)
+            tag = "regional" if not phys else "range"
+            axC.text(hi + 2, yi, f"{v:.0f}  ({tag} {lo}–{hi})",
+                     va="center", fontsize=8.2)
+        else:
+            axC.text(v + 1.5, yi, f"{v:.1f}", va="center", fontsize=8.2)
+    axC.axvline(20, color=RUST, lw=1.2, ls=":")
+    axC.text(20.6, len(toe) - 0.4, "20 yr", color=RUST, fontsize=8.2)
+    axC.set_yticks(yy); axC.set_yticklabels([t[0] for t in toe], fontsize=8.6)
+    axC.set_xlim(0, 100); axC.set_xlabel("years of record needed to detect a trend")
+    axC.set_title("(c) Physical/chemical signals emerge in 10–20 yr;\n"
+                  "biological ones need 23–32+ yr", fontsize=10.8)
+    axC.legend(handles=[Patch(color=PHYS, label="physical / chemical"),
+                        Patch(color=BIOL, label="biological")],
+               fontsize=8, frameon=False, loc="lower right")
+
+    # --- (d) the discarded non-steady-state term vs its detection threshold ---
+    # Converted to Pg C yr^-1; error bars are 1 sigma as published.
+    nss = [
+        ("McNeil &\nMatear '13\n1989–2007",   0.33, 0.0,  BOTH),
+        ("Gruber\net al. '19\n1994–2007",     0.38, 0.23, BOTH),
+        ("Müller\net al. '23\n1994–2004",     0.79, 0.38, BOTH),
+        ("Müller\net al. '23\n2004–2014",     0.09, 0.29, BOTH),
+        ("Müller '23\n(Watson adj.)\n2004–2014", -0.40, 0.29, "0.6"),
+    ]
+    x = np.arange(len(nss))
+    axD.axhspan(-0.8, 0.8, color=RUST, alpha=0.13, zorder=0)
+    axD.text(len(nss) - 0.45, 0.68,
+             "detection threshold  ±0.6–0.8 Pg C yr$^{-1}$",
+             fontsize=8.4, color=RUST, ha="right", va="top")
+    for xi, (lab, v, e, c) in zip(x, nss):
+        axD.bar(xi, v, color=c, width=0.6, zorder=2)
+        if e > 0:
+            axD.errorbar(xi, v, yerr=e, color=INK, capsize=4, lw=1.4, zorder=3)
+    axD.axhline(0, color="0.35", lw=1.1)
+    axD.set_xticks(x)
+    axD.set_xticklabels([n[0] for n in nss], fontsize=7.6)
+    axD.set_ylabel("natural (non-steady-state) C flux\n(Pg C yr$^{-1}$, 1σ)")
+    axD.set_ylim(-1.05, 1.35)
+    axD.set_title("(d) The term every C$_{ant}$ reconstruction discards is 10–20% of\n"
+                  "the sink — and is not yet detectable", fontsize=10.8)
+
+    fig.suptitle("Physical vs biological control of ocean carbon content "
+                 "(response to MQ1–MQ3)", fontsize=13, y=1.005)
+    fig.tight_layout()
+    out = os.path.join(FIGS, "fig6_physical_vs_biological.png")
+    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig); print("wrote", out)
+
+
 def main():
     fig1_conversion_slopes()
     fig2_ocean_vs_land()
     fig3_uncertainty_cascade()
     fig4_subsurface()
     fig5_export_budget()
+    fig6_physical_vs_biological()
 
 
 if __name__ == "__main__":
