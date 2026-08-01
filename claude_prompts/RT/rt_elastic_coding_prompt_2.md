@@ -213,6 +213,76 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-01 (M1 task 6 — handed M2 off in prompt 3)
+
+Rewrote `rt_elastic_coding_prompt_3.md` so M2 starts from what M1 actually built.
+The three M2 tasks keep their substance; the work was folding in the API, the
+measured numbers, and the traps — plus three additions of my own, below. No code
+changed, so the suite stands at 117 passed.
+
+**The biggest addition: build Gordon-in-JAX *first*, and stop calling it a
+fallback.** The coding plan frames a Gordon/O25 backbone as the de-risking option
+*if* ZTT proves ambiguous. But M3's gate is literally "hybrid beats standard
+Gordon" and M4 scores against Gordon/PR05/O25 — so **Gordon is a required artifact
+either way**. Building it first therefore costs nothing, gives an immediately
+end-to-end path, and makes the de-risk branch free rather than a detour. I also
+flagged that the plan's package layout has no home for comparison models and
+suggested `robust/rt/baselines.py`, as a Q&A question rather than a decision I
+should make alone.
+
+**Second: there is already a Gordon baseline in the repo, and M2 should reproduce
+rather than re-derive it.** `context/RT/make_rt_elastic_figures.py` computed
+per-λ rRMS for standard Gordon on Hydrolight100.nc, and `fig_rrms_ladder.csv` holds
+the answer (**2.49% at 400 nm rising to 9.04% at 700 nm**, Y = 0). I read the script
+to extract the *exact* definition it used — `100·sqrt(mean(((pred−truth)/truth)²))`
+in `rrs` space, percent, with `G1 = 0.0949`, `G2 = 0.0794` fixed, not fitted — and
+put both the formula and the table in the prompt. Reusing that definition verbatim
+keeps every number in the project comparable, and reproducing the table is a cheap
+cross-check that the new JAX code and the old NumPy figure code agree. Much cheaper
+to discover a discrepancy at M2 than at M4.
+
+**Third, the connection I had not previously drawn: M1's water/particle split is
+exactly what ZTT needs.** The synthesis doc records `β(π)/bb` ≈ **0.23 sr⁻¹ for pure
+water** vs **0.12–0.16 for particles** — so an explicit-VSF model weights the two
+backscatter components with *different* backward-VSF values, which is only
+expressible if `bb_w` and `bb_p` arrive separately. M1 kept them apart on the
+design's general instruction; M2 is where that pays off concretely. I put it in the
+facts table so the transcription does not quietly collapse them into `bb`.
+
+**A "Status entering M2" section** lists the M1 API by name (so M2 does not
+re-derive `u`, re-implement `bb_w`, or hand-roll a skip marker) and tabulates the six
+measured facts that bear on the transcription — with the consequence of each spelled
+out rather than left as trivia. The two that constrain M2 most: `B_p` is a
+**spectrum**, shape `(n_sample, 81)`, so `Rrs_ZTT` must not reduce it to a scalar;
+and `Rrs(60°)/Rrs(0°) = 0.949` is the geometry signal Gordon *structurally cannot*
+express, which is why task 3 now asks for rRMS broken out **per zenith** rather than
+pooled — pooling would hide the one asymmetry the whole M3/M4 comparison rests on.
+
+**Gotchas carried forward with their evidence, not as folklore.** The gradient gate
+must run under `jax_x64`, and I gave M0's measurement as the reason (at 1e-6, float32
+meets the check at 0 of 33 step sizes; float64 at 21 of 33) so nobody is tempted to
+loosen the tolerance instead. Likewise the finite-difference dtype trap (pin the
+dtype on the arrays, or the check silently computes in float64 and proves nothing),
+the float32 ceiling on any L23 comparison (`rtol=1e-5`, not 1e-6), validators being
+boundary-only, and M1's three-layer test structure — with the note to prefer the
+**fixture** layer, since that is what makes CI meaningful.
+
+**Verified every factual claim before writing it**, having previously shipped a
+stale path in a prompt doc: the M1 export lists came from each module's `__all__`;
+the rRMS numbers and formula from the CSV and script; the `β(π)/bb` figures from
+synthesis line 70 (citing Zhang 2009 and Twardowski & Tonizzo 2018); `ztt.py` still
+raising its M2 `NotImplementedError`; and the ZTT PDF present on disk but
+**gitignored** (`.gitignore:14`, `context/*/*.pdf`) — worth stating, since a reader
+without the file cannot check the transcription, which is why I asked for equation
+numbers in the docstrings.
+
+I also extended the Prompts list to six to match the tasks, and added tasks 5 (PR
+review, with the unauthenticated-`gh` workaround written down) and 6 (hand off to
+prompt 4), since those are now the established rhythm rather than one-offs.
+
+Modified: `claude_prompts/RT/rt_elastic_coding_prompt_3.md`. **M1 is fully closed
+out** — tasks 1–6 done. Branch `rt-elastic-prototype` for JXP to commit.
+
 ### 2026-08-01 (M1 task 5 — addressed the Cursor Bugbot review on PR #9)
 
 `pytest -q` → **117 passed**; without `$OS_COLOR`, **100 passed + 17 skipped**.
