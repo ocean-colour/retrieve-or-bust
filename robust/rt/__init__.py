@@ -32,16 +32,19 @@ emulator
 hybrid
     ``forward()`` — the public entry point.
 validation
-    The accuracy / speed / gradient protocol.
+    The accuracy / speed / gradient protocol; rrms from M2.
+baselines
+    Comparison models the hybrid must beat -- standard Gordon (M2), PR05/O25 (M4).
 
-**Status.** ``conventions`` and ``types`` are implemented (M1). The rest are
-documented stubs whose callables raise :class:`NotImplementedError` naming the
-milestone that fills them in — ``data.l23`` at M1, ``ztt`` at M2, ``emulator`` and
-``hybrid`` at M3, ``validation`` at M4. The signatures are already those of the
-design, so nothing downstream has to change as the bodies land.
+**Status.** ``conventions``, ``types``, and ``data.l23`` are implemented (M1);
+``baselines`` (standard Gordon) and ``validation.rrms`` landed with M2. Still
+documented stubs whose callables raise :class:`NotImplementedError`: ``ztt`` (M2),
+``emulator`` and ``hybrid`` (M3), and the rest of ``validation`` (M4). The
+signatures are already those of the design, so nothing downstream has to change as
+the bodies land.
 """
 
-from . import conventions, data, emulator, hybrid, types, validation, ztt
+from . import baselines, conventions, data, emulator, hybrid, types, validation, ztt
 from .hybrid import forward
 from .types import Geometry, IOPs, PhaseParams
 
@@ -57,6 +60,7 @@ __all__ = [  # noqa: RUF022
     "emulator",
     "hybrid",
     "validation",
+    "baselines",
     # Public API
     "forward",
     # Public types — the arguments of forward(), in signature order
