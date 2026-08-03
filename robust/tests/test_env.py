@@ -115,18 +115,21 @@ def test_rt_exposes_scaffold_modules():
 
 
 def test_unimplemented_stubs_raise():
-    """The stubs raise instead of silently returning something wrong.
+    """The remaining stubs raise instead of silently returning something wrong.
 
-    ``forward`` and ``Rrs_ZTT`` carry their final signatures already, so this is
-    what keeps the M0 scaffold honest: a caller gets a milestone-naming
-    ``NotImplementedError``, never a plausible-looking array.
+    ``forward`` carries its final signature already, so this is what keeps the
+    scaffold honest: a caller gets a milestone-naming ``NotImplementedError``,
+    never a plausible-looking array.
+
+    ``ztt.Rrs_ZTT`` was on this list until M2 implemented it; ``robust.rt.ztt``
+    now has its own tests. ``mu_infinity`` is the one piece of ZTT that still
+    raises, because the published paper omits its coefficients — checked below
+    rather than here, since that is a data gap, not an unwritten function.
     """
     from robust import rt
 
     with pytest.raises(NotImplementedError):
         rt.forward(None, None, None, None)
-    with pytest.raises(NotImplementedError):
-        rt.ztt.Rrs_ZTT(None, None, None, None)
 
 
 def test_hybrid_modes_declared():

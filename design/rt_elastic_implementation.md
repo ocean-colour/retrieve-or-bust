@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.9.1
-**Date:** 2026-08-01
+**Version:** 0.13
+**Date:** 2026-08-03
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -27,7 +27,7 @@ every bump.
 |---|------|--------|-----------------|
 | **M0** | Environment & scaffold | ✅ done | `robust.rt` (stubs), `robust/tests/` |
 | **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
-| **M2** | ZTT analytic backbone (JAX) | ⬜ not started | `robust.rt.ztt` |
+| **M2** | ZTT analytic backbone (JAX) | 🟡 in progress | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ⬜ not started | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 | ⬜ future | — |
@@ -47,10 +47,10 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **117 passed** in ~4.5 s (`ocean14`);
-with `$OS_COLOR` unset, **100 passed + 17 skipped** — the loader itself is exercised
-without the dataset, against a committed 50-scene fixture. `ruff check robust/` and `ruff
-format --check robust/` → clean. The suite is green both with and without the L23
+**Verification (current).** `pytest -q` → **169 passed** in ~8 s (`ocean14`); with
+`$OS_COLOR` unset, **149 passed + 20 skipped**. The loader is
+exercised without the dataset against a committed 50-scene fixture.
+`ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). Both notebooks in
 `notebooks/RT/` execute end to end with no errors.
 
@@ -596,7 +596,294 @@ committed fixture. `ruff check robust/` and `ruff format --check robust/` clean.
 
 ## 4. M2 — ZTT analytic backbone (JAX)
 
-*(not started; see the coding plan §M2.)*
+**Goal.** A differentiable `Rrs_ZTT` with the backward VSF explicit, plus the
+analytical benchmark it has to beat.
+
+### 4.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | `baselines.py` — standard Gordon in JAX + shared `rrms`; reproduce the published ladder | ✅ done |
+| 2 | `ztt.py` — transcribe the ZTT forward relation | ✅ done (µ∞ via TT2017; see below) |
+| 3 | `test_ztt.py` — paper reference case, gradient gate, rRMS report | ✅ done |
+| 4 | `notebooks/RT/rt_elastic_coding_3.ipynb` — the M2 explainer | ✅ done |
+
+### 4.2 Modules added
+
+**`robust/rt/baselines.py`** — the comparison models, standard Gordon first.
+`G1_GORDON = 0.0949`, `G2_GORDON = 0.0794` (fixed, not fitted), `rrs_gordon` and
+`Rrs_gordon`.
+
+**Key decision — Gordon is not a fallback, it is a deliverable.** The coding plan
+lists a Gordon-in-JAX backbone as the *de-risking* option if ZTT proves ambiguous.
+But M3's gate is "hybrid beats standard Gordon" and M4 scores against
+Gordon/PR05/O25, so it is required either way; building it first costs nothing and
+makes the de-risk branch free. Placed in its own module (rather than inside `ztt.py`
+or `validation.py`) so PR05 and O25 can join it at M4 — the coding plan's layout has
+no home for comparison models, so this is an addition to it.
+
+**Gordon takes `forward`'s signature and ignores two arguments.** `phase_params`
+and `geometry` are accepted and discarded. That is not a shortcut but the model's
+defining limitation, and keeping the signatures interchangeable lets M4 score every
+model in one loop. Two tests assert the blindness rather than leaving it as a
+docstring claim, including one showing that Gordon returns *bit-identical*
+predictions at 0°/30°/60° while the reference `Rrs` does not.
+
+**`robust/rt/validation.rrms` landed early.** The whole point of the metric is that
+one definition is shared — the number in the M2 log, the M4 table, and the synthesis
+figures must be the same quantity or the comparisons are meaningless. So
+`rrms(truth, pred, axis=None)` = `100·sqrt(mean(((pred−truth)/truth)²))` lives in
+`validation.py` from M2 rather than being written twice. It is pure JAX and
+differentiable, so it can double as M3's training loss.
+
+**`robust/rt/ztt.py`** — the Twardowski & Tonizzo (2018) model transcribed into
+JAX, every function naming the equation it implements.
+
+| Term | Equation | Status |
+|---|---|---|
+| scattering angle ψ, Snell refraction | §2 after (2), §2.1 | ✅ |
+| `Ψ_KLu(ψ) = 1 + F(ψ)` | (4), (6) + Table A2 `fA` | ✅ |
+| `β(ψ)/bb` | (10) | ✅ |
+| `βw(ψ)/bbw` | §2.3, deferred to Zhang 2009 | ✅ derived analytically |
+| `b̃b` | (11) | ✅ |
+| `µd = M⁺_d × M*_d` | (13)–(17) + Table A2 `e`, `m*_d` | ✅ (µw is the **in-water** cosine — see §4.4) |
+| `f_L(ψ, λ)` | (31) + Table A3 (91 values) | ✅ |
+| `Pbb,ST(ψ)` | §4.2, from S&T (2009) | ✅ (their Table 2, `a3` typo corrected) |
+| **`µ∞`** | **(8)** | 🟡 structure only; TT2017 stands in |
+| assembly | (12) | ✅ |
+| Raman | (18) | n/a — elastic scope |
+
+**Equation (8)'s coefficients are missing from the paper — resolved via the
+authors' own antecedent.** Equation (8) says "Coefficients m are provided in
+Appendix A, Table A2"; Table A2 as printed covers Equations (3), (4), (16), (17)
+and runs from `m*_d,8` straight into Table A3. A full-text search of all 30 pages
+finds `m1`/`m16` only inside Equation (8) itself, and the MATLAB code cited at
+ioccg.org is not there.
+
+The stand-in is **Twardowski & Tonizzo (2017)**, *Optics Express* **25**(15),
+18122 — reference [40], the study the 2018 text says Equation (8) "extended ... to
+include near zero bb/a and increased resolution in η_bb". Its **Table 1** gives
+`µ∞ = p0 + p1 log10(bb/a) + p2 log10²(bb/a)` at six discrete `η_bb`; the three
+coefficients are interpolated in `log10 η_bb` to recover the 2-D surface, which
+keeps it differentiable. Transcribed as `mu_infinity_tt2017` and used by `rrs_ZTT`
+whenever Equation (8) coefficients are absent.
+
+Table 2's alternative quartics were rejected: they reach `µ∞ = 1.35` at
+`bb/a = 1e-4`, which is unphysical (µ∞ ≤ 1), and carry no `η_bb` dependence.
+Table 1 stays in (0.63, 0.98] across L23. Note L23 reaches `bb/a ≈ 0.31` against
+the fit's 1e-1 upper bound, so the brightest scenes extrapolate.
+
+`mu_infinity` still implements Equation (8)'s exact structure and **requires** the
+sixteen coefficients, so passing `mu_inf_coeffs=` restores the published 2018 model
+the moment they arrive (JXP has emailed the authors). **Report present results as
+"ZTT with the TT2017 µ∞", never as the 2018 model.**
+
+**Two independent checks that the transcription is right.**
+
+- **The paper's own worked example reproduces exactly.** §2.1 states "for θs' = 60°,
+  θs will be 40.3° and ψ will be 139.7° for nadir viewing". The code gives
+  **40.26°** and **139.74°**. That exercises Snell refraction, the scattering-angle
+  formula, *and* the nadir convention (θv = 180° in the paper, 0° here) — the exact
+  chain where a reversed convention would produce a plausible but wrong BRDF.
+- **The water phase function matches its independent citation.** The paper defers
+  `βw(ψ)` to Zhang et al. (2009), whose only available implementation
+  (`ocpy.water.scattering.betasw_ZHH2009`) raises "THIS IS NOT SUCCESFULLY
+  CONVERTED YET". Its shape is not in doubt, so it is derived here from
+  `βw ∝ 1 + f cos²ψ`, `f = (1−δ)/(1+δ)`, normalized over the backward hemisphere:
+  `βw(ψ)/bbw = (1 + f cos²ψ) / (2π(1 + f/3))`. At ψ = 180° that gives **0.2342
+  sr⁻¹** against the **0.23 sr⁻¹** quoted in the synthesis (§3.5, citing Zhang 2009
+  and this paper); the analytic normalization also matches numerical integration
+  exactly. Only the shape is needed — Equation (10) multiplies by `bbw`, so the
+  unknown `βw(90°)` cancels.
+
+Other sanity values, all inside the paper's stated ranges: `f_L(180°, 440 nm)` =
+1.057 (paper: natural range 1–1.12, Zaneveld's constant 1.05), `Ψ_KLu` = 1.024 at
+ψ = 180° rising to 1.315 at 134°, `H(30°)` = 0.31 (Morel & Prieur assumed 0.4).
+
+**`Pbb(ψ)` was an input, and is now supplied.** Sullivan & Twardowski (2009),
+*Appl. Opt.* **48**(35), 6811, tabulate the measured average particulate backward
+phase function (their Table 1, 90-170°) and fit it with a fourth-order polynomial
+(Table 2). Both are transcribed as `P_bb_sullivan`, which `rrs_ZTT` now uses by
+default — the paper's own best-performing choice (§4.2: "errors increase by only
+~0.3%").
+
+**Their published `a3` is a typo.** Table 2 prints `8.007E−02`; at ψ = 140° that
+term alone would contribute ~1570 against a tabulated value of 0.137. Refitting
+Table 1 independently here gives `a3 ≈ 7.79e-4` while reproducing the other four
+published coefficients closely (5.65e-9 vs 5.885e-9; −3.41e-6 vs −3.526e-6;
+−7.98e-2 vs −8.150e-2; 3.215 vs 3.266), so the intended value is **8.007E−04**.
+With that correction the published fit matches Table 1 to 0.003 absolute,
+consistent with its claimed "<0.5%". Table 1 stops at 170°, so nadir viewing
+(ψ = 180°) extrapolates to 0.153 sr⁻¹ — an independent refit gives 0.156, so it is
+well constrained.
+
+**The remaining planning note.** The paper is explicit (§2.9) that four
+parameters "must be provided": `bbp`, `apg`, `Pbb(ψ)`, `b̃bp`. Three already come
+from M1's types (`IOPs`, and `B_p` *is* `b̃bp`); `Pbb(ψ)` is the fourth and is passed
+by the caller. Its best-performing form is the constant `Pbb,ST(ψ)` of Sullivan &
+Twardowski (2009) — tabulated in *their* paper, not this one. Worth noting for
+planning: **adding `Pbb` to `PhaseParams` is exactly what the design's M5 "promote
+phase_params to the ZTT backward-VSF parameterization" means**, so M5's scope is now
+concrete.
+
+### 4.3 Tests and gates (task 3)
+
+`robust/tests/test_ztt.py` — 28 passing tests plus one strict `xfail`.
+
+**(i) Paper reference cases.** The strongest is §2.1's worked example: "for
+θs' = 60°, θs will be 40.3° and ψ will be 139.7° for nadir viewing" → the code
+gives **40.26°** and **139.74°**. One assertion covers Snell refraction, the
+scattering-angle formula, and the nadir convention together. Also pinned: the water
+phase function against its independently quoted **0.23 sr⁻¹** (and its normalization
+against numerical integration), `f_L` inside the paper's stated natural range
+1–1.12, Table A3's 91 values, `Ψ_KLu` rising from 1.024 at ψ=180° to 1.32 at 134°,
+`µd` inside the paper's quoted 0.79–0.94 band, and TT2017's µ∞ reproducing its own
+six tabulated rows exactly.
+
+**(ii) The gradient gate — passes.** `jax.grad` against central finite differences
+for **`a`, `bb_p`, `B_p`, and `theta_s`**, under `jax_x64` with dtypes pinned on the
+arrays, agreeing to `rel=1e-6`. Step sizes are scaled per variable (`a` is O(0.1),
+`bb_p` O(1e-3)) since one global `h` cannot suit all four. `jax.grad` over the
+container also returns a labelled `IOPs` with the right signs. This is the hard gate
+from M2 onward and it is green.
+
+**(iii) Accuracy is reported, not gated** — see §4.4.
+
+### 4.4 Results — ZTT beats Gordon at every zenith, after one real bug
+
+Standalone rRMS in `rrs` space (%), **ZTT with the TT2017 µ∞ and the Sullivan &
+Twardowski (2009) `Pbb,ST(ψ)`**, against standard Gordon on the full 3320-scene
+L23 set (bold = better):
+
+| λ [nm] | ZTT 0° | Gordon 0° | ZTT 30° | Gordon 30° | ZTT 60° | Gordon 60° |
+|---|---|---|---|---|---|---|
+| 400 | 5.03 | **2.49** | 4.53 | **2.10** | 7.10 | **4.81** |
+| 450 | 5.27 | **2.91** | 4.11 | **2.42** | 6.69 | **4.41** |
+| 500 | **3.32** | 3.67 | 3.73 | **3.06** | 8.97 | **4.58** |
+| 550 | **3.90** | 4.88 | 7.13 | **4.46** | 11.71 | **6.65** |
+| 600 | **3.62** | 6.45 | **4.50** | 6.69 | **7.91** | 10.02 |
+| 650 | **3.99** | 7.65 | **3.99** | 8.16 | **7.00** | 11.78 |
+| 700 | **4.27** | 9.04 | **3.50** | 9.71 | **6.27** | 13.47 |
+
+**Overall, ZTT wins at all three zeniths**: 4.30 vs 6.02 (0°), 4.70 vs 6.20 (30°),
+8.09 vs 9.01 (60°). The pattern is the interesting part — Gordon is better in the
+blue and degrades steadily toward the red (2.49% → 9.04% at nadir) while ZTT stays
+flat at 3–5%, crossing over near 500–550 nm. An analytic model with an explicit VSF
+holds up where a `u`-only polynomial cannot.
+
+**The bug, and how it was found.** The first run of this table had ZTT at 21–25%
+rRMS at 60° and predicting `rrs` *increasing* with solar zenith, where L23 has it
+falling. The cause was a transcription error in `Md_plus`: the paper's `µw` is the
+cosine of the **in-water** solar zenith — Equation (13) writes `µw = cos(θs)`,
+unprimed, and §2 fixes unprimed angles as in-water — while `H` and `P3` in the same
+expression take the *primed* above-water angle. Using the above-water cosine
+throughout inverted the zenith trend and cost ~13 percentage points of rRMS at 60°.
+
+**What is worth recording is how the wrong answer nearly survived.** Before finding
+it, a diagnostic had already convinced me the cause was the missing `Pbb(ψ)`:
+fitting one constant `P_bb` per zenith gave 0.148 / 0.134 / 0.092 at
+ψ = 180° / 158° / 140° — monotonically falling away from backscatter, which is the
+correct physical shape, with two of the three inside the literature's 0.12–0.16
+sr⁻¹. It looked like confirmation. It was the fit absorbing the µd error into the
+one free parameter available.
+
+What actually settled it was an **independently quoted number**: §2.7 states µd runs
+0.79–0.94 for sun angles 8°–62°. The above-water cosine gives 0.573 at 62°, far
+outside; the in-water cosine gives 0.792 and 0.936, reproducing both endpoints. A
+quoted constant discriminated where a physically plausible fit did not — the lesson
+being that a free parameter fitted against the same data cannot diagnose a bug in
+that fit. Both are now tests.
+
+**Still imperfect, and pinned as such.** ZTT over-predicts the zenith effect: the
+60°/0° ratio is **0.855** against L23's **0.949** — right sign, roughly three times
+too strong in its departure from unity. A test pins the current value so it cannot
+drift silently, and this is precisely the kind of structured residual M3's emulator
+exists to absorb.
+
+**Outstanding.** Equation (8)'s `m1..m16` (JXP has emailed the authors); until they
+arrive, results are *ZTT with the TT2017 µ∞*, and `mu_inf_coeffs=` restores the
+published 2018 model in one line.
+
+### 4.5 Notebook
+
+`notebooks/RT/rt_elastic_coding_3.ipynb` — 20 cells, executed, three figures.
+Organised around the physics rather than the API: why an explicit VSF buys anything
+over a `u`-only model; what was transcribed and what the papers failed to supply;
+the bug and how it was caught; ZTT against Gordon; the gradient gate.
+
+- **Figure 1** puts the water and particle backward phase functions on one axis.
+  They cross: at 180° water returns **0.234** sr⁻¹ of its `bb` toward the sensor
+  against particles' **0.153** — a factor 1.5 — which is the physical cause of the
+  non-univocality notebook 2 showed empirically. The shaded band marks the only
+  slice L23 reaches (ψ = 140–180°).
+- **Figure 2** is the rRMS ladder per zenith, ZTT vs Gordon, three panels. It shows
+  the crossover and the shape: Gordon better in the blue, degrading toward the red;
+  ZTT flat at 3–5%.
+- **Figure 3** is the gradient gate as a step-size sweep for all four inputs, with
+  the gate line and the two steps quoted in the text.
+
+Two things the notebook surfaced that the code had not:
+
+- **No single finite-difference step clears the gate for all four inputs.** At
+  `h = 1e-6` the three IOP-like variables sit at 1e-10 or better while `theta_s`
+  misses at 1.3e-6; at `h = 1e-3` `theta_s` is superb at 3e-10 while the others fail
+  by 4e-5 to 7e-3. `theta_s` is O(30) and the others O(1e-3)–O(0.1), so the same
+  absolute step is a wildly different relative perturbation. This is why the test
+  suite parameterises the step per variable.
+- **A step larger than the variable can leave the physical domain.** For `bb_p`
+  (O(3e-3)), steps ≳ 3e-3 drive it negative and the model returns NaN. A first pass
+  at the figure let `argmin` select one of those NaNs as the "best" step, quoting
+  5e-3; the sweep now masks non-finite results and reports how many steps were
+  invalid. Worth remembering for M4's gradient protocol: an invalid step is not an
+  accurate one.
+
+### 4.6 Results — the Gordon benchmark
+
+**The JAX implementation reproduces the synthesis figure script exactly.** Standard
+Gordon rRMS per wavelength at Y = 0, versus `context/RT/fig_rrms_ladder.csv`:
+
+| λ [nm] | 400 | 450 | 500 | 550 | 600 | 650 | 700 |
+|---|---|---|---|---|---|---|---|
+| published [%] | 2.4948 | 2.9092 | 3.6714 | 4.8786 | 6.4499 | 7.6535 | 9.0418 |
+| this code [%] | 2.4948 | 2.9092 | 3.6714 | 4.8786 | 6.4499 | 7.6535 | 9.0418 |
+
+Agreement is to better than 1e-5 percentage points at all seven wavelengths — an
+independent NumPy implementation and this JAX one agree, so the metric, the
+`Rrs→rrs` conversion, `u`, and the coefficients are all consistent.
+
+**Per-zenith, and this is where the expectation was wrong.** The prompt predicted
+Gordon's error would simply grow with solar zenith. It does not:
+
+| λ [nm] | 0° | 30° | 60° |
+|---|---|---|---|
+| 400 | 2.49 | **2.10** | 4.81 |
+| 550 | 4.88 | 4.46 | 6.65 |
+| 700 | 9.04 | 9.71 | 13.47 |
+
+60° is much the worst everywhere (roughly 1.5–2× the nadir error), but **30° is
+*better* than nadir in the blue** — the fixed Gordon coefficients happen to suit
+~30° better than 0° below ~550 nm. So the honest statement is "60° is the clear
+loser", not "error grows with zenith".
+
+That has a consequence for how M4's result should be read: the geometry hold-out is
+*exactly* the angle where Gordon is weakest, so a hybrid win there is partly a win
+against a baseline evaluated outside its best geometry. Worth stating plainly rather
+than banking as a clean victory.
+
+### 4.7 Tests — task 1 (baselines)
+
+`robust/tests/test_baselines.py` — 19 tests. `rrms` known-answers (a uniform 10%
+overprediction scores 10%), its relative-not-absolute property (equal relative
+errors on 2e-2 and 2e-5 score identically — the reason the design specifies a
+relative metric), axis reduction for the per-λ ladder, and `jit`/`grad` safety.
+Gordon: the algebra spelled out independently, coefficient values, `Rrs`/`rrs`
+consistency, batching, `jit`/`grad` with derivative signs, the `forward`-signature
+call, and the geometry/phase-function blindness. Against data: three
+fixture-backed tests that run in CI (including pinned per-zenith rRMS on the
+50-scene subset), and three `needs_l23` tests — the ladder reproduction, the
+60°-is-worst asymmetry at 400/550/700 nm, and the per-λ ladder shape. One test also
+guards the reference CSV itself, since a silently missing or malformed reference
+would make the gate vacuous.
 
 ## 5. M3 — Residual emulator + hybrid
 
@@ -663,10 +950,11 @@ robust/
     data/
       __init__.py      ✅ re-exports l23
       l23.py           ✅ M1  L23 elastic batches + seeded splits
-    ztt.py             ⬜ M2  Rrs_ZTT — signature pinned, body pending
+    ztt.py             ✅ M2  ZTT; µ∞ from TT2017 pending Eq. (8) coeffs
     emulator.py        ⬜ M3  Flax MLP ΔRrs + Optax training
     hybrid.py          ⬜ M3  forward() — signature + MODES pinned, body pending
-    validation.py      ⬜ M4  rRMS / speed / gradient protocol
+    validation.py      🟡 M2  rrms(); rest of the protocol at M4
+    baselines.py       ✅ M2  standard Gordon (PR05/O25 at M4)
   tests/
     __init__.py        ✅
     conftest.py        ✅ needs_l23 marker, jax_x64 fixture
@@ -675,11 +963,14 @@ robust/
     test_conventions.py ✅ 27 tests — M1 task 1
     test_types.py      ✅ 32 tests — M1 task 2
     test_l23.py        ✅ 46 tests — M1 task 3 (+ cached-fixture layer)
+    test_baselines.py  ✅ 19 tests — M2 task 1
+    test_ztt.py        ✅ 28 tests + 1 xfail — M2 task 3
     files/l23_small.npz ✅ 213 kB, 50 scenes x 3 zeniths (raw fields)
 
 notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
   rt_elastic_coding_2.ipynb  ✅ M1 explainer (executed, 3 figures)
+  rt_elastic_coding_3.ipynb  ✅ M2 explainer (executed, 3 figures)
 
 .github/workflows/
   ci.yml                     ✅ pytest (py3.12, py3.14) + ruff check/format
