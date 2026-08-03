@@ -154,10 +154,10 @@ much cheaper to find out here than at M4.
    in Q&A. Use Fable if you can. Log your work.
 3. Read this doc. Execute the 3rd task in the "M2" section below. Use Fable if you
    can. Log your work.
-4. Read this doc. Execute the 4th task — the notebook. Use Fable if you can. Log
+4. Read this doc. Execute the 6th task — the notebook. Use Fable if you can. Log
    your work.
-5. Read this doc. Execute the 5th task — the PR review. Log your work.
-6. Read this doc. Execute the 6th task — the hand-off to prompt 4. Log your work.
+5. Read this doc. Execute the 7th task — the PR review. Log your work.
+6. Read this doc. Execute the 8th task — the hand-off to prompt 4. Log your work.
 
 ## M2
 
@@ -310,6 +310,68 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-03 (M2 task 6 — handed M3 off in prompt 4, and found a hole in its gate)
+
+Rewrote `rt_elastic_coding_prompt_4.md`. No code changed; suite stands at 171 passed.
+**M2 is complete** — tasks 1–6 done.
+
+**The most important thing in the hand-off is that M3's acceptance gate is already
+satisfied and has to be strengthened.** The coding plan says the M3 gate is "hybrid
+beats standard Gordon rRMS on the train split at all three solar zeniths". I measured
+ZTT alone against Gordon on each split: **train 5.95% vs 7.21%, held-out scenes 5.93%
+vs 7.21%, held-out 60° 8.09% vs 9.01%**. The backbone already wins everywhere, so an
+emulator that returns **exactly zero** passes the gate and M3 would prove nothing
+about the learned half.
+
+I wrote task 2 to test both — the hybrid must beat `mode="ztt"`, with the Gordon
+comparison kept as the weaker plan-level floor — and raised it as **Q5**, since
+changing a plan-level acceptance criterion is JXP's call, not mine. Worth catching now
+rather than at M3's close, when the tempting move would be to report a passed gate
+that measured nothing.
+
+**I measured the residual M3 has to model rather than describing it.** `rrs_L23 −
+rrs_ZTT` over all 9960 samples: relative mean **+2.20%**, sd **5.52%**, |max| 27.8%.
+Its structure is two clean things — a monotone offset in solar zenith (≈ −2%, +2%,
++8% at 0°/30°/60°) and a spectral hump peaking near 550 nm that grows with zenith.
+
+And I quantified the design's central claim, which had been an assertion since the
+design doc: *"the residual is small and smooth, so the network can be light"*. A
+polynomial in λ explains **83.9%** of the relative-residual variance at degree 1,
+91.1% at degree 2, **96.0%** at degree 5. So a straight line in λ captures most of
+it. That is now a stated number M3 has to beat before a network justifies its
+existence — and a warning sign if a wide net turns out to be needed.
+
+**Also handed over:** a throughput baseline for the plan's vague "must not collapse"
+(jitted full batch: ZTT **3.4 ms** ≈ 235 M sample·λ/s, Gordon 0.3 ms, 12.8× cheaper);
+the split sizes (7968 / 1992 / 3320); the note that `V.rrms` is already the
+relatively-weighted metric *and* differentiable, so it can be the loss directly and
+there is no second definition to drift; and the feature-design implication of the
+residual structure — λ and `theta_s` should be first-class inputs because they carry
+the two structures, and inputs need normalising since raw λ in nm alongside a `B_p`
+of 0.012 would dominate the first layer.
+
+**Gotchas carried forward with their evidence**, including three that only exist
+because M2 tripped over them: the gradient gate needs a *per-variable* step (no single
+h clears 1e-6 for all four); a step larger than the variable can leave the physical
+domain and return NaN, which `argmin` will happily select as "best"; and there is a
+float32 floor of ~5e-5 from Equation (4)'s 78,000× cancellation, so no float32
+tolerance should be set below it. Also the CVD palette with the explicit warning that
+a green I tried **failed** at ΔE 5.4 — so any new colour must be validated, not
+assumed.
+
+**Verified every claim before writing it**, as at the last hand-off: the API names
+from each module's `__all__`, `rrs_ZTT`'s real signature, `MODES` and `forward`'s
+`NotImplementedError`, the split sizes, and the residual and throughput numbers from
+a fresh measurement. One claim was wrong on the first pass — I wrote that flax and
+optax "are not imported anywhere", when `test_env.py` imports both in its smoke test.
+Corrected to "no package module imports them yet". Small, but it is the same
+stale-claim failure mode I have now produced three times in three days, and the fix
+is the same each time: grep before asserting.
+
+Modified: `claude_prompts/RT/rt_elastic_coding_prompt_4.md`. Branch
+`rt-elastic-prototype` for JXP to commit. **M2 closed out**; next is
+`rt_elastic_coding_prompt_4.md` task 1 (the emulator).
 
 ### 2026-08-03 (M2 task 5 — no open PR to review, so I reviewed the M2 diff myself)
 
