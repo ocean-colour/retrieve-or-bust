@@ -312,6 +312,20 @@ def F_psi(psi_deg: Float[Array, "..."]) -> Float[Array, "..."]:
     -------
     Array
         ``F(ψ)``, dimensionless.
+
+    Notes
+    -----
+    **Badly conditioned by construction.** At ψ = 180° the five terms are
+    -398, +1412, -1866, +1089, -236 and they cancel to **0.0239** — a factor
+    ~78,000. That is normal for a polynomial fitted over a narrow range in degrees,
+    but it means float32 loses about five significant figures here: ``Ψ_KLu`` differs
+    between float32 and float64 by ~5.6e-5 relative, and that single term accounts
+    for essentially all of the model's float32/float64 disagreement (~5e-5 on
+    ``rrs``). Negligible against a 3-5% model error, and irrelevant to the gradient
+    gate, which runs in float64 — but do not rewrite this evaluation without
+    re-checking, and do not tighten any float32 tolerance that depends on it. A test
+    pins the current agreement. The paper's other polynomials cancel by factors of
+    1-116 and are unaffected.
     """
     return jnp.polyval(jnp.asarray(FA_COEFFS), jnp.asarray(psi_deg))
 
@@ -651,6 +665,15 @@ MU_INF_TT2017_BB_OVER_A_RANGE = (1e-4, 1e-1)
 MU_INF_TT2017_ETA_RANGE = (0.0098, 0.98)
 
 
+#: Interpolation nodes derived once from :data:`MU_INF_TT2017_TABLE1`: the six
+#: ``log10(η_bb)`` knots and the matching ``(p0, p1, p2)`` rows. Built at import
+#: rather than per call.
+_MU_INF_TT2017_LOG_ETA = np.log10(np.array(sorted(MU_INF_TT2017_TABLE1)))
+_MU_INF_TT2017_P = np.array(
+    [MU_INF_TT2017_TABLE1[e] for e in sorted(MU_INF_TT2017_TABLE1)]
+)
+
+
 def mu_infinity_tt2017(bb_over_a, eta_bb):
     """``µ∞(bb/a, η_bb)`` from Twardowski & Tonizzo (2017), Table 1.
 
@@ -685,13 +708,11 @@ def mu_infinity_tt2017(bb_over_a, eta_bb):
     Array
         ``µ∞``, dimensionless.
     """
-    etas = np.array(sorted(MU_INF_TT2017_TABLE1))
-    log_eta_nodes = jnp.asarray(np.log10(etas))
-    table = np.array([MU_INF_TT2017_TABLE1[e] for e in etas])
-
+    log_eta_nodes = jnp.asarray(_MU_INF_TT2017_LOG_ETA)
     log_eta = jnp.log10(jnp.asarray(eta_bb))
     p0, p1, p2 = (
-        jnp.interp(log_eta, log_eta_nodes, jnp.asarray(table[:, k])) for k in range(3)
+        jnp.interp(log_eta, log_eta_nodes, jnp.asarray(_MU_INF_TT2017_P[:, k]))
+        for k in range(3)
     )
 
     L = jnp.log10(jnp.asarray(bb_over_a))

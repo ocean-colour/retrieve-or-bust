@@ -311,6 +311,67 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-03 (M2 task 5 — no open PR to review, so I reviewed the M2 diff myself)
+
+`pytest -q` → **171 passed**; `ruff` clean. Record unchanged in substance.
+
+**There is no open PR.** #9 is closed, its single Bugbot comment (the 30° `bb_p`
+gap) was addressed at M1, and my M2 commits are local — `git log
+origin/rt-elastic-prototype..HEAD` shows three unpushed commits, so no bot has seen
+this code. Rather than report that and stop, I ran the review myself, aimed at the
+place this milestone is most likely to be wrong.
+
+**I went after the *class* of the bug I already found.** Task 4's defect was a mixed
+angle frame (`µw` wanted the in-water cosine, `H` and `P3` the above-water one). So I
+audited every angle use in `ztt.py` against the paper's primed/unprimed convention:
+`diffuse_fraction`, `P3_cos` and `Md_plus`'s `P3` take θs′; `Md_plus`'s `µw` and
+`scattering_angle` take in-water; `rrs_ZTT` passes θs′ to `mu_d` and ψ to `Ψ_KLu`
+and `f_L`. All consistent — the fix was the only instance.
+
+**The audit turned up something else, though: Equation (4) is catastrophically
+ill-conditioned.** At ψ = 180° its five terms are −398, +1412, −1866, +1089, −236
+and cancel to **0.0239** — a factor of **78,000**. I checked whether that matters and
+whether the paper's other polynomials share it:
+
+| polynomial | cancellation |
+|---|---|
+| eq (4) `F(ψ)` | **78,091×** |
+| S&T `Pbb(ψ)` | 116× |
+| eq (16) `H` | 1× |
+| `P3(cos θs′)` | 1× |
+
+So it is one term, not a pattern. The cost: `Ψ_KLu` differs between float32 and
+float64 by 5.6e-5 relative, and that single term accounts for essentially all of the
+model's float32/float64 disagreement (**5.05e-5** on `rrs`, measured end-to-end).
+Negligible against ZTT's own 3–5% error, and irrelevant to the gradient gate, which
+runs in float64.
+
+I did **not** restructure the evaluation. Rewriting it in a shifted variable would
+condition far better but would no longer be the published coefficients, and the error
+does not matter at this magnitude. Instead I documented it and added two tests: one
+asserting the cancellation is severe *and* that the float32 penalty stays under 1e-4,
+one pinning the end-to-end float32-vs-float64 agreement. Both exist so that anyone
+"optimising" this polynomial — Horner, precomputed powers, a shift — immediately sees
+whether they made it better or worse, and so nobody tightens a float32 tolerance that
+silently depends on it.
+
+**Two smaller things.** `mu_infinity_tt2017` was rebuilding its six interpolation
+nodes from a Python dict on every call; hoisted to module level. And I swept for
+claims that went stale when you supplied Sullivan & Twardowski — `test_ztt.py` still
+said in two places that we did not have `Pbb,ST(ψ)`, which had been false since task
+4. Fixed. That is the same class of defect I have flagged repeatedly, and I produced
+two more instances of it myself within a day, which suggests the sweep is worth doing
+routinely rather than when I happen to remember.
+
+**Note for whoever opens the M2 PR:** Bugbot will see this diff for the first time
+then, so a review pass is still owed on it. If it flags anything, the fix belongs in
+M3's task 5 rather than being lost.
+
+Modified: `robust/rt/ztt.py` (conditioning note, hoisted nodes),
+`robust/tests/test_ztt.py` (two conditioning tests, a local `jax_x64_enabled`
+context manager, de-staled docstrings). Branch `rt-elastic-prototype` for JXP to
+commit. Next: task 6, the hand-off to prompt 4.
+
 ### 2026-08-03 (M2 task 4 — the notebook, and a correction to my task-3 diagnosis)
 
 `pytest -q` → **169 passed** (no xfail any more); without `$OS_COLOR`, 149 + 20

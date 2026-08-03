@@ -18,13 +18,15 @@ it is the property the future inversion depends on. M0's notebook §4 measured w
 float64 is mandatory — at a 1e-6 tolerance float32 passes at 0 of 33 step sizes.
 
 **(iii) Behaviour, not accuracy.** Standalone rRMS is *reported* in the
-implementation record, not asserted here, per the project's unbiased stance — and
-because ``Pbb(ψ)`` is a required model input we do not yet have tabulated. What is
+implementation record, not asserted here, per the project's unbiased stance. What is
 asserted is structural: that ``rrs_ZTT`` depends on solar zenith at all (Gordon
-cannot), with the same sign as L23.
+cannot), with the same sign as L23, and that its remaining over-prediction of the
+zenith effect stays where it was measured.
 """
 
 from __future__ import annotations
+
+import contextlib
 
 import jax
 import jax.numpy as jnp
@@ -37,10 +39,26 @@ from robust.rt.types import Geometry, IOPs, PhaseParams
 
 N = C.N_WAVE
 
-#: A representative particulate backward phase function, sr⁻¹. The synthesis
-#: (§3.5) quotes β(π)/bb ≈ 0.12-0.16 for particles; the true ``Pbb,ST(ψ)`` table is
-#: in Sullivan & Twardowski (2009), which we do not have.
+#: A single constant particulate backward phase function, sr⁻¹, used only where a
+#: test wants ``P_bb`` held fixed. The real angle-dependent ``Pbb,ST(ψ)`` is
+#: :func:`robust.rt.ztt.P_bb_sullivan` and is what ``rrs_ZTT`` uses by default;
+#: 0.14 sits mid-range of the 0.12-0.16 sr⁻¹ the synthesis quotes for particles.
 P_BB_NOMINAL = 0.14
+
+
+@contextlib.contextmanager
+def jax_x64_enabled():
+    """Enable float64 for a block, restoring the prior setting.
+
+    A local context manager rather than the ``jax_x64`` fixture, because these two
+    tests need to compare float32 *and* float64 within a single test body.
+    """
+    previous = jax.config.jax_enable_x64
+    jax.config.update("jax_enable_x64", True)
+    try:
+        yield
+    finally:
+        jax.config.update("jax_enable_x64", previous)
 
 
 def simple_iops(a=0.15, bb_p=0.003, shape=(N,)) -> IOPs:
@@ -126,6 +144,49 @@ def test_table_A3_shape_and_ends():
     assert Z.FL_AVE_WAVE[0] == 350.0
     assert Z.FL_AVE_WAVE[-1] == 800.0
     assert 0.97 < Z.FL_AVE.min() and Z.FL_AVE.max() < 1.03
+
+
+def test_equation_4_is_badly_conditioned_and_the_cost_is_bounded():
+    """Pins the one numerically fragile term, and how much it actually costs.
+
+    Equation (4) is a quartic in degrees fitted over a narrow range: at ψ = 180° its
+    five terms are -398, +1412, -1866, +1089, -236, cancelling to 0.0239 — a factor
+    ~78,000. Float32 therefore loses ~5 significant figures in ``Ψ_KLu``.
+
+    Asserted here rather than merely documented for two reasons: so the *size* of
+    the float32 penalty is a checked number rather than a guess, and so anyone
+    rewriting the evaluation (Horner, a shifted variable, precomputed powers) sees
+    immediately whether they made it better or worse. The paper's other polynomials
+    cancel by 1-116x and need no such guard.
+    """
+    terms = [c * 180.0 ** (4 - i) for i, c in enumerate(Z.FA_COEFFS)]
+    cancellation = max(abs(t) for t in terms) / abs(sum(terms))
+    assert cancellation > 1e4, f"expected severe cancellation, got {cancellation:.0f}x"
+
+    f32 = float(Z.psi_KLu(jnp.asarray(180.0, dtype=jnp.float32)))
+    with jax_x64_enabled():
+        f64 = float(Z.psi_KLu(jnp.asarray(180.0, dtype=jnp.float64)))
+
+    assert abs(f32 / f64 - 1) < 1e-4, "float32 penalty grew beyond its recorded size"
+
+
+def test_full_model_float32_matches_float64_to_1e4(l23_small_batch):
+    """The end-to-end consequence of the above: ~5e-5, not more.
+
+    Negligible against ZTT's own 3-5% error, and irrelevant to the gradient gate
+    (float64). Pinned so a future change cannot quietly make float32 unusable.
+    """
+    args = (
+        l23_small_batch.iops,
+        l23_small_batch.phase_params,
+        l23_small_batch.geometry,
+        l23_small_batch.wave,
+    )
+    r32 = np.asarray(Z.rrs_ZTT(*args))
+    with jax_x64_enabled():
+        r64 = np.asarray(Z.rrs_ZTT(*args))
+
+    assert np.max(np.abs(r32 / r64 - 1)) < 1e-4
 
 
 def test_psi_KLu_is_near_unity_and_rises_as_psi_falls():
