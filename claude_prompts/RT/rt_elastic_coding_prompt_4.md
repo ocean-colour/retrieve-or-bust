@@ -178,8 +178,9 @@ Jitted, full 9960 × 81 batch, CPU: **ZTT 3.4 ms** ≈ 235 M sample·λ/s; Gordo
    can. Log your work.
 3. Read this doc. Execute the 3rd task — the notebook. Use Fable if you can. Log your
    work.
-4. Read this doc. Execute the 4th task — the PR review. Log your work.
-5. Read this doc. Execute the 5th task — the hand-off to prompt 5. Log your work.
+4. Please modify the Notebook to have a section describing in detail the Hybrid model.  Include a figure if you can.  
+5. Read this doc. Execute the 4th task — the PR review. Log your work.
+6. Read this doc. Execute the 5th task — the hand-off to prompt 5. Log your work.
 
 ## M3
 
@@ -311,6 +312,55 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-05 (new 4th prompt — a section specifying the hybrid model, with two figures)
+
+**Added §1 "The hybrid model, end to end"** to `notebooks/RT/rt_elastic_coding_4.ipynb`
+and renumbered the rest 2–8, fixing the internal cross-references. Now 30 cells,
+**6 figures**, still executed end to end with no errors and still degrading to the
+committed fixture without `$OS_COLOR`. Record §5.8 updated.
+
+The notebook explained M3's *decisions* but never wrote the model down. §1 now does,
+stage by stage: the unfitted ZTT backbone; the seven-feature map evaluated **per
+wavelength** (mirroring the backbone's own locality, which is what frees the emulator
+from L23's 81-band grid); train-split standardisation; the 7→16→16→1 `tanh` MLP with its
+zero-initialised output; `δ = 0.5·tanh(·)` as a hard bound; and
+`rrs = rrs_ZTT(1 + δ)` followed by the non-linear interface. The loss is written out,
+including why `rrms` is used directly rather than redefined.
+
+**The parameter inventory is counted, not asserted** — the cell prints each layer's
+shape from the *packaged* weights and sums them (112+16+256+16+16+1 = 417), and names the
+three arrays that travel untrained but are just as load-bearing: `mean`, `std`, and
+`domain`. §1 is also the only place that exercises `load_default()`, i.e. the path a user
+of the package actually takes, and it re-derives the additivity claim on the spot:
+exactly 0 in `rrs` space, 6.6e-4 sr⁻¹ in `Rrs`.
+
+**Two figures.** A dataflow schematic (matplotlib boxes/arrows) separating the physics
+path from the learned half and marking where each `mode` stops; and a term-by-term
+decomposition of a single water body — the backbone's residual, the correction applied,
+and what is left — on a **representative** scene rather than a flattering one, chosen as
+the *median* backbone error among the 3320 samples at 60° and labelled as such in the
+output.
+
+**One thing I got wrong and caught by looking at the figure.** The decomposition panel
+first plotted the network's raw `δ` against two residuals measured relative to the truth.
+All three looked like the same quantity, but `δ` divides by `rrs_ZTT` while the residuals
+divide by the L23 reference, so the correction curve sat ~2 points above the residual it
+cancels — inviting exactly the wrong reading, that the model overshoots. Now all three
+share the project's rRMS denominator, so the correction lands *on* the residual and the
+leftover is visibly near zero; the prose states the distinction and gives `δ`'s own
+definition rather than hiding it.
+
+Also: the schematic's `Δrrs = δ·rrs_ZTT` label was cramped against a box edge on the
+first render and was moved. Fourth milestone in a row where rendering the figure caught
+something the code could not.
+
+*Incidental, since I had begun the PR review before spotting the renumbered prompt list:*
+there is **no open PR**; #10 (M2) was reviewed by Bugbot at commit `4d6c628` and found
+**no new issues** — though that is not M2's final commit, so the last few M2 commits
+remain unreviewed; and #9's one finding (a `bb_p` zenith check that skipped 30°) was
+already fixed during M1, with the fix's docstring citing PR #9. Full pass belongs to
+prompt 5.
 
 ### 2026-08-04 (M3 task 3 — the notebook, which caught four wrong numbers of mine)
 

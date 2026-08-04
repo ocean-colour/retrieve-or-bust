@@ -1080,17 +1080,29 @@ flag on `forward`.
 ### 5.8 Notebook
 
 `notebooks/RT/rt_elastic_coding_4.ipynb` — the M3 explainer, **executed** with
-outputs (23 cells, 4 figures, ~5 min on the full batch; degrades to the committed
+outputs (30 cells, 6 figures, ~5 min on the full batch; degrades to the committed
 fixture without `$OS_COLOR`). House style and the CVD-validated categorical set from
 notebooks 1–3, with the five seed replicates in one de-emphasised grey rather than five
 hues — they are replicates, not five things to tell apart — and every series directly
 labelled, since `#56B4E9` is below 3:1 contrast on white.
 
-Seven sections: why the correction is relative; the features as the backbone's complete
-state (the scale-invariance check runs live, at 6.7e-16); the linear baseline *before*
-the MLP; fit versus generalisation; **where it fails** — the five-seed extrapolation fan
-at an unseen zenith, which is the notebook's real contribution; the gradient gate and
-throughput; and what M3 leaves open.
+Eight sections. **§1 specifies the model itself**, stage by stage — the unfitted ZTT
+backbone, the seven-feature map evaluated per wavelength, the train-split
+standardisation, the 7→16→16→1 `tanh` MLP with its zero-initialised output, the
+`δ = 0.5·tanh` bound, and the assembly `rrs = rrs_ZTT(1 + δ)` followed by the non-linear
+interface — with the loss written out and the parameter inventory *counted from the
+packaged weights* rather than asserted (417, and the three arrays that travel untrained:
+`mean`, `std`, `domain`). It carries two figures: a dataflow schematic separating the
+physics path from the learned half, and a term-by-term decomposition of one representative
+60° water body showing the correction landing on the backbone's residual and cancelling
+it. §1 also demonstrates `load_default()` and the `rrs`-space additivity of the three
+modes (exactly 0 in `rrs`, 6.6e-4 sr⁻¹ in `Rrs`).
+
+Then: why the correction is relative; the features as the backbone's complete state (the
+scale-invariance check runs live, at 6.7e-16); the linear baseline *before* the MLP; fit
+versus generalisation; **where it fails** — the five-seed extrapolation fan at an unseen
+zenith, which is the notebook's real contribution; the gradient gate and throughput; and
+what M3 leaves open.
 
 **The notebook is also where four wrong numbers were caught**, because it recomputes
 everything it claims rather than quoting this record:
