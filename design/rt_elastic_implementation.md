@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.13
-**Date:** 2026-08-03
+**Version:** 0.14
+**Date:** 2026-08-04
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -28,7 +28,7 @@ every bump.
 | **M0** | Environment & scaffold | ✅ done | `robust.rt` (stubs), `robust/tests/` |
 | **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | 🟡 in progress | `robust.rt.ztt`, `robust.rt.baselines` |
-| **M3** | Residual emulator + hybrid | ⬜ not started | `robust.rt.{emulator,hybrid}` |
+| **M3** | Residual emulator + hybrid | 🟡 code, tests, notebook done (tasks 1–3 of 5) | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 | ⬜ future | — |
 
@@ -47,11 +47,11 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **169 passed** in ~8 s (`ocean14`); with
-`$OS_COLOR` unset, **149 passed + 20 skipped**. The loader is
+**Verification (current).** `pytest -q` → **225 passed** (`ocean14`); with
+`$OS_COLOR` unset, **205 passed + 20 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
-reference data on disk (missing data skips, never fails). Both notebooks in
+reference data on disk (missing data skips, never fails). All four notebooks in
 `notebooks/RT/` execute end to end with no errors.
 
 ---
@@ -887,7 +887,233 @@ would make the gate vacuous.
 
 ## 5. M3 — Residual emulator + hybrid
 
-*(not started; see the coding plan §M3.)*
+**Goal.** The learned half: a small Flax MLP trained (Optax) on the residual
+`rrs_L23 − rrs_ZTT` over the M1 train split only, and the public `forward()`
+assembling `Rrs_ZTT + ΔRrs` behind the `mode` flag — the first trained,
+end-to-end differentiable forward model.
+
+### 5.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | `emulator.py` — Flax MLP residual emulator + Optax training | ✅ done |
+| 2 | `hybrid.py` — `forward()`; gates in `test_hybrid.py` | ✅ done |
+| 3 | `notebooks/RT/rt_elastic_coding_4.ipynb` — the M3 explainer | ✅ done |
+| 4 | PR-review pass | ⬜ pending |
+| 5 | Hand-off edit to `rt_elastic_coding_prompt_5.md` (M4) | ⬜ pending |
+
+**Branch for JXP** — all on `rt-elastic-prototype`, awaiting his commit:
+`robust/rt/emulator.py` and `robust/rt/hybrid.py` (both were stubs),
+`robust/tests/test_emulator.py`, `robust/tests/test_hybrid.py`,
+`design/py/train_emulator.py`, `robust/rt/files/emulator_l23.npz`,
+`notebooks/RT/rt_elastic_coding_4.ipynb`, plus modifications to `setup.py` and
+`robust/tests/test_env.py`.
+
+### 5.2 Modules added
+
+**`robust/rt/emulator.py`** — the residual emulator. Public surface: `FEATURES`
+(seven, in order: `log10_u`, `eta_bb`, `B_p`, `wave_nm`, `cos_theta_s`,
+`cos_theta_v`, `cos_dphi`), `EmulatorConfig` (`hidden=(16,16)`, `delta_max=0.5`,
+`penalty=0.02`, `learning_rate=3e-3`, `steps=3000`, `seed=23`, `eval_every=100`),
+`LINEAR_CONFIG` (`hidden=()` — the baseline), `Emulator` (a registered pytree:
+`params`/`mean`/`std` are leaves, `config` is static, plus `domain` — §5.5),
+`History`, `features()`, `fit()`, `fit_l23()`, `save()`/`load()`,
+`DEFAULT_WEIGHTS`, `load_default()`.
+
+Four decisions shape the module; each is a measurement or a proof, not a taste
+(the full arguments live in the module docstring):
+
+1. **The correction is relative.** The net emits a dimensionless `δ(λ)` and
+   `Δrrs = δ · rrs_ZTT` — still additive as the design specifies, but the target
+   is O(1) rather than spanning four decades (`rrs` runs 2.5e-2 in the blue to
+   6e-6 in the red). Measured `|δ|` rms **6.44%**, against the residual's own
+   measured **5.52%** sd: the emulator corrects the residual, it does not add a
+   large correction that partly cancels.
+2. **The feature set is provably complete, not a guess.** `rrs_ZTT` is
+   *scale-invariant* — scaling `(a, bb_w, bb_p)` by k=10 moves it **8.8e-15**
+   relative, and a test pins that — so the backbone sees its inputs only through
+   ratios, and `(u, η_bb)` invert back to `(a : bb_w : bb_p)` exactly. Absolute
+   magnitudes are therefore deliberately absent.
+3. **λ and `cos θ_s` are first-class** — they carry the two structures M2
+   measured in the residual (the zenith offset and the 550 nm hump).
+   Standardisation statistics come from the **train split only** and live inside
+   the `Emulator`, because a train/inference mismatch is silent.
+4. **Bounded by construction.** `δ = delta_max·tanh(·)`; a soft size penalty in
+   the same percent units as the loss; and a **zero-initialised output layer**,
+   so an untrained hybrid *is* the backbone and every reported gain is a gain.
+   `tanh` rather than `relu` because M3's gate is a finite-difference check and
+   a relu kink breaks central differences.
+
+One structural choice on top: the emulator is **pointwise in λ** — one shared
+network per wavelength, mirroring the backbone's own locality — so it is defined
+on any wavelength grid, not just the canonical 81 bands.
+
+**`robust/rt/hybrid.py`** — the public interface: `forward()` (returns `Rrs`),
+`rrs_forward()` (returns `rrs`, the scored quantity), `MODES`, and
+`DomainWarning` (§5.5). What `mode="emulator"` does and does not mean is an M4
+interface question — §5.7.
+
+**`design/py/train_emulator.py`** — the real training run (~60 s), kept outside
+the test suite for the same reason PAB's MCMC is; `--dry-run` and `--out` flags.
+
+**`robust/rt/files/emulator_l23.npz`** — **6.5 kB of trained weights,
+committed**, so `forward()` is a trained model out of the box and CI exercises
+the real thing. `setup.py` gained `package_data` for `robust/rt/files/*.npz` and
+`robust/tests/files/*.npz`, without which an installed copy would import fine
+and then fail at the first `forward(mode='hybrid')`.
+
+### 5.3 Tests and gates (task 2)
+
+`robust/tests/test_emulator.py` — 29 tests. `robust/tests/test_hybrid.py` — 22
+tests. `test_env.py`'s `test_unimplemented_stubs_raise` was replaced by
+`test_no_stubs_remain` — `forward` was the last stub on its list, exactly as
+`ztt.Rrs_ZTT` had been removed from it at M2.
+
+**The M3 gate, strengthened.** The coding plan's gate ("hybrid beats standard
+Gordon on the train split at all three solar zeniths") was already satisfied by
+ZTT alone, so an emulator outputting exactly zero would have passed it. It was
+strengthened to **beat `mode="ztt"`** at all three zeniths, with the reduction
+reported as a number. That is Q5 in prompt 4 and is still **unanswered by JXP**;
+the stronger test is what is implemented. Measured by the gate — a deterministic
+400-step toy fit on the committed 50-scene fixture, train split, so it runs in
+CI — rRMS in `rrs` space:
+
+| zenith | ZTT | hybrid | Gordon |
+|---|---|---|---|
+| 0° | 4.154% | **0.527%** | 5.268% |
+| 30° | 3.899% | **0.525%** | 5.533% |
+| 60° | 7.409% | **0.542%** | 8.623% |
+
+**Other gates in `test_hybrid.py`:**
+
+- `mode="ztt"` reproduces `ztt.rrs_ZTT` **bitwise**, so the flag cannot silently
+  change the physics.
+- **Additivity is exact in `rrs` space and violated by 1.28e-4 sr⁻¹ in `Rrs`
+  space** — the air-water interface is non-linear, which is why scoring happens
+  in `rrs`.
+- **The gradient gate passes through the full hybrid.** `jax.grad` vs central
+  finite differences through the emulator, under float64 with per-variable steps
+  (the M2 lesson): `a` 2.7e-9, `bb_p` 6.8e-11, `B_p` 1.7e-9, `theta_s` 5.4e-10
+  (steps 1e-6, 1e-9, 1e-8, 1e-3; tolerance 1e-6).
+
+### 5.4 Results — the hybrid on the full L23 batch
+
+rRMS (%) in `rrs` space, full 9960-sample batch, scene split:
+
+| model | train | held-out scenes | held-out scenes @60° |
+|---|---|---|---|
+| Gordon | 7.21 | 7.21 | 9.01 |
+| ZTT backbone | 5.95 | 5.93 | 8.11 |
+| hybrid, linear (8 params) | 2.57 | 2.54 | 2.48 |
+| **hybrid, MLP(16,16) (417 params)** | **0.30** | **0.30** | **0.32** |
+
+Held-out equals train to two decimals — 417 parameters against ~645k training
+rows (7968 samples × 81 λ). MLP(32,32) reached only 0.27%, confirming the
+design's "start small". **The linear baseline is the honest yardstick**: 2.57%
+means the MLP's nonlinearity earns its place by ~8×, not the ~20× over the
+backbone that a baseline-free presentation would suggest.
+
+**Throughput** (jitted, CPU, 9960×81): the hybrid costs **≈ 4.8× the backbone** —
+measured 17.1 ms against 3.5 ms (47 vs 228 M sample·λ/s) in notebook 4's run, and
+14–15 ms against ~3 ms in others; wall-clock wanders ~20% between runs on this machine,
+so the *ratio* is the reproducible number. Gordon is 0.3 ms. The learned half is
+therefore the majority of the cost — it evaluates a 417-parameter network at each of
+806,760 sample·λ points — but the hybrid does not collapse the analytic model's speed
+advantage over calling an RT solver.
+
+### 5.5 The open problem — geometry extrapolation is not reproducible
+
+**This is M4's main risk.** The emulator interpolates superbly, but trained on
+0°/30° only and asked for the unseen 60°, MLP(16,16) scores ~0.24% in sample
+and, over the seeds {23, 1, 7, 101, 2024}: **4.7 / 8.4 / 7.8 / 5.4 / 12.2%** —
+a 7.6× spread whose median, 7.75%, barely improves on ZTT's 8.09% there, and
+whose worse half is beaten by Gordon's 9.01%. The cause: `cos θ_s` spans
+[0.866, 1.0] in that training set while 60° needs 0.5, so every `tanh` unit is
+outside its fitted range and the initialisation decides the answer. The
+**linear** model gives up a lot in sample (2.40%) but is stable at **6.16%**,
+beating both references — its inability to bend is what saves it.
+
+**JXP's decision (Q6, answered): report and defer.** Extrapolating to 60° is a
+stretch goal; trusted outputs at that angle can be used if we get them; and the
+emulator will not be used at larger angles without warning the user. That
+decision is implemented, not just noted: `Emulator.domain` carries the
+per-feature train min/max with the weights, and `hybrid.DomainWarning` is raised
+whenever a mode that uses the emulator is evaluated outside the trained range.
+The check is a boundary check (concrete values), so it is skipped under
+`jit`/`grad` — deliberately, and documented.
+
+**A wrong inference caught before it shipped** — the record keeps M2's analogous
+lesson, so here is M3's. A linear skip path (`δ_raw = W·x + MLP(x)`) appeared to
+fix the extrapolation problem — 11.57% without it, 5.40% with — and was nearly
+adopted on that comparison. But the two runs also differed in Flax parameter
+*names*, which changes PRNG folding and hence the initialisation, so
+architecture and seed had moved together. A seed sweep with the architecture
+fixed showed the skip is no better (median 9.20% vs 7.75%, worst case 25%), and
+it was removed rather than shipped as a knob justified by a fluke.
+
+### 5.6 Two bugs found and fixed
+
+1. **Training NaN-ed on the first chunk.** Two deliberate choices collided: the
+   output layer is zero-initialised so `δ ≡ 0`, and the size penalty is an RMS
+   whose derivative `δ/(N·√mean δ²)` is 0/0 exactly there. Fixed with
+   `_RMS_EPS = 1e-24` inside the square root — it puts a 1e-12-percent floor
+   under the term, unmeasurable, and makes the gradient at δ=0 a clean zero. A
+   regression test asserts `jax.grad` of the objective is finite at init.
+2. **The domain check's traced-input guard was partial.** It inspected only
+   `iops.a` and `geometry.theta_s`, so `jax.grad` w.r.t. `bb_p` or `B_p` alone —
+   which is precisely what an inversion differentiates — left those two
+   concrete, the guard reported "not traced", and `out_of_domain`'s `np.asarray`
+   died with `TracerArrayConversionError` on the default code path. Now every
+   leaf is inspected via `jax.tree_util.tree_leaves`. Verified by reverting the
+   fix: the new parametrised regression test fails on exactly `bb_p` and `B_p`
+   and passes with it.
+
+### 5.7 An interface question left open for M4
+
+`mode="emulator"` returns the learned **correction term** `Δrrs`, not a
+standalone learned model, because the emulator is parameterised as a relative
+correction to the backbone. The design's "learned-only" comparison therefore
+needs a differently trained network — one predicting `rrs` outright across four
+decades — which belongs beside PR05 and O25 in M4's protocol rather than as a
+flag on `forward`.
+
+### 5.8 Notebook
+
+`notebooks/RT/rt_elastic_coding_4.ipynb` — the M3 explainer, **executed** with
+outputs (23 cells, 4 figures, ~5 min on the full batch; degrades to the committed
+fixture without `$OS_COLOR`). House style and the CVD-validated categorical set from
+notebooks 1–3, with the five seed replicates in one de-emphasised grey rather than five
+hues — they are replicates, not five things to tell apart — and every series directly
+labelled, since `#56B4E9` is below 3:1 contrast on white.
+
+Seven sections: why the correction is relative; the features as the backbone's complete
+state (the scale-invariance check runs live, at 6.7e-16); the linear baseline *before*
+the MLP; fit versus generalisation; **where it fails** — the five-seed extrapolation fan
+at an unseen zenith, which is the notebook's real contribution; the gradient gate and
+throughput; and what M3 leaves open.
+
+**The notebook is also where four wrong numbers were caught**, because it recomputes
+everything it claims rather than quoting this record:
+
+- the hybrid/ZTT throughput ratio (§5.4) had been the *emulator*/ZTT ratio, 3.3×,
+  misapplied to the total; measured end to end it is ~5×;
+- the scale-invariance demonstration was silently running in float32 (2e-7, float32
+  epsilon) because `jax_enable_x64` was set *after* the arrays were built — the dtype
+  has to be pinned on the arrays, which is a gotcha this project had already recorded;
+- the "four decades of dynamic range" argument had been measuring the *mean* spectrum
+  (factor 419); the per-sample range is 4300;
+- the domain check warned on in-range data, which exposed the flaw fixed in §5.2's
+  `DOMAIN_TOL`.
+
+A review pass over the executed notebook caught four more overstatements, all now
+corrected in it: the finite differences are ~2e-7 rather than ~1e-9 for `B_p` and
+`theta_s`; the title quoted the linear model's train number in a held-out sentence; the
+`DOMAIN_TOL` headroom is 27× below and 48× above, not symmetric; and the per-λ figure
+claimed the MLP hybrid sits "a decade" below the linear model with a "spectrally
+uniform" improvement — in fact the gap narrows to ~3× where the linear model dips, and
+the **blue retains the largest residual** (0.33–0.40% against 0.19% in the red). The
+defensible claim, which is the one that matters, is that no wavelength region is
+abandoned.
 
 ## 6. M4 — Validation
 
@@ -951,10 +1177,12 @@ robust/
       __init__.py      ✅ re-exports l23
       l23.py           ✅ M1  L23 elastic batches + seeded splits
     ztt.py             ✅ M2  ZTT; µ∞ from TT2017 pending Eq. (8) coeffs
-    emulator.py        ⬜ M3  Flax MLP ΔRrs + Optax training
-    hybrid.py          ⬜ M3  forward() — signature + MODES pinned, body pending
+    emulator.py        ✅ M3  relative-δ Flax MLP + Optax training, save/load
+    hybrid.py          ✅ M3  forward()/rrs_forward(), MODES, DomainWarning
     validation.py      🟡 M2  rrms(); rest of the protocol at M4
     baselines.py       ✅ M2  standard Gordon (PR05/O25 at M4)
+    files/
+      emulator_l23.npz ✅ M3  trained MLP(16,16) weights (6.5 kB, committed)
   tests/
     __init__.py        ✅
     conftest.py        ✅ needs_l23 marker, jax_x64 fixture
@@ -965,12 +1193,18 @@ robust/
     test_l23.py        ✅ 46 tests — M1 task 3 (+ cached-fixture layer)
     test_baselines.py  ✅ 19 tests — M2 task 1
     test_ztt.py        ✅ 28 tests + 1 xfail — M2 task 3
+    test_emulator.py   ✅ 29 tests — M3 task 1
+    test_hybrid.py     ✅ 22 tests — M3 task 2 (the strengthened gate)
     files/l23_small.npz ✅ 213 kB, 50 scenes x 3 zeniths (raw fields)
+
+design/py/
+  train_emulator.py          ✅ M3 real training run (~60 s; --dry-run, --out)
 
 notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
   rt_elastic_coding_2.ipynb  ✅ M1 explainer (executed, 3 figures)
   rt_elastic_coding_3.ipynb  ✅ M2 explainer (executed, 3 figures)
+  rt_elastic_coding_4.ipynb  ✅ M3 explainer (executed, 4 figures)
 
 .github/workflows/
   ci.yml                     ✅ pytest (py3.12, py3.14) + ruff check/format
@@ -1029,6 +1263,18 @@ specification`. That is why nothing was ever pip-installed in `ocean14` and why
 `Provides-Dist` and does nothing useful); `pip install -e . --no-deps` now
 succeeds. `bing`/`ocpy` carry the same line harmlessly because their names have no
 hyphen.
+
+**M3's packaging change.** `setup.py` gained `package_data` for
+`robust/rt/files/*.npz` and `robust/tests/files/*.npz` — without it an installed
+copy imports fine and then fails at the first `forward(mode='hybrid')`, because
+the trained weights (`robust/rt/files/emulator_l23.npz`, 6.5 kB, committed)
+would not ship. Committing the weights is also what lets CI exercise a *trained*
+hybrid rather than a zero-initialised one; the M3 gate itself trains a
+deterministic 400-step toy fit on the committed fixture, so it runs in CI too.
+
+**Suite size at M3.** `pytest -q` → **225 passed** with `$OS_COLOR`; **205
+passed, 20 skipped** without it, which is what CI sees. The suite was 171 at
+M2's close.
 
 **Badge** in `README.md`. It will read "no status" until `ci.yml` reaches the
 default branch — the workflow file has to exist on `main` for the badge's default

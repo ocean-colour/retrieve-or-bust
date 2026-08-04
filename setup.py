@@ -37,6 +37,11 @@ setup_keywords['install_requires'] = [
 # source / GitHub via requirements.txt (git+https://github.com/ocean-colour/...).
 setup_keywords['zip_safe'] = False
 setup_keywords['packages'] = find_packages()
+# Ship the trained emulator weights (robust/rt/files/*.npz, ~7 KB) and the small
+# L23 test fixture. Without this, an installed copy imports fine and then fails at
+# the first forward(mode='hybrid') with a missing-weights error, because
+# find_packages() collects modules only -- data files need saying out loud.
+setup_keywords['package_data'] = {'robust': ['rt/files/*.npz', 'tests/files/*.npz']}
 
 if os.path.isdir('bin'):
     setup_keywords['scripts'] = [fname for fname in glob.glob(os.path.join('bin', '*'))

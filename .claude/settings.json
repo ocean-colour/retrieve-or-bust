@@ -37,7 +37,14 @@
       "Bash(jupyter:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "Bash(node /private/tmp/claude-501/bundled-skills/2.1.220/c86ecf82fcc329d3bfc87559b6534558/dataviz/scripts/validate_palette.js '#0072B2,#D55E00,#56B4E9,#1a1a1a,#9a9a9a' --mode light)",
+      "Bash(PYTHONPATH=/Users/xavier/Oceanography/python/retrieve-or-bust conda run -n ocean14 python -c ' *)",
+      "Bash(PYTHONPATH=. conda run -n ocean14 python -m pytest robust/tests/test_emulator.py -q -k \"reports_nothing_inside\")",
+      "Bash(python3 /private/tmp/claude-501/-Users-xavier-Oceanography-python-retrieve-or-bust/fe9126ca-c02d-4f6f-a628-97a317c21d27/scratchpad/dump_nb.py)",
+      "Bash(PYTHONPATH=. conda run -n ocean14 python -m pytest robust/tests/ -q)",
+      "Bash(sed -n '/^### 5.8/,/^## 6/p' design/rt_elastic_implementation.md)",
+      "Bash(sed -n '/^### 5.1/,/^### 5.2/p' design/rt_elastic_implementation.md)"
     ],
     "deny": [
       "Bash(rm -rf /:*)",
