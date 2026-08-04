@@ -22,7 +22,9 @@ and ``emulator.load`` refuses a file whose feature list no longer matches.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -36,6 +38,11 @@ from robust.rt import emulator as E  # noqa: E402
 from robust.rt import validation as V  # noqa: E402
 from robust.rt import ztt as Z  # noqa: E402
 from robust.rt.data import l23 as L  # noqa: E402
+
+#: Names for the two fits, so the one that gets shipped is selected by name rather
+#: than by whatever the training loop last left in scope (PR #11 review).
+BASELINE = "linear baseline"
+SHIPPED = "MLP"
 
 
 def report(truth, pred, mask, label: str) -> float:
@@ -66,8 +73,11 @@ def main() -> int:
     )
 
     # The linear model first: it is the baseline the MLP has to beat, and reporting
-    # it second would invite reading the MLP's gain as larger than it is.
-    for label, config in (("linear baseline", E.LINEAR_CONFIG), ("MLP", None)):
+    # it second would invite reading the MLP's gain as larger than it is. Results are
+    # collected into a dict keyed by name -- SHIPPED, below, then names what is
+    # written rather than inheriting whatever the loop left in scope.
+    trained = {}
+    for label, config in ((BASELINE, E.LINEAR_CONFIG), (SHIPPED, None)):
         t0 = time.perf_counter()
         emulator, history = E.fit_l23(batch, splits, config=config, rrs_ztt=rrs_ztt)
         elapsed = time.perf_counter() - t0
@@ -76,6 +86,7 @@ def main() -> int:
         )
         hybrid = rrs_ztt * (1.0 + delta)
         n_par = sum(np.asarray(p).size for p in _leaves(emulator.params))
+        trained[label] = (emulator, delta)
         print(
             f"\n  {label}: hidden={emulator.config.hidden}, {n_par} params, "
             f"{elapsed:.0f} s, |delta| rms {history.delta_rms[-1]:.2f}%"
@@ -94,24 +105,77 @@ def main() -> int:
         print("\n--dry-run: nothing written")
         return 0
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    E.save(emulator, args.out)
-    size_kb = args.out.stat().st_size / 1024
-    print(f"\nwrote {args.out} ({size_kb:.1f} KB)")
+    emulator, delta = trained[SHIPPED]
+    expected = E.EmulatorConfig().hidden
+    if emulator.config.hidden != expected:
+        raise SystemExit(
+            f"refusing to write {args.out}: the emulator selected for shipping has "
+            f"hidden={emulator.config.hidden}, but the package's default architecture "
+            f"is {expected}. The weights file is loaded by "
+            "emulator.load_default() and used by forward(mode='hybrid'), so a "
+            "different architecture here would silently become the shipped model"
+        )
+    return write_weights(emulator, delta, batch, args.out)
 
-    # Round-trip, because a weights file that loads to something different is the
-    # one failure mode that would not show up until a much later comparison.
-    reloaded = E.load(args.out)
-    same = np.allclose(
-        np.asarray(
-            reloaded.relative_delta(
-                batch.iops, batch.phase_params, batch.geometry, batch.wave
+
+def write_weights(emulator, delta, batch, out: Path) -> int:
+    """Validate the weights **before** they can replace a known-good file.
+
+    The round-trip check below is the only thing standing between a broken
+    serialisation and a silently wrong shipped model, so it has to run on a file
+    that is not yet the destination. Writing first and checking afterwards -- the
+    original shape of this function, caught in review of PR #11 -- meant a failed
+    check reported an error with the good weights already overwritten. Now the
+    candidate is written beside the destination, verified, and only then moved into
+    place with :func:`os.replace`, which is atomic: readers see either the old file
+    or the new one, never a half-written one.
+
+    Parameters
+    ----------
+    emulator : robust.rt.emulator.Emulator
+        The emulator to ship.
+    delta : Array
+        Its relative correction on ``batch``, computed before saving; the reloaded
+        copy has to reproduce this.
+    batch : robust.rt.data.l23.L23Batch
+        The batch to compare on.
+    out : pathlib.Path
+        Destination.
+
+    Returns
+    -------
+    int
+        Process exit status: 0 if the round-trip reproduced the correction.
+    """
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=out.parent, prefix=out.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        E.save(emulator, tmp)
+        reloaded = E.load(tmp)
+        same = np.allclose(
+            np.asarray(
+                reloaded.relative_delta(
+                    batch.iops, batch.phase_params, batch.geometry, batch.wave
+                )
+            ),
+            np.asarray(delta),
+        )
+        if not same:
+            print(
+                f"round-trip FAILED: the reloaded emulator does not reproduce the "
+                f"correction. {out} left untouched; candidate discarded"
             )
-        ),
-        np.asarray(delta),
-    )
-    print(f"round-trip reproduces the correction: {same}")
-    return 0 if same else 1
+            return 1
+        os.replace(tmp, out)
+    finally:
+        # Covers all three exits: after a successful replace the candidate is gone
+        # already, and on a failed check or an exception it must not be left behind.
+        tmp.unlink(missing_ok=True)
+    print(f"\nwrote {out} ({out.stat().st_size / 1024:.1f} KB)")
+    print("round-trip reproduces the correction: True")
+    return 0
 
 
 def _leaves(tree):
