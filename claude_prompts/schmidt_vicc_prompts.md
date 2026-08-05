@@ -1418,3 +1418,40 @@ which never matched the existing prefix rules and was itself a source of prompts
 
 Next: unchanged — trim the EOI to 3 pages, insert the two proposal PNGs, complete the budget, export to
 PDF. Figure 3 is talk material and needs nothing further.
+
+### 2026-08-06 (First draft prompt 10: graphics version of the methodology figure)
+
+Executed the 10th "First draft" task. Added **`eoi_fig3_methodology_graphics_slides.png`** via a new
+`fig3_methodology_graphics()`; the plain-box `eoi_fig3_methodology_slides.png` is **kept** as asked, and
+both are emitted from `main()`. Slides only, 10 × 5.3 in.
+
+**No images were downloaded, and none are needed.** Each of the five boxes is replaced by a graphic
+*drawn* in matplotlib as its own small function on an inset axes: `g_satellite` (spacecraft with solar
+panels over an ocean limb, star field), `g_atmosphere` (sun, graded sky, aerosol scatterers, sea band),
+`g_inversion` (a family of candidate spectra collapsing onto a shaded credible band — the degeneracy and
+its resolution in one glyph), `g_iops` (bbp power-law decline and the twin-peaked aph curve, each with a
+posterior band), and `g_ocean_carbon` (graded water column, phytoplankton in the lit layer, sinking
+aggregates with flux arrows). Chosen over stock photography deliberately: nothing to fetch, no licence to
+clear, no binaries in the repo, and it regenerates with the rest. Each glyph is one function, so
+photography can be dropped in later per station.
+
+**Three defects caught by looking at the render, not by assuming.**
+1. **The satellite arrows pointed the wrong way** — both drawn as emission from the spacecraft. A sensor
+   *receives*; corrected to sunlight down on the left and water-leaving radiance up to the sensor on the
+   right. Worth fixing precisely because a physics audience reads figures literally.
+2. **Station labels were crowded** at one line each ("IOPs with posteriors" nearly touching "Carbon
+   stocks & fluxes"), so all five were wrapped to two lines, with the detail text and the priors/feedback
+   arrows moved down to match.
+3. **The aph label sat inside the bbp uncertainty band**; moved into the trough between aph's two peaks,
+   clear of it.
+
+`_check_fits` reports `ok fig3 methodology (graphics)` on every run. Lint and format clean; the full set
+of six PNGs regenerates from an empty directory.
+
+**If photographic imagery is wanted later** (not required — the figure is complete as it stands), the
+natural swaps are: a PACE/OCI true-colour granule or the NASA PACE spacecraft render for station 1
+(both public domain from NASA), and a phytoplankton bloom image for station 5. Drop the file in
+`proposals/Schmidt_Sciences/` and the corresponding `g_*` function becomes a two-line `imshow`.
+
+Next: unchanged — trim the EOI to 3 pages, insert the two proposal PNGs, complete the budget, export to
+PDF.

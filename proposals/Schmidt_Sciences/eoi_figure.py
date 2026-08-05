@@ -42,9 +42,22 @@ Figure 1's right-hand label margin comes from the rendered width of the label st
 Run in the `ocean14` conda environment:
     python proposals/Schmidt_Sciences/eoi_figure.py
 
+**Figure 3 — the methodology**, radiance -> IOPs -> carbon, in two variants, both
+Google Slides only (a 3-page EOI has no room for either):
+
+- ``fig3_methodology`` — plain coloured boxes.
+- ``fig3_methodology_graphics`` — the same flow with each box replaced by a *drawn*
+  graphic (spacecraft over an ocean limb, aerosol-laden atmosphere, a posterior
+  collapsing out of a family of candidate spectra, bbp/aph spectra with uncertainty
+  bands, and a water column with sinking particles). Nothing is downloaded: no network
+  fetch, no licensing question, no binary assets, and it regenerates with everything
+  else. Swap in photography later if wanted -- each glyph is one function.
+
 Writes (PNG only):
     eoi_fig1_problem.png         eoi_fig2_targets.png          (proposal)
     eoi_fig1_problem_slides.png  eoi_fig2_targets_slides.png   (Google Slides)
+    eoi_fig3_methodology_slides.png
+    eoi_fig3_methodology_graphics_slides.png                   (Google Slides)
 """
 
 from __future__ import annotations
@@ -55,8 +68,9 @@ from dataclasses import dataclass
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
-from matplotlib.patches import FancyBboxPatch
+from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -686,12 +700,507 @@ def fig3_methodology(st=SLIDES):
     print("wrote", out)
 
 
+# ------------------------------------------------- Figure 3 (graphics variant) --
+# The five glyphs below replace the plain colour boxes of `fig3_methodology`. They are
+# *drawn*, not downloaded: no network fetch, no licensing question, no binary assets in
+# the repo, and they regenerate with the rest of the figures. Each takes an inset axes
+# spanning 0-1 in both directions and paints inside it.
+
+
+def _glyph_frame(gax, colour):
+    """Tint an inset axes and outline it, so each station still reads as a step."""
+    gax.set_xlim(0, 1)
+    gax.set_ylim(0, 1)
+    gax.set_xticks([])
+    gax.set_yticks([])
+    for s in gax.spines.values():
+        s.set_edgecolor(colour)
+        s.set_linewidth(1.8)
+
+
+def g_satellite(gax):
+    """A spacecraft over a limb of ocean, sending radiance down/up."""
+    _glyph_frame(gax, OCEAN)
+    gax.add_patch(Rectangle((0, 0), 1, 1, facecolor="#0d1b2a", zorder=0))
+    rng = np.random.default_rng(7)
+    gax.scatter(
+        rng.uniform(0, 1, 26),
+        rng.uniform(0.45, 1, 26),
+        s=1.6,
+        color="white",
+        alpha=0.75,
+        zorder=1,
+    )
+    # Earth limb
+    gax.add_patch(
+        Circle(
+            (0.5, -1.05), 1.35, facecolor=OCEAN, edgecolor="#7fb2d4", lw=1.2, zorder=2
+        )
+    )
+    gax.add_patch(
+        Circle(
+            (0.5, -1.05),
+            1.42,
+            facecolor="none",
+            edgecolor="#9fd0ea",
+            lw=1.0,
+            alpha=0.55,
+            zorder=2,
+        )
+    )
+    # Spacecraft: body + two panels + antenna
+    gax.add_patch(
+        Rectangle(
+            (0.44, 0.63),
+            0.12,
+            0.14,
+            facecolor="#e8eef2",
+            edgecolor="0.35",
+            lw=0.8,
+            zorder=4,
+        )
+    )
+    for x0 in (0.20, 0.58):
+        gax.add_patch(
+            Rectangle(
+                (x0, 0.655),
+                0.22,
+                0.095,
+                facecolor="#3f6fa5",
+                edgecolor="#dfe8ef",
+                lw=0.7,
+                zorder=4,
+            )
+        )
+    gax.plot([0.5, 0.5], [0.77, 0.86], color="#e8eef2", lw=1.1, zorder=4)
+    gax.add_patch(Circle((0.5, 0.875), 0.022, facecolor="#e8eef2", zorder=4))
+    # Sunlight in on the left; water-leaving radiance up to the sensor on the right.
+    # The sensor receives, it does not emit -- worth getting right in a science figure.
+    gax.annotate(
+        "",
+        xy=(0.22, 0.30),
+        xytext=(0.33, 0.60),
+        arrowprops={"arrowstyle": "-|>", "lw": 1.3, "color": "#ffd88a"},
+        zorder=5,
+    )
+    gax.annotate(
+        "",
+        xy=(0.60, 0.60),
+        xytext=(0.70, 0.30),
+        arrowprops={"arrowstyle": "-|>", "lw": 1.6, "color": "#9fe0ff"},
+        zorder=5,
+    )
+
+
+def g_atmosphere(gax):
+    """Sun, aerosol-laden atmosphere, and the signal being pulled back out."""
+    _glyph_frame(gax, GOLD)
+    grad = np.linspace(0, 1, 128).reshape(-1, 1)
+    gax.imshow(
+        grad,
+        extent=(0, 1, 0.28, 1),
+        aspect="auto",
+        origin="lower",
+        cmap=LinearSegmentedColormap.from_list("sky", ["#cfe4f2", "#5b8fc4"]),
+        zorder=0,
+    )
+    gax.add_patch(Rectangle((0, 0), 1, 0.28, facecolor="#14618f", zorder=1))
+    gax.add_patch(
+        Circle(
+            (0.17, 0.84),
+            0.085,
+            facecolor="#ffd35c",
+            edgecolor="#f0b429",
+            lw=0.8,
+            zorder=2,
+        )
+    )
+    rng = np.random.default_rng(3)
+    gax.scatter(
+        rng.uniform(0.05, 0.95, 60),
+        rng.uniform(0.33, 0.92, 60),
+        s=rng.uniform(2, 9, 60),
+        color="white",
+        alpha=0.5,
+        zorder=2,
+    )
+    # scattered path in, corrected signal out
+    gax.annotate(
+        "",
+        xy=(0.62, 0.30),
+        xytext=(0.30, 0.90),
+        arrowprops={"arrowstyle": "-|>", "lw": 1.3, "color": "#ffe9b0"},
+        zorder=4,
+    )
+    gax.annotate(
+        "",
+        xy=(0.90, 0.93),
+        xytext=(0.68, 0.30),
+        arrowprops={"arrowstyle": "-|>", "lw": 1.9, "color": "white"},
+        zorder=4,
+    )
+
+
+def g_inversion(gax):
+    """A posterior: many candidate spectra collapsing onto a credible band."""
+    _glyph_frame(gax, TEAL)
+    gax.add_patch(Rectangle((0, 0), 1, 1, facecolor="#f2f8f8", zorder=0))
+    x = np.linspace(0.08, 0.94, 120)
+    base = 0.30 + 0.42 * np.exp(-(((x - 0.36) / 0.20) ** 2))
+    rng = np.random.default_rng(11)
+    for _ in range(14):  # candidate solutions -- the degeneracy
+        wob = base * rng.uniform(0.78, 1.22) + rng.normal(0, 0.012, x.size)
+        gax.plot(x, wob, color=TEAL, lw=0.7, alpha=0.28, zorder=1)
+    gax.fill_between(x, base * 0.9, base * 1.1, color=TEAL, alpha=0.30, zorder=2)
+    gax.plot(x, base, color="#12595a", lw=2.1, zorder=3)
+    gax.annotate(
+        "",
+        xy=(0.94, 0.10),
+        xytext=(0.08, 0.10),
+        arrowprops={"arrowstyle": "-|>", "lw": 1.0, "color": "0.45"},
+        zorder=3,
+    )
+    gax.text(0.5, 0.035, "λ", ha="center", va="bottom", fontsize=8, color="0.35")
+
+
+def g_iops(gax):
+    """bbp and aph spectra, each with a posterior uncertainty band."""
+    _glyph_frame(gax, "#4E6E8E")
+    gax.add_patch(Rectangle((0, 0), 1, 1, facecolor="#f4f6f9", zorder=0))
+    x = np.linspace(0.10, 0.94, 140)
+    bbp = 0.78 - 0.42 * (x - 0.10)  # smooth power-law-ish decline
+    aph = (
+        0.20
+        + 0.30 * np.exp(-(((x - 0.20) / 0.11) ** 2))
+        + 0.20 * np.exp(-(((x - 0.80) / 0.075) ** 2))
+    )  # blue + red peaks
+    for curve, col in ((bbp, "#2f6f9f"), (aph, GREEN)):
+        gax.fill_between(x, curve * 0.86, curve * 1.14, color=col, alpha=0.25, zorder=1)
+        gax.plot(x, curve, color=col, lw=2.0, zorder=2)
+    # Each label sits on its own curve: bbp at its high blue end, aph above its red peak.
+    gax.text(
+        0.13,
+        0.84,
+        "$b_{bp}$",
+        ha="left",
+        va="bottom",
+        fontsize=9.5,
+        color="#2f6f9f",
+        fontweight="bold",
+    )
+    # In the trough between aph's two peaks, well clear of the bbp band above it.
+    gax.text(
+        0.52,
+        0.25,
+        "$a_{ph}$",
+        ha="center",
+        va="bottom",
+        fontsize=9.5,
+        color=GREEN,
+        fontweight="bold",
+    )
+    gax.annotate(
+        "",
+        xy=(0.94, 0.08),
+        xytext=(0.10, 0.08),
+        arrowprops={"arrowstyle": "-|>", "lw": 1.0, "color": "0.45"},
+        zorder=3,
+    )
+
+
+def g_ocean_carbon(gax):
+    """The water column: phytoplankton at the surface, particles sinking."""
+    _glyph_frame(gax, GREEN)
+    grad = np.linspace(0, 1, 128).reshape(-1, 1)
+    gax.imshow(
+        grad,
+        extent=(0, 1, 0, 1),
+        aspect="auto",
+        origin="upper",
+        cmap=LinearSegmentedColormap.from_list("sea", ["#bfe3ef", "#08304a"]),
+        zorder=0,
+    )
+    gax.plot([0, 1], [0.86, 0.86], color="white", lw=1.4, alpha=0.85, zorder=2)
+    rng = np.random.default_rng(5)
+    # phytoplankton in the lit layer
+    gax.scatter(
+        rng.uniform(0.05, 0.95, 30),
+        rng.uniform(0.60, 0.84, 30),
+        s=rng.uniform(9, 26, 30),
+        color="#7fd18b",
+        alpha=0.95,
+        edgecolor="#2f6d3f",
+        linewidth=0.4,
+        zorder=3,
+    )
+    # sinking aggregates
+    ys = rng.uniform(0.10, 0.58, 16)
+    gax.scatter(
+        rng.uniform(0.05, 0.95, 16),
+        ys,
+        s=rng.uniform(6, 18, 16),
+        color="#d9c39a",
+        alpha=0.9,
+        edgecolor="#8a7448",
+        linewidth=0.3,
+        zorder=3,
+    )
+    for xa in (0.24, 0.52, 0.79):
+        gax.annotate(
+            "",
+            xy=(xa, 0.07),
+            xytext=(xa, 0.55),
+            arrowprops={"arrowstyle": "-|>", "lw": 1.4, "color": "white", "alpha": 0.8},
+            zorder=4,
+        )
+
+
+def fig3_methodology_graphics(st=SLIDES):
+    """Figure 3 with drawn graphics in place of the plain boxes. Slides only."""
+    fig = plt.figure(figsize=(FIG3_W, FIG3_H))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    ax.axis("off")
+    checks = []
+
+    ax.text(
+        50,
+        93.0,
+        "Methodology: from satellite radiance to ocean carbon,\n"
+        "carrying the uncertainty all the way through",
+        ha="center",
+        va="center",
+        fontsize=15.0,
+        fontweight="bold",
+        color=INK,
+        linespacing=1.35,
+    )
+
+    # (centre x, glyph fn, accent colour, label, detail)
+    chain = [
+        (
+            10.4,
+            g_satellite,
+            OCEAN,
+            "Satellite\nradiance",
+            "PACE/OCI 350–890 nm\nMODIS since 2002",
+        ),
+        (
+            30.2,
+            g_atmosphere,
+            GOLD,
+            "Atmospheric\ncorrection",
+            "cross-mission\nharmonisation",
+        ),
+        (
+            50.0,
+            g_inversion,
+            TEAL,
+            "Bayesian\ninversion",
+            "differentiable RT\n+ learned priors",
+        ),
+        (
+            69.8,
+            g_iops,
+            "#4E6E8E",
+            "IOPs with\nposteriors",
+            "$b_{bp}$, $a_{ph}$, $a_{dg}$\nper-pixel σ",
+        ),
+        (
+            89.6,
+            g_ocean_carbon,
+            GREEN,
+            "Carbon stocks\n& fluxes",
+            "$C_{phyto}$, POC\n→ NPP, export",
+        ),
+    ]
+    gw, gy, gh = 17.0, 62.0, 18.0  # glyph panel: width, bottom, height
+
+    for cx, gfn, col, label, detail in chain:
+        gax = fig.add_axes([(cx - gw / 2) / 100.0, gy / 100.0, gw / 100.0, gh / 100.0])
+        gfn(gax)
+        checks.append(
+            (
+                ax.text(
+                    cx,
+                    gy - 1.6,
+                    label,
+                    ha="center",
+                    va="top",
+                    fontsize=11.0,
+                    fontweight="bold",
+                    color=col,
+                    zorder=4,
+                ),
+                None,
+            )
+        )
+        checks.append(
+            (
+                ax.text(
+                    cx,
+                    gy - 9.6,
+                    detail,
+                    ha="center",
+                    va="top",
+                    fontsize=9.5,
+                    color="0.32",
+                    linespacing=1.3,
+                    zorder=4,
+                ),
+                None,
+            )
+        )
+
+    for i in range(len(chain) - 1):
+        ax.annotate(
+            "",
+            xy=(chain[i + 1][0] - gw / 2 - 0.5, gy + gh / 2),
+            xytext=(chain[i][0] + gw / 2 + 0.5, gy + gh / 2),
+            arrowprops={"arrowstyle": "-|>", "lw": 2.2, "color": "0.4"},
+        )
+
+    px, pw, py, ph = 15.0, 70.0, 26.0, 13.0
+    ax.add_patch(
+        FancyBboxPatch(
+            (px, py),
+            pw,
+            ph,
+            boxstyle="round,pad=0.4,rounding_size=1.8",
+            facecolor="#eef2f6",
+            edgecolor="0.6",
+            lw=1.2,
+            zorder=3,
+        )
+    )
+    checks.append(
+        (
+            ax.text(
+                px + pw / 2,
+                py + ph - 3.6,
+                "External information that breaks the degeneracy",
+                ha="center",
+                va="center",
+                fontsize=11.0,
+                fontweight="bold",
+                color=INK,
+                zorder=4,
+            ),
+            (px, py, pw, ph),
+        )
+    )
+    checks.append(
+        (
+            ax.text(
+                px + pw / 2,
+                py + 4.0,
+                "in-situ bio-optics  ·  BGC-Argo profiles  ·  "
+                "ECCO-Darwin state estimate",
+                ha="center",
+                va="center",
+                fontsize=9.5,
+                color="0.3",
+                zorder=4,
+            ),
+            (px, py, pw, ph),
+        )
+    )
+
+    ax.annotate(
+        "",
+        xy=(46.0, gy - 16.2),
+        xytext=(46.0, py + ph),
+        arrowprops={"arrowstyle": "-|>", "lw": 2.2, "color": TEAL},
+    )
+    checks.append(
+        (
+            ax.text(
+                44.8,
+                (py + ph + gy - 16.2) / 2,
+                "priors",
+                ha="right",
+                va="center",
+                fontsize=10.0,
+                color=TEAL,
+                fontweight="bold",
+            ),
+            None,
+        )
+    )
+    ax.annotate(
+        "",
+        xy=(px + pw - 3.0, py + ph),
+        xytext=(89.6, gy - 16.2),
+        arrowprops={
+            "arrowstyle": "-|>",
+            "lw": 2.0,
+            "color": GREEN,
+            "connectionstyle": "angle3,angleA=-80,angleB=10",
+        },
+    )
+    checks.append(
+        (
+            ax.text(
+                50,
+                py - 3.4,
+                "iterative coupling: model-informed priors in, "
+                "uncertainty-quantified biological fields out",
+                ha="center",
+                va="top",
+                fontsize=9.5,
+                color="0.35",
+            ),
+            None,
+        )
+    )
+
+    rx, rw, ry, rh = 4.0, 92.0, 6.0, 10.5
+    ax.add_patch(
+        FancyBboxPatch(
+            (rx, ry),
+            rw,
+            rh,
+            boxstyle="round,pad=0.4,rounding_size=1.8",
+            facecolor="#fbf1ea",
+            edgecolor=RUST,
+            lw=1.3,
+            zorder=2,
+        )
+    )
+    checks.append(
+        (
+            ax.text(
+                rx + rw / 2,
+                ry + rh / 2,
+                "Calibrated uncertainty propagated at every step — every carbon "
+                "number ships with an interval",
+                ha="center",
+                va="center",
+                fontsize=10.5,
+                color=RUST,
+                fontweight="bold",
+                zorder=4,
+            ),
+            (rx, ry, rw, rh),
+        )
+    )
+
+    _check_fits(ax, checks, "fig3 methodology (graphics)")
+    out = os.path.join(HERE, f"eoi_fig3_methodology_graphics{st.suffix}.png")
+    fig.savefig(out, dpi=200)
+    plt.close(fig)
+    print("wrote", out)
+
+
 def main():
     for st in (PAPER, SLIDES):
         fig1_problem(st)
         fig2_targets(st)
-    # Figure 3 is for talks only, per request: no paper variant.
+    # Figure 3 is for talks only, per request: no paper variant. Both the plain-box
+    # original and the graphics version are kept.
     fig3_methodology(SLIDES)
+    fig3_methodology_graphics(SLIDES)
 
 
 if __name__ == "__main__":
