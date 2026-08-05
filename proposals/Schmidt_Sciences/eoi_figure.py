@@ -56,6 +56,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
+from matplotlib.patches import FancyBboxPatch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -171,6 +172,39 @@ def _text_w_data(ax, s, fontsize):
     t.remove()
     x0, x1 = ax.transData.inverted().transform([(0, 0), (bb.width, 0)])[:, 0]
     return x1 - x0
+
+
+#: Figure 3's canvas, in inches. A Google Slides widescreen page is 10 x 5.625 in.
+FIG3_W, FIG3_H = 10.0, 5.3
+
+
+def _check_fits(ax, artists, label):
+    """Report any text that escapes the canvas or its own box.
+
+    A layout assertion rather than decoration: Figure 3 positions everything by hand,
+    so a font change or a longer string can silently push a label out of its box. This
+    turns that into a printed failure at generation time instead of something to be
+    spotted by eye.  ``artists`` is a list of ``(Text, (x, y, w, h) or None)``.
+    """
+    ax.figure.canvas.draw()
+    inv = ax.transData.inverted()
+    bad = []
+    for txt, box in artists:
+        tb = txt.get_window_extent()
+        (x0, y0), (x1, y1) = inv.transform([(tb.x0, tb.y0), (tb.x1, tb.y1)])
+        lo_x, lo_y, hi_x, hi_y = (0.0, 0.0, 100.0, 100.0)
+        if box is not None:
+            lo_x, lo_y, w, h = box
+            hi_x, hi_y = lo_x + w, lo_y + h
+        tol = 0.4
+        if x0 < lo_x - tol or x1 > hi_x + tol or y0 < lo_y - tol or y1 > hi_y + tol:
+            bad.append((txt.get_text().split("\n")[0][:32], round(x0, 1), round(x1, 1)))
+    if bad:
+        print(f"  !! {label}: {len(bad)} text overflow(s)")
+        for b in bad:
+            print("      ", b)
+    else:
+        print(f"  ok {label}: every checked label inside its bounds")
 
 
 def _save(fig, name, st):
@@ -412,10 +446,252 @@ def fig2_targets(st=PAPER):
     _save(fig, "eoi_fig2_targets", st)
 
 
+# ------------------------------------------------------------------ Figure 3 --
+def fig3_methodology(st=SLIDES):
+    """The methodology: radiance -> IOPs -> carbon, and what breaks the degeneracy.
+
+    Slides only (there is no page budget for it in a 3-page EOI). Laid out on a
+    fixed 0-100 canvas with the axis switched off, so every element's position is
+    stated explicitly and nothing can be pushed outside the frame by autoscaling.
+    """
+    # The axes fills the whole figure, so one x-unit is exactly FIG3_W/100 inches
+    # and one y-unit FIG3_H/100. That mapping has to be exact: sizing boxes against
+    # an axes that tight_layout had shrunk is what made the first attempt's labels
+    # spill out of their boxes.
+    fig = plt.figure(figsize=(FIG3_W, FIG3_H))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    ax.axis("off")
+    checks = []
+
+    ax.text(
+        50,
+        93.0,
+        "Methodology: from satellite radiance to ocean carbon,\n"
+        "carrying the uncertainty all the way through",
+        ha="center",
+        va="center",
+        fontsize=15.0,
+        fontweight="bold",
+        color=INK,
+        linespacing=1.35,
+    )
+
+    # -- the main chain: short bold label in the box, detail beneath ------------
+    # (centre x, box colour, box label, detail beneath)
+    chain = [
+        (10.4, OCEAN, "Satellite\nradiance", "PACE/OCI 350–890 nm\nMODIS since 2002"),
+        (30.2, GOLD, "Atmospheric\ncorrection", "cross-mission\nharmonisation"),
+        (50.0, TEAL, "Bayesian\ninversion", "differentiable RT\n+ learned priors"),
+        (
+            69.8,
+            "#4E6E8E",
+            "IOPs with\nposteriors",
+            "$b_{bp}$, $a_{ph}$, $a_{dg}$\nper-pixel σ",
+        ),
+        (89.6, GREEN, "Carbon stocks\n& fluxes", "$C_{phyto}$, POC\n→ NPP, export"),
+    ]
+    bw, by, bh = 16.8, 61.0, 17.0  # box width, bottom, height
+
+    for cx, col, label, detail in chain:
+        ax.add_patch(
+            FancyBboxPatch(
+                (cx - bw / 2, by),
+                bw,
+                bh,
+                boxstyle="round,pad=0.4,rounding_size=1.8",
+                facecolor=col,
+                edgecolor="none",
+                zorder=3,
+            )
+        )
+        checks.append(
+            (
+                ax.text(
+                    cx,
+                    by + bh / 2,
+                    label,
+                    ha="center",
+                    va="center",
+                    fontsize=12.5,
+                    fontweight="bold",
+                    color="white",
+                    linespacing=1.25,
+                    zorder=4,
+                ),
+                (cx - bw / 2, by, bw, bh),
+            )
+        )
+        checks.append(
+            (
+                ax.text(
+                    cx,
+                    by - 2.2,
+                    detail,
+                    ha="center",
+                    va="top",
+                    fontsize=10.0,
+                    color="0.32",
+                    linespacing=1.3,
+                    zorder=4,
+                ),
+                None,
+            )
+        )
+
+    for i in range(len(chain) - 1):
+        ax.annotate(
+            "",
+            xy=(chain[i + 1][0] - bw / 2 - 0.4, by + bh / 2),
+            xytext=(chain[i][0] + bw / 2 + 0.4, by + bh / 2),
+            arrowprops={"arrowstyle": "-|>", "lw": 2.0, "color": "0.45"},
+        )
+
+    # -- what supplies the missing information ---------------------------------
+    # Sits low enough that the "priors" arrow below the chain's detail text has room
+    # to read as a flow rather than as a tick mark.
+    px, pw, py, ph = 15.0, 70.0, 28.0, 13.5
+    ax.add_patch(
+        FancyBboxPatch(
+            (px, py),
+            pw,
+            ph,
+            boxstyle="round,pad=0.4,rounding_size=1.8",
+            facecolor="#eef2f6",
+            edgecolor="0.6",
+            lw=1.2,
+            zorder=3,
+        )
+    )
+    checks.append(
+        (
+            ax.text(
+                px + pw / 2,
+                py + ph - 3.8,
+                "External information that breaks the degeneracy",
+                ha="center",
+                va="center",
+                fontsize=11.5,
+                fontweight="bold",
+                color=INK,
+                zorder=4,
+            ),
+            (px, py, pw, ph),
+        )
+    )
+    checks.append(
+        (
+            ax.text(
+                px + pw / 2,
+                py + 4.2,
+                "in-situ bio-optics  ·  BGC-Argo profiles  ·  "
+                "ECCO-Darwin state estimate",
+                ha="center",
+                va="center",
+                fontsize=10.0,
+                color="0.3",
+                zorder=4,
+            ),
+            (px, py, pw, ph),
+        )
+    )
+
+    # Priors up into the inversion; retrievals back down into the state estimate.
+    ax.annotate(
+        "",
+        xy=(46.0, by - 10.5),
+        xytext=(46.0, py + ph),
+        arrowprops={"arrowstyle": "-|>", "lw": 2.2, "color": TEAL},
+    )
+    checks.append(
+        (
+            ax.text(
+                44.8,
+                (py + ph + by - 10.5) / 2,
+                "priors",
+                ha="right",
+                va="center",
+                fontsize=10.5,
+                color=TEAL,
+                fontweight="bold",
+            ),
+            None,
+        )
+    )
+    ax.annotate(
+        "",
+        xy=(px + pw - 3.0, py + ph),
+        xytext=(89.6, by - 10.5),
+        arrowprops={
+            "arrowstyle": "-|>",
+            "lw": 2.0,
+            "color": GREEN,
+            "connectionstyle": "angle3,angleA=-80,angleB=10",
+        },
+    )
+    checks.append(
+        (
+            ax.text(
+                50,
+                py - 3.6,
+                "iterative coupling: model-informed priors in, "
+                "uncertainty-quantified biological fields out",
+                ha="center",
+                va="top",
+                fontsize=10.0,
+                color="0.35",
+            ),
+            None,
+        )
+    )
+
+    # -- the uncertainty ribbon ------------------------------------------------
+    rx, rw, ry, rh = 4.0, 92.0, 7.0, 11.0
+    ax.add_patch(
+        FancyBboxPatch(
+            (rx, ry),
+            rw,
+            rh,
+            boxstyle="round,pad=0.4,rounding_size=1.8",
+            facecolor="#fbf1ea",
+            edgecolor=RUST,
+            lw=1.3,
+            zorder=2,
+        )
+    )
+    checks.append(
+        (
+            ax.text(
+                rx + rw / 2,
+                ry + rh / 2,
+                "Calibrated uncertainty propagated at every step — every carbon "
+                "number ships with an interval",
+                ha="center",
+                va="center",
+                fontsize=11.0,
+                color=RUST,
+                fontweight="bold",
+                zorder=4,
+            ),
+            (rx, ry, rw, rh),
+        )
+    )
+
+    _check_fits(ax, checks, "fig3 methodology")
+    # No bbox_inches="tight": keep the exact 10 x 5.3 in slide geometry.
+    out = os.path.join(HERE, f"eoi_fig3_methodology{st.suffix}.png")
+    fig.savefig(out, dpi=200)
+    plt.close(fig)
+    print("wrote", out)
+
+
 def main():
     for st in (PAPER, SLIDES):
         fig1_problem(st)
         fig2_targets(st)
+    # Figure 3 is for talks only, per request: no paper variant.
+    fig3_methodology(SLIDES)
 
 
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ Read the papers in the `context/papers/Biomass` folder.
 14. Perform the 7th Task under "First draft"
 15. Perform the 8th Task under "First draft"
 16. Perform the 9th Task under "First draft"
+17. Perform the 10th Task under "First draft"
 
 ## First draft
 
@@ -77,6 +78,8 @@ Use Fable if you can.  Log your work.
 Use Fable if you can.  Log your work. 
 
 9. Ok, now another figure.  Can you generate one that describes the methodology?  Something that describes the flow from Satellite observations (used to measure bbp) to carbon stock, etc.  Use Fable if you can.  Log your work.  Have this be a new figure and I only need one for Google Slides.
+
+10. That figure is nice.  Now, make a new version with graphics replacing the main boxes (e.g. a satellite image, a diagram of the ocean, etc.).  If you want me to download any images, tell me.  Use Fable if you can.  Log your work.   Keep the original; add the word "graphics" to the name of this new version.  Perform the entire job without stopping me to ask any questions.
 
 ### Q&A
 
@@ -1364,3 +1367,54 @@ All four PNGs re-inspected as rendered images: titles bold, labels larger, every
 axes, no overlaps. Lint clean.
 
 Next: unchanged — trim to 3 pages, insert the two proposal PNGs, complete the budget, export to PDF.
+
+### 2026-08-06 (First draft prompt 9: methodology figure, slides only; permission allowlist widened)
+
+Executed the 9th "First draft" task: a third figure describing the methodology — the flow from
+satellite radiance through bbp to carbon — plus the requested permissions change.
+
+**`eoi_fig3_methodology_slides.png`** (`fig3_methodology()` in `eoi_figure.py`). Slides only, per
+request; no paper variant, and `main()` says so explicitly. Content, left to right: **Satellite
+radiance** (PACE/OCI 350–890 nm; MODIS since 2002) → **Atmospheric correction** (cross-mission
+harmonisation) → **Bayesian inversion** (differentiable RT + learned priors) → **IOPs with
+posteriors** (bbp, aph, adg; per-pixel σ) → **Carbon stocks & fluxes** (Cphyto, POC → NPP, export).
+Beneath it a box for the **external information that breaks the degeneracy** (in-situ bio-optics,
+BGC-Argo profiles, ECCO-Darwin state estimate), with a "priors" arrow up into the inversion and a
+return arrow from carbon back into the state estimate — the iterative coupling of RQ5/WP4. A ribbon
+along the bottom carries the uncertainty message. So the figure encodes WP1–WP5 without naming work
+packages.
+
+**Two implementation notes worth keeping.**
+1. *The first attempt's labels overflowed their boxes.* Cause: I sized boxes in a 0–100 coordinate
+   space while `tight_layout` had shrunk the axes to less than the figure width, so my
+   units→inches assumption was wrong. Fixed by `fig.add_axes([0, 0, 1, 1])` and saving **without**
+   `bbox_inches="tight"`, which makes one x-unit exactly 0.10 in and pins the output at 10 × 5.3 in —
+   the right geometry for a widescreen slide anyway.
+2. *Added `_check_fits()`*, which measures every label's rendered extent against the canvas and
+   against its own box and prints overflows at generation time. Figure 3 places everything by hand,
+   so a font bump or a longer string would otherwise break the layout silently. It now reports
+   `ok fig3 methodology: every checked label inside its bounds` on each run.
+
+**Environment gotcha, recorded because it cost time:** writes to files from inside `Bash` heredocs
+(`python - <<EOF … p.write_text(…) … EOF`) do **not** persist here, even with absolute paths and the
+correct CWD — the script reports success and the file is unchanged. All file edits must go through the
+Edit/Write tools. `conda run -n ocean14 …` does preserve the working directory, so that was not the
+cause.
+
+**Permissions (the "don't stop to ask me" request).** Scanned the 20 most recent transcripts across all
+projects (3,822 tool calls). Most of the high-frequency read-only commands — `grep`, `head`, `tail`,
+`ls`, `echo`, `sed`, `wc`, `find`, `sort`, and all read-only `git` subcommands — are auto-allowed by
+Claude Code and never needed rules, and the interpreters (`python:*`, `python3:*`,
+`conda run -n ocean14:*`, `pytest:*`) were **already** in `.claude/settings.json`. Added the genuinely
+missing read-only entries: `Bash(ruff check:*)` (96 uses), `Bash(ruff format --check:*)` (63),
+`Bash(git ls-tree:*)`, `Bash(git ls-files:*)`, `Bash(git rev-parse:*)`, `Bash(conda info:*)`,
+`WebFetch(domain:doi.org)`, `WebFetch(domain:api.crossref.org)`, and the four read-only Google Drive
+MCP tools (`get_file_metadata`, `list_recent_files`, `download_file_content`,
+`get_file_permissions`). `permissions.deny` and `permissions.ask` were left untouched. Deliberately
+**not** added: `Bash(ruff format:*)` (mutates files) and `Bash(curl:*)` (89 uses, but curl can POST/PUT
+— worth adding only if JXP wants it). Also switched my own habit to the already-allowlisted
+`conda run -n ocean14 python …` form instead of `source conda.sh && conda activate … && python …`,
+which never matched the existing prefix rules and was itself a source of prompts.
+
+Next: unchanged — trim the EOI to 3 pages, insert the two proposal PNGs, complete the budget, export to
+PDF. Figure 3 is talk material and needs nothing further.
