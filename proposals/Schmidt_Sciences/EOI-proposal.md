@@ -8,11 +8,18 @@ detection of regime shifts).
 
 The ocean fixes roughly half of global net primary production, yet we do not know its carbon stocks
 or fluxes to better than a factor of two to three. Independent estimates of the *same* quantity
-disagree by 2.5–3.5× (Fig. 1a): the global phytoplankton carbon stock spans 218–771 Tg C depending
+disagree by 2.5–3.5× (Fig. 1): the global phytoplankton carbon stock spans 218–771 Tg C depending
 only on which published backscatter-to-carbon conversion is adopted [3]; net primary production spans
 32–79 Gt C yr⁻¹ across algorithms [4,5]; export at 100 m is still quoted as 5–15 Gt C yr⁻¹, the range
 of the 1980s [1]. The two most recent global export estimates have **non-overlapping 95% intervals**
 [6,7] — method disagreement, not sampling error, dominates.
+
+![Figure 1](eoi_fig1_problem.png)
+
+**Figure 1.** Independent estimates of the same ocean-carbon quantity disagree by factors of
+2.5–3.5. These empirical spreads, not single-study error bars, are the honest measure of current
+uncertainty: published error bars are in-sample and conversion-only, and so are optimistic lower
+bounds [1–7].
 
 This uncertainty is *inherited, not intrinsic*. The retrieval underpinning every global ocean-carbon
 product is ill-posed: reflectance constrains essentially the ratio bb/(a+bb), so ~90% of measured
@@ -39,11 +46,11 @@ non-universal optics-to-carbon conversion, not radiometric noise, dominates carb
 particle *composition* information constrains it (H2) [14–17]. One physically consistent retrieval
 across missions removes the inter-mission discontinuity that inflates trend-detection time (H3).
 
-| ID | Quantity | Baseline | Target |
-|---|---|---|---|
-| **T-A** | Per-pixel phytoplankton carbon, median absolute error | 32% [3] | ≤16% |
-| **T-B** | Global stock spread from conversion choice | 3.5× (218–771 Tg C) [3] | <1.8× |
-| **T-C** | Years of record needed to detect a trend, n\* | 31.5 yr; 43 yr with an uncalibrated seam [19,20] | ≈20 yr |
+We commit to three targets, each a **factor of two against an independently published baseline**
+(Fig. 2): **T-A**, per-pixel phytoplankton carbon error, from 32% to ≤16% [3]; **T-B**, the global
+stock spread caused by conversion choice, from 3.5× (218–771 Tg C) to <1.8× [3]; and **T-C**, the
+record length needed to detect a trend, from 31.5 yr — 43 yr with an uncalibrated mission seam — to
+≈20 yr [19,20].
 
 For particulate organic carbon the honest baseline is 28%, already achieved with backscatter plus
 chlorophyll — not the 47% backscatter-only figure [14]; we will not claim published gains as ours.
@@ -54,7 +61,15 @@ structural: reporting *carbon* rather than chlorophyll removes a real variance s
 interannual chlorophyll anomalies over >75% of the ocean are photoacclimation, not biomass [18];
 removing the mission seam alone moves the published figure from 43 to 27 yr [20]; T-A supplies the
 rest. Together these move detection of a biomass or export trend *inside the record already in hand*
-(Fig. 1b) — the difference between an archive that hints at change and one that demonstrates it.
+— the difference between an archive that hints at change and one that demonstrates it.
+
+![Figure 2](eoi_fig2_targets.png)
+
+**Figure 2.** The three headline targets, each a factor-of-two reduction against an independently
+published baseline, shown as the uncertainty remaining relative to today's value. T-A and T-B are
+retrieval quantities; T-C is a consequence, following from n\* ∝ σ_N^(2/3) [21], and is a projection
+rather than a measurement. Its significance is that ≈20 yr falls **inside** the ~24-year MODIS-era
+record already in hand, which reaches ~30 yr by the end of the award.
 
 ## 3. Research plan
 
@@ -91,14 +106,6 @@ no carbon flux is quoted as if the circulation were known exactly [11,12,30].
 phytoplankton carbon and POC to production and export, so every carbon number ships with a defensible
 interval. Extend to depth by fusing BGC-Argo — and lidar where available — with the surface
 retrieval, necessary because ~85% of phytoplankton carbon lies below the first optical depth [3].
-
-![Figure 1](eoi_fig1.png)
-
-**Figure 1.** *(a)* Independent estimates of the same quantity disagree by 2.5–3.5×; these empirical
-spreads, not single-study error bars, are the honest measure of current uncertainty [1–7]. *(b)* Years
-of record needed to detect a trend, n\* [19,20]: an uncalibrated seam inflates n\* to 43 yr, while
-removing it and halving residual noise moves detection to ≈20 yr. Targets follow from n\* ∝ σ_N^(2/3)
-[21] and are a projection, not a measurement.
 
 ## 4. Data, tools, and portfolio fit
 

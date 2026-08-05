@@ -33,6 +33,7 @@ Read the papers in the `context/papers/Biomass` folder.
 10. Perform the 3rd Task under "First draft"
 11. Perform the 4th Task under "First draft"
 12. Perform the 5th Task under "First draft"
+13. Perform the 6th Task under "First draft"
 
 ## First draft
 
@@ -55,6 +56,13 @@ Be sure to be wary of the EOI rules.  I will ask you to generate it as a Google 
 4. I have answered your RQ questions.  Please read my responses and ask additional questions if needed.  Use Fable if you can.  Log your work.  Do not write the draft yet.
 
 5. I have answered your RQ questions.  Please read my responses and proceed to write the draft.  Use Fable if you can.  Log your work.  
+
+6. The figure is an good first draft.  I fear, however, it will be too hard to fit the 2 panels onto one page.  So, let's make it 2 figures: (i) the problems nd (ii) our proposed "measurements". Also:
+   - Be careful to keep text within the axes 
+   - Avoid overlapping text
+   - Generate PNGs instead of PDF
+
+Use Fable if you can.  Log your work. 
 
 ### Q&A
 
@@ -1232,3 +1240,47 @@ to retype if needed. (ii) The **figure is a placeholder box** in the Doc — the
 local PNG, so `eoi_fig1.png` must be inserted manually where the marked paragraph sits.
 
 Next: JXP trims to 3 pages, inserts the figure, completes the budget, and exports to PDF.
+
+### 2026-08-06 (First draft prompt 6: split the figure in two, reworked layout, PNG only)
+
+Executed the 6th "First draft" task. The two-panel figure became **two separate figures**, both
+regenerated from `proposals/Schmidt_Sciences/eoi_figure.py`, **PNG only** (the `.pdf` output was
+dropped and the old `eoi_fig1.png`/`.pdf` deleted):
+
+- **`eoi_fig1_problem.png`** — the problem. Factor of disagreement between independent estimates
+  (satellite bbp 2.5×, Cphyto stock 3.5×, NPP 2.5×, export 3.0×), with each quantity's actual range
+  set *inside* its bar in white and the factor as a bold label in a right-hand margin.
+- **`eoi_fig2_targets.png`** — our proposed measurements. The three headline targets as
+  baseline→target dumbbells on a common axis of "remaining uncertainty as a fraction of today's
+  value", so the factor-of-two claim reads at a glance: T-A 32%→≤16%, T-B 3.5×→<1.8×,
+  T-C 31.5 yr→≈20 yr. A shaded band and dashed line mark the factor-2 threshold.
+
+**The three layout instructions were treated as hard constraints, not preferences.** Text inside the
+axes: the right-hand label margin in Fig. 1 is computed from the *rendered* width of the label string
+(`_text_w_data`) and the x-limit set from it, rather than padded by guesswork. No overlaps: two
+collisions were found and fixed by inspecting the rendered PNGs — the Fig. 2 legend sat on top of the
+T-A value labels (fixed by adding headroom above the top row and making the legend two-column), and
+the earlier inline "record today / by 2032" annotations collided with each other and the title (those
+reference lines were dropped from the figure; the record-length point now lives in the Fig. 2
+caption, which is the better place for it).
+
+**Consequential text change.** With Fig. 2 showing all three targets, the §2 **targets table became
+redundant**, so it was replaced by one sentence carrying the same numbers and citations. That removes
+a duplicated block, saves page space, and sidesteps the Docs table-conversion problem flagged last
+pass. Figures were also **repositioned**: Fig. 1 now sits in §1 (the problem) and Fig. 2 in §2
+(the targets), rather than both landing in §3.
+
+**Page budget.** Splitting one figure into two costs space, as expected: measured with real 11-pt
+metrics and the actual PNG aspect ratios, the draft is now **≈3.84 pages** (1,726 words; text 174
+lines, figures 22 lines) against 3.57 before. Both figures were widened (7.8 in) so that scaled to a
+6.5-in text column they are only **1.87 in and 1.72 in tall**, recovering ~0.1 page versus the first
+attempt. Blind-review audit and reference integrity re-run: clean, no undefined citations.
+
+**The Google docs are deliberately NOT updated.** The Drive tools available here can create, copy and
+read files but cannot replace the contents of an existing doc, so refreshing `EOI-proposal` would mean
+creating a *new* doc — which would discard any trimming JXP has already done in the live document.
+The repo markdown and HTML are current; to bring the doc in line, two edits suffice: replace the
+single figure placeholder with the two PNGs, and swap the §2 table for the new one-sentence targets
+paragraph.
+
+Next: JXP trims to 3 pages, inserts the two PNGs, completes the budget, exports to PDF.
