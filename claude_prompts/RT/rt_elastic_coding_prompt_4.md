@@ -178,8 +178,9 @@ Jitted, full 9960 × 81 batch, CPU: **ZTT 3.4 ms** ≈ 235 M sample·λ/s; Gordo
    can. Log your work.
 3. Read this doc. Execute the 3rd task — the notebook. Use Fable if you can. Log your
    work.
-4. Read this doc. Execute the 4th task — the PR review. Log your work.
-5. Read this doc. Execute the 5th task — the hand-off to prompt 5. Log your work.
+4. Please modify the Notebook to have a section describing in detail the Hybrid model.  Include a figure if you can.  
+5. Read this doc. Execute the 4th task — the PR review. Log your work.
+6. Read this doc. Execute the 5th task — the hand-off to prompt 5. Log your work.
 
 ## M3
 
@@ -264,6 +265,40 @@ task 2 to test both, with the ZTT comparison as the one that matters. Say if you
 would rather I only test the plan's original wording.
 — *Not blocking task 1.*
 
+>A. Yes, keep Gordon as a floor.  
+
+**Q6 (M3 task 1, Claude → JXP). Geometry extrapolation is not reproducible, and it
+is M4's second gate.**
+
+The emulator interpolates superbly — on the scene split it takes ZTT's 5.93% to
+**0.30%** on held-out scenes. But trained on 0°/30° and asked for the **unseen 60°**,
+MLP(16,16) gives, over seeds {23, 1, 7, 101, 2024}: **4.7 / 8.4 / 7.8 / 5.4 / 12.2%**.
+The backbone alone is 8.09% there and Gordon is 9.01%, so *whether the hybrid passes
+M4's zenith gate depends on the seed*. The linear model (`hidden=()`) gives up a lot
+in sample (2.40%) but is stable at **6.16%**, beating both. The cause is that
+`cos θ_s` ∈ [0.866, 1.0] in training while 60° needs 0.5, so every `tanh` is outside
+its fitted range.
+
+Three ways forward, and the choice is a project one rather than a coding one:
+
+1. **Report and defer.** M3's deliverable is the scene-split result; state plainly
+   that geometry extrapolation is unresolved and let M5's HydroLight runs (which vary
+   geometry) fix it with data. Cheapest, and honest.
+2. **Early stopping on a geometry-held-out curve.** The unseen-60° error is best
+   early and degrades with training. This works but tunes on the test split unless a
+   third geometry is carved out — and L23 has only three angles.
+3. **Constrain the geometry direction** so it cannot bend (e.g. geometry enters
+   linearly, nonlinearity only in the IOP/λ features). Principled, but it is a real
+   modelling commitment and I would not want to make it on one unseen angle.
+
+My recommendation is **1 for M3, with the numbers above in the notebook**, and
+raising it as M4's main open risk. Unless you say otherwise I will write task 2's
+gate on the **scene** split (where the result is solid and reproducible) and *report*
+the zenith numbers as a spread rather than gating on them.
+— *Not blocking task 2.*
+
+>A. Ok, go with 1.  I must add that trying to extrapolate to 60deg is a real stretch goal.  If we have outputs we trust at that angle, we can use them.  And we won't use the emulator at larger angles (or will warn the user).
+
 ## Next
 
 → `rt_elastic_coding_prompt_5.md` (M4: Validation — prototype done).
@@ -277,3 +312,314 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-05 (M3 task 4 — the PR review: two real findings, fixed by class)
+
+**PR #11 is open** on the M3 diff (commit `6dcaf63`) and Bugbot found **2 issues**,
+both in `design/py/train_emulator.py`, both real, both now fixed. Suite **227 passed**
+(206 + 21 skipped without `$OS_COLOR`), ruff clean, record §5.6b added.
+
+For the record on earlier PRs: **#10 (M2) came back clean** — but at commit `4d6c628`,
+which is *not* M2's final commit, so M2's last commits have still never been reviewed.
+**#9 (M1)** had one finding, a `bb_p` zenith comparison that skipped 30°, already fixed
+during M1 with the replacement docstring citing PR #9. So M3's Outstanding item about
+Bugbot never having seen the M2 diff is now closed, with that caveat.
+
+**Finding 1 (High) — the weights were written before the round-trip check.** A failed
+integrity check reported an error with the previously shipped `emulator_l23.npz` already
+overwritten — the one file `load_default()` and `forward(mode="hybrid")` depend on,
+destroyed by the check meant to protect it. Now `write_weights()` writes the candidate to
+a temporary file beside the destination, loads it back, requires it to reproduce the
+correction, and only then `os.replace`s it into place (atomic: a reader sees the old file
+or the new one, never a half-written one). A `finally` removes the candidate on every
+exit path — I had left it behind on the failure path in my first attempt at the fix.
+
+**Finding 2 (Medium) — the shipped emulator was whatever the loop left in scope.**
+Reordering the two-fit loop would have persisted the 8-parameter **linear** baseline as
+the default weights, and nothing would have crashed: `load` restores the stored config,
+so `mode="hybrid"` would have quietly used a model worth 2.57% instead of 0.30%. The
+script now selects by name (`SHIPPED`) and refuses to write an architecture that is not
+the package default.
+
+**Demonstrated, not asserted.** With `load` monkeypatched to return a different model,
+`write_weights` returns 1, the destination is byte-identical to before, and no temp file
+survives; with `load` intact the same call writes and returns 0. Handed the linear
+baseline, the guard refuses it, and the new test
+`test_packaged_weights_are_the_default_architecture` fails on a linear file and passes on
+the real one.
+
+**Fixed the class, not the instance.** Finding 1's class is *validating an artifact only
+after it has replaced a known-good one*, and there was one other instance in the repo:
+`l23.write_fixture` wrote straight onto `robust/tests/files/l23_small.npz` — the
+committed fixture the whole suite runs on in CI — with no check that the result even
+loads. It now snapshots to a temp file, loads it back through `npz_reader` +
+`load_batch` and validates the batch, then replaces atomically; forcing the verification
+to fail leaves the destination untouched and nothing behind. Nothing had tested that
+function, so `test_write_fixture_reproduces_the_committed_snapshot` now pins that
+regenerating the fixture returns the committed bytes **exactly** — so fixture and loader
+cannot drift apart silently. Finding 2's class is guarded durably by the architecture
+test, which holds on the file however it was produced.
+
+**An unplanned confirmation.** Re-running the training script end to end (to a temp path,
+so the shipped file was never at risk) produced weights **bit-identical** to the
+committed ones — independent evidence for the determinism claim in the record §5.2, which
+until now rested on the design of the training loop rather than on a measurement.
+
+### 2026-08-05 (new 4th prompt — a section specifying the hybrid model, with two figures)
+
+**Added §1 "The hybrid model, end to end"** to `notebooks/RT/rt_elastic_coding_4.ipynb`
+and renumbered the rest 2–8, fixing the internal cross-references. Now 30 cells,
+**6 figures**, still executed end to end with no errors and still degrading to the
+committed fixture without `$OS_COLOR`. Record §5.8 updated.
+
+The notebook explained M3's *decisions* but never wrote the model down. §1 now does,
+stage by stage: the unfitted ZTT backbone; the seven-feature map evaluated **per
+wavelength** (mirroring the backbone's own locality, which is what frees the emulator
+from L23's 81-band grid); train-split standardisation; the 7→16→16→1 `tanh` MLP with its
+zero-initialised output; `δ = 0.5·tanh(·)` as a hard bound; and
+`rrs = rrs_ZTT(1 + δ)` followed by the non-linear interface. The loss is written out,
+including why `rrms` is used directly rather than redefined.
+
+**The parameter inventory is counted, not asserted** — the cell prints each layer's
+shape from the *packaged* weights and sums them (112+16+256+16+16+1 = 417), and names the
+three arrays that travel untrained but are just as load-bearing: `mean`, `std`, and
+`domain`. §1 is also the only place that exercises `load_default()`, i.e. the path a user
+of the package actually takes, and it re-derives the additivity claim on the spot:
+exactly 0 in `rrs` space, 6.6e-4 sr⁻¹ in `Rrs`.
+
+**Two figures.** A dataflow schematic (matplotlib boxes/arrows) separating the physics
+path from the learned half and marking where each `mode` stops; and a term-by-term
+decomposition of a single water body — the backbone's residual, the correction applied,
+and what is left — on a **representative** scene rather than a flattering one, chosen as
+the *median* backbone error among the 3320 samples at 60° and labelled as such in the
+output.
+
+**One thing I got wrong and caught by looking at the figure.** The decomposition panel
+first plotted the network's raw `δ` against two residuals measured relative to the truth.
+All three looked like the same quantity, but `δ` divides by `rrs_ZTT` while the residuals
+divide by the L23 reference, so the correction curve sat ~2 points above the residual it
+cancels — inviting exactly the wrong reading, that the model overshoots. Now all three
+share the project's rRMS denominator, so the correction lands *on* the residual and the
+leftover is visibly near zero; the prose states the distinction and gives `δ`'s own
+definition rather than hiding it.
+
+Also: the schematic's `Δrrs = δ·rrs_ZTT` label was cramped against a box edge on the
+first render and was moved. Fourth milestone in a row where rendering the figure caught
+something the code could not.
+
+*Incidental, since I had begun the PR review before spotting the renumbered prompt list:*
+there is **no open PR**; #10 (M2) was reviewed by Bugbot at commit `4d6c628` and found
+**no new issues** — though that is not M2's final commit, so the last few M2 commits
+remain unreviewed; and #9's one finding (a `bb_p` zenith check that skipped 30°) was
+already fixed during M1, with the fix's docstring citing PR #9. Full pass belongs to
+prompt 5.
+
+### 2026-08-04 (M3 task 3 — the notebook, which caught four wrong numbers of mine)
+
+**Built** `notebooks/RT/rt_elastic_coding_4.ipynb` — 23 cells, executed, 4 figures,
+7 sections, ~5 min to run on the full batch. Q5 and Q6 answers read and applied: the
+gate keeps Gordon as a floor, and geometry extrapolation is reported and deferred.
+
+Sections: why the correction is relative (measured, not asserted); the features as the
+backbone's *complete* state; the linear baseline before the MLP; fit vs generalisation;
+**where it fails** (the seed spread at an unseen zenith); the gradient gate and cost;
+and what M3 leaves open. Figures: residual before/after per λ and zenith on one shared
+axis; the four-model per-λ ladder; the learning curve with both held-out splits; and the
+five-seed extrapolation fan, which is the notebook's real contribution — five identical
+configurations differing only in initialisation, landing between 4.7% and 12.2% at the
+unseen 60° while all five sit at ~0.24% in sample. Seed replicates are drawn in one
+de-emphasised grey precisely because they are *not* four things to tell apart; the two
+reference lines get the categorical colours.
+
+**Writing an honest notebook found four errors in what I had already logged.** The
+notebook computes everything it claims, which is exactly why it caught them:
+
+1. **The hybrid is ~5× ZTT, not 3.3×.** I had divided the emulator's 11.2 ms by ZTT's
+   3.4 ms and reported that ratio as the *hybrid's*. Measured end to end: 16 ms against
+   3.2 ms. Corrected in the record §5.4, `test_hybrid.py`'s comment, and the task-2 log
+   above.
+2. **The scale-invariance demo was measuring float32.** I enabled `jax_enable_x64` in
+   the cell but the slices were already float32 arrays, so the invariance read 2e-7 —
+   float32 epsilon — under prose claiming 1e-15. Pinning the dtype on the arrays gives
+   6.7e-16. Gotcha 3 in this very doc says to pin the dtype on the arrays; I wrote the
+   cell anyway.
+3. **The "four decades" argument was measuring the mean spectrum** (a factor 419, so
+   2.6 decades). The claim is true of the per-sample range, 4300, which the cell now
+   prints.
+4. **The domain check fired on in-range data**, which is how I found that the check
+   itself was wrong — see below.
+
+A Fable review pass over the executed notebook caught four more: the finite differences
+are ~2e-7, not ~1e-9 (two of the four variables are worse than 1e-7); the title quoted
+the linear model's *train* number in a held-out sentence; `DOMAIN_TOL`'s headroom is
+27× below and 48× above, not "~25 on each side"; and "in-sample error ~0.24%
+throughout" was unsupported — it is 0.24% *at the end*, which the notebook now prints.
+Also fixed: the per-λ figure claimed the MLP sits "a decade" below the linear model and
+that the improvement was "spectrally uniform". Neither survives the curves: the gap
+narrows to ~3× where the linear model dips, the MLP's per-λ error spans 0.08–0.64%, and
+the **blue retains the largest residual**. The honest claim — no wavelength region is
+abandoned — is the one that matters anyway.
+
+**A real design fix, prompted by the notebook.** The domain check compared against the
+raw training min/max, so it warned on the full batch: held-out scenes legitimately
+*graze* the boundary, by 3.7e-4 of a span, for 3 values in 800,000. A warning that fires
+on that gets silenced, and then the case JXP actually asked to be warned about — a 75°
+sun sitting **48%** of a span past the `cos_theta_s` floor, 1300× further out — passes
+unnoticed. `out_of_domain` now measures *how far* outside, with a 1% tolerance
+(`DOMAIN_TOL`), and returns a `DomainBreach` record instead of a tuple whose fraction
+printed as "0% of values outside" — a number that reads as "nothing wrong". Three tests
+pin the graze/breach distinction, and `tol=0.0` still reports any excursion.
+
+**Also corrected:** `fit_l23` recorded a `zenith_test` curve that was ~80% training
+data, i.e. it would have read as held-out while being mostly training error. It now
+records `scene_test_60` — held-out scenes *at* 60° — which is what the learning-curve
+figure plots.
+
+Suite **225 passed**, ruff clean, record at v0.14 with the counts corrected. Figures
+were rendered and inspected at every iteration: three rounds of layout fixes (a legend
+sitting on the MLP curve, a label clipped off the axis, unreadable log minor ticks),
+which is the third milestone running where looking at the figure caught something the
+code could not.
+
+### 2026-08-04 (M3 task 2 — the hybrid, its gate, and a bug in my own guard)
+
+**Built** `robust/rt/hybrid.py` (`forward` → `Rrs`, `rrs_forward` → `rrs`, `MODES`,
+`DomainWarning`), `robust/tests/test_hybrid.py` (22 tests), `design/py/train_emulator.py`,
+and the shipped weights `robust/rt/files/emulator_l23.npz` (6.5 KB). Record updated to
+**v0.14** with a full §5. Suite **222 passed** (202 + 20 skipped without `$OS_COLOR`,
+which is what CI sees), ruff clean.
+
+**The gate, per solar zenith on the train split** — a deterministic 400-step fit on the
+committed fixture, so it runs in CI:
+
+| sun | ZTT | hybrid | Gordon |
+|---|---|---|---|
+| 0° | 4.154% | **0.527%** | 5.268% |
+| 30° | 3.899% | **0.525%** | 5.533% |
+| 60° | 7.409% | **0.542%** | 8.623% |
+
+Gated on beating **`mode="ztt"`** at every zenith, with the reduction asserted positive
+and printed as a number; beating Gordon is kept as the weaker floor. That is Q5, still
+unanswered — I implemented the stronger test, so an answer either way costs nothing.
+
+**Also gated:** `mode="ztt"` reproduces `Z.rrs_ZTT` **bitwise**, so the flag cannot
+silently change the physics; additivity is exact in `rrs` and violated by 1.28e-4 sr⁻¹
+in `Rrs` (the interface is non-linear — a positive test that we score in the right
+space); `jax.grad` vs central differences through the emulator under float64 agrees to
+2.7e-9 (`a`), 6.8e-11 (`bb_p`), 1.7e-9 (`B_p`), 5.4e-10 (`theta_s`) with per-variable
+steps. Throughput: the hybrid is **4.8×** ZTT — 15.0 ms against 3.1 ms on the full
+9960×81 batch — so the speed advantage survives. (An earlier draft of this log said
+3.3×, which was the *emulator-alone* ratio, 11.2 ms / 3.4 ms, misapplied to the total.
+The notebook measured the hybrid end to end and caught it.)
+
+**Q6 implemented, not just recorded.** Your "we won't use the emulator at larger angles
+(or will warn the user)" is now enforced: `Emulator.domain` carries the per-feature
+training range *with the weights*, and any emulator-using mode warns
+(`hybrid.DomainWarning`, its own category so a pipeline can promote it to an error).
+A sun at 75° warns; in-range inputs do not; `check_domain=False` opts out. It is a
+boundary check, so it is skipped under `jit`/`grad` and says so.
+
+**I shipped trained weights** (6.5 KB) plus `design/py/train_emulator.py` to regenerate
+them, because "trained differentiable `forward()`" is the milestone's deliverable and
+without weights `forward()` would raise until every caller reproduced a 50-second fit.
+`save`/`load` store the feature list and `load` **refuses** a file whose `FEATURES` no
+longer match — the weights would still run and return plausible nonsense otherwise.
+`setup.py` gained `package_data`, without which an installed copy would import fine and
+fail at the first `mode="hybrid"`.
+
+**A bug in code I had just written, found by the test author I delegated to.** My
+traced-input guard checked only `iops.a` and `geometry.theta_s`. But `jax.grad` traces
+*only* the variable it differentiates, so `grad` w.r.t. `bb_p` or `B_p` alone left those
+two concrete, the guard declared "not traced", and the domain check died in `np.asarray`
+with a `TracerArrayConversionError` — on the default path, and specifically for
+backscattering, which is exactly what the inversion this API exists for will
+differentiate. Now every leaf is inspected via `tree_leaves`. I verified the fix the way
+this project verifies fixes: reverting it makes the new parametrised regression test fail
+on precisely `bb_p` and `B_p`, and only those.
+
+Two of my own stale numbers also got caught in review (the weights described as "4 KB"
+when they are 6.5, and a "57 s" fit that measures 50) — both written before I measured,
+both now corrected. Same failure mode as the three in M2: assert after measuring, not
+before.
+
+**One interface question I did not settle**, in §5.7 of the record: `mode="emulator"`
+returns the learned **correction term** `Δrrs`, not a standalone learned model, because
+the emulator is parameterised as a relative correction. The design's "learned-only"
+option therefore needs a differently trained network predicting `rrs` across four
+decades — that belongs beside PR05 and O25 in M4's protocol, not as a flag on `forward`.
+
+### 2026-08-03 (M3 task 1 — the emulator, and a result I first got wrong)
+
+**Built** `robust/rt/emulator.py` (+`robust/tests/test_emulator.py`, 29 tests; suite
+now **200 passed**, ruff clean). Public surface: `FEATURES`, `EmulatorConfig`,
+`LINEAR_CONFIG`, `Emulator` (a registered pytree), `History`, `features()`, `fit()`,
+`fit_l23()`.
+
+**The headline, on the scene split (full 9960-sample batch):**
+
+| rRMS % | train | held-out scenes | held-out @60° |
+|---|---|---|---|
+| Gordon | 7.21 | 7.21 | 9.01 |
+| ZTT backbone | 5.95 | 5.93 | 8.11 |
+| hybrid, linear (8 params) | 2.57 | 2.54 | 2.48 |
+| **hybrid, MLP(16,16) (417 params)** | **0.30** | **0.30** | **0.32** |
+
+Held-out equals train to two decimals, which is what 417 parameters against 645k
+training rows should look like. (32,32) reached 0.27% — diminishing enough to confirm
+the design's "start small". Fit takes 57 s for 3000 full-batch Adam steps; the
+emulator alone is 11.2 ms jitted on 9960×81 (72 M sample·λ/s), so the hybrid will be
+~4.8× dearer than ZTT's 3.1 ms. **The linear baseline is the honest yardstick and it
+matters**: 2.57% means the MLP's nonlinearity earns its place by ~8×, not by 20× over
+the backbone as a linear-baseline-free presentation would imply.
+
+**Four design decisions, each measured rather than assumed** (all documented in the
+module docstring):
+
+1. *The correction is relative.* The net emits a dimensionless `δ(λ)` and
+   `Δrrs = δ · rrs_ZTT`. Still additive as the design specifies, but the target is
+   O(1) instead of spanning four decades — and `δ` is directly the "keep the
+   correction small" quantity. Measured `|δ|` rms 6.44%, against the residual's own
+   5.52% sd: the emulator is correcting the residual, not adding a large correction
+   that partly cancels.
+2. *The features are provably complete, not a guess.* I verified `rrs_ZTT` is
+   **scale-invariant** — scaling `(a, bb_w, bb_p)` by k=10 moves it by 8.8e-15
+   relative — so the backbone sees its inputs only through ratios, and `(u, η_bb)`
+   invert back to `(a : bb_w : bb_p)` exactly. With `B_p`, geometry and λ that is the
+   whole input state, so no absolute magnitude is a candidate feature. A test pins
+   the invariance.
+3. *λ and `cos θ_s` are first-class*, per M2's measured structure; standardisation
+   comes from the **train split only** (leaking it is silent), and the stats live
+   inside the `Emulator` so train and inference cannot disagree.
+4. *Bounded by construction*: `δ = delta_max·tanh(·)`, plus a soft penalty in the
+   same percent units as the loss, plus a zero-initialised output layer so an
+   untrained hybrid **is** the backbone and every gain is a gain. `tanh` not `relu`
+   because M3's gate is a finite-difference check and a relu kink breaks it.
+
+**A bug worth recording.** Training NaN-ed on the first chunk. Two deliberate choices
+collided: the output layer starts at zero, so `δ ≡ 0`, and the size penalty is an
+RMS, whose derivative `δ/(N·√mean δ²)` is 0/0 exactly there. `_RMS_EPS` inside the
+square root fixes it; a regression test asserts `jax.grad` of the objective is finite
+at init, with the explanation, so it cannot come back silently.
+
+**And a wrong inference I caught, which is the real lesson of the task.** Geometry
+extrapolation is bad: trained on 0°/30°, the MLP scored 11.57% at the unseen 60° —
+worse than ZTT (8.09%) *and* Gordon (9.01%). I diagnosed tanh saturation outside the
+fitted `cos θ_s` range, tried a linear skip path, measured 5.40%, and was ready to
+adopt it as the architecture on that comparison. Then the same no-skip config
+reproduced at 4.74% — because moving from `nn.Sequential` to a module class had
+changed the Flax parameter *names*, which changes PRNG folding and hence the
+initialisation. Architecture and seed had moved together. A seed sweep with the
+architecture fixed showed the skip is **not** better (median 9.20% vs 7.75%, worst
+case 25%), so I removed it rather than ship a knob whose justification was a fluke.
+
+What the sweep does establish is worse than the original claim and more useful: the
+MLP's unseen-60° error is **4.7 / 8.4 / 7.8 / 5.4 / 12.2%** across five seeds, so
+whether the hybrid passes M4's zenith gate is decided by initialisation. The linear
+model is stable at 6.16% and beats both references. That is **Q6** above, with a
+recommendation. This is the second time in this project that a plausible mechanism
+plus one supporting number produced a wrong diagnosis (M2's `Pbb(ψ)` was the first);
+both times the fix was to vary one thing at a time.
+
+Not done here, deliberately: the record and notebook updates (tasks 2–3), and
+persisting trained weights — the real fit is a 57 s script, so tests train toy-size on
+the committed fixture per the CI gotcha.

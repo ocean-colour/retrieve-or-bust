@@ -114,22 +114,34 @@ def test_rt_exposes_scaffold_modules():
     assert callable(rt.forward)
 
 
-def test_unimplemented_stubs_raise():
-    """The remaining stubs raise instead of silently returning something wrong.
+def test_no_stubs_remain():
+    """Every designed callable is implemented; nothing raises "not yet written".
 
-    ``forward`` carries its final signature already, so this is what keeps the
-    scaffold honest: a caller gets a milestone-naming ``NotImplementedError``,
-    never a plausible-looking array.
-
-    ``ztt.Rrs_ZTT`` was on this list until M2 implemented it; ``robust.rt.ztt``
-    now has its own tests. ``mu_infinity`` is the one piece of ZTT that still
-    raises, because the published paper omits its coefficients — checked below
-    rather than here, since that is a data gap, not an unwritten function.
+    This test asserted ``NotImplementedError`` from each stub as long as any
+    remained: ``ztt.Rrs_ZTT`` came off the list at M2, and ``forward`` — the
+    last one — at M3, so what is left to pin is that the scaffold era is over.
+    ``mu_infinity`` still raises, but because the published paper omits its
+    coefficients — a data gap, not an unwritten function — and ``test_ztt.py``
+    checks it. ``robust.rt.hybrid`` now has its own tests (``test_hybrid.py``).
     """
+    import jax.numpy as jnp
+
     from robust import rt
 
-    with pytest.raises(NotImplementedError):
-        rt.forward(None, None, None, None)
+    wave = jnp.asarray([440.0, 550.0])
+    iops = rt.IOPs(
+        a=jnp.asarray([0.15, 0.12]),
+        bb_w=rt.conventions.bb_w(wave),
+        bb_p=jnp.asarray([0.003, 0.003]),
+    )
+    Rrs = rt.forward(
+        iops,
+        rt.PhaseParams(B_p=jnp.asarray(0.0126)),
+        rt.Geometry.nadir(jnp.asarray(30.0)),
+        wave,
+    )
+
+    assert np.all(np.isfinite(np.asarray(Rrs)))
 
 
 def test_hybrid_modes_declared():
