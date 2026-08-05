@@ -28,6 +28,501 @@ Read the papers in the `context/papers/Biomass` folder.
 6. Perform the 6th Task under "EOI"
 7. Perform the 7th Task under "EOI"
 
+8. Perform the 1st Task under "First draft"
+9. Perform the 2nd Task under "First draft"
+10. Perform the 3rd Task under "First draft"
+11. Perform the 4th Task under "First draft"
+12. Perform the 5th Task under "First draft"
+
+## First draft
+
+1. We will write a first draft of the EOI proposal.  Draw on these files for context:
+
+    - Simons
+    - The code in this repository
+    - The `VICC_Phase2_EOI.pdf` file
+    - The `VICC_Concept_v1.pdf` file in `proposals/Schmidt_Sciences`
+    - The report in `reports/biomass_summary.md`
+    - The "An expert ocean color system" section of the `Prochaska-Schmidt.pdf` file in `proposals/Schmidt_Sciences`
+    - The relevant sections of the file `Simons_grant_proposal.pdf` in `proposals/Schmidt_Sciences`
+
+Be sure to be wary of the EOI rules.  I will ask you to generate it as a Google doc named `EOI-proposal` on my Drive in the `Oceanography/Proposals/2026/Schmidt Sciences` folder.  But, first ask me questions in the Q&A section below.  Use Fable if you can.  Log your work.  Do not write the draft yet.
+
+2. I have answered your BQ questions.  Please read my responses and ask additional questions if needed.  Use Fable if you can.  Log your work.  Do not write the draft yet.
+
+3. I have answered your RQ questions.  Please read my responses and ask additional questions if needed.  Use Fable if you can.  Log your work.  Do not write the draft yet.
+
+4. I have answered your RQ questions.  Please read my responses and ask additional questions if needed.  Use Fable if you can.  Log your work.  Do not write the draft yet.
+
+5. I have answered your RQ questions.  Please read my responses and proceed to write the draft.  Use Fable if you can.  Log your work.  
+
+### Q&A
+
+#### Round 3 — EOI first draft (2026-08-05)
+
+I read all the context: `VICC_Phase2_EOI.pdf` (rules, re-read closely), `VICC_Concept_v1.pdf`
+(+ the linked Google doc, which is the same text as `Prochaska-Schmidt.pdf`), the "An expert
+ocean color system" section, the relevant Simons sections (III ocean-optics innovations, V
+applied AI/ECCO, plus CMB and BOONUS for context), `reports/biomass_summary.md`, and the
+**code** — which lives on the `rt-elastic-prototype` branch, not `main`.
+
+**What the code actually gives us (the strongest card in the deck).** A *differentiable*
+elastic RT forward model in JAX, `Rrs = Rrs_ZTT(θ) + ΔRrs_emulator(θ)`: the Twardowski &
+Tonizzo analytic backbone with explicit phase-function dependence, plus a 417-parameter Flax
+residual MLP. rRMS in `rrs` space on the L23 batch, held-out scenes: **Gordon 7.21% → ZTT
+5.93% → hybrid 0.30%** (~24× over Gordon; the honest yardstick is the 8-parameter linear
+hybrid at 2.54%, so the nonlinearity earns ~8×). Gradients verified against finite
+differences; 225 tests passing; CI on 3.12/3.14. Caveats I would not hide: it is the
+**forward** model (the inversion does not exist yet), M2 still has two `NotImplementedError`s,
+M4 validation is not started, and **extrapolation to an unseen 60° solar zenith is not
+reproducible** (seed spread 4.7–12.2%, median 7.75% vs ZTT's 8.09%) — decided as report-and-
+defer, with a `DomainWarning` implemented.
+
+**What the concept doc settles that Round 1 left open.** `VICC_Concept_v1.pdf` names
+**ECCO-Darwin informed by ROMS tuned to observations** as the modeling core, with PACE/MODIS,
+BGC-Argo, gliders, ships (AMT), lab work (a, bb, Kd, Cp→bbp), improved atmospheric
+correction and inversion modeling. That is a *much* more ambitious data posture than my
+Round-1 lean (VQ4b) — it is effectively VQ4(c), full coupling to an assimilative BGC model.
+It also happens to answer Mazloff's critique in §6, which is why DQ1 below matters most.
+
+**Still open from Round 1: VQ1–VQ6 are all unanswered.** I have taken a position on each
+below rather than just re-asking, so you can confirm or overrule.
+
+---
+
+**DQ1 — The framing fork, and the most consequential question here.** §6 of the report
+concluded that for the *contemporary anthropogenic inventory* the physical terms dominate and
+NCP is nearly irrelevant; the defensible biological target is the **non-steady-state
+natural-carbon residual** (~0.4–0.8 Pg C yr⁻¹, 10–20% of the decadal sink, formally
+undetectable today). Meanwhile the concept doc leads with an ocean-colour **expert system**.
+Three ways to open the EOI:
+
+  (a) **Biomass/biology first** — "the first global ocean biomass census with fully
+      characterized uncertainties." Truest to the concept and our expertise; but a
+      carbon-cycle panel may ask why biomass stocks matter for the carbon *budget*, and §6
+      says the honest answer is "not much, directly."
+  (b) **The residual first** — "close the one carbon term physical constraints cannot
+      reach." Strongest intellectual position post-§6, hardest to deliver in 5 yr, and it
+      makes us sound like a physics project rather than an optics project.
+  (c) **Coupled optics + ECCO-Darwin** — optics constrains the biological limb, the
+      assimilative model carries the physical limb, and the deliverable is a *jointly*
+      constrained, uncertainty-quantified ocean carbon state. This is the only option that
+      answers Mazloff head-on, and ECCO-Darwin makes it newly available.
+
+  **My lean: (c), opening on carbon and uncertainty, with the expert system as the *method*
+  rather than the headline.** Reviewers here are carbon people (advisory board incl.
+  Michalak, Friedlingstein); a tool-first pitch risks reading as infrastructure. Which?
+
+DQ1:  Yes, definitely (c) and open on carbon and uncertainty, with the expert system as the *method* rather than the headline.  On biomass, would assessing the relative evolution over the past 20 years with satellite data be a worthwhile target too?
+
+**DQ2 — What number do we promise?** VICC asks for an **order-of-magnitude** uncertainty
+reduction. By the report's own standard (§3: no CRM for POC, cross-method disagreement
+2.5–3.5×, literature error bars are optimistic lower bounds) promising 10× on any carbon
+quantity would be indefensible — and we would be promising it to the people best equipped to
+notice. COCO2 instead promised something specific and modest: **cut the observation-based
+GCB ocean-sink uncertainty by 25%**. Options: (a) name one quantity and one defensible
+number (my lean — e.g. a target reduction in satellite Cphyto/POC uncertainty, with the
+*categorical* claim being the first end-to-end propagated uncertainty budget rather than a
+10× headline); (b) claim order-of-magnitude on a deliberately narrow sub-quantity where it
+is achievable; (c) reframe "categorical" as *characterizing* uncertainty honestly for the
+first time, and argue that is the precondition for reducing it. Which — and do you have a
+number you are willing to defend?
+
+DQ2: (a) for sure.  Ideally we target 2 or 3 numbers to substantially improve.  I'd like to reduce by a factor of 2 the uncertainty.
+
+**DQ3 — VQ1 redux: which carbon quantity is the headline deliverable?** BQ3 put all four
+(Cphyto, POC, NPP, export) plus the subsurface in scope for the *report*. Three pages cannot
+carry all five for a *proposal*. My lean: headline **Cphyto + POC** (where optics adds most
+and the conversion problem is sharpest), with NPP/export as propagated consequences and the
+subsurface via BGC-Argo/lidar fusion as the depth story. Confirm or reorder?
+
+DQ3: Yes, headline Cphyto + POC, with NPP/export as propagated consequences and the subsurface via BGC-Argo/lidar fusion as the depth story.
+
+**DQ4 — VQ3 redux: scope and budget.** The concept as written (expert system + ECCO-Darwin +
+ROMS + international collaboration + lab/field optics) is unambiguously a **flagship
+$10M/5-yr** program, not the exploratory lane. Note the RFP allows *exceeding* $10M if it
+funds new instrumentation or significant novel data acquisition, justified. Do we (a) target
+~$10M and keep it computational/synthesis (my lean), (b) exceed $10M by folding in the
+Simons-style UV field/lab campaign (Hyper-a, C-HyR) and BGC-Argo/lidar deployments, or
+(c) go tightly-scoped exploratory? Also: 5-year performance Oct 2027–Sep 2032, indirect ≤10%,
+and budget for a 5-day annual science-team meeting (first Oct 2027, Europe) — I will include
+those.
+
+DQ4: (a)
+
+**DQ5 — VQ6 redux: PI, and the blind-review problem.** Two coupled issues. (i) **Who is
+PI?** An individual may be PI on only one EOI, so if you intend to be PI here that forecloses
+others. (ii) The RFP requires a description of team composition *and* external institutional
+partnerships (item 3) while forbidding **any** names or affiliations — "proposals will be
+returned without evaluation if any identifying information is included." So the team section
+must be written purely as roles/expertise/geography ("a hyperspectral radiative-transfer
+group", "an ocean-state-estimation group at a US oceanographic institution"). Confirm that
+approach, and tell me which *roles* to claim — in particular, are the ECCO/ROMS people
+(Menemenlis, Forget, Edwards, and Mazloff on the SIO side) actually committed, or aspirational?
+I should not imply partnerships that do not exist.
+
+DQ5: JXP is the PI.  The ECCO/ROMS people are committed.
+
+**DQ6 — VQ2 redux: which theme leads?** T1 (budget accuracy, ocean interior carbon, sink
+trends), T2 (policy timescales, natural-vs-anthropogenic attribution, near-real-time), T3
+(future, surprises, regime shifts). Under DQ1(c) I would lead **T1**, with **T2** strong
+because the natural-vs-anthropogenic separation *is* §6.2's residual problem, and touch T3.
+Under DQ1(a) T1 alone is the fit. Confirm?
+
+DQ6: I confirm
+
+**DQ7 — Differentiation, and a real overlap risk.** The Schmidt carbon portfolio already
+contains: **COCO2** (Southern-Ocean air–sea CO₂, USVs, XAI, OSSEs), **InMOS** (integration of
+models and observations across scales — OBVI), **SUBSEA** (subtropical underwater
+biogeochemistry and *subsurface export*), **CALIPSO** (carbon loss in plants, soils, oceans),
+and **CLARiTy** (the land/EO+AI analogue of what we would do for the ocean). Our
+model–obs-integration and subsurface-export ambitions genuinely overlap InMOS and SUBSEA, and
+CLARiTy is the precedent for "EO + AI reduces a flux uncertainty." Do we (a) name these and
+propose explicit collaboration/complementarity — my lean, since the RFP *expects* cross-project
+engagement — or (b) stay silent and risk a reviewer concluding it is already funded? If (a),
+how much of our 3 pages is that worth (I would spend ~4 sentences)?
+
+DQ7: (a) and yes, ~4 sentences is good
+
+**DQ8 — How hard do we lean on the RT prototype, and do we show it?** The 7.21%→0.30% ladder
+is genuine, quantitative, de-risking preliminary evidence, and a *differentiable* forward
+model is precisely the prerequisite for variational inversion and for embedding the optics
+inside an assimilative model — i.e. it is the technical bridge to DQ1(c). But it is the
+forward half only. Options: (a) one figure showing the rRMS ladder + one paragraph, framed as
+"the forward operator is built and differentiable; the inversion is the proposal" (my lean);
+(b) a sentence, no figure, saving space; (c) lead with it. Also: with 3 pages *including*
+figures and five required content elements, I recommend **exactly one figure** — do you agree,
+and should it be the rRMS ladder or a concept/architecture schematic? (References go in a
+separate PDF, so they cost us no page space.)
+
+DQ8: Ignore the RT prototype for now.  I shouldn't have bothered to have you examine the code in this Repo
+
+**DQ9 — Do we carry the §6 physics honesty into the EOI, or keep it internal?** Stating
+plainly that the biological limb is *not* the dominant term in the anthropogenic inventory is
+unusual candour for a proposal, and a hostile reviewer could quote it back as "they admit
+their own quantity doesn't matter." But it is also our sharpest differentiator: it shows we
+know exactly which term we are closing and why the physical-constraint programmes cannot close
+it, and it pre-empts the obvious referee objection. My lean: **yes, two sentences, framed as
+scoping precision rather than concession** — and it is the natural justification for the
+ECCO-Darwin coupling. Agree?
+
+DQ9: Yes, include 2 sentences, framed as scoping precision rather than concession
+
+**DQ10 — Two mechanical confirmations.** (i) Item 5 requires a brief statement on
+**generative-AI use**; this draft, the report and much of the prototype are Claude-assisted, so
+I propose a plain, factual sentence or two (excluded from merit review per the RFP). Confirm
+the wording posture — full disclosure, or minimal? (ii) When you do ask for the Google doc:
+target folder confirmed to exist — `Schmidt Sciences` under `.../Proposals/2026/`
+(id `1Xk9o3OcI9-f0KulOQFolsxFibjGCzS4a`), and I will name the doc `EOI-proposal`. Note a
+Google doc cannot itself satisfy the "single .pdf, 11-pt, ≤3 pages" submission format, so
+treat it as the drafting surface and plan a PDF export step.
+
+DQ10: (i) yes, that is fine and (ii) I will download the final doc as a PDF for submission
+
+#### Round 4 — after the DQ answers (2026-08-05)
+
+All ten answered; the direction is now fixed: **DQ1(c)** coupled optics + ECCO-Darwin, opening
+on carbon and uncertainty with the expert system as *method*; **factor-2 reductions on 2–3
+named quantities**; **Cphyto + POC** headline with NPP/export propagated and the subsurface via
+BGC-Argo/lidar; **~$10M/5 yr** computational-synthesis scope; **JXP as PI** with ECCO/ROMS
+committed; **T1 lead, T2 strong, T3 touched**; portfolio differentiation in ~4 sentences; §6
+candour in 2 sentences; RT prototype **dropped**; AI-use statement plain and factual.
+
+**First, the answer to your DQ1 sub-question — and I think it is the best idea in this round.**
+
+*"Would assessing the relative evolution over the past 20 years with satellite data be a
+worthwhile target too?"* **Yes — but as a *detectability* deliverable, not as a trend number,
+and framed that way it is strong enough to be one of the DQ2 headline numbers.**
+
+Reported as a trend, 20 years is demonstrably too short, and the literature says so with
+numbers we already have in the report: to detect a climate-driven trend at 90% power / 95%
+confidence needs n\* = **31.5 yr for chlorophyll, 32.3 yr for integrated PP, 32.0 yr for export
+flux** [55]; 50+ yr for chlorophyll and 25–40 yr for export production in the large-ensemble
+comparison [54]; 23 yr globally and 27–85 yr regionally for the soft-tissue pump [53]. Gregg &
+Rousseaux found −0.8 Pg C yr⁻¹ dec⁻¹ over 18 yr but cautioned the record is "still too short to
+unequivocally distinguish natural variability from long-term trends" [58], and Behrenfeld's
+1997–99 ENSO swing of ~1,930 Tg C yr⁻¹ [17] is far larger than any plausible secular signal. Six
+satellite NPP algorithms do not even agree on the *sign* of the 1998–2023 trend [21]. So a
+20-year trend claim would be exactly the kind of thing §3 of our report tells us not to believe.
+
+But the detection-time formula is where this becomes a *deliverable*. Weatherhead et al. (1998),
+as used by Henson [55] and Beaulieu et al. (2013):
+
+    n* = [ 3.3 σ_N / |ω₀| · √((1+φ)/(1-φ)) ]^(2/3)
+
+so **n\* ∝ σ_N^(2/3)**: halving the noise term shortens time-to-detection by 2^(2/3) ≈ **1.59×**
+(a 37% cut). Applied to [55]'s numbers, 31.5 → **≈20 yr** for chlorophyll-class biomass and
+32.0 → **≈20 yr** for export. *That is precisely the length of the record we already have.* And
+there are three distinct levers, two of which are not merely "better error bars":
+
+  1. **Chl → Cphyto** removes a genuine *variance* source, not just measurement error:
+     >55% of interannual chlorophyll anomalies over >75% of the ocean are photoacclimation
+     rather than biomass [17]. A carbon-based record has structurally lower σ_N than a
+     chlorophyll record.
+  2. **Cross-mission harmonisation.** Beaulieu et al. (2013) show a mid-record discontinuity
+     inflates n\* through a 1/[1−3τ(1−τ)]^(1/3) factor — global chlorophyll goes from **27 yr to
+     43 yr**. The SeaWiFS→MODIS→PACE seam *is* that discontinuity. One coherent physical
+     retrieval across all three missions, rather than per-mission empirical algorithms, is worth
+     roughly **16 years of record** on its own — and it is exactly what an "expert system"
+     justifies.
+  3. **Halving per-pixel retrieval uncertainty**, the DQ2 factor-2 target, contributing its
+     own 1.59×.
+
+**The honest caveat, which I would state in the draft.** σ_N in that formula is *total* residual
+noise — real geophysical variability plus measurement error — so halving the *retrieval* error
+does not by itself halve σ_N; ENSO-scale variability remains. Levers 1 and 2 are the ones that
+attack σ_N structurally. I would therefore claim "brings biomass-trend detection within reach of
+the existing 25-year record" rather than a hard "20.0 yr", and show the calculation.
+
+**Proposed consequence for DQ2:** the three factor-2 numbers become **precision** (per-pixel
+Cphyto uncertainty), **accuracy** (the conversion-driven global-stock spread), and
+**detectability** (n\* for a biomass/export trend). That trio is coherent, each is quantitative,
+and the third is the one a policy audience will care about most — it maps straight onto T2
+("role of climate variability", "attribution") and T3 ("detection of regime shifts").
+
+---
+
+**RQ1 — Confirm the detectability framing and the trio above?** Specifically: (i) adopt
+time-to-detection as the third headline number; (ii) claim the 20-year record becomes
+*interpretable* rather than claiming a trend value; (iii) include the cross-mission-discontinuity
+argument (the 27→43 yr result), which I think is the single most persuasive line available for why
+a unified retrieval matters. Any objection to putting a version of the n\* calculation in the EOI?
+
+RQ1: I confirm
+
+**RQ2 — With the RT prototype dropped, what carries feasibility?** Your DQ8 removes the only
+quantitative preliminary result, and a $10M EOI needs to show the team can do this. Candidates,
+all citable without the repo: (a) **BING** (Prochaska & Frouin 2025, *Biogeosciences* 22:4705) —
+peer-reviewed Bayesian Gordon+MCMC framework with honest UQ, and the published demonstration that
+multispectral supports only ~3 independent parameters; (b) **Bisson et al. 2023** — seeding GIOP
+with ancillary bb cuts seasonal absorption bias >50%, an *external* proof-of-concept for the
+priors thesis; (c) the biomass report itself as evidence of command of the uncertainty landscape;
+(d) ECCO-Darwin's own track record. **My lean: (a) + (b) as the technical case, (d) for the
+modeling half.** Confirm — and see RQ3, because (a) is self-citation under blind review.
+
+RQ2: I confirm
+
+**RQ3 — The blind-review problem with the astronomy framing.** This one worries me. The
+concept's central differentiator — astronomers bringing mature large-survey spectroscopic
+methodology, with *Prospector* and *The Cannon* as analogues — points unambiguously to one
+person, and the Simons text's "the PypeIt software package that I co-founded" is explicitly
+identifying. The RFP is blunt: proposals containing identifying information are "returned without
+evaluation." Options: (a) keep the methodological argument but strip all identifiers — "methods
+developed for large astronomical spectroscopic surveys", no package names, no first person, and
+cite BING in the third person in the separate reference PDF (my lean; this is standard blind
+practice); (b) drop the astronomy framing entirely and argue the method on its merits; (c) keep
+it fully and accept the risk. I strongly recommend (a) — but it does blunt your signature move,
+so it is your call. Related: do you want the reference PDF to include your own papers at all?
+
+RQ3: Sorry, drop the astronomy angle.  That's not part of this proposal.  We are all oceanographers.
+
+**RQ4 — Baselines for the factor-2 claims.** "Factor of 2" needs a stated starting point or it
+is unfalsifiable. My proposed baselines, all from the report: **(i) per-pixel Cphyto** — Stoer &
+Fennel's MAPE ~32% [10] → target ~16%; **(ii) global-stock spread from conversion choice** —
+3.5× (218–771 Tg C) [10] → target <1.8×; **(iii) n\*** — 31.5 yr [55] → ~20 yr. Note for POC the
+honest baseline is Koestner's **28%** (bbp+Chl), *not* the 47% bbp-only figure — halving 47%
+would be claiming credit for work already published [13,14]. Confirm these three and their
+baselines, or substitute?
+
+RQ4: I confirm these three
+
+**RQ5 — What does "coupled to ECCO-Darwin" actually mean operationally?** This is the core of
+the research plan and drives cost. (a) **One-way**: our optical products validate/force the
+model. (b) **Two-way assimilation**: optical constraints enter through ECCO's adjoint — the most
+powerful and the reason to involve the ECCO team at all, but a serious lift. (c) **Iterated
+priors**: the model supplies environmental/time-series priors that break the retrieval
+degeneracy, and the improved retrievals in turn constrain the model — which is the closest match
+to the project's founding thesis that priors supply the missing information. **My lean: (c) as
+the scientific core, with (b) as a named stretch goal.** Which?
+
+RQ5: Yes, (c) as the scientific core, with (b) as a named stretch goal.
+
+**RQ6 — Is atmospheric correction in scope?** The concept lists "improved atmospheric
+corrections." It matters here more than usual: Werdell et al. 2018 put AC at up to ~50% of
+retrieval error, and for a *multi-mission 20-year* record (RQ1) inter-mission radiometric
+calibration plus AC is plausibly the dominant term in σ_N — i.e. RQ1's detectability claim may
+depend on it. But it is a large programme in its own right. In scope as a work package,
+explicitly out of scope with the risk acknowledged, or handled only as cross-mission
+*harmonisation* (my lean — the narrower, sufficient version)?
+
+RQ6: It is in scope and co-I Robert Frouin will lead that effort.  I expect we will wind up re-processing *all* of the PACE data and will need to budget the compute for this.
+
+**RQ7 — Team roles to claim, and the international gap.** For item 3 I will write roles only, no
+names. Proposed set: hyperspectral radiative-transfer & inversion; ocean state estimation and
+adjoint data assimilation; regional ocean modeling; BGC-Argo / autonomous float optics;
+radiometry and atmospheric correction; in-situ bio-optics and phytoplankton biogeochemistry;
+statistical/AI methods for large spectroscopic surveys; project management. Two gaps: (i) the RFP
+"strongly encourages" **international** teams and the concept promises an international
+collaboration, but the group as named is entirely US-based — do we add a non-US partner, and in
+which role? (ii) ECR leadership is encouraged; you are PI, which is fine, but should I foreground
+ECR-held work-package leadership? Also confirm: is a carbon-flux/BGC-modelling role (beyond
+ECCO-Darwin) needed, or does ECCO-Darwin cover it?
+
+RQ7: That's fine. I can fill in the names.
+
+#### Round 5 — after the RQ answers (2026-08-05)
+
+RQ1, RQ2, RQ4, RQ5 confirmed as proposed. Two answers change things materially:
+
+- **RQ3 — astronomy angle dropped entirely** ("we are all oceanographers"). Noted, and I will
+  purge it: no *Prospector*/*The Cannon* analogy, no survey-spectroscopy heritage, no first
+  person. This is a deliberate divergence from `VICC_Concept_v1.pdf` / `Prochaska-Schmidt.pdf`,
+  whose central novelty argument *was* the astronomy transfer — so the EOI now needs a different
+  stated source of novelty (SQ3).
+- **RQ6 — atmospheric correction is in scope, Frouin leads, and we expect to reprocess *all* of
+  the PACE data with compute budgeted.** This is the largest scope change since Round 3. It
+  strengthens RQ1 (I had flagged that the detectability claim might depend on AC, and now it is
+  owned), but it raises a consistency problem (SQ1) and a real budget question (SQ2).
+
+**RQ7 half-answered.** "I can fill in the names" covers the separate team form, but the two
+sub-questions — international partner, ECR work-package leadership — are still open (SQ5).
+
+---
+
+**SQ1 — Which missions get reprocessed? This is the one genuine inconsistency I see.** RQ6 says
+"*all* of the PACE data," but RQ1's detectability claim is built on the **long** record: n\* ≈
+20 yr only means something if we *have* ~20+ years, and PACE launched Feb 2024. The
+27→43 yr discontinuity argument is likewise explicitly a SeaWiFS→MODIS→PACE seam argument. So
+PACE alone gives 2–8 yr over the award and the n\* story collapses. Options: (a) reprocess
+**MODIS (2002–) + PACE**, treating SeaWiFS (1997–2010) as a consistency check — ~24 yr baseline,
+my lean; (b) all three missions, maximum baseline (~29 yr) and maximum cost; (c) PACE only, and
+drop the detectability number back to a methods claim. Which? (a) or (b) is what makes RQ1
+deliverable, and it roughly doubles or triples the reprocessing volume implied by RQ6 — so this
+question and SQ2 must be answered together.
+
+SQ1: Ok, good point.  Let's go with (a).
+
+**SQ2 — Compute: how much, where, and does this break the $10M ceiling?** DQ4 fixed
+"~$10M, computational/synthesis," but a full multi-mission hyperspectral reprocessing is a
+different order of cost than a synthesis project, and the preliminary budget is a required EOI
+element. I need three things from you: (i) **a volume/compute estimate** — I do *not* have a
+verified figure for PACE OCI L1B daily volume (my rough sense is order-1 TB/day, which would make
+a multi-year full reprocessing petabyte-scale and order-10⁵ core-hours; I would rather use your
+number, or verify one, than guess in a budget); (ii) **where it runs** — NASA/OB.DAAC or ASDC
+allocation, NSF ACCESS, campus cluster, or commercial cloud (each reads very differently to a
+reviewer, and cloud egress on a petabyte-scale derived product is a real line item); (iii)
+whether we now **exceed $10M**. Note the RFP explicitly permits exceeding $10M where justified,
+and compute for a mission-scale reprocessing is a cleaner justification than most — but it
+contradicts DQ4(a), so I want your call rather than my inference. Related: FAIR open-data is a
+project requirement, so hosting/publishing the derived multi-mission product is also a cost —
+include it as a named line?
+
+SQ2: (i) Your estimate of 1Tb per day is good.  We will need to include MODIS too, however; (ii) AWS or like platform.  Note that we may use GPUs instead of CPUs; (iii) I don't think we will even come close to $10M.
+
+**SQ3 — With the astronomy angle gone, what is the novelty claim, and what do we call the
+thing?** Two parts. (i) **Novelty.** The remaining candidates, all oceanographic: physics-based
+Bayesian inversion with *calibrated per-pixel* uncertainty (the BING lineage) rather than one of
+the ~100 empirical algorithms; **priors** from in-situ, environmental and time-series information
+as the way to break a degeneracy that is provably unbreakable from Rrs alone; a *single
+physically consistent* retrieval applied across all missions instead of per-mission empiricism;
+and end-to-end propagation from radiance to carbon. My lean is to lead on **"the degeneracy is
+information-limited, so we supply the missing information, and we report honest uncertainty"** —
+which is both true and the thing no existing product does. Agree? (ii) **Name.** "Expert system"
+came from the dropped concept framing and is a dated AI term that a carbon panel may misread as
+1980s rule-based AI. Alternatives: "a physics-based Bayesian retrieval and assimilation
+framework", or just describe it functionally. Keep "expert system" or replace it?
+
+SQ3:  This queestion is distracting.  The team has terrific expertise and the empahsis on ECCO and high-quality inversions is fine.
+
+**SQ4 — Does "all of PACE" mean OCI only, or the polarimeters and the UV too?** Both bear
+directly on the DQ3 headline (Cphyto + POC separation), so this is a science question, not a
+detail. (i) **Polarimetry** — PACE carries SPEXone and HARP2 alongside OCI; multi-angle
+polarised radiance constrains the particle **phase function**, which is exactly the `bb_p`/NAP
+information the report identifies as the top-ranked addressable uncertainty (§4 items 1–2). In
+scope, or OCI-only? (ii) **UV (350–400 nm)** — the Simons text made the UV window central to
+separating CDOM/detritus from phytoplankton absorption. That argument is oceanographic and
+survives RQ3's cut, and it directly serves the aph/adg degeneracy. Keep the UV lever in, or drop
+it with the astronomy framing? My lean: keep UV (cheap, and it attacks our headline degeneracy),
+and mention polarimetry as a named secondary constraint rather than a work package.
+
+SQ4: (i) OCI is the baseline and polarimetry is a stretch goal; (ii) Definitely include UV.  This especially leans on atmospheric corrections.
+
+**SQ5 — RQ7's two open halves.** (i) **International partner.** The RFP "strongly encourages"
+international teams and the original concept promised an international collaboration, but the
+group as it stands is entirely US-based. Do we add a non-US partner, and in which role? Natural
+fits given the science: a European ocean-colour/radiometry group (OLCI/Copernicus heritage), a
+BGC-Argo national programme, or a hyperspectral-algorithm group. This is a cheap, high-value box
+to tick — but only if it is real. (ii) **ECR leadership.** Encouraged by the RFP; you are PI,
+which is fine, but shall I state that specific work packages are ECR-led? (iii) Confirm Frouin
+and the ECCO/ROMS people appear **only** in the separate names form, never in the EOI body.
+
+SQ5:  (i) We will have non-US partners.  I will list them later. (ii) Yes, we will have ECR-led work packages; and (iii) Agreed.
+
+**SQ6 — Does AC get its own headline number, making four?** DQ2 said 2–3 numbers and RQ4 fixed
+three (per-pixel Cphyto 32%→16%; stock spread 3.5×→<1.8×; n\* 31.5→~20 yr). Now that AC is a led
+work package, a fourth is available — e.g. a target on cross-mission radiometric consistency, or
+on the AC contribution that Werdell et al. put at up to ~50% of retrieval error. My lean: **keep
+three headline numbers and present AC as the *enabler* of the third** (it is the honest logical
+role — reducing AC and inter-mission bias is what actually lowers σ_N in the n\* calculation).
+Agree, or promote AC to a fourth number?
+
+SQ6: AC probably can't get boiled down to a number.
+
+#### Round 6 — after the SQ answers (2026-08-05)
+
+All six answered. **I believe I now have enough to write the draft**, so this round is short: three
+questions that genuinely block a required EOI element, plus a list of decisions I have taken myself
+rather than asking (taking the SQ3 signal that framing questions are distracting).
+
+**Settled:** SQ1(a) MODIS (2002–) + PACE reprocessed, SeaWiFS as consistency check → ~24-yr
+baseline, which repairs the RQ1/RQ6 inconsistency; SQ2 ~1 TB/day PACE, MODIS included, AWS-like
+platform, possibly GPU rather than CPU, and **compute will not approach $10M** (so DQ4(a) holds);
+SQ3 lead on team expertise + ECCO + high-quality inversions; SQ4 **OCI baseline, polarimetry a
+stretch goal, UV definitely in** and leaning on AC; SQ5 non-US partners exist (names later),
+ECR-led work packages yes, names only in the separate form; SQ6 three headline numbers with AC as
+enabler, not a fourth number.
+
+**Decisions I am taking without asking** (say the word if any is wrong):
+- Drop the phrase **"expert system"**; describe the system functionally (a physics-based Bayesian
+  retrieval + assimilation framework). It came from the dropped astronomy framing and reads as
+  1980s rule-based AI to a non-AI panel.
+- Keep the three RQ4 numbers exactly as confirmed; AC appears as the mechanism behind the third.
+- §6 candour: two sentences, scoping precision (DQ9).
+- Portfolio differentiation: ~4 sentences naming COCO2 / InMOS / SUBSEA / CLARiTy (DQ7).
+- Budget structure: personnel-dominated, with named lines for cloud compute/storage, the 5-day
+  annual science-team meeting (first Oct 2027, Europe), open-data publication, and indirect ≤10%.
+- No first person, no names, no institutions anywhere in the body; references in the separate PDF
+  with self-citation in third person.
+
+---
+
+**TQ1 — A real tension I should flag before drafting: the UV lever and the long-record claim do
+not cover the same data.** PACE/OCI reaches ~350 nm, but **MODIS and SeaWiFS have no band below
+412 nm** — their shortest ocean-colour channel is 412. So the UV window you confirmed in SQ4(ii)
+exists only for PACE, i.e. for ~8 of the ~24 years, while the detectability claim (RQ1) rests on
+the *MODIS* record. Two of our three headline numbers are therefore likely to live on different
+data than the third. My proposed wording, which I think is honest and still strong: the **precision
+and accuracy** gains (Cphyto 32%→16%; stock spread 3.5×→<1.8×) are demonstrated in the
+**PACE/hyperspectral+UV era**, and are then *transferred back* onto the multispectral record via
+one physically consistent retrieval and cross-mission harmonisation — which is what delivers the
+**detectability** number over 24 years. That framing makes PACE the calibration anchor for the
+heritage record rather than pretending UV information exists before 2024. Does that match your
+intent, or do you want the factor-2 claims stated as PACE-era only?
+
+TQ1: Yes, that matches my intent.
+
+**TQ2 — Team scale for the preliminary budget (required element 4).** You will supply names later,
+but I need *counts* to write a credible budget paragraph. Proposed shape for ~$10M/5 yr with
+indirect ≤10% and compute well under budget: roughly 5–7 institutions; ~4–6 postdocs, ~3–4
+graduate students, 1–2 research software engineers, partial-FTE senior investigators across the
+work packages (inversion, AC/radiometry, state estimation & assimilation, regional modeling, float
+optics, in-situ bio-optics), plus a part-time project manager. Are those counts about right, and
+how many institutions should I imply? (I will state numbers and roles only, never names.)
+
+TQ2: Leave the budget to me.
+
+**TQ3 — The one figure.** DQ8 removed the RT-prototype figure, so the single figure slot is open. My
+lean is one two-panel figure that carries the whole argument: **left**, the current
+factor-of-disagreement cascade from the report (satellite bbp 2.5×, Cphyto 3.5×, NPP 2.5×, export
+3×) — i.e. why today's products cannot answer the carbon question; **right**, the n\* detectability
+result — trend-detection time falling from 43 yr (discontinuous multi-mission record) and 31.5 yr
+(continuous) to ≈20 yr, against the ~24-yr record length drawn as a vertical line. That shows the
+problem and the deliverable in one image, and both panels are already generated from cited
+literature in `reports/py/`. Approve, or would you rather the figure be an
+architecture schematic (retrieval → priors ↔ ECCO-Darwin → carbon + uncertainty)?
+
+TQ3:  Yes, that sounds great.  Generate it with Python and put the script in retrieve-or-bust/proposals/Schmidt_Sciences.
+
 ## EOI
 
 1. Read all of the files in the Context section above.  We are going to discuss possible angles for a research proposal for the VICC program.  Put your questions in the Q&A section.  Log your work.  Use Fable if you can.
@@ -466,3 +961,274 @@ snippets; **all 18 new DOIs verified against DOI/crossref metadata** (first auth
 journal, year) before use. Ref 56 (Prend GBC 2022) confirmed from the article's own text.
 
 Next: await feedback / the EOI draft (VQ1–VQ6 still open).
+
+### 2026-08-05 (First draft prompt 1: read all context, posed Round-3 Q&A — no draft written)
+
+Executed the 1st "First draft" task. The prompt explicitly says **do not write the draft yet**
+and to ask questions first, so this pass is read-and-question only: nothing was drafted and no
+Google doc was created.
+
+**Read.** `VICC_Phase2_EOI.pdf` (re-read closely for the rules), `VICC_Concept_v1.pdf`, the
+Google doc it links (`1jXBhHtzcCdrIFeYal6luBg…` — verified identical in content to
+`Prochaska-Schmidt.pdf`), the "An expert ocean color system" section, the relevant Simons
+sections (III ocean-optics innovations; V applied AI/ECCO; II CMB and IV BOONUS for context),
+`reports/biomass_summary.md`, `context/context_summary.md`, and the repository code.
+
+**Key discovery — the code is not on `main`.** `robust/` on `vicc-proposal`/`main` contains
+only a 1-line `__init__.py`; the real package lives on the **`rt-elastic-prototype`** branch
+(also partly on `RT`), along with `design/rt_elastic_implementation.md` (v0.14, 2026-08-04) and
+`context/RT/fig_rrms_ladder.csv`. Read it via `git show` rather than checking out.
+
+**What the prototype gives the EOI.** A differentiable elastic RT forward model in JAX,
+`Rrs = Rrs_ZTT(θ) + ΔRrs_emulator(θ)` — ZTT analytic backbone with explicit phase-function
+dependence plus a 417-parameter Flax residual MLP. Held-out rRMS in `rrs` space on the L23
+batch: **Gordon 7.21% → ZTT 5.93% → linear hybrid 2.54% → MLP hybrid 0.30%**. Gradients
+verified against central finite differences; 225 tests pass; CI on Python 3.12/3.14. Honest
+caveats recorded for the draft: it is the **forward** model only (no inversion yet), M2 retains
+two `NotImplementedError`s, M4 validation not started, and 60°-zenith extrapolation is
+**not reproducible** across seeds (4.7–12.2%, median 7.75% vs ZTT 8.09%) — report-and-defer,
+with `DomainWarning` implemented.
+
+**What the concept doc changes.** `VICC_Concept_v1.pdf` names **ECCO-Darwin informed by ROMS
+tuned to observations** as the modeling core. That is effectively VQ4**(c)** — full coupling to
+an assimilative BGC model — not my Round-1 lean of (b). It also supplies the answer to
+Mazloff's §6 critique: the assimilative model can carry the *physical* limb while optics
+carries the *biological* one. The Simons doc supplies the plausible partners (Menemenlis and
+Forget on ECCO; Edwards on ROMS), which is why DQ5 asks whether those are committed or
+aspirational.
+
+**EOI rules captured (they bind the draft).** ≤3 pages *including figures*, 11-pt single-spaced,
+PDF; **fully blind** — any PI/team/institutional name returns the proposal unevaluated — yet
+item 3 still requires a team-composition and partnership description, so that section must be
+roles/expertise/geography only; Vancouver references in a **separate** PDF (so they cost no page
+space); five required elements (narrative, research plan, team, preliminary budget, generative-AI
+statement); $10M/5 yr typical with Oct 2027–Sep 2032 performance, indirect ≤10%, 5-day annual
+science-team meeting budgeted (first Oct 2027, Europe); larger awards allowed if new
+instrumentation/data acquisition is justified; PI on one EOI only; due **Aug 28 2026**.
+
+**Posed DQ1–DQ10** (Q&A Round 3), with my lean on each rather than open-ended asks. The load-
+bearing ones: **DQ1** the framing fork (biomass-first vs the §6 non-steady-state residual vs
+coupled optics+ECCO-Darwin — I lean coupled, opening on carbon not on the tool); **DQ2** what
+uncertainty-reduction number we are willing to defend, given that VICC asks for an order of
+magnitude and §3 of our own report makes 10× indefensible (COCO2's precedent is a specific 25%);
+**DQ5** PI identity plus the blind-review/team tension and whether the ECCO/ROMS partnerships are
+real; **DQ7** genuine overlap risk with InMOS (model–obs integration), SUBSEA (subsurface
+export) and CLARiTy (the land EO+AI precedent); **DQ9** whether to carry §6's candour about the
+biological limb into the EOI. Also flagged that a Google doc cannot itself meet the "single PDF,
+11-pt, ≤3 pp" format, so a PDF export step is needed, and confirmed the target Drive folder
+exists (`Schmidt Sciences`, id `1Xk9o3OcI9-f0KulOQFolsxFibjGCzS4a`).
+
+**Note.** VQ1–VQ6 from Round 1 remain unanswered; DQ1/DQ3/DQ4/DQ5/DQ6 fold them in so a single
+pass of answers can unblock the draft.
+
+Next: await DQ1–DQ10, then write the first draft (and, when asked, the `EOI-proposal` Google doc).
+
+### 2026-08-05 (First draft prompt 2: read the DQ answers, posed Round-4 Q&A — still no draft)
+
+Executed the 2nd "First draft" task: read JXP's answers to DQ1–DQ10 and posed **RQ1–RQ7**. The
+prompt again says **do not write the draft yet**, so nothing was drafted and no Google doc created.
+
+**Direction now fixed by the DQ answers.** DQ1(c) coupled optics + ECCO-Darwin, opening on carbon
+and uncertainty with the expert system as *method* not headline; DQ2(a) with **factor-2 reductions
+on 2–3 named quantities**; DQ3 **Cphyto + POC** headline, NPP/export propagated, subsurface via
+BGC-Argo/lidar; DQ4(a) **~$10M/5 yr** computational-synthesis (no field/lab campaign); DQ5 **JXP
+is PI**, ECCO/ROMS partners **committed**; DQ6 **T1 lead, T2 strong, T3 touched**; DQ7(a) name the
+portfolio projects and propose complementarity, ~4 sentences; DQ8 **drop the RT prototype
+entirely**; DQ9 include the §6 candour in 2 sentences as scoping precision; DQ10 plain factual
+AI-use statement, JXP exports the PDF himself.
+
+**Answered JXP's DQ1 sub-question (20-year biomass evolution) — the substantive result of this
+pass.** Verified the Weatherhead et al. (1998) detection-time formula from the cached full text of
+Beaulieu et al. (2013), Eq. 8: `n* = [3.3 σ_N/|ω₀| · √((1+φ)/(1-φ))]^(2/3)`, so **n\* ∝
+σ_N^(2/3)** and halving the noise term shortens time-to-detection by 2^(2/3) ≈ **1.59×**. Against
+Henson et al. 2016's n\* values (chlorophyll 31.5 yr, integrated PP 32.3 yr, export flux 32.0 yr)
+that lands at **≈20 yr — the length of the existing record**. Three levers, two of them structural
+rather than cosmetic: (1) Chl→Cphyto removes real variance, since >55% of interannual chlorophyll
+anomalies over >75% of the ocean are photoacclimation not biomass (Behrenfeld 2016); (2)
+cross-mission harmonisation removes the discontinuity penalty — Beaulieu's global chlorophyll n\*
+goes **27 yr → 43 yr** with a mid-record break, so treating the SeaWiFS→MODIS→PACE seam with one
+coherent physical retrieval is worth ~16 years of record, which is the strongest available argument
+for the expert-system architecture; (3) the DQ2 factor-2 retrieval-uncertainty cut itself.
+
+**Verdict given:** yes, worthwhile — but as a **detectability** deliverable, not a trend number,
+and it should become the third DQ2 headline figure. Logged the honest caveat that σ_N is *total*
+residual noise (geophysical variability + measurement error), so halving retrieval error does not
+halve σ_N; ENSO-scale variability persists, and levers 1–2 are the ones that attack σ_N
+structurally. Recommended claiming "brings biomass-trend detection within reach of the existing
+record" with the calculation shown, rather than a hard 20.0 yr.
+
+**Proposed the headline trio** — precision (per-pixel Cphyto), accuracy (conversion-driven
+global-stock spread), detectability (n\*) — which maps cleanly onto T1/T2/T3.
+
+**RQ1–RQ7 posed.** The two I consider blocking: **RQ2**, because dropping the RT prototype removes
+the only quantitative feasibility evidence, so something must carry it (my lean: BING + Bisson 2023
+for the technical case, ECCO-Darwin's record for the modeling half); and **RQ3**, a blind-review
+hazard I had not fully appreciated until reading the concept and Simons text together — the
+astronomy framing (*Prospector*/*The Cannon*, "the PypeIt package that I co-founded") identifies
+one person unambiguously, and the RFP returns identifying proposals unevaluated. Recommended
+keeping the methodological argument but stripping every identifier and self-citing in third person.
+Also asked: **RQ4** baselines for the factor-2 claims (flagging that the honest POC baseline is
+Koestner's 28%, not the 47% bbp-only number, or we would be claiming credit for published work);
+**RQ5** what "coupled to ECCO-Darwin" means operationally (lean: model-supplied priors ↔ improved
+retrievals, with adjoint assimilation as a named stretch goal); **RQ6** whether atmospheric
+correction is in scope, since for a multi-mission record it may dominate σ_N and therefore RQ1's
+claim (lean: the narrower cross-mission harmonisation only); **RQ7** the role list for the
+anonymised team section, plus the international gap (the named group is entirely US-based while the
+RFP strongly encourages international teams and the concept promises an international
+collaboration) and whether to foreground ECR work-package leadership.
+
+Next: await RQ1–RQ7, then write the first draft.
+
+### 2026-08-05 (First draft prompt 3: read the RQ answers, posed Round-5 Q&A — still no draft)
+
+Executed the 3rd "First draft" task: read JXP's RQ1–RQ7 answers and posed **SQ1–SQ6**. The prompt
+again says **do not write the draft yet**; nothing drafted, no Google doc created.
+
+**Confirmed as proposed:** RQ1 (detectability framing, the n\* calculation in the EOI, and the
+27→43 yr cross-mission-discontinuity argument), RQ2 (BING + Bisson 2023 for the technical case,
+ECCO-Darwin for the modeling half), RQ4 (the three factor-2 baselines: Cphyto MAPE 32%→16%;
+conversion-driven stock spread 3.5×→<1.8×; n\* 31.5→~20 yr), RQ5 (iterated priors as the
+scientific core, adjoint assimilation as a named stretch goal).
+
+**Two answers changed the shape of the proposal.**
+
+1. **RQ3 — drop the astronomy angle entirely** ("we are all oceanographers"). I will purge every
+   trace: no *Prospector*/*The Cannon*, no survey-spectroscopy heritage, no first person. Worth
+   recording that this is a deliberate divergence from `VICC_Concept_v1.pdf` and
+   `Prochaska-Schmidt.pdf`, whose central novelty argument *was* the astronomy transfer — so the
+   EOI now needs a different stated source of novelty, which is why SQ3 asks what replaces it and
+   whether the phrase "expert system" (itself from the dropped framing, and a dated AI term a
+   carbon panel could misread) survives.
+2. **RQ6 — atmospheric correction is in scope, Frouin leads it, and we expect to reprocess *all*
+   of the PACE data with compute budgeted.** Biggest scope change since Round 3. It strengthens
+   RQ1 — I had flagged the detectability claim as possibly dependent on AC, and it is now owned
+   rather than assumed — but it creates a consistency problem and a budget problem.
+
+**The consistency problem (SQ1), which I think is the most important thing in this pass.** RQ6
+says "all of the PACE data," but RQ1's n\* ≈ 20 yr claim requires a ~20+ year record and PACE
+launched Feb 2024; the 27→43 yr discontinuity argument is explicitly about the SeaWiFS→MODIS→PACE
+seam. PACE alone yields 2–8 yr over the award and the detectability number collapses. So the
+reprocessing scope has to extend to MODIS (2002–) at minimum — my lean — with SeaWiFS as a
+consistency check, which roughly doubles or triples the implied volume. SQ1 and SQ2 therefore have
+to be answered together.
+
+**The budget problem (SQ2).** DQ4 fixed "~$10M, computational/synthesis," but a multi-mission
+hyperspectral reprocessing is a different order of cost, and the preliminary budget is a required
+EOI element. Asked for a volume/compute estimate, where it runs (OB.DAAC/ASDC vs ACCESS vs campus
+vs cloud — each reads differently to a reviewer, and petabyte-scale cloud egress is a real line),
+and whether we now exceed $10M (the RFP permits it when justified, and mission-scale compute is a
+cleaner justification than most — but it contradicts DQ4(a), so it is his call). **Deliberately did
+not invent a number:** I have no verified figure for PACE OCI L1B daily volume and said so rather
+than putting a guess into a budget.
+
+**Also asked.** SQ4 — whether "all of PACE" includes the **polarimeters** (SPEXone/HARP2, which
+constrain the particle phase function, i.e. precisely the bb_p/NAP terms the report ranks first
+and second among addressable uncertainties) and the **UV 350–400 nm** lever (whose CDOM/detritus-
+vs-phytoplankton argument is oceanographic and survives RQ3's cut); my lean is keep UV, mention
+polarimetry as a secondary constraint rather than a work package. SQ5 — RQ7's two unanswered
+halves (international partner, ECR-led work packages) plus confirmation that Frouin and the
+ECCO/ROMS people appear only in the separate names form. SQ6 — whether AC becomes a fourth
+headline number; my lean is keep three and present AC as the *enabler* of the third, since
+lowering AC and inter-mission bias is literally what reduces σ_N in the n\* calculation.
+
+Next: await SQ1–SQ6, then write the first draft.
+
+### 2026-08-05 (First draft prompt 4: read the SQ answers, posed a short Round-6 — still no draft)
+
+Executed the 4th "First draft" task: read JXP's SQ1–SQ6 answers and posed **TQ1–TQ3**. Prompt again
+says **do not write the draft yet**; nothing drafted, no Google doc. Kept this round deliberately
+short — SQ3 ("this question is distracting") was a signal to stop asking framing questions — and
+recorded the decisions I am taking myself rather than re-asking.
+
+**Settled by the SQ answers.** SQ1(a): reprocess **MODIS (2002–) + PACE**, SeaWiFS as a consistency
+check → ~24-yr baseline. That repairs the RQ1/RQ6 inconsistency I raised last round, and it is what
+makes the n\* detectability number deliverable. SQ2: ~1 TB/day for PACE is an acceptable working
+figure, MODIS included, AWS-like platform, possibly **GPU** rather than CPU, and compute **will not
+approach $10M** — so DQ4(a)'s ~$10M computational-synthesis scope stands and I do not need to argue
+for exceeding the ceiling. SQ3: lead on team expertise plus ECCO and high-quality inversions. SQ4:
+**OCI is baseline, polarimetry a stretch goal, UV definitely in**, and JXP notes UV leans especially
+hard on AC. SQ5: non-US partners exist (names later), ECR-led work packages yes, names confined to
+the separate form. SQ6: AC "probably can't get boiled down to a number" — so three headline numbers
+stand with AC as the enabler of the third, as I'd leaned.
+
+**The one substantive problem found this pass (TQ1).** Verified from the Simons text that PACE/OCI
+reaches ~350 nm and polarises 385–770 nm; **MODIS and SeaWiFS have no band below 412 nm**. So the UV
+lever confirmed in SQ4(ii) exists *only* for PACE — ~8 of the ~24 years — while the RQ1 detectability
+claim rests on the MODIS record. Two of the three headline numbers would therefore live on different
+data than the third. Proposed resolution: state the **precision and accuracy** gains (Cphyto
+32%→16%, stock spread 3.5×→<1.8×) as demonstrated in the PACE hyperspectral+UV era, then
+*transferred back* onto the multispectral record through one physically consistent retrieval plus
+cross-mission harmonisation, which is what yields the **detectability** number across 24 years. That
+makes PACE the calibration anchor for the heritage record instead of implying UV information exists
+before 2024. Awaiting JXP's confirmation that this matches intent.
+
+**Also asked:** TQ2, team *counts* (not names) needed to write the required preliminary-budget
+element — proposed ~5–7 institutions, 4–6 postdocs, 3–4 students, 1–2 research software engineers,
+partial-FTE senior investigators per work package, part-time project manager; TQ3, what the single
+figure should be — my lean is a two-panel (left: the report's factor-of-disagreement cascade showing
+why current products cannot answer the carbon question; right: n\* falling from 43/31.5 yr to ≈20 yr
+against the ~24-yr record length), both panels already generated from cited literature in
+`reports/py/`.
+
+**Decisions taken without asking** (flagged for override): drop the phrase **"expert system"** (it
+came from the dropped astronomy framing and reads as 1980s rule-based AI to a non-AI panel) in favour
+of a functional description; keep the three RQ4 numbers verbatim; §6 candour in two sentences;
+portfolio differentiation in ~4 sentences naming COCO2/InMOS/SUBSEA/CLARiTy; personnel-dominated
+budget with named lines for cloud compute/storage, the 5-day annual meeting (first Oct 2027, Europe),
+open-data publication and indirect ≤10%; and no first person, names or institutions anywhere in the
+body, with third-person self-citation in the separate reference PDF.
+
+Next: await TQ1–TQ3 — after which I have everything needed to write the first draft.
+
+### 2026-08-05 (First draft prompt 5: wrote the first draft + figure + references; created the Google docs)
+
+Executed the 5th "First draft" task. TQ1 confirmed the PACE-era→heritage-record transfer framing;
+TQ2 "leave the budget to me"; TQ3 approved the two-panel figure, generated with Python in
+`proposals/Schmidt_Sciences`. **Draft written.**
+
+**Deliverables.**
+- `proposals/Schmidt_Sciences/EOI-proposal.md` — the 3-page EOI draft.
+- `proposals/Schmidt_Sciences/EOI-references.md` — 30 Vancouver references (separate PDF per the
+  call, so they cost no page space).
+- `proposals/Schmidt_Sciences/eoi_figure.py` → `eoi_fig1.png` / `.pdf` — the single figure.
+- Google docs in `.../Proposals/2026/Schmidt Sciences`: **EOI-proposal**
+  (`1LIB-KY-2bIge4jGvEn9gVzW6eskvIk4LLi9V2dATGys`) and **EOI-references**
+  (`14mou0etqVDccN7gOKL_33MJgEWnlhg4SVqFId5D2oxg`). Uploaded as HTML so headings, bold and the
+  target table convert to native Doc formatting.
+
+**Structure**, mapping the RFP's five required elements: §1 problem + primary theme + the two-sentence
+scope candour (DQ9); §2 hypotheses H1–H3 and the three factor-2 targets with the n\* derivation;
+§3 research plan WP1–WP5; figure + caption; §4 data/tools + the ~4-sentence portfolio differentiation
+(DQ7) + decision relevance; §5 anonymised team and partnerships; §6 preliminary budget (categories
+only, figures left to JXP per TQ2); §7 generative-AI statement.
+
+**Content decisions carried through.** DQ1(c) coupled optics + ECCO-Darwin, opening on carbon and
+uncertainty; T1 lead with T2/T3; Cphyto + POC headline with NPP/export propagated and subsurface via
+BGC-Argo/lidar; RQ5's iterated-priors coupling as the core with adjoint assimilation named as a
+stretch goal; SQ1(a) MODIS+PACE reprocessed with SeaWiFS as check; SQ4 OCI baseline, UV in,
+polarimetry a stretch goal; TQ1's PACE-as-calibration-anchor wording; AC as the enabler of T-C rather
+than a fourth number (SQ6); "expert system" dropped; RT prototype absent (DQ8); astronomy absent
+(RQ3).
+
+**Verification performed.**
+- **Blind-review audit** scripted over the body: no first person, no personal names, no institutions,
+  no astronomy terms, no "expert system", no prototype references — all clean. Team section written as
+  roles/expertise only.
+- **Reference integrity**: every citation resolves to an entry, no orphans. **All DOIs verified
+  against DOI/Crossref metadata.** Two fixes found in the process: the PACE OCI DOI in
+  `context/context_summary.md` is **wrong** (`10.1109/TGRS.2024.3380416` 404s; the correct one is
+  **`10.1109/TGRS.2024.3383812`**, Meister et al., IEEE TGRS 62:1–18), and the `Nature` 2023
+  hydrographic export paper flagged "(first author to confirm)" in `reports/biomass_summary.md` is
+  **Wang W-L, Fu W, Le Moigne FAC, et al.**, Nature 624:579–585 — that flag can now be cleared.
+- **Length measured, not guessed**: laid the text out with real 11-pt font metrics against a
+  6.5 × 9 in text block. Current draft ≈ **3.6 pages against a 3-page limit** (~1,650 words +
+  a 2.2-in figure). JXP will cut ("I am good at cutting text"); the per-section line budget is
+  §3 research plan 61 lines, §1 30, §2 27, §4 25, §5 14, §6 11, §7 8.
+
+**Two things to check.** (i) The **target table** may not have converted cleanly into the Doc — the
+read-back shows signs of literal markdown in the table cells and a spurious empty header row; the
+source markdown has since been given a non-empty first header (`ID`), and the table is small enough
+to retype if needed. (ii) The **figure is a placeholder box** in the Doc — the API cannot embed a
+local PNG, so `eoi_fig1.png` must be inserted manually where the marked paragraph sits.
+
+Next: JXP trims to 3 pages, inserts the figure, completes the budget, and exports to PDF.
