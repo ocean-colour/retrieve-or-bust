@@ -224,6 +224,8 @@ comparison rows**, not as PR05/O25.
   `4d6c628`, not M2's final commit.
 - **PR #11** is open; if Bugbot adds findings after JXP pushes, fold them into task 5.
 
+> JXP says -- ignore all of these outstanding items
+
 ## Prompts
 
 1. Read this doc. Execute the 1st task in the "M4" section below. If you have any
@@ -250,6 +252,8 @@ comparison rows**, not as PR05/O25.
    refit on L23"* everywhere it appears. A refit must use the train split only — fitting
    a comparison model on the test data would flatter the hybrid's rival, which is the one
    direction of bias nobody would think to check.
+
+   Also, note that JXP has cleared all 3 Outstanding items.
 
    **PR05** is a judgement call rather than a coding task: see Q8. If it goes in, the same
    labelling rule applies.
