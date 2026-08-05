@@ -34,6 +34,9 @@ Read the papers in the `context/papers/Biomass` folder.
 11. Perform the 4th Task under "First draft"
 12. Perform the 5th Task under "First draft"
 13. Perform the 6th Task under "First draft"
+14. Perform the 7th Task under "First draft"
+15. Perform the 8th Task under "First draft"
+16. Perform the 9th Task under "First draft"
 
 ## First draft
 
@@ -63,6 +66,17 @@ Be sure to be wary of the EOI rules.  I will ask you to generate it as a Google 
    - Generate PNGs instead of PDF
 
 Use Fable if you can.  Log your work. 
+
+7. The new figures are good.  Can you make another pair from the same code that are better size for Google Slides?  Add "slides" to their names.  Use Fable if you can.  Log your work.  
+
+8. Better still.  Please make these changes:
+
+   - Make the text "We do not know.." bold
+   - Increase the font size for the axis label "factor by which.."
+
+Use Fable if you can.  Log your work. 
+
+9. Ok, now another figure.  Can you generate one that describes the methodology?  Something that describes the flow from Satellite observations (used to measure bbp) to carbon stock, etc.  Use Fable if you can.  Log your work.  Have this be a new figure and I only need one for Google Slides.
 
 ### Q&A
 
@@ -1284,3 +1298,69 @@ single figure placeholder with the two PNGs, and swap the §2 table for the new 
 paragraph.
 
 Next: JXP trims to 3 pages, inserts the two PNGs, completes the budget, exports to PDF.
+
+### 2026-08-06 (First draft prompt 7: added a Google Slides-sized pair from the same code)
+
+Executed the 7th "First draft" task. `eoi_figure.py` now emits **four PNGs from one code path** —
+the same two figures in two sizes:
+
+| file | size | use |
+|---|---|---|
+| `eoi_fig1_problem.png` | 7.8 × 2.3 in | proposal |
+| `eoi_fig2_targets.png` | 7.8 × 2.2 in | proposal |
+| `eoi_fig1_problem_slides.png` | 10.0 × 4.9 in | Google Slides |
+| `eoi_fig2_targets_slides.png` | 10.0 × 4.9 in | Google Slides |
+
+**How, rather than just rescaling.** Everything that differs between print and projection is
+collected in a frozen `Style` dataclass (figure size, eleven font sizes, line widths, marker sizes,
+axes spine width, and the two y-limits that have to clear the reference labels), with `PAPER` and
+`SLIDES` instances and `main()` looping over both. The plotting functions take a style and contain no
+branches, so the two variants **cannot drift apart in content — only in size**. `PAPER` values were
+transcribed unchanged from the previous version, so the proposal figures are unaffected.
+
+Slides sizing: Google Slides widescreen is 10 × 5.625 in, so 10 × 4.9 fills the width and leaves a
+title band. Fonts go from 8–10 pt to 13–17.5 pt, line widths and markers roughly double, and the axes
+spine thickens. This matters because the point of the variant is legibility when projected — a paper
+figure at 8 pt scaled up on a screen is still an 8 pt figure's *proportions*, with hairline rules and
+cramped labels.
+
+**One collision found and fixed at the larger size, which also improved the paper version.** At
+17 pt the bold "≈20 yr" target label for T-C is wide enough to reach back past x = 0.5, so the
+full-height factor-of-2 line was drawn straight through it. Rather than shorten the reference line or
+move the label away from its marker, the target labels now carry an opaque white backing box, so the
+line passes *behind* the text. The same defect existed less visibly in the paper figure and is now
+gone there too. Both styles re-inspected as rendered PNGs, not assumed: all text inside the axes, no
+overlaps, in all four files.
+
+Lint clean (`ruff check`, `ruff format --check`) and the whole set regenerates reproducibly from an
+empty directory.
+
+Next: unchanged — JXP trims to 3 pages, inserts the two proposal PNGs, completes the budget, exports
+to PDF. The `_slides` pair is for talks and needs nothing further.
+
+### 2026-08-06 (First draft prompt 8: bold figure titles, larger axis labels)
+
+Executed the 8th "First draft" task — two requested changes to `eoi_figure.py`, applied through the
+`Style` fields so they land in all four PNGs at once:
+
+1. **"We do not know…" is now bold** (`fontweight="bold"` on the Fig. 1 title).
+2. **The "factor by which…" axis label is larger**: `fs_axlabel` 8.5 → **10.0** pt for `PAPER` and
+   14.0 → **16.5** pt for `SLIDES`.
+
+**Two deliberate over-applications, both trivially reversible if unwanted.** (i) `fs_axlabel` is a
+single shared field, so Fig. 2's x-label ("remaining uncertainty…") grew by the same amount — the two
+figures appear together, and mismatched axis-label sizes across a pair reads as an error. (ii) For the
+same reason **Fig. 2's title was also bolded**; one bold title beside one regular title looks like an
+oversight rather than emphasis. Both are one-line changes to undo (drop `fontweight` in `fig2_targets`,
+or split `fs_axlabel` into per-figure fields).
+
+**Side effect, in the helpful direction.** Bold titles and bigger axis labels widen the saved canvas
+(`bbox_inches="tight"`), so scaled into the 6.5-inch text column the proposal figures got *shorter*:
+Fig. 1 1.87 → **1.79 in**, Fig. 2 1.72 → **1.62 in**. Net page estimate 3.84 → **3.82 pages**. The
+slides pair is now 3.99 in and 3.75 in tall at full 10-inch slide width, still leaving 1.6–1.9 in for a
+slide title.
+
+All four PNGs re-inspected as rendered images: titles bold, labels larger, every annotation inside the
+axes, no overlaps. Lint clean.
+
+Next: unchanged — trim to 3 pages, insert the two proposal PNGs, complete the budget, export to PDF.
