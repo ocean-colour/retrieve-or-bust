@@ -597,3 +597,42 @@ def test_rejects_a_nonelastic_scenario_only_by_documentation(l23_batch):
     X=1, since the model represents no inelastic process.
     """
     assert L.ELASTIC_X == 1
+
+
+@needs_l23
+def test_write_fixture_reproduces_the_committed_snapshot(tmp_path):
+    """Regenerating the fixture gives back the committed bytes, and verifies itself.
+
+    Two things at once. **Reproducibility**: the committed
+    ``robust/tests/files/l23_small.npz`` is what the whole suite runs on without
+    ``$OS_COLOR``, so it has to be exactly what the current code would write --
+    otherwise the fixture and the loader have silently drifted apart.
+
+    **The write is validated before it lands.** ``write_fixture`` snapshots to a
+    temporary file, loads it back through :func:`npz_reader` and
+    :func:`load_batch`, and only then replaces the destination. Writing first and
+    checking afterwards is the defect class reported against
+    ``design/py/train_emulator.py`` in PR #11; the destination here is a committed
+    file that CI depends on, so it got the same treatment. This test pins that the
+    happy path is byte-exact; the guard itself was demonstrated by forcing the
+    verification to fail and confirming the destination survived untouched.
+    """
+    from robust.tests.conftest import L23_SMALL_FIXTURE
+
+    out = tmp_path / "l23_small.npz"
+    L.write_fixture(out)
+
+    committed = np.load(L23_SMALL_FIXTURE)
+    regenerated = np.load(out)
+    assert set(regenerated.files) == set(committed.files)
+    for key in committed.files:
+        np.testing.assert_array_equal(
+            regenerated[key],
+            committed[key],
+            err_msg=f"{key} differs from the committed fixture",
+        )
+
+    # And it loads to the batch the fixture-based tests expect.
+    batch = L.load_batch(reader=L.npz_reader(out))
+    batch.validate()
+    assert batch.n_sample == len(L.ZENITHS) * 50

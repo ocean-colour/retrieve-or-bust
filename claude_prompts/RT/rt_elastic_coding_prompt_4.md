@@ -313,6 +313,58 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-05 (M3 task 4 — the PR review: two real findings, fixed by class)
+
+**PR #11 is open** on the M3 diff (commit `6dcaf63`) and Bugbot found **2 issues**,
+both in `design/py/train_emulator.py`, both real, both now fixed. Suite **227 passed**
+(206 + 21 skipped without `$OS_COLOR`), ruff clean, record §5.6b added.
+
+For the record on earlier PRs: **#10 (M2) came back clean** — but at commit `4d6c628`,
+which is *not* M2's final commit, so M2's last commits have still never been reviewed.
+**#9 (M1)** had one finding, a `bb_p` zenith comparison that skipped 30°, already fixed
+during M1 with the replacement docstring citing PR #9. So M3's Outstanding item about
+Bugbot never having seen the M2 diff is now closed, with that caveat.
+
+**Finding 1 (High) — the weights were written before the round-trip check.** A failed
+integrity check reported an error with the previously shipped `emulator_l23.npz` already
+overwritten — the one file `load_default()` and `forward(mode="hybrid")` depend on,
+destroyed by the check meant to protect it. Now `write_weights()` writes the candidate to
+a temporary file beside the destination, loads it back, requires it to reproduce the
+correction, and only then `os.replace`s it into place (atomic: a reader sees the old file
+or the new one, never a half-written one). A `finally` removes the candidate on every
+exit path — I had left it behind on the failure path in my first attempt at the fix.
+
+**Finding 2 (Medium) — the shipped emulator was whatever the loop left in scope.**
+Reordering the two-fit loop would have persisted the 8-parameter **linear** baseline as
+the default weights, and nothing would have crashed: `load` restores the stored config,
+so `mode="hybrid"` would have quietly used a model worth 2.57% instead of 0.30%. The
+script now selects by name (`SHIPPED`) and refuses to write an architecture that is not
+the package default.
+
+**Demonstrated, not asserted.** With `load` monkeypatched to return a different model,
+`write_weights` returns 1, the destination is byte-identical to before, and no temp file
+survives; with `load` intact the same call writes and returns 0. Handed the linear
+baseline, the guard refuses it, and the new test
+`test_packaged_weights_are_the_default_architecture` fails on a linear file and passes on
+the real one.
+
+**Fixed the class, not the instance.** Finding 1's class is *validating an artifact only
+after it has replaced a known-good one*, and there was one other instance in the repo:
+`l23.write_fixture` wrote straight onto `robust/tests/files/l23_small.npz` — the
+committed fixture the whole suite runs on in CI — with no check that the result even
+loads. It now snapshots to a temp file, loads it back through `npz_reader` +
+`load_batch` and validates the batch, then replaces atomically; forcing the verification
+to fail leaves the destination untouched and nothing behind. Nothing had tested that
+function, so `test_write_fixture_reproduces_the_committed_snapshot` now pins that
+regenerating the fixture returns the committed bytes **exactly** — so fixture and loader
+cannot drift apart silently. Finding 2's class is guarded durably by the architecture
+test, which holds on the file however it was produced.
+
+**An unplanned confirmation.** Re-running the training script end to end (to a temp path,
+so the shipped file was never at risk) produced weights **bit-identical** to the
+committed ones — independent evidence for the determinism claim in the record §5.2, which
+until now rested on the design of the training loop rather than on a measurement.
+
 ### 2026-08-05 (new 4th prompt — a section specifying the hybrid model, with two figures)
 
 **Added §1 "The hybrid model, end to end"** to `notebooks/RT/rt_elastic_coding_4.ipynb`

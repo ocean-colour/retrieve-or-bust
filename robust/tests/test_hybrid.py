@@ -553,3 +553,32 @@ def test_packaged_weights_load_and_improve_on_ztt(l23_small_batch):
     # And the public Rrs-space entry point runs with it end to end.
     Rrs = H.forward(*batch_args(batch), "hybrid", emulator=emulator)
     assert np.all(np.isfinite(np.asarray(Rrs)))
+
+
+def test_packaged_weights_are_the_default_architecture():
+    """The shipped file must hold the architecture the package thinks it ships.
+
+    Raised in review of PR #11: the training script wrote whichever emulator its
+    loop last left in scope, so a reordering could have shipped the 8-parameter
+    **linear** baseline as ``emulator_l23.npz``. Nothing would have crashed —
+    ``load()`` restores the stored ``config``, so ``forward(mode="hybrid")`` would
+    have quietly used a model worth 2.57% instead of 0.30%.
+
+    The script now selects by name and refuses a non-default architecture, but this
+    test is the durable half of the fix: it guards the invariant *on the file*,
+    however the file came to be, including a hand-copied or hand-regenerated one.
+    """
+    emulator = E.load_default()
+    default = E.EmulatorConfig()
+
+    assert emulator.config.hidden == default.hidden, (
+        f"packaged weights have hidden={emulator.config.hidden}, but the package "
+        f"default is {default.hidden} -- was the wrong emulator shipped?"
+    )
+    assert emulator.config.delta_max == default.delta_max
+    # The parameter count follows from the architecture; pinning it too means a
+    # mismatch is reported as a number rather than as a shape error much later.
+    n_par = sum(p.size for p in jax.tree_util.tree_leaves(emulator.params))
+    assert n_par == 417, f"expected 417 trained parameters, found {n_par}"
+    assert emulator.mean.shape == (len(E.FEATURES),)
+    assert emulator.domain.shape == (2, len(E.FEATURES))

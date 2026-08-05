@@ -44,8 +44,11 @@ Recorded here rather than discovered at M5.
 
 from __future__ import annotations
 
+import os
+import tempfile
 import warnings
 from dataclasses import dataclass
+from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
@@ -274,6 +277,15 @@ def write_fixture(
     -----
     Requires the L23 dataset. Values are stored as float32, the dtype the netCDF
     itself uses, so the fixture is bit-faithful to the source.
+
+    **Written via a temporary file and verified before it replaces anything.** The
+    destination is normally ``robust/tests/files/l23_small.npz``, which is committed
+    and which the entire suite depends on when ``$OS_COLOR`` is absent, so an
+    interrupted write or a snapshot that does not load would break CI with no
+    obvious cause. The candidate is loaded back through :func:`npz_reader` and
+    :func:`load_batch` -- the real consumers -- and only then moved into place with
+    an atomic :func:`os.replace`. (The same defect class was reported against
+    ``design/py/train_emulator.py`` in PR #11: validate first, overwrite second.)
     """
     arrays: dict[str, np.ndarray] = {
         "zeniths": np.asarray(zeniths),
@@ -287,7 +299,25 @@ def write_fixture(
             if field == "wave":
                 continue
             arrays[f"{field}_{zenith}"] = raw[field][:n_scene].astype(np.float32)
-    np.savez_compressed(path, **arrays)
+
+    path = Path(path)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        # Prove the snapshot is usable by the code that will use it, not merely that
+        # savez returned. A fixture that loads to the wrong thing is worse than none.
+        batch = load_batch(zeniths=zeniths, x=x, reader=npz_reader(tmp))
+        batch.validate()
+        if batch.n_sample != len(zeniths) * n_scene:
+            raise ValueError(
+                f"write_fixture: snapshot loads {batch.n_sample} samples, expected "
+                f"{len(zeniths) * n_scene}; {path} left untouched"
+            )
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def npz_reader(path):

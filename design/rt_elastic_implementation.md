@@ -28,7 +28,7 @@ every bump.
 | **M0** | Environment & scaffold | ✅ done | `robust.rt` (stubs), `robust/tests/` |
 | **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | 🟡 in progress | `robust.rt.ztt`, `robust.rt.baselines` |
-| **M3** | Residual emulator + hybrid | 🟡 code, tests, notebook done (tasks 1–3 of 5) | `robust.rt.{emulator,hybrid}` |
+| **M3** | Residual emulator + hybrid | 🟡 code, tests, notebook, review done (tasks 1–4 of 5) | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 | ⬜ future | — |
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **225 passed** (`ocean14`); with
-`$OS_COLOR` unset, **205 passed + 20 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **227 passed** (`ocean14`); with
+`$OS_COLOR` unset, **206 passed + 21 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All four notebooks in
@@ -899,7 +899,7 @@ end-to-end differentiable forward model.
 | 1 | `emulator.py` — Flax MLP residual emulator + Optax training | ✅ done |
 | 2 | `hybrid.py` — `forward()`; gates in `test_hybrid.py` | ✅ done |
 | 3 | `notebooks/RT/rt_elastic_coding_4.ipynb` — the M3 explainer | ✅ done |
-| 4 | PR-review pass | ⬜ pending |
+| 4 | PR-review pass (PR #11) | ✅ done |
 | 5 | Hand-off edit to `rt_elastic_coding_prompt_5.md` (M4) | ⬜ pending |
 
 **Branch for JXP** — all on `rt-elastic-prototype`, awaiting his commit:
@@ -1067,6 +1067,57 @@ it was removed rather than shipped as a knob justified by a fluke.
    leaf is inspected via `jax.tree_util.tree_leaves`. Verified by reverting the
    fix: the new parametrised regression test fails on exactly `bb_p` and `B_p`
    and passes with it.
+
+### 5.6b The PR review (task 4) — PR #11
+
+`gh` is not authenticated here; the public REST API serves the review comments.
+**PR #11** (`rt-elastic-prototype` → `RT`, the M3 diff at commit `6dcaf63`) drew two
+Bugbot findings, both in `design/py/train_emulator.py`, both real and both fixed. The
+history: #10 (M2) was reviewed at `4d6c628` and found no new issues — though that is
+not M2's final commit, so M2's last few commits remain unreviewed — and #9's single
+finding (a `bb_p` zenith comparison that skipped 30°) had already been fixed during
+M1, its replacement docstring citing PR #9.
+
+1. **High — the weights were written before the round-trip check.** A failed integrity
+   check reported an error with the previously shipped `emulator_l23.npz` already
+   overwritten: the one file that `load_default()` and `forward(mode="hybrid")` depend
+   on, destroyed by the very check meant to protect it. The save path is now
+   `write_weights()`: the candidate goes to a temporary file *beside* the destination,
+   is loaded back and required to reproduce the correction, and only then moves into
+   place with an atomic `os.replace`. A `finally` removes the candidate on every exit,
+   so a failed check leaves nothing behind either.
+2. **Medium — the shipped emulator was whatever the training loop left in scope.**
+   Reordering or trimming the two-fit loop would have persisted the 8-parameter
+   **linear** baseline as the default weights, and nothing would have crashed: `load`
+   restores the stored `config`, so `forward(mode="hybrid")` would have quietly used a
+   model worth 2.57% instead of 0.30%. The script now collects results into a dict and
+   selects the shipped one **by name** (`SHIPPED`), and refuses to write if its
+   architecture is not the package default.
+
+**Both fixes were demonstrated against what was reported**, not merely asserted. With
+`load` monkeypatched to return a different model, `write_weights` returns status 1, the
+destination is byte-identical to before, and no temporary file survives; with `load`
+intact the same call writes and returns 0. Handed the linear baseline, the script's
+guard refuses it, and the new test
+`test_packaged_weights_are_the_default_architecture` fails on a linear file while
+passing on the real one (417 parameters, `hidden=(16,16)`).
+
+**The class fix, not just the instance.** Finding 1's class is *validating an artifact
+only after it has replaced a known-good one*, and the repo had one other instance:
+`l23.write_fixture` wrote straight onto `robust/tests/files/l23_small.npz` — the
+committed fixture the entire suite runs on without `$OS_COLOR` — with no check that
+the result loads. It now snapshots to a temporary file, loads it back through
+`npz_reader` and `load_batch` (the real consumers) and validates the batch, then
+replaces atomically. `test_write_fixture_reproduces_the_committed_snapshot` pins that
+regenerating gives the committed bytes back exactly, so fixture and loader cannot
+silently drift; the guard itself was demonstrated by forcing the verification to fail
+and confirming the destination survived. Finding 2's class — *shipping whatever a loop
+left behind* — is guarded durably by the architecture test, which holds on the file
+however the file came to be, including a hand-copied one.
+
+A side benefit of re-running the training script end to end: the regenerated weights
+are **bit-identical** to the committed ones, which is independent confirmation of the
+determinism claim in §5.2 (full-batch, unshuffled, one seed).
 
 ### 5.7 An interface question left open for M4
 
@@ -1284,8 +1335,8 @@ would not ship. Committing the weights is also what lets CI exercise a *trained*
 hybrid rather than a zero-initialised one; the M3 gate itself trains a
 deterministic 400-step toy fit on the committed fixture, so it runs in CI too.
 
-**Suite size at M3.** `pytest -q` → **225 passed** with `$OS_COLOR`; **205
-passed, 20 skipped** without it, which is what CI sees. The suite was 171 at
+**Suite size at M3.** `pytest -q` → **227 passed** with `$OS_COLOR`; **206
+passed, 21 skipped** without it, which is what CI sees. The suite was 171 at
 M2's close.
 
 **Badge** in `README.md`. It will read "no status" until `ci.yml` reaches the
