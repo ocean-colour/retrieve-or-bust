@@ -424,6 +424,63 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-07 (new 5th prompt — a section defining O25 and reminding what the hybrid is)
+
+**Added §1 "The two models being compared, defined"** to
+`notebooks/RT/rt_elastic_coding_5.ipynb`, renumbering the rest 2–7 and fixing the one
+internal cross-reference. Now 24 cells. (The PR review I had already run is now prompt 6,
+so it is banked and logged below.)
+
+The notebook argued about O25 for six sections without ever saying what it *is*. §1 now
+does, and separates three things that were tangled together:
+
+- **The model**: the bivariate quadratic, with every symbol defined, and the reason the
+  water/particle split is the whole idea rather than a detail — the two return light
+  through different volume scattering functions, so they should not share a coefficient.
+- **Its provenance and standing**: Pitarch et al. 2025, inheriting L11's form, calibrated
+  on PB24, in NASA HyperCP and EUMETSAT ThoMaS and operational in OLCI Collection 4 —
+  which is *why* it and not Gordon is the benchmark that decides whether our hybrid is
+  worth anything.
+- **What our version is not**: the published `G` tables exist only as plots in the paper,
+  so ours are refit on L23's train split, with no θv/Δφ axis because L23 is nadir-only.
+  Stated in the section rather than left to a footnote, along with the consequence that
+  its numbers are its best case.
+
+And a plain reminder of the hybrid — unfitted ZTT backbone plus a bounded 417-parameter
+correction — with the contrast spelled out: **12 fitted numbers with no phase-function
+input against 417 on top of unfitted physics that has one**. A comparison table lays the
+two side by side on what is fitted, what each can see, and what each is blind to.
+
+The code cell makes both concrete on a single water body: O25's actual refit coefficients
+(showing how little they move with zenith — `Gw0` 0.0587 → 0.0525 across 60°), the two
+branch albedos, and the hybrid term by term. That last line is the useful one: δ comes out
+at a few percent, so the physics sets the answer and the learned half adjusts it.
+
+**Three self-inflicted delays, and the practice that now prevents them.** This section
+took four execution attempts, all my fault, and the failures were instructive because each
+defeated the check I had just added:
+
+1. **A split f-string.** I broke an expression across two adjacent literals
+   (`f"...{sum(p.size for p in "  f"tree_leaves(...))}"`) — a syntax error. I also
+   mis-read the harness's "exit code 0" as success when the notebook was in fact
+   unexecuted. *Fix:* verify `execution_count`, not an exit status; and **AST-parse every
+   code cell in the build step**.
+2. **A Python list used as a JAX index.** `wave[bands]` with `bands` a list raises at
+   runtime. The AST check passed it happily — syntax is not semantics. *Fix:* **run the
+   new cell standalone before paying for the full eight-minute notebook**, which takes
+   about five seconds and would have caught both of the first two.
+3. **A number that contradicted its own prose.** I wrote that δ is "a few percent" and the
+   cell printed **+8%, +22%, +10%**. The cause was choosing an *invented* IOP set to
+   illustrate a data-driven model: it sat far from anything the emulator trained on. The
+   cell now takes a real L23 scene from the committed fixture, prints whether that sample
+   is in-domain (it is), and reports `|δ|` over the whole fixture as measured rms **5.6%**
+   and max 27% — so the claim is a range someone can check rather than an impression.
+
+The third is the one I keep repeating across milestones, and it is now clear that the
+mechanism is always the same: prose written before the measurement, then not re-read
+against it. The standalone-cell smoke test is cheap enough that it should be the default
+for every notebook edit from here.
+
 ### 2026-08-07 (M4 task 5 — the review pass: no open PR, and five real findings)
 
 **PR #11 was merged** on 08-05 and its two findings were already fixed in M3's task 4. No

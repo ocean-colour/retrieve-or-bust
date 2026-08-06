@@ -1321,12 +1321,25 @@ published model. `fit_o25` requires an explicit `train=` mask for the same reaso
 ### 6.8 Notebook
 
 `notebooks/RT/rt_elastic_coding_5.ipynb` — the M4 explainer, **executed** with outputs
-(21 cells, 3 figures, ~8 min on the full batch; degrades to the committed fixture
+(24 cells, 3 figures, ~8 min on the full batch; degrades to the committed fixture
 without `$OS_COLOR`). Its subject is the *protocol and its verdict*, not another
-accuracy claim: §1 the benchmark change and what it does to the headline, §2 whether
-the comparison was fair, §3 the required breakdowns, §4 the unseen zenith, §5 speed
-and gradients, §6 **what the prototype may and may not say** — written as two explicit
-lists.
+accuracy claim: **§1 defines the two models being compared**, §2 the benchmark change
+and what it does to the headline, §3 whether the comparison was fair, §4 the required
+breakdowns, §5 the unseen zenith, §6 speed and gradients, §7 **what the prototype may
+and may not say** — written as two explicit lists.
+
+§1 exists because the notebook spent its length comparing against O25 without ever
+saying what O25 *is*. It separates the model (the bivariate quadratic, every symbol
+defined, and why the water/particle split is the whole idea rather than a detail), its
+provenance and standing (Pitarch et al. 2025 from L11's form, calibrated on PB24, in
+NASA HyperCP and EUMETSAT ThoMaS, operational in OLCI Collection 4 — hence *the*
+benchmark), and what our version is not (coefficients refit on L23's train split, no
+θv/Δφ axis, so its numbers are its best case). It then restates the hybrid — unfitted
+backbone plus a bounded 417-parameter correction — and lays the two side by side in a
+table: **12 fitted numbers with no phase-function input against 417 on top of unfitted
+physics that has one**. A code cell makes both concrete on one water body, including how
+little O25's coefficients move with zenith (`Gw0` 0.0587 → 0.0525 across 60°) and that
+the hybrid's δ is only a few percent.
 
 Three figures, each earning its place: the per-λ ladder for all five models (which
 shows at a glance that the gap that matters is to O25, not to Gordon); **O25 fitted
