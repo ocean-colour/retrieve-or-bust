@@ -65,19 +65,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Check the architecture up front rather than after two minutes of fitting -- and
-    # before the --dry-run exit, so a maintainer who breaks this finds out from a dry
-    # run instead of from a shipped file. SHIPPED_CONFIG is what will be trained, so
-    # the guard needs nothing that training produces.
-    expected = E.EmulatorConfig().hidden
-    if SHIPPED_CONFIG.hidden != expected:
-        raise SystemExit(
-            f"refusing to run: the config selected for shipping has "
-            f"hidden={SHIPPED_CONFIG.hidden}, but the package's default architecture "
-            f"is {expected}. The weights file is loaded by emulator.load_default() "
-            "and used by forward(mode='hybrid'), so a different architecture here "
-            "would silently become the shipped model"
-        )
+    # An early, cheap check on the config that is *about* to be trained, so a broken
+    # edit fails in milliseconds and shows up in --dry-run too. It is a convenience,
+    # not the guarantee: the authoritative check is on the emulator actually being
+    # serialised, inside write_weights().
+    check_architecture(SHIPPED_CONFIG, "the config selected for shipping")
 
     batch = L.load_batch()
     splits = L.make_splits(batch)
@@ -127,8 +119,39 @@ def main() -> int:
     return write_weights(emulator, delta, batch, args.out)
 
 
+def check_architecture(config, what: str) -> None:
+    """Raise unless ``config`` is the architecture the package ships.
+
+    Parameters
+    ----------
+    config : robust.rt.emulator.EmulatorConfig
+    what : str
+        How to describe it if the check fails.
+
+    Raises
+    ------
+    SystemExit
+    """
+    expected = E.EmulatorConfig().hidden
+    if config.hidden != expected:
+        raise SystemExit(
+            f"refusing to write: {what} has hidden={config.hidden}, but the "
+            f"package's default architecture is {expected}. The weights file is "
+            "loaded by emulator.load_default() and used by forward(mode='hybrid'), "
+            "so a different architecture here would silently become the shipped model"
+        )
+
+
 def write_weights(emulator, delta, batch, out: Path) -> int:
     """Validate the weights **before** they can replace a known-good file.
+
+    **The architecture is checked here, on the emulator being serialised**, and not
+    only on the module-level ``SHIPPED_CONFIG`` up in :func:`main`. Checking the
+    constant alone was the shape this took after PR #11 and it was caught in PR #12:
+    it verifies a *proxy* for what gets written rather than the thing itself, so a
+    training loop that passed some other config while the constant still read
+    ``EmulatorConfig()`` would sail through. The rule this restores is that a guard
+    belongs next to the artefact it guards.
 
     The round-trip check below is the only thing standing between a broken
     serialisation and a silently wrong shipped model, so it has to run on a file
@@ -156,6 +179,7 @@ def write_weights(emulator, delta, batch, out: Path) -> int:
     int
         Process exit status: 0 if the round-trip reproduced the correction.
     """
+    check_architecture(emulator.config, "the emulator about to be written")
     out.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=out.parent, prefix=out.stem, suffix=".npz")
     os.close(fd)

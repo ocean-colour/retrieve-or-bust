@@ -1352,13 +1352,14 @@ The notebook also demonstrates the two gradient traps live, side by side: O25's
 between nodes (45°), and its `B_p` derivative reads exactly 0 because the model
 genuinely ignores the phase function.
 
-### 6.9 The review pass (task 5) — no open PR, so a self-review
+### 6.9 The review pass (task 5)
 
-PR #11 was **merged** on 2026-08-05 and its two Bugbot findings were fixed during M3's
-task 4 (§5.6b). No PR is open, and every commit after `6dcaf63` — which is all of M4 —
-has therefore never been seen by an automated reviewer. So task 5 is a self-review of
-`git diff 6dcaf63..HEAD`, run adversarially against the model code, the tests, the
-scripts and the artefacts. Findings, all confirmed by reproduction before being fixed,
+Two rounds. **PR #11** was merged on 2026-08-05 with its findings fixed during M3's
+task 4 (§5.6b), leaving every commit after `6dcaf63` — all of M4 — unreviewed, so the
+first round was a self-review of that diff, run adversarially against the model code,
+the tests, the scripts and the artefacts. **PR #12** then opened on the finished M4 work
+and Bugbot reviewed it; its single finding is §6.9's last entry, and it is about one of
+the fixes the self-review had just made. Findings, all confirmed by reproduction before being fixed,
 and each now pinned by a regression test proven to fail when the fix is reverted:
 
 1. **High — a slightly off-nadir view passed the domain check while the emulator's
@@ -1445,6 +1446,31 @@ passes a score-comparison gate. True of the gate — but mutating `fit` to train
 held-out scenes fails **six** tests, four of them the `test_emulator.py` checks that pin
 the standardisation statistics and the domain to the *train* rows. The protection lives
 upstream of the gate, which is the right place for it.
+
+**PR #12 — Bugbot, on a fix the self-review had just made.** Finding 11 above moved
+`train_emulator.py`'s architecture guard from *after* training (where it inspected the
+trained emulator) to *before* it (where it inspects the module constant
+`SHIPPED_CONFIG`), to fail in milliseconds and to cover `--dry-run`. Bugbot pointed out
+what that traded away: the guard now validates a **proxy** for the artefact rather than
+the artefact. A training loop that passed some other config while the constant still
+read `EmulatorConfig()` would write weights whose architecture does not match
+`load_default()`. Correct, and a regression I introduced while fixing something else.
+
+Both properties are now kept: `check_architecture()` runs early on `SHIPPED_CONFIG` for
+fast failure and `--dry-run` coverage, **and** inside `write_weights()` on the emulator
+actually being serialised. Demonstrated: with the constant untouched and the loop
+handing over a linear emulator, the early check passes and `write_weights` refuses,
+leaving the destination byte-identical and no temporary file behind, while a
+correct-architecture emulator still writes. The durable half remains
+`test_packaged_weights_are_the_default_architecture`, which checks the committed file
+however it was produced.
+
+**The class, stated once**: a guard belongs next to the artefact it guards, and must
+inspect the artefact rather than a stand-in for it. The repo's other guards were checked
+against that rule and hold — `write_fixture` loads its snapshot back through the real
+reader, `emulator.load` compares the file's own recorded feature list, the packaged-
+weights test reads the committed file, and `run_validation.py`'s `--quick` refusal
+inspects the actual arguments.
 
 **A cross-check worth keeping.** §6.2's table is now verified against `metrics.csv`
 programmatically rather than by eye, which is how finding 3 surfaced at all.

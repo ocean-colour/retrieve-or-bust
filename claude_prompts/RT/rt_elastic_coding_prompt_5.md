@@ -424,6 +424,39 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-07 (M4 task 5, second round — PR #12, on a fix I had just made)
+
+**PR #12 is open** on the finished M4 work, at exactly our HEAD (`e552295`), and Bugbot
+found **one Medium issue** — in `train_emulator.py`, on a change the self-review had made
+two days earlier. Fixed, demonstrated, recorded in §6.9. Suite **279 passed**, ruff clean.
+
+**The finding.** My earlier fix moved the architecture guard from *after* training, where
+it inspected the trained emulator, to *before* it, where it inspects the module constant
+`SHIPPED_CONFIG` — so that it fails in milliseconds instead of after two minutes and so
+`--dry-run` exercises it. Bugbot pointed out what that traded away: **the guard now
+validates a proxy for the artefact rather than the artefact**. If a training loop ever
+passed a different config while the constant still read `EmulatorConfig()`, the script
+would write weights whose architecture does not match `load_default()`. Correct, and a
+regression I introduced while fixing something else — the second time this milestone that
+one of my fixes became the next finding.
+
+**Both properties are now kept**: `check_architecture()` runs early on the constant *and*
+inside `write_weights()` on the emulator actually being serialised. Demonstrated with the
+exact scenario reported — constant untouched, loop handing over a linear emulator: the
+early check passes, `write_weights` refuses, the destination stays byte-identical, no
+temporary file survives, and a correct-architecture emulator still writes.
+
+**The class, and a sweep for it.** A guard belongs next to the artefact it guards and must
+inspect the artefact, not a stand-in. I checked the repo's other guards against that rule
+and they hold: `write_fixture` loads its snapshot back through the real reader,
+`emulator.load` compares the file's own recorded feature list, the packaged-weights test
+reads the committed file, and `run_validation.py`'s `--quick` refusal inspects the actual
+arguments. No second instance to fix.
+
+What I take from it: "fail faster" is a real improvement, but it is not free, and I traded
+a correctness property for it without noticing. The tell was available at the time —
+the check stopped naming the object it was protecting.
+
 ### 2026-08-07 (new 5th prompt — a section defining O25 and reminding what the hybrid is)
 
 **Added §1 "The two models being compared, defined"** to
