@@ -31,6 +31,7 @@ lands with M2 rather than being written twice.
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from functools import partial
 
@@ -198,6 +199,14 @@ def bp_bin_labels(
         Bin index per sample, shape ``(n_sample,)``.
     edges : numpy.ndarray
         The ``n_bins + 1`` bin edges, so a table can name the range it is reporting.
+
+    Notes
+    -----
+    "Equal count" holds only when the values are mostly distinct. Heavy ties collapse
+    quantile edges and can leave a bin empty — with 40% of samples sharing the
+    minimum, the counts come out ``[0, 40, 30, 30]``, and identical values put
+    everything in the last bin. L23 is well behaved here (exactly 2490 per bin on the
+    full batch), but check the counts before reading a per-bin table from other data.
     """
     values = np.asarray(B_p)
     if values.ndim > 1:
@@ -238,6 +247,8 @@ def throughput(model, *args, repeats: int = 5) -> tuple[float, float]:
     reproduces. The compile is deliberately outside the timed region: it is paid once
     per process, and including it would measure XLA rather than the model.
     """
+    if repeats < 1:
+        raise ValueError(f"throughput: repeats must be >= 1; got {repeats}")
     compiled = jax.jit(model)
     out = compiled(*args)
     out.block_until_ready()
@@ -269,7 +280,10 @@ def gradient_report(
         ``model(iops, phase_params, geometry, wave) -> Array``.
     iops, phase_params, geometry, wave
         A **small** batch — a few samples is plenty, and each variable costs two
-        extra forward passes.
+        extra forward passes. The geometry is carried through intact apart from
+        ``theta_s``: an earlier version rebuilt it with ``Geometry.nadir``, silently
+        discarding the caller's ``theta_v``/``dphi``, which would have certified the
+        gradient at the wrong geometry the moment M5 goes off-nadir.
     steps : dict, optional
         Per-variable finite-difference step. Defaults to :data:`FD_STEPS`.
 
@@ -300,6 +314,14 @@ def gradient_report(
     gradient.
     """
     steps = dict(FD_STEPS if steps is None else steps)
+    if set(steps) != set(FD_STEPS):
+        # A missing key used to raise KeyError deep inside the closure; an extra one
+        # was worse -- it reported 0.0, i.e. "perfect agreement", for a variable that
+        # is never perturbed at all.
+        raise ValueError(
+            f"gradient_report: steps must name exactly {sorted(FD_STEPS)}; "
+            f"got {sorted(steps)}"
+        )
     a0, bb_w0, bb_p0 = iops.a, iops.bb_w, iops.bb_p
     B_p0, theta0 = phase_params.B_p, geometry.theta_s
 
@@ -313,7 +335,7 @@ def gradient_report(
                     a=a0 + offsets["a"], bb_w=bb_w0, bb_p=bb_p0 + offsets["bb_p"]
                 ),
                 types.PhaseParams(B_p=B_p0 + offsets["B_p"]),
-                types.Geometry.nadir(theta0 + offsets["theta_s"]),
+                dataclasses.replace(geometry, theta_s=theta0 + offsets["theta_s"]),
                 wave,
             )
         )

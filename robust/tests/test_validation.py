@@ -27,7 +27,9 @@ bitwise equality the wrong instrument.
 
 from __future__ import annotations
 
+import csv
 import warnings
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -248,14 +250,22 @@ def test_score_models_slices_one_evaluation_per_model():
     """
     rng = np.random.default_rng(4)
     truth = jnp.asarray(rng.uniform(1e-3, 2e-2, (10, 3)))
-    models = {"a": truth * 1.01, "b": truth * 0.98}
-    masks = {"all": np.ones(10, dtype=bool), "half": np.arange(10) < 5}
+    # The error must DIFFER between the halves, or the test cannot tell slicing from
+    # not slicing: with a uniform relative error every subset scores identically, and
+    # a `score_models` that ignored `masks` entirely used to pass this.
+    factor = np.where(np.arange(10) < 5, 1.01, 1.05)[:, None]
+    models = {"a": truth * jnp.asarray(factor), "b": truth * 0.98}
+    masks = {"all": np.ones(10, dtype=bool), "first half": np.arange(10) < 5}
 
     table = V.score_models(models, truth, masks)
 
     assert set(table) == {"a", "b"}
-    assert table["a"]["all"] == pytest.approx(1.0, rel=1e-4)  # a uniform +1% error
-    assert table["b"]["half"] == pytest.approx(2.0, rel=1e-4)
+    assert table["a"]["first half"] == pytest.approx(1.0, rel=1e-4)  # +1% there
+    assert table["a"]["all"] == pytest.approx(
+        100 * np.sqrt(np.mean((factor - 1.0) ** 2)), rel=1e-4
+    )  # ... and +1%/+5% pooled, which differs from either half
+    assert table["a"]["all"] > 1.5 * table["a"]["first half"]
+    assert table["b"]["all"] == pytest.approx(2.0, rel=1e-4)
 
 
 def test_markdown_table_formats_numbers_and_headers():
@@ -428,14 +438,31 @@ def test_unknown_out_of_domain_policy_raises():
 # what is reproducible. The full-data numbers live in design/validation/.
 
 
+#: Steps for the committed gate fit. 400 was not enough: measured across seeds
+#: {23, 1, 7, 101, 2024} the hybrid then scored 0.454-0.575% against O25's 0.578%, so
+#: the worst seed passed by **0.6%** — the gate was very nearly seed luck. At 800 the
+#: range is 0.376-0.419%, a 27% margin, and every seed clears `0.9 * O25`.
+GATE_STEPS = 800
+
+
 @pytest.fixture(scope="module")
 def gate_fit(l23_small_batch):
-    """One toy fit on the fixture's train split, shared by the gate tests."""
+    """One toy fit on the fixture's train split, shared by the gate tests.
+
+    Module-scoped for speed, which makes it sensitive to something subtle: JAX's x64
+    flag is global and the ``jax_x64`` fixture is function-scoped, so whichever test
+    instantiates this first decides the dtype it trains in — measured 0.5468% in
+    float32 against 0.5628% in float64, which is half of the gate's margin. The
+    gradient test therefore trains its **own** emulator rather than sharing this one,
+    so no test order can change what the gate is measuring.
+    """
     from robust.rt.data import l23
 
     splits = l23.make_splits(l23_small_batch)
     emulator, _ = E.fit_l23(
-        l23_small_batch, splits, config=E.EmulatorConfig(steps=400, eval_every=100)
+        l23_small_batch,
+        splits,
+        config=E.EmulatorConfig(steps=GATE_STEPS, eval_every=200),
     )
     return emulator, splits
 
@@ -463,13 +490,18 @@ def test_gate_hybrid_beats_o25_on_the_held_out_scenes(gate_scores):
     O25 refit on our own training split is a far harder target than standard
     Gordon: on the full batch it reaches 0.69% against Gordon's 7.21%, so a
     milestone gated on Gordon would pass while losing to the actual state of the
-    art. Measured on the fixture with a 400-step toy fit: hybrid ~0.53% against
-    O25's ~0.9%.
+    art.
+
+    **The assertion demands a margin, not a hair.** On the fixture O25 scores 0.578%
+    and the hybrid 0.376-0.419% across five seeds, so 10% of headroom is comfortable
+    at every seed — where an earlier 400-step version left the worst seed passing by
+    0.6%, i.e. by luck. A 3% shrink of the learned correction used to pass; the
+    margin now makes that fail.
     """
     scores = {name: row["held_out"] for name, row in gate_scores.items()}
-    assert scores["hybrid"] < scores["o25"], (
+    assert scores["hybrid"] < 0.9 * scores["o25"], (
         f"hybrid {scores['hybrid']:.3f}% did not beat the O25 refit "
-        f"{scores['o25']:.3f}% on the held-out scenes"
+        f"{scores['o25']:.3f}% by the required 10% margin on the held-out scenes"
     )
 
 
@@ -485,7 +517,7 @@ def test_gate_hybrid_beats_gordon_and_the_backbone(gate_scores):
     assert scores["hybrid"] < scores["ztt"]
 
 
-def test_gate_gradient_correctness(jax_x64, l23_small_batch, gate_fit):
+def test_gate_gradient_correctness(jax_x64, l23_small_batch):
     """**THE GATE, second half.** ``jax.grad`` of the full hybrid matches central
     differences on every input.
 
@@ -494,8 +526,17 @@ def test_gate_gradient_correctness(jax_x64, l23_small_batch, gate_fit):
     O25's table nodes, so the same harness can score every model without landing
     on a lookup kink.
     """
-    emulator, _ = gate_fit
+    from robust.rt.data import l23
+
     batch = l23_small_batch
+    # Its own emulator, not the module-scoped ``gate_fit``: this test enables x64, and
+    # sharing the fixture would mean the gate's numbers depended on test order. A
+    # short fit is plenty -- what is under test is the gradient, not the accuracy.
+    emulator, _ = E.fit_l23(
+        batch,
+        l23.make_splits(batch),
+        config=E.EmulatorConfig(steps=100, eval_every=100),
+    )
     rows = np.where(batch.zenith == 30.0)[0][:3]
     f64 = lambda x: jnp.asarray(np.asarray(x)[rows], dtype=jnp.float64)  # noqa: E731
 
@@ -511,6 +552,17 @@ def test_gate_gradient_correctness(jax_x64, l23_small_batch, gate_fit):
 
     for name, value in report.items():
         assert value < V.GRADIENT_TOL, f"d/d{name} disagrees by {value:.2e}"
+
+    # And every variable must actually be exercised. `gradient_report` reports 0.0
+    # when both derivatives are exactly zero, which is right for a model that ignores
+    # a variable (O25 and `B_p`) — but it would also hide a perturbation that was
+    # never applied, letting a wiring bug read as perfect agreement. The hybrid
+    # depends on all four, so all four must be non-zero here.
+    for name, value in report.items():
+        assert value > 0.0, (
+            f"d/d{name} reported exactly 0.0 for a model that depends on it — the "
+            "perturbation was probably never applied"
+        )
 
 
 def test_the_zenith_half_is_reported_not_gated(l23_small_batch):
@@ -550,3 +602,245 @@ def test_the_zenith_half_is_reported_not_gated(l23_small_batch):
     # The fallback is inert at 60 deg: identical output, and nothing flagged.
     np.testing.assert_array_equal(np.asarray(plain), np.asarray(fallback))
     assert int(np.asarray(emulator.out_of_domain_mask(*args)).sum()) == 0
+
+
+# ------------------------------------------- the committed artefacts (task 3) --
+
+
+ARTEFACTS = Path(__file__).resolve().parents[2] / "design" / "validation"
+
+
+@pytest.mark.parametrize(
+    ("name", "columns"),
+    [
+        ("metrics.csv", ["model", "split", "rrms_percent"]),
+        ("rrms_per_wavelength.csv", None),
+    ],
+)
+def test_committed_csvs_parse_to_their_promised_columns(name, columns):
+    """The artefacts must survive ``csv.DictReader`` with the header they advertise.
+
+    Found by review, and worth a permanent test because the failure was **silent**.
+    The first version of ``run_validation.py`` joined fields with commas by hand, and
+    the model names contain commas — "O25 form, refit on L23", "hybrid, MLP". So
+    ``metrics.csv`` carried four fields under a three-field header, and the ladder's
+    header expanded seven model names into ten columns: a consumer would have
+    mis-labelled every column without anything raising. Writing through :mod:`csv`
+    fixes it; this pins that nobody hand-joins one again.
+    """
+    path = ARTEFACTS / name
+    if not path.is_file():
+        pytest.skip(f"artefact not generated: {path}")
+
+    with path.open(newline="") as handle:
+        rows = list(csv.reader(handle))
+
+    header, body = rows[0], rows[1:]
+    assert body, "artefact has a header but no data"
+    if columns is not None:
+        assert header == columns
+    # Every row must have exactly as many fields as the header promises. This is the
+    # assertion the hand-joined version failed.
+    for i, row in enumerate(body, start=2):
+        assert len(row) == len(header), (
+            f"{name} line {i}: {len(row)} fields against a {len(header)}-field header"
+        )
+
+
+def test_the_per_wavelength_ladder_aggregates_to_the_scalar_table():
+    """Each ladder column must RMS back to its scalar in ``metrics.csv``.
+
+    **This is the test that catches a stale artefact**, and it needs no trust in the
+    model code at all — it is a pure internal-consistency check between two files
+    written by the same run: since rRMS is a root-mean-square over samples and
+    wavelengths, RMS-ing a per-λ column reproduces the pooled scalar exactly.
+
+    Worth having because it already would have paid: a ladder CSV sat committed whose
+    Gordon column aggregated to 9.57% against the table's 7.21% — a stale run that no
+    other check noticed, and that made the committed figure overstate Gordon's blue-end
+    error by ~2x.
+    """
+    metrics, ladder = ARTEFACTS / "metrics.csv", ARTEFACTS / "rrms_per_wavelength.csv"
+    if not (metrics.is_file() and ladder.is_file()):
+        pytest.skip("artefacts not generated")
+
+    with metrics.open(newline="") as handle:
+        scalars = {
+            row["model"]: float(row["rrms_percent"])
+            for row in csv.DictReader(handle)
+            if row["split"] == "held-out scenes"
+        }
+    with ladder.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    for model, scalar in scalars.items():
+        column = np.array([float(row[model]) for row in rows])
+        pooled = float(np.sqrt((column**2).mean()))
+        # rtol 1e-3: both sides are stored to four decimals, so their own rounding
+        # dominates; a stale column is out by tens of percent, not tenths.
+        assert pooled == pytest.approx(scalar, rel=1e-3), (
+            f"{model}: ladder aggregates to {pooled:.4f}% but metrics.csv says "
+            f"{scalar:.4f}% — one of the two artefacts is stale"
+        )
+
+
+def test_committed_metrics_agree_between_the_two_csvs():
+    """The model names in `metrics.csv` are exactly the ladder's data columns.
+
+    A cheap consistency check across two artefacts written by the same run: if they
+    ever disagree, one of them was regenerated and the other was not, and a reader
+    comparing them would be comparing different fits.
+    """
+    metrics, ladder = ARTEFACTS / "metrics.csv", ARTEFACTS / "rrms_per_wavelength.csv"
+    if not (metrics.is_file() and ladder.is_file()):
+        pytest.skip("artefacts not generated")
+
+    with metrics.open(newline="") as handle:
+        models = {row["model"] for row in csv.DictReader(handle)}
+    with ladder.open(newline="") as handle:
+        columns = set(next(csv.reader(handle))[1:])
+
+    assert models == columns, (
+        f"only in metrics: {models - columns}; only in ladder: {columns - models}"
+    )
+
+
+# ------------------------------------ regressions found in the M4 review pass --
+
+
+def test_a_slightly_off_nadir_view_is_flagged(l23_small_batch):
+    """**Regression.** A view angle the emulator never saw must be reported.
+
+    Found reviewing the M4 diff, and the worst kind of bug: silent. ``cos_theta_v``
+    is constant in L23, so its trained span is zero — and the domain check used to
+    scale the excursion by the feature's own *value*, making 5° of sensor zenith a
+    0.4% excursion and therefore "in domain". Meanwhile the standardisation divides
+    the same excursion by ``_STD_FLOOR``, so the network saw **-3.8e5**, every
+    ``tanh`` saturated, and the correction collapsed from a spectrum spanning
+    [-0.10, +0.27] to a flat **+0.046 at all 81 wavelengths** — with no warning and
+    no fallback. Both now divide by the same number, so the check measures the
+    excursion in the units the network actually sees.
+    """
+    batch = l23_small_batch
+    emulator = E.load_default()
+    zeros = jnp.zeros_like(batch.geometry.theta_s)
+
+    def at_view(theta_v):
+        geometry = Geometry(
+            theta_s=batch.geometry.theta_s,
+            theta_v=jnp.full_like(batch.geometry.theta_s, theta_v),
+            dphi=zeros,
+        )
+        return (batch.iops, batch.phase_params, geometry, batch.wave)
+
+    # Nadir is what L23 contains, and must stay clean.
+    assert emulator.out_of_domain(*at_view(0.0)) == {}
+    assert int(np.asarray(emulator.out_of_domain_mask(*at_view(0.0))).sum()) == 0
+
+    # Half a degree off is already outside anything it was trained on.
+    for theta_v in (0.5, 5.0):
+        breaches = emulator.out_of_domain(*at_view(theta_v))
+        assert "cos_theta_v" in breaches, f"theta_v={theta_v} went unreported"
+        assert int(
+            np.asarray(emulator.out_of_domain_mask(*at_view(theta_v))).sum()
+        ) == (batch.n_sample)
+
+
+def test_the_two_domain_predicates_agree_on_non_finite_input(l23_small_batch):
+    """**Regression.** A NaN input must be out of domain for *both* implementations.
+
+    ``out_of_domain`` and ``out_of_domain_mask`` are two implementations of one
+    predicate, and NaN made them disagree: ``excess > tol`` is False for NaN, so the
+    traceable mask — the one the fallback policy acts on — answered "in domain" while
+    the host check answered "out". A single NaN in ``a`` is exactly what an inversion
+    overshoot produces, so this is the path that mattered. The mask now negates the
+    in-range test instead, which sends NaN to ``True``.
+    """
+    batch = l23_small_batch
+    emulator = E.load_default()
+    a = np.asarray(batch.iops.a).copy()
+    a[0, 0] = np.nan
+    args = (
+        IOPs(a=jnp.asarray(a), bb_w=batch.iops.bb_w, bb_p=batch.iops.bb_p),
+        batch.phase_params,
+        batch.geometry,
+        batch.wave,
+    )
+
+    breaches = emulator.out_of_domain(*args)
+    assert "log10_u" in breaches
+    assert not np.isfinite(breaches["log10_u"].excess)  # reported, not "nan% of span"
+    assert int(np.asarray(emulator.out_of_domain_mask(*args)).sum()) == 1
+
+
+def test_gradient_report_keeps_the_callers_geometry(jax_x64):
+    """**Regression.** Only ``theta_s`` is perturbed; the rest of the geometry stands.
+
+    An earlier version rebuilt the geometry with ``Geometry.nadir``, silently
+    discarding ``theta_v`` and ``dphi``. Harmless on nadir-only L23 — and exactly the
+    kind of thing that would certify a gradient at the wrong geometry the moment M5
+    goes off-nadir. A spy model records what it was actually called with.
+    """
+    iops, phase, _, wave = synthetic(n_sample=3)
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+    seen = []
+
+    def spy(i, p, g, w):
+        seen.append((float(np.asarray(g.theta_v)[0]), float(np.asarray(g.dphi)[0])))
+        return B.rrs_gordon(i, p, g, w)
+
+    V.gradient_report(
+        spy,
+        IOPs(a=f64(iops.a), bb_w=f64(iops.bb_w), bb_p=f64(iops.bb_p)),
+        PhaseParams(B_p=f64(phase.B_p)),
+        Geometry(
+            theta_s=jnp.full((3,), 30.0, dtype=jnp.float64),
+            theta_v=jnp.full((3,), 30.0, dtype=jnp.float64),
+            dphi=jnp.full((3,), 90.0, dtype=jnp.float64),
+        ),
+        f64(wave),
+    )
+
+    assert seen, "the model was never called"
+    assert set(seen) == {(30.0, 90.0)}, f"geometry was altered: {set(seen)}"
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [{"a": 1e-6}, {**V.FD_STEPS, "bb_w": 1e-9}],
+    ids=["missing-a-variable", "an-extra-variable"],
+)
+def test_gradient_report_rejects_a_steps_dict_it_cannot_honour(jax_x64, steps):
+    """**Regression.** A wrong ``steps`` dict raises instead of misreporting.
+
+    A missing key used to raise ``KeyError`` from deep inside a closure. The extra
+    key was worse: it reported **0.0** — "perfect agreement" — for a variable the
+    function never perturbs at all.
+    """
+    iops, phase, geometry, wave = synthetic(n_sample=3)
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+
+    with pytest.raises(ValueError, match="steps must name exactly"):
+        V.gradient_report(
+            lambda i, p, g, w: B.rrs_gordon(i, p, g, w),
+            IOPs(a=f64(iops.a), bb_w=f64(iops.bb_w), bb_p=f64(iops.bb_p)),
+            PhaseParams(B_p=f64(phase.B_p)),
+            geometry,
+            f64(wave),
+            steps=steps,
+        )
+
+
+def test_throughput_rejects_zero_repeats():
+    """``repeats=0`` raises instead of dividing by zero."""
+    iops, phase, geometry, wave = synthetic()
+
+    with pytest.raises(ValueError, match="repeats must be >= 1"):
+        V.throughput(
+            lambda i, p, g, w: B.rrs_gordon(i, p, g, w),
+            iops,
+            phase,
+            geometry,
+            wave,
+            repeats=0,
+        )

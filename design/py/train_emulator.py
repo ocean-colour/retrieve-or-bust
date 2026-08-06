@@ -44,6 +44,10 @@ from robust.rt.data import l23 as L  # noqa: E402
 BASELINE = "linear baseline"
 SHIPPED = "MLP"
 
+#: The configuration that actually gets shipped. Named so the architecture guard in
+#: :func:`main` can check it *before* training rather than after.
+SHIPPED_CONFIG = E.EmulatorConfig()
+
 
 def report(truth, pred, mask, label: str) -> float:
     """Print and return rRMS on one mask."""
@@ -61,6 +65,20 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Check the architecture up front rather than after two minutes of fitting -- and
+    # before the --dry-run exit, so a maintainer who breaks this finds out from a dry
+    # run instead of from a shipped file. SHIPPED_CONFIG is what will be trained, so
+    # the guard needs nothing that training produces.
+    expected = E.EmulatorConfig().hidden
+    if SHIPPED_CONFIG.hidden != expected:
+        raise SystemExit(
+            f"refusing to run: the config selected for shipping has "
+            f"hidden={SHIPPED_CONFIG.hidden}, but the package's default architecture "
+            f"is {expected}. The weights file is loaded by emulator.load_default() "
+            "and used by forward(mode='hybrid'), so a different architecture here "
+            "would silently become the shipped model"
+        )
+
     batch = L.load_batch()
     splits = L.make_splits(batch)
     truth = C.Rrs_to_rrs(batch.Rrs)
@@ -77,7 +95,7 @@ def main() -> int:
     # collected into a dict keyed by name -- SHIPPED, below, then names what is
     # written rather than inheriting whatever the loop left in scope.
     trained = {}
-    for label, config in ((BASELINE, E.LINEAR_CONFIG), (SHIPPED, None)):
+    for label, config in ((BASELINE, E.LINEAR_CONFIG), (SHIPPED, SHIPPED_CONFIG)):
         t0 = time.perf_counter()
         emulator, history = E.fit_l23(batch, splits, config=config, rrs_ztt=rrs_ztt)
         elapsed = time.perf_counter() - t0
@@ -106,15 +124,6 @@ def main() -> int:
         return 0
 
     emulator, delta = trained[SHIPPED]
-    expected = E.EmulatorConfig().hidden
-    if emulator.config.hidden != expected:
-        raise SystemExit(
-            f"refusing to write {args.out}: the emulator selected for shipping has "
-            f"hidden={emulator.config.hidden}, but the package's default architecture "
-            f"is {expected}. The weights file is loaded by "
-            "emulator.load_default() and used by forward(mode='hybrid'), so a "
-            "different architecture here would silently become the shipped model"
-        )
     return write_weights(emulator, delta, batch, args.out)
 
 

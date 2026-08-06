@@ -15,14 +15,19 @@ Usage
 Requires ``$OS_COLOR`` (the L23 netCDFs) and the ``ocean14`` environment. Takes a few
 minutes: each emulator fit is ~60 s and the zenith study fits one per seed.
 
-Outputs are written via a temporary file and moved into place only once complete, so
-an interrupted run cannot leave a half-written table behind that a later reader would
-mistake for results (the rule this repo adopted after PR #11).
+Every output is written to a temporary file and moved into place only once complete, so
+an interrupted run cannot leave a half-written table or figure behind that a later
+reader would mistake for results (the rule this repo adopted after PR #11). Note the
+limit of that guarantee: each *file* lands atomically, but the five are replaced one
+after another, so a run killed midway can leave a new table beside an older figure.
+The aggregation check in ``test_validation.py`` is what notices if that happens.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import os
 import sys
 import tempfile
@@ -58,6 +63,34 @@ GRADIENT_CHECK_ZENITH = 45.0
 #: white, so every series is directly labelled rather than identified by a swatch.
 INK, INK_MUTED, GRID = "#1a1a1a", "#5c5c5c", "#dcdcdc"
 C_A, C_B, C_C, MUTED = "#0072B2", "#D55E00", "#56B4E9", "#9a9a9a"
+
+
+def save_figure_atomically(fig, path: Path) -> None:
+    """Render a figure to a temporary file, then move it into place.
+
+    Same rule as the tables: ``savefig`` straight to the destination would leave a
+    truncated PNG if the process died mid-write, and a corrupt figure in a committed
+    directory is worse than a missing one.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+    path : pathlib.Path
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent, prefix=path.stem, suffix=path.suffix
+    )
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        fig.savefig(tmp)
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def make_figures(out_dir: Path, wave, per_lambda: dict, zenith_rows: list) -> None:
@@ -124,7 +157,7 @@ def make_figures(out_dir: Path, wave, per_lambda: dict, zenith_rows: list) -> No
         ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.94))
-    fig.savefig(out_dir / "rrms_per_wavelength.png")
+    save_figure_atomically(fig, out_dir / "rrms_per_wavelength.png")
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(8.6, 4.4))
@@ -166,7 +199,7 @@ def make_figures(out_dir: Path, wave, per_lambda: dict, zenith_rows: list) -> No
         ha="left",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.88))
-    fig.savefig(out_dir / "unseen_zenith.png")
+    save_figure_atomically(fig, out_dir / "unseen_zenith.png")
     plt.close(fig)
 
 
@@ -189,6 +222,29 @@ def write_atomically(path: Path, text: str) -> None:
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def write_csv_atomically(path: Path, header: list[str], rows: list[list[str]]) -> None:
+    """Write a CSV through :mod:`csv`, so the quoting is not our problem.
+
+    The first version of this joined fields with commas by hand, and the model names
+    contain commas — "O25 form, refit on L23", "hybrid, MLP". The result parsed, and
+    parsed *wrongly*: `metrics.csv` had four fields where its header promised three,
+    and the ladder's header expanded seven model names into ten columns, so any
+    consumer would have silently mis-labelled every column. Nothing crashed, which is
+    what made it worth fixing properly rather than renaming the models.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+    header : list of str
+    rows : list of list of str
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(header)
+    writer.writerows(rows)
+    write_atomically(path, buffer.getvalue())
 
 
 def build_models(batch, splits, *, steps: int, seed: int):
@@ -263,7 +319,22 @@ def main() -> int:
     args_cli = parser.parse_args()
     steps = 300 if args_cli.quick else E.EmulatorConfig().steps
 
-    batch = L.load_batch()
+    if args_cli.quick and args_cli.out == OUT_DIR:
+        # --quick fits for 300 steps instead of 3000. Letting that overwrite the
+        # committed artefacts would leave numbers indistinguishable from real ones
+        # except by being wrong, so it has to be deliberate.
+        raise SystemExit(
+            "refusing --quick with the default --out: it would overwrite the "
+            f"committed artefacts in {OUT_DIR} with short-fit numbers. Pass an "
+            "explicit --out for a smoke test."
+        )
+    try:
+        batch = L.load_batch()
+    except (FileNotFoundError, OSError) as exc:
+        raise SystemExit(
+            "the L23 reference data is not available -- set $OS_COLOR to the "
+            f"directory holding the Hydrolight netCDFs. ({exc})"
+        ) from exc
     splits = L.make_splits(batch)
     truth = C.Rrs_to_rrs(batch.Rrs)
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
@@ -286,6 +357,11 @@ def main() -> int:
 
     lines = ["# M4 validation — the design §6 protocol", ""]
     lines += [
+        f"*Generated by `design/py/run_validation.py`: {steps} Adam steps per "
+        f"emulator fit, seeds {tuple(args_cli.seeds)}"
+        + (", **--quick**" if args_cli.quick else "")
+        + ". Regenerate after any change to the models, the metric or the splits.*",
+        "",
         f"L23 elastic, {batch.n_sample} samples x {batch.n_wave} lambda; "
         f"{int(splits.scene_train.sum())} train / {int(splits.scene_test.sum())} "
         "held-out scenes. rRMS %, in `rrs` space (design §6).",
@@ -419,25 +495,29 @@ def main() -> int:
 
     write_atomically(args_cli.out / "metrics.md", "\n".join(lines) + "\n")
 
-    csv = ["model,split,rrms_percent"]
-    csv += [
-        f"{name},{split},{value:.4f}"
-        for name, scores in table.items()
-        for split, value in scores.items()
-    ]
-    write_atomically(args_cli.out / "metrics.csv", "\n".join(csv) + "\n")
+    write_csv_atomically(
+        args_cli.out / "metrics.csv",
+        ["model", "split", "rrms_percent"],
+        [
+            [name, split, f"{value:.4f}"]
+            for name, scores in table.items()
+            for split, value in scores.items()
+        ],
+    )
 
-    ladder = ["wavelength_nm," + ",".join(models)]
     per_lambda = {
         name: np.asarray(V.rrms_per_wavelength(truth[held], pred[held]))
         for name, pred in models.items()
     }
     wave = np.asarray(batch.wave)
-    ladder += [
-        f"{wave[i]:.1f}," + ",".join(f"{per_lambda[n][i]:.4f}" for n in models)
-        for i in range(len(wave))
-    ]
-    write_atomically(args_cli.out / "rrms_per_wavelength.csv", "\n".join(ladder) + "\n")
+    write_csv_atomically(
+        args_cli.out / "rrms_per_wavelength.csv",
+        ["wavelength_nm", *models],
+        [
+            [f"{wave[i]:.1f}", *(f"{per_lambda[n][i]:.4f}" for n in models)]
+            for i in range(len(wave))
+        ],
+    )
 
     make_figures(args_cli.out, wave, per_lambda, zenith_rows)
 

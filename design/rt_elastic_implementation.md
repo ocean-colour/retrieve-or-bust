@@ -29,7 +29,7 @@ every bump.
 | **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | 🟡 in progress | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | 🟡 code, tests, notebook, review done (tasks 1–4 of 5) | `robust.rt.{emulator,hybrid}` |
-| **M4** | Validation (*prototype done*) | 🟡 models, protocol, gate, notebook done (tasks 1–4 of 6) | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
+| **M4** | Validation (*prototype done*) | 🟡 tasks 1–5 of 6 done; hand-off pending | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 | ⬜ future | — |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **269 passed** (`ocean14`); with
-`$OS_COLOR` unset, **246 passed + 23 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **279 passed** (`ocean14`); with
+`$OS_COLOR` unset, **256 passed + 23 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1192,7 +1192,7 @@ prototype done: every model scored on identical data, per λ / per solar zenith 
 | 2 | `validation.py` protocol + `design/py/run_validation.py` | ✅ done |
 | 3 | Acceptance gate in `test_validation.py`; artefacts committed | ✅ done |
 | 4 | `notebooks/RT/rt_elastic_coding_5.ipynb` — the M4 explainer | ✅ done |
-| 5 | PR-review pass | ⬜ pending |
+| 5 | PR-review pass (self-review; §6.9) | ✅ done |
 | 6 | Prototype hand-off + edit to `rt_elastic_coding_prompt_6.md` | ⬜ pending |
 
 ### 6.2 The headline, and why it is not the one M3 implied
@@ -1262,7 +1262,8 @@ the hybrid's best seed (4.74%), its median (7.75%), ZTT (8.09%) and Gordon (9.01
   `metrics.md`, `metrics.csv`, `rrms_per_wavelength.csv`, and two figures
   (`rrms_per_wavelength.png`, `unseen_zenith.png`).
 - **Tests**: `test_baselines.py` +22 (O25), new `test_validation.py` 20 (the protocol,
-  the policy, and the gate). Suite **269 passed**; **246 passed + 23 skipped** without
+  the policy, the gate, and the review regressions). Suite **279 passed**;
+  **256 passed + 23 skipped** without
   `$OS_COLOR`, which is what CI sees.
 
 ### 6.5 The supported envelope, and a policy that survives `jit`
@@ -1337,6 +1338,103 @@ The notebook also demonstrates the two gradient traps live, side by side: O25's
 `theta_s` derivative disagrees by **7e-1** *on* a table node (30°) and by **2e-10**
 between nodes (45°), and its `B_p` derivative reads exactly 0 because the model
 genuinely ignores the phase function.
+
+### 6.9 The review pass (task 5) — no open PR, so a self-review
+
+PR #11 was **merged** on 2026-08-05 and its two Bugbot findings were fixed during M3's
+task 4 (§5.6b). No PR is open, and every commit after `6dcaf63` — which is all of M4 —
+has therefore never been seen by an automated reviewer. So task 5 is a self-review of
+`git diff 6dcaf63..HEAD`, run adversarially against the model code, the tests, the
+scripts and the artefacts. Findings, all confirmed by reproduction before being fixed,
+and each now pinned by a regression test proven to fail when the fix is reverted:
+
+1. **High — a slightly off-nadir view passed the domain check while the emulator's
+   output was meaningless.** `cos_theta_v` is constant in L23, so its trained span is
+   zero, and the check scaled the excursion by the feature's own *value*: a sensor
+   zenith of 5° looked like a 0.4% excursion, inside `DOMAIN_TOL`. But the
+   standardisation divides the same excursion by `_STD_FLOOR`, so the network saw
+   **−3.8e5**, every `tanh` saturated, and the correction collapsed from a spectrum
+   spanning [−0.10, +0.27] to a **flat +0.046 at all 81 wavelengths** — with no
+   warning and no fallback. The window was 0° < θ_v ≤ 8.1°. Both now divide by
+   `_STD_FLOOR`, so the check measures the excursion in the units the network actually
+   sees. Half a degree off nadir is now flagged; exact nadir (all of L23) stays clean.
+2. **Medium — the two domain predicates disagreed on NaN.** `out_of_domain` (host) and
+   `out_of_domain_mask` (traceable) implement one predicate twice, and `excess > tol`
+   is False for NaN: the mask — the one the fallback policy acts on — answered "in
+   domain" while the host answered "out". A single NaN in `a` is what an inversion
+   overshoot produces, so that was the path that mattered. The mask now negates the
+   in-range test, which sends NaN to `True`, and the host reports non-finite input as
+   `excess = inf` rather than printing "nan% of the trained span".
+3. **Medium — both committed CSVs were silently malformed.** `run_validation.py`
+   joined fields with commas by hand, and the model names contain commas ("O25 form,
+   refit on L23", "hybrid, MLP"). `metrics.csv` carried four fields under a
+   three-field header, and `rrms_per_wavelength.csv`'s header expanded seven model
+   names into ten columns — so a consumer would have mis-labelled every column with
+   nothing raising. Found by trying to *consume* the artefact to cross-check §6.2's
+   table. Now written through :mod:`csv`; two tests assert the committed files parse
+   to their promised columns and that the two agree on the model list.
+4. **Low — `gradient_report` silently replaced the caller's geometry with nadir**,
+   discarding `theta_v`/`dphi`. Harmless on nadir-only L23 and exactly the thing that
+   would certify a gradient at the wrong geometry once M5 goes off-nadir. A spy model
+   pins it.
+5. **Low — `gradient_report`'s `steps` dict.** A missing key raised `KeyError` from
+   inside a closure; an extra key was worse, reporting **0.0** — "perfect agreement" —
+   for a variable that is never perturbed. It now validates the key set.
+   `throughput(repeats=0)` divided by zero and now raises.
+
+A second reviewer, on the tests and scripts, found five more:
+
+6. **High — a committed artefact was stale.** The `standard Gordon` column of
+   `rrms_per_wavelength.csv` aggregated to **9.57%** where `metrics.csv` said
+   **7.21%**, and the figure drawn from it overstated Gordon's blue-end error by ~2×.
+   It was already corrected by this session's regeneration, but nothing would have
+   *noticed*: so the check that found it is now a test —
+   `test_the_per_wavelength_ladder_aggregates_to_the_scalar_table` RMS-es each per-λ
+   column and requires the pooled scalar back. It needs no trust in the model code at
+   all, being pure consistency between two files from one run.
+7. **High (tests) — the gate's margin was seed luck, and its docstring overstated it.**
+   With a 400-step toy fit the hybrid scored 0.454–0.575% across five seeds against
+   O25's 0.578% — the worst seed passing by **0.6%** — while the docstring claimed
+   "~0.53% against O25's ~0.9%". The fit is now 800 steps (0.376–0.419%, a 27%
+   margin) and the assertion demands `hybrid < 0.9 × O25`, so a 3% shrink of the
+   learned correction now fails where it used to pass.
+8. **Medium (tests) — a test named for slicing passed when slicing was removed.**
+   `test_score_models_slices_one_evaluation_per_model`'s fixture models had *uniform*
+   relative error, so every subset scored identically and a `score_models` that
+   ignored `masks` entirely passed. Its models now differ between the halves.
+9. **Medium (tests) — the "0.0 is agreement" rule could hide an unexercised
+   variable.** Finding 5's own fix — reporting 0.0 where a model genuinely ignores a
+   variable — would equally have hidden a perturbation that was never applied: with
+   the `B_p` offset dropped, every gradient test passed, including for ZTT, which does
+   depend on it. The gate now also asserts each report entry is **non-zero** for the
+   hybrid, which depends on all four.
+10. **Medium (test infra) — the gate fixture's dtype depended on test order.** `jax_x64`
+    is function-scoped while `gate_fit` is module-scoped, so whichever test asked first
+    decided whether the emulator trained in float32 or float64 (0.5468% vs 0.5628%,
+    half the old margin). The gradient test now trains its own short fit.
+11. **Low — script guards.** `--quick` silently overwrote the committed artefacts with
+    300-step numbers (now refused unless `--out` is explicit); a missing `$OS_COLOR`
+    produced a raw h5py traceback pointing at a repo-relative path that never existed
+    (now a clean message); the PNGs bypassed the temp-file-then-replace rule the
+    docstring claimed for all outputs (now included, and the docstring notes that the
+    *set* of five files is still not written transactionally); and
+    `train_emulator.py`'s architecture guard fired only after ~2 minutes of fitting and
+    was skipped by `--dry-run` — it now checks the config up front.
+
+Also documented rather than changed: `bp_bin_labels`' "equal count" holds only for
+mostly-distinct values (heavy ties can empty a bin; L23 gives exactly 2490 per bin),
+and `Rrs_o25` with a column-shaped `theta_s` returns a cross product instead of
+raising — outside the documented `Scalar` contract, but worth knowing.
+
+**One reported finding was wrong, and checking mattered.** The review held that nothing
+protects the emulator against train/test contamination, since a contaminated fit still
+passes a score-comparison gate. True of the gate — but mutating `fit` to train on the
+held-out scenes fails **six** tests, four of them the `test_emulator.py` checks that pin
+the standardisation statistics and the domain to the *train* rows. The protection lives
+upstream of the gate, which is the right place for it.
+
+**A cross-check worth keeping.** §6.2's table is now verified against `metrics.csv`
+programmatically rather than by eye, which is how finding 3 surfaced at all.
 
 ## 7. M5 — Beyond week 1
 

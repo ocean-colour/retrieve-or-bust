@@ -236,8 +236,12 @@ comparison rows**, not as PR05/O25.
    your work.
 4. Read this doc. Execute the 4th task — the notebook. Use Fable if you can. Log your
    work.
-5. Read this doc. Execute the 5th task — the PR review. Log your work.
-6. Read this doc. Execute the 6th task — the prototype hand-off. Log your work.
+5. Thanks for the Notebook.  Can you add a section that:
+   - Defines explicitly what O25 is
+   - Reminds the reader what "hybrid" is
+Use Fable if you can. Log your work.
+6. Read this doc. Execute the 5th task — the PR review. Log your work.
+7. Read this doc. Execute the 6th task — the prototype hand-off. Log your work.
 
 ## M4
 
@@ -419,6 +423,112 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-07 (M4 task 5 — the review pass: no open PR, and five real findings)
+
+**PR #11 was merged** on 08-05 and its two findings were already fixed in M3's task 4. No
+PR is open — so, per the task, I reviewed the diff myself. The scope is
+`git diff 6dcaf63..HEAD`: **every commit of M4 has never been seen by an automated
+reviewer**, since #11 was reviewed at `6dcaf63` and everything since is mine.
+
+Suite **278 passed** (255 + 23 skipped without `$OS_COLOR`), ruff clean, record §6.9
+added, counts refreshed, M4 at tasks 1–5 of 6. Five findings, each reproduced before
+being fixed and each now pinned by a regression test **proven to fail when the fix is
+reverted**:
+
+1. **High — a slightly off-nadir view passed the domain check while the emulator's
+   output was meaningless.** `cos_theta_v` is constant in L23, so its trained span is
+   zero, and the check scaled the excursion by the feature's own *value*: 5° of sensor
+   zenith looked like a 0.4% excursion, inside `DOMAIN_TOL`. But the standardisation
+   divides that same excursion by `_STD_FLOOR`, so the network saw **−3.8e5**, every
+   `tanh` saturated, and the correction collapsed from a spectrum spanning [−0.10, +0.27]
+   to a **flat +0.046 at all 81 wavelengths** — no warning, no fallback, for any θ_v in
+   (0°, 8.1°]. Two parts of the same module disagreed about what "outside the domain"
+   means. They now share the denominator, so the check measures the excursion in the
+   units the network actually sees. This is the most useful thing the review found: the
+   domain machinery exists precisely to prevent silent nonsense, and here it was
+   permitting it.
+2. **Medium — the two domain predicates disagreed on NaN.** `out_of_domain` and
+   `out_of_domain_mask` implement one predicate twice, and `excess > tol` is False for
+   NaN — so the *mask*, which the fallback policy acts on, said "in domain" while the
+   host check said "out". A single NaN in `a` is what an inversion overshoot produces.
+3. **Medium — both committed CSVs were silently malformed**, and I found this by trying
+   to *consume* one: I wrote a script to cross-check §6.2's table against `metrics.csv`
+   and it crashed on `float('train')`. The model names contain commas ("O25 form, refit
+   on L23", "hybrid, MLP") and I had joined fields by hand, so `metrics.csv` carried four
+   fields under a three-field header and the ladder's header expanded seven names into
+   ten columns. Nothing raised; a consumer would have mis-labelled every column. Now
+   written through the `csv` module, with tests asserting both files parse to their
+   promised columns.
+4. **Low — `gradient_report` silently replaced the caller's geometry with nadir**,
+   discarding `theta_v`/`dphi`. Invisible on L23; would have certified gradients at the
+   wrong geometry the moment M5 goes off-nadir. A spy model pins it.
+5. **Low — `gradient_report`'s `steps` dict.** A missing key raised from inside a
+   closure; an extra key was worse — it reported **0.0**, "perfect agreement", for a
+   variable that is never perturbed. `throughput(repeats=0)` divided by zero.
+
+**A note on how the first two were found.** I put two Fable reviewers on the diff with
+different lenses (model code; tests and scripts) and told both to probe rather than read,
+and to prove each claim before reporting it. The off-nadir finding came with the measured
+standardised value, the collapsed δ range, and the exact 8.1° boundary — which is why I
+could confirm it in one run rather than arguing about it. I reproduced every finding
+myself before touching the code; two of the reported items I judged docstring-level rather
+than bugs (`bp_bin_labels`' equal-count claim under heavy ties, and `Rrs_o25` returning a
+cross product for a column-shaped `theta_s`) and recorded them as caveats instead.
+
+**The second reviewer (tests and scripts) found five more, and they were about my
+tests rather than my code.** Suite now **279 passed** (256 + 23 skipped); record §6.9
+extended.
+
+6. **A committed artefact was stale and nothing would have noticed.** The Gordon column
+   of `rrms_per_wavelength.csv` aggregated to 9.57% where `metrics.csv` said 7.21%, and
+   the figure drawn from it overstated Gordon's blue-end error by ~2×. My regeneration
+   this session had already corrected it — but silently. So the *check* is now a test:
+   RMS each per-λ column and require the pooled scalar back. It needs no trust in the
+   model code at all, being pure consistency between two files from one run, and it is
+   the kind of test I should have written when I first wrote two artefacts that must
+   agree.
+7. **The gate's margin was seed luck and its docstring overstated it.** At 400 steps the
+   hybrid scored 0.454–0.575% across seeds against O25's 0.578% — the worst seed passing
+   by **0.6%** — while my docstring claimed "~0.53% against O25's ~0.9%". Now 800 steps
+   (0.376–0.419%, a 27% margin) and the assertion demands `hybrid < 0.9 × O25`, so a 3%
+   shrink of the correction fails where it used to pass.
+8. **A test named for slicing passed when slicing was removed.** My
+   `test_score_models_slices_one_evaluation_per_model` used models with *uniform*
+   relative error, so every subset scored identically. Fixed by making the error differ
+   between the halves.
+9. **My own fix from finding 5 opened a hole.** Reporting `0.0` where a model genuinely
+   ignores a variable also hides a perturbation that was never applied — with the `B_p`
+   offset dropped, every gradient test passed, including for ZTT, which does depend on
+   it. The gate now also asserts each entry is non-zero for the hybrid.
+10. **The gate fixture's dtype depended on test order.** `jax_x64` is function-scoped and
+    `gate_fit` module-scoped, so whichever test asked first decided float32 vs float64 —
+    0.5468% vs 0.5628%, half the old margin. The gradient test now trains its own fit.
+11. **Four script guards**: `--quick` silently overwrote the committed artefacts with
+    300-step numbers; a missing `$OS_COLOR` produced a raw h5py traceback naming a
+    repo-relative file that never existed; the PNGs bypassed the temp-file rule the
+    docstring claimed for *all* outputs; and `train_emulator.py`'s architecture guard
+    fired only after two minutes of fitting and was skipped by `--dry-run`. All four
+    fixed and demonstrated.
+
+**One reported finding was wrong, and checking mattered.** The review held that nothing
+protects the emulator against train/test contamination. True of the gate — but mutating
+`fit` to train on the held-out scenes fails **six** tests, four of them the
+`test_emulator.py` checks that pin the standardisation and the domain to the *train*
+rows. The protection lives upstream of the gate, which is where it belongs. I verified
+this by mutation before deciding not to act on the recommendation.
+
+**What I take from this pass.** Findings 7–10 are all mine, all in *tests*, and all of
+the same shape: an assertion that could not fail, or could fail for the wrong reason. The
+code review found two real bugs; the test review found four places where I had written
+something that looked like a check. That asymmetry is worth remembering — I have been
+treating a green suite as evidence, and a green suite is only as good as the weakest
+assertion in it.
+
+One consequence to carry into M5: with the domain fix, **any** off-nadir geometry now
+trips the check, so `on_out_of_domain="ztt"` will fall back to the backbone there. That is
+correct — the emulator has never seen an off-nadir view — and it means the policy starts
+earning its place as soon as M5's HydroLight runs vary the sensor angle.
 
 ### 2026-08-06 (M4 task 4 — the notebook, whose own output caught my throughput claim)
 

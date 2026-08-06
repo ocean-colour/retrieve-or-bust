@@ -158,6 +158,14 @@ FEATURES = (
 #: Guard for the standardisation divisor. A feature that is constant over the
 #: training split has ``x - mean == 0`` exactly, so this floor turns 0/0 into a
 #: clean 0 rather than a NaN.
+#:
+#: **It is also the domain check's denominator for such a feature**, and that is not
+#: a coincidence but the fix for a real bug. Judging a constant feature's excursion
+#: against its own *value* let a sensor zenith of 5 deg pass as "in domain" while the
+#: standardisation — dividing the same excursion by this floor — produced -3.8e5,
+#: saturated every tanh, and collapsed the correction to a flat +0.046 at all 81
+#: wavelengths. The check has to measure the excursion in the units the network
+#: actually sees, so both divide by the same number.
 _STD_FLOOR = 1e-8
 
 #: How far outside its trained range a feature must go before
@@ -615,11 +623,20 @@ class Emulator:
         report = {}
         for j, name in enumerate(FEATURES):
             col = x[..., j]
+            if not np.isfinite(col).all():
+                # A non-finite feature is out of domain by any definition, and saying
+                # so beats reporting "nan% of the trained span".
+                report[name] = DomainBreach(
+                    feature=name,
+                    lo=float(lo[j]),
+                    hi=float(hi[j]),
+                    worst=float("nan"),
+                    fraction=float((~np.isfinite(col)).sum()) / col.size,
+                    excess=float("inf"),
+                )
+                continue
             span = float(hi[j] - lo[j])
-            # A constant feature has zero span (theta_v, dphi in L23); any excursion
-            # from it is total, so measure against the value itself rather than
-            # dividing by zero.
-            scale = span if span > 0.0 else max(abs(float(hi[j])), 1.0)
+            scale = span if span > 0.0 else _STD_FLOOR
             excess = max(float(lo[j] - col.min()), float(col.max() - hi[j])) / scale
             if excess <= tol:
                 continue
@@ -679,11 +696,12 @@ class Emulator:
         x = features(iops, phase_params, geometry, wave)
         lo, hi = _effective_domain(self.domain, theta_s_limits)
         span = hi - lo
-        # Same zero-span guard as out_of_domain: a feature that is constant in the
-        # training data (theta_v, dphi in L23) cannot be scaled by its own span.
-        scale = jnp.where(span > 0.0, span, jnp.maximum(jnp.abs(hi), 1.0))
+        scale = jnp.where(span > 0.0, span, _STD_FLOOR)
         excess = jnp.maximum(lo - x, x - hi) / scale
-        return jnp.any(excess > tol, axis=(-1, -2))
+        # NOT `excess > tol`: a NaN compares False either way, which would have made
+        # this predicate answer "in domain" while out_of_domain answered "out" on the
+        # very same input. Negating the in-range test sends NaN to True in both.
+        return jnp.any(~(excess <= tol), axis=(-1, -2))
 
     def _standardise(
         self, x: Float[Array, "... feature"]
