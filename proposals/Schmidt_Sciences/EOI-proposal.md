@@ -19,7 +19,11 @@ of the 1980s [1]. The two most recent global export estimates have **non-overlap
 **Figure 1.** Independent estimates of the same ocean-carbon quantity disagree by factors of
 2.5–3.5. These empirical spreads, not single-study error bars, are the honest measure of current
 uncertainty: published error bars are in-sample and conversion-only, and so are optimistic lower
-bounds [1–7].
+bounds [1–7]. The hatched first row is a **different kind of quantity** and is marked as such: it
+is the spread of per-sensor validation errors against BGC-Argo — CALIOP 18%, MODIS-GIOP 24%,
+VIIRS 31%, OLCI 45%, all biased low [2] — so its ratio compares product accuracy rather than
+disagreement about bbp itself. Note also that the smallest of those errors belongs to a lidar; among
+the passive sensors alone the span is 24–45%.
 
 This uncertainty is *inherited, not intrinsic*. The retrieval underpinning every global ocean-carbon
 product is ill-posed: reflectance constrains essentially the ratio bb/(a+bb), so ~90% of measured

@@ -110,6 +110,7 @@ class Style:
     fig2_size: tuple[float, float]
     fs_range: float  # the range text set inside each bar (Fig. 1)
     fs_value: float  # the bold "2.5x" labels (Fig. 1)
+    fs_note: float  # the dagger footnote under the bars (Fig. 1)
     fs_tick: float
     fs_axlabel: float
     fs_title: float
@@ -134,6 +135,7 @@ PAPER = Style(
     fig2_size=(7.8, 2.2),
     fs_range=7.8,
     fs_value=9.5,
+    fs_note=6.6,
     fs_tick=8.0,
     fs_axlabel=10.0,
     fs_title=10.0,
@@ -159,6 +161,7 @@ SLIDES = Style(
     fig2_size=(10.0, 4.9),
     fs_range=14.0,
     fs_value=17.0,
+    fs_note=11.0,
     fs_tick=14.5,
     fs_axlabel=16.5,
     fs_title=17.5,
@@ -230,26 +233,63 @@ def _save(fig, name, st):
 
 # ------------------------------------------------------------------ Figure 1 --
 def fig1_problem(st=PAPER):
-    """Factor of disagreement across independent estimates (max / min)."""
-    # (short name, range text, lo, hi, colour) -- from reports/biomass_summary.md
+    """Factor spanned by independent published assessments (max / min).
+
+    **The first row is a different kind of quantity from the other three, and is
+    labelled and drawn to say so.** Rows 2-4 are spreads of independent estimates of
+    the quantity itself, so max/min is literally how much the field disagrees about its
+    value. Row 1 is a spread of *validation error metrics* across satellite products
+    (Bisson et al. 2021: CALIOP 18%, MODIS-GIOP 24%, VIIRS 31%, OLCI 45%, all biased
+    low), so its ratio says one product's median error is 2.5x another's -- a statement
+    about product quality, not about disagreement over bbp. It is kept because the
+    upstream retrieval error is the point of the project, but it is hatched, marked with
+    a dagger, and footnoted so no reader can mistake it for the same measure.
+    """
+    # (short name, range text, lo, hi, colour, is_error_metric)
     items = [
-        ("satellite $b_{bp}$\nacross sensors", "18–45 %", 18, 45, OCEAN),
+        (
+            "satellite $b_{bp}$ †\nmedian error vs BGC-Argo",
+            "18–45 %",
+            18,
+            45,
+            OCEAN,
+            True,
+        ),
         (
             "$C_{phyto}$ global stock\nby conversion choice",
             "218–771 Tg C",
             218,
             771,
             TEAL,
+            False,
         ),
-        ("global NPP\nacross algorithms", "32–79 Gt C yr$^{-1}$", 32, 79, GOLD),
-        ("export flux at 100 m\nacross methods", "5–15 Gt C yr$^{-1}$", 5, 15, RUST),
+        ("global NPP\nacross algorithms", "32–79 Gt C yr$^{-1}$", 32, 79, GOLD, False),
+        (
+            "export flux at 100 m\nacross methods",
+            "5–15 Gt C yr$^{-1}$",
+            5,
+            15,
+            RUST,
+            False,
+        ),
     ]
     fig, ax = plt.subplots(figsize=st.fig1_size)
     ax.spines[:].set_linewidth(st.axes_lw)
     y = np.arange(len(items))[::-1]
 
-    for yi, (_name, rng, lo, hi, c) in zip(y, items):
-        ax.barh(yi, hi / lo - 1.0, left=1.0, color=c, height=0.58, zorder=2)
+    for yi, (_name, rng, lo, hi, c, is_err) in zip(y, items):
+        ax.barh(
+            yi,
+            hi / lo - 1.0,
+            left=1.0,
+            color=c,
+            height=0.58,
+            zorder=2,
+            alpha=0.55 if is_err else 1.0,
+            hatch="///" if is_err else None,
+            edgecolor="white" if is_err else "none",
+            linewidth=0.0,
+        )
         # Range text sits inside the bar, where there is always room for it.
         ax.text(
             1.06,
@@ -258,7 +298,8 @@ def fig1_problem(st=PAPER):
             va="center",
             ha="left",
             fontsize=st.fs_range,
-            color="white",
+            color="white" if not is_err else "#0d3552",
+            fontweight="bold" if is_err else "normal",
             zorder=4,
         )
 
@@ -266,9 +307,9 @@ def fig1_problem(st=PAPER):
     ax.set_xlim(1.0, 4.0)
     fig.canvas.draw()
     pad = _text_w_data(ax, "  3.5×", st.fs_value)
-    ax.set_xlim(1.0, max(hi / lo for _, _, lo, hi, _ in items) + pad)
+    ax.set_xlim(1.0, max(it[3] / it[2] for it in items) + pad)
 
-    for yi, (_name, _rng, lo, hi, _c) in zip(y, items):
+    for yi, (_name, _rng, lo, hi, _c, _e) in zip(y, items):
         ax.text(
             hi / lo + pad * 0.12,
             yi,
@@ -284,14 +325,28 @@ def fig1_problem(st=PAPER):
     ax.set_yticks(y)
     ax.set_yticklabels([it[0] for it in items], fontsize=st.fs_tick)
     ax.tick_params(labelsize=st.fs_tick)
+    # Room beneath the bars for the dagger footnote, inside the axes. Wrapped to two
+    # lines: on one line at slide font sizes it is wider than the axes and drags the
+    # tight bounding box out with it. The per-sensor values live in the caption.
+    ax.set_ylim(-1.55, len(items) - 0.5)
+    ax.text(
+        1.02,
+        -1.02,
+        "†  a ratio of per-sensor validation errors —\n"
+        "not a spread of independent estimates of one quantity",
+        ha="left",
+        va="center",
+        fontsize=st.fs_note,
+        color="0.42",
+        linespacing=1.35,
+    )
     ax.set_xlabel(
-        "factor by which independent estimates of the same quantity disagree "
-        "(max ÷ min)",
+        "factor spanned by independent published assessments  (max ÷ min)",
         fontsize=st.fs_axlabel,
     )
     ax.set_title(
         "We do not know the ocean's carbon stocks or fluxes to better "
-        "than a factor of 2.5–3.5",
+        "than a factor of ~3",
         fontsize=st.fs_title,
         fontweight="bold",
         pad=st.title_pad,
