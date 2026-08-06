@@ -188,8 +188,16 @@ def o25_coefficients(
     clamps rather than extrapolating a ramp, which is the conservative choice: a linear
     extrapolation of ``Gp1`` past 60 deg grows without bound, while a held value at
     least stays inside the fitted family. Either way it is extrapolation, and the
-    honest response is to report it rather than to trust it. Differentiable in
-    ``theta_s``.
+    honest response is to report it rather than to trust it.
+
+    Differentiable in ``theta_s`` **except at the tabulated angles themselves**,
+    where a piecewise-linear lookup has a kink: ``jax.grad`` takes one one-sided
+    slope there while a central difference averages both, and the two disagree by
+    O(1) (measured: 69% at 30 deg). That is inherent to a lookup-table model rather
+    than a defect here -- but it matters, because L23's three solar zeniths *are*
+    the nodes, so a finite-difference check on L23 geometry lands on one every time.
+    Check the gradient at an intermediate angle instead: at 45 deg it agrees to
+    2.7e-10.
     """
     table = jnp.asarray(coeffs)
     angles = table[:, 0]

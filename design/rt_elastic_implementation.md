@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.14
-**Date:** 2026-08-04
+**Version:** 0.15
+**Date:** 2026-08-06
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -29,7 +29,7 @@ every bump.
 | **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | 🟡 in progress | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | 🟡 code, tests, notebook, review done (tasks 1–4 of 5) | `robust.rt.{emulator,hybrid}` |
-| **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation`, `design/py/run_validation.py` |
+| **M4** | Validation (*prototype done*) | 🟡 models, protocol, gate done (tasks 1–3 of 6) | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 | ⬜ future | — |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **227 passed** (`ocean14`); with
-`$OS_COLOR` unset, **206 passed + 21 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **269 passed** (`ocean14`); with
+`$OS_COLOR` unset, **246 passed + 23 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All four notebooks in
@@ -1180,8 +1180,141 @@ abandoned.
 
 ## 6. M4 — Validation
 
-*(not started; see the coding plan §M4. Passing the M4 gate is the Week-1
-prototype's definition of done.)*
+**Goal.** The design §6 protocol and the acceptance gate that declares the Week-1
+prototype done: every model scored on identical data, per λ / per solar zenith / per
+`B_p` bin, on both held-out splits, plus throughput and the gradient gate.
+
+### 6.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | O25 comparison model in `baselines.py` | ✅ done |
+| 2 | `validation.py` protocol + `design/py/run_validation.py` | ✅ done |
+| 3 | Acceptance gate in `test_validation.py`; artefacts committed | ✅ done |
+| 4 | `notebooks/RT/rt_elastic_coding_5.ipynb` — the M4 explainer | ⬜ pending |
+| 5 | PR-review pass | ⬜ pending |
+| 6 | Prototype hand-off + edit to `rt_elastic_coding_prompt_6.md` | ⬜ pending |
+
+### 6.2 The headline, and why it is not the one M3 implied
+
+Full L23 batch, rRMS % in `rrs` space (`design/validation/metrics.md`):
+
+| model | train | held-out scenes | held-out @60° |
+|---|---|---|---|
+| standard Gordon | 7.21 | 7.21 | 9.01 |
+| ZTT backbone | 5.95 | 5.93 | 8.11 |
+| **O25 form, refit on L23** (12 par) | **0.70** | **0.69** | **0.71** |
+| hybrid, linear (8 par) | 2.57 | 2.54 | 2.48 |
+| **hybrid, MLP** (417 par) | **0.30** | **0.30** | **0.32** |
+
+**The hybrid's margin over the state of the art is 2.3×, not 24×.** Against Gordon it
+is 24×; against O25 — twelve fitted numbers, four coefficients at each of three solar
+zeniths — it is 2.3×, and O25's train and held-out figures are identical, so there is
+nothing to write off as overfitting. Per solar zenith on held-out scenes the backbone
+degrades (4.26 / 4.67 / 8.11) while O25 and the hybrid do not (0.68/0.69/0.71 and
+0.30/0.30/0.32).
+
+Per `B_p` bin nothing varies much (0.27–0.33 for the hybrid). The bins span a factor
+1.72, against the design's ~7× nominal band, so **this cut cannot speak to
+phase-function generalisation** — it says only that accuracy is flat across the narrow
+slice L23 covers.
+
+### 6.3 The acceptance gate as built
+
+The coding plan's wording is *"hybrid beats standard Gordon on **both** held-out
+splits, and passes the gradient-correctness gate"*. Two of JXP's decisions reshape it:
+
+- **Gate on beating O25 on the scene split** (Q9). Gordon is the weakest thing in the
+  table; a milestone gated on it would pass while losing to the actual benchmark. The
+  Gordon and ZTT comparisons are kept as the plan's floor.
+- **Report the zenith half, do not gate it** (Q6/Q7). The hybrid's unseen-60° error is
+  seed-dependent: **4.74 / 8.37 / 7.75 / 5.40 / 12.24%** across five seeds against
+  Gordon's 9.01%.
+
+**An interaction worth recording, because it defeats the fix that was chosen for it.**
+Q7 selected the out-of-domain *fallback* (option 3) partly because it would make the
+zenith gate deterministic — the emulator, trained on 0°/30°, would degrade to the
+backbone at 60°. But JXP's accompanying clarification set the sanctioned envelope at
+**0–60°** ("it should be fine to do anything up to that angle"), so the fallback
+deliberately does **not** fire at 60°: measured, it triggers on 0 of 9960 samples. The
+fallback is still the right thing beyond 60°; it simply cannot rescue this half of the
+gate, which is why the gate stops at the scene split. A test pins that inertness so the
+reasoning cannot quietly rot.
+
+**On the unseen 60°, the refit O25 wins outright: 4.63%, deterministic** — better than
+the hybrid's best seed (4.74%), its median (7.75%), ZTT (8.09%) and Gordon (9.01%).
+
+### 6.4 Modules and artefacts
+
+- **`robust/rt/baselines.py`** gained O25: `Rrs_o25` (the primitive — O25 is defined in
+  `Rrs`, the reverse of Gordon), `rrs_o25`, `o25_coefficients`, `fit_o25`,
+  `O25_L23_REFIT`, `O25_RRS_CEILING`. The fit is a closed-form weighted `lstsq`, so it
+  is deterministic by construction. **PR05 is deliberately absent** — its coefficients
+  are a 4-D LUT the paper does not print and the repo does not hold, and L23 is
+  nadir-only, so a refit could not populate the sensor-geometry axes (prompt 5, Q8).
+- **`robust/rt/validation.py`** gained `rrms_per_wavelength`, `group_rrms`,
+  `bp_bin_labels`, `throughput`, `gradient_report`, `score_models`, `markdown_table`,
+  `FD_STEPS`, `GRADIENT_TOL`.
+- **`robust/rt/hybrid.py`** gained `on_out_of_domain ∈ {"warn", "ztt"}` and
+  `robust/rt/emulator.py` gained `SUPPORTED_THETA_S`, `out_of_domain_mask`, and a
+  `theta_s_limits` argument — §6.5.
+- **`design/py/run_validation.py`** regenerates everything into `design/validation/`:
+  `metrics.md`, `metrics.csv`, `rrms_per_wavelength.csv`, and two figures
+  (`rrms_per_wavelength.png`, `unseen_zenith.png`).
+- **Tests**: `test_baselines.py` +22 (O25), new `test_validation.py` 20 (the protocol,
+  the policy, and the gate). Suite **269 passed**; **246 passed + 23 skipped** without
+  `$OS_COLOR`, which is what CI sees.
+
+### 6.5 The supported envelope, and a policy that survives `jit`
+
+`SUPPORTED_THETA_S = (0.0, 60.0)` is a **project decision**, not a property of a fit:
+JXP's Q7 clarification was that anything up to 60° is fine and only beyond it warrants a
+warning. The domain check therefore judges `cos_theta_s` against that envelope while the
+other six features keep using the trained range, where "outside what I learned" does
+mean unreliable. `out_of_domain(..., theta_s_limits=None)` still asks the other question
+— whether *this fit* is extrapolating — which is what the research runs want.
+
+The fallback is built on `out_of_domain_mask`, which is **traceable**, rather than on the
+host-side warning check, which is not. A policy hung off the warning would lapse silently
+under `jit` — the hot path — and a model that changes its answer when compiled is worse
+than one with no policy. A test compares jitted against eager for the same function
+(5e-7 apart, XLA fusing `rrs_ztt + 0.0` in float32) against what a lapsed policy looks
+like (2e-1).
+
+### 6.6 Speed and gradients
+
+Jitted, 9960×81, CPU: Gordon 0.25 ms (0.08× ZTT), O25 0.55 ms (0.18×), ZTT 2.96 ms
+(1.00×), hybrid 17.8 ms (**6.0×**). Wall-clock wanders ~20% between runs, so the ratio
+is the reproducible number — the table's reference row reads exactly 1.00 by
+construction, after a first version that timed ZTT twice and reported it as 0.72× itself.
+
+Gradient gate, float64, per-variable steps, tolerance 1e-6 — every model, every variable
+at or below **5e-9**.
+
+Two properties of the report that are easy to get wrong, both now pinned:
+
+1. **A model that ignores a variable is not "infinitely wrong".** O25 has no
+   phase-function input, so `d/dB_p` is exactly zero on both sides; a ratio turned that
+   into `inf`, converting a *documented blind spot* into a gate failure.
+2. **O25 is not differentiable at its own table nodes.** Its coefficient lookup is
+   piecewise linear in `θs`, so autodiff takes one one-sided slope while a central
+   difference averages both — measured **69%** disagreement at 30°. L23's three angles
+   *are* the nodes, so the protocol evaluates gradients at **45°**, where all four
+   variables agree to ≤3e-9.
+
+### 6.7 The fitting objective, and fairness to a rival
+
+O25's coefficients are fitted with the **same relatively weighted objective everything
+is scored with**, not the paper's unweighted least squares. It is worth 4×: weighted
+reaches 0.70% rRMS, unweighted 2.5–2.7%, because an unweighted objective in `Rrs`
+optimises the bright blue and abandons the dark red. Reproducing the paper's choice
+would have made our own hybrid look four times better than a fair comparison allows, so
+the fair fit is the default and the paper's sits behind `weighted=False`.
+
+The consequence to state whenever these numbers are quoted: **O25's 0.69% is its best
+case** — its coefficients were fitted on our training split with our metric as the
+objective, and it is labelled *"O25 form, refit on L23"* rather than presented as the
+published model. `fit_o25` requires an explicit `train=` mask for the same reason.
 
 ## 7. M5 — Beyond week 1
 
@@ -1241,9 +1374,10 @@ robust/
       l23.py           ✅ M1  L23 elastic batches + seeded splits
     ztt.py             ✅ M2  ZTT; µ∞ from TT2017 pending Eq. (8) coeffs
     emulator.py        ✅ M3  relative-δ Flax MLP + Optax training, save/load
-    hybrid.py          ✅ M3  forward()/rrs_forward(), MODES, DomainWarning
-    validation.py      🟡 M2  rrms(); rest of the protocol at M4
-    baselines.py       ✅ M2  standard Gordon (PR05/O25 at M4)
+    hybrid.py          ✅ M3  forward()/rrs_forward(), MODES, DomainWarning,
+                             on_out_of_domain policy (M4)
+    validation.py      ✅ M4  rrms(); per-λ/zenith/B_p, throughput, grads
+    baselines.py       ✅ M4  standard Gordon + O25 refit (PR05: see §6.4)
     files/
       emulator_l23.npz ✅ M3  trained MLP(16,16) weights (6.5 kB, committed)
   tests/
@@ -1262,6 +1396,13 @@ robust/
 
 design/py/
   train_emulator.py          ✅ M3 real training run (~60 s; --dry-run, --out)
+  run_validation.py          ✅ M4 the §6 protocol; writes design/validation/
+design/validation/
+  metrics.md                 ✅ M4 every model x split, per zenith, per B_p bin
+  metrics.csv                ✅ M4 the same table, machine-readable
+  rrms_per_wavelength.csv    ✅ M4 the per-λ ladder for every model
+  rrms_per_wavelength.png    ✅ M4 that ladder as a figure
+  unseen_zenith.png          ✅ M4 the unseen-60° comparison, with the seed spread
 
 notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)

@@ -343,6 +343,8 @@ the fallback as an *option* (default unchanged, so nothing silently changes), ga
 scene split, and report the zenith split both ways — hybrid-with-fallback and
 hybrid-without — with the seed spread. — *Not blocking task 1.*
 
+>A. Yes, I like option 3.  Please implement it.  And, I meant to warn when we extrapolate *beyond* 60 deg.  It should be fine to do anything up to that angle.
+
 **Q8 (M3 → M4 hand-off, Claude → JXP). PR05 and O25: fetch the published coefficients,
 or re-fit their forms on L23?**
 
@@ -363,6 +365,47 @@ object). If you would rather have the published numbers, say so — and tell me 
 may fetch from GitHub, since I will not pull external code without your go-ahead.
 — *Not blocking task 1: O25's form can be written before the coefficients are settled.*
 
+>A. This is a good recommendation.  Please implement it.
+
+**Q9 (M4 task 1, Claude → JXP). O25 changes what the prototype can claim, and it beats
+the hybrid out of distribution.**
+
+Task 1 is done and O25 is much stronger than Gordon. Measured on the full batch, rRMS %
+in `rrs`:
+
+| model | train | held-out scenes | held-out @60° |
+|---|---|---|---|
+| standard Gordon | 7.21 | 7.21 | 9.01 |
+| ZTT backbone | 5.95 | 5.93 | 8.11 |
+| **O25 form, refit on L23** (12 par) | **0.70** | **0.69** | **0.71** |
+| hybrid, MLP (417 par) | 0.30 | 0.30 | 0.32 |
+
+Two consequences:
+
+1. **The hybrid's margin is ~2.3×, not 24×.** Against Gordon it is 24×; against the
+   strongest benchmark available it is 2.3× — with 417 parameters against O25's 12. Still
+   a win, and on held-out scenes, but a different claim from the one M3's table implies.
+2. **At the unseen zenith, O25 wins.** Fitted on 0°/30° only and clamped to 60° (its
+   lookup has no 60° row), O25 scores **4.63%** — *deterministically*, beating the
+   hybrid's best seed (4.74%), its median (7.75%) and its worst (12.24%), as well as ZTT
+   (8.09%) and Gordon (9.01%). So on the split M4's gate is most exposed on, the rival is
+   better and more reproducible than we are.
+
+This does not break anything — it sharpens what M4 may say. But it bears on Q7: gating
+only on "beats Gordon" now looks weak, since Gordon is the *weakest* thing in the table.
+My recommendation: **gate on beating O25 on the scene split** (which the hybrid does,
+0.30 vs 0.69) and **report the zenith split as a loss** — plainly, with these numbers, as
+M3 reported its own. A prototype that says "we beat the state of the art in distribution
+by 2.3× and lose to it out of distribution" is more useful, and more defensible, than one
+that beats a 1988 model by 24×.
+
+Also worth your judgement: O25's numbers here are its *best case* — its coefficients were
+fitted on our training split with our own metric as the objective. That is deliberate (it
+is the fair way to run a rival), but it means the 0.69% is not a claim about the published
+O25. — *Not blocking task 2.*
+
+>A. I agree.  Gate on beating O25 on the scene split.
+
 ## Next
 
 → `rt_elastic_coding_prompt_6.md` (M5: beyond the prototype).
@@ -376,3 +419,168 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-06 (M4 task 3 — the acceptance gate, and an interaction between two answers)
+
+**Built** the gate in `robust/tests/test_validation.py` (now 20 tests), the two committed
+figures, and the record's **§6** (bumped to **v0.15**, M4 flipped to "tasks 1–3 of 6",
+module index refreshed). Suite **269 passed** (246 + 23 skipped without `$OS_COLOR`),
+ruff clean. Artefacts in `design/validation/`: `metrics.md`, `metrics.csv`,
+`rrms_per_wavelength.csv`, and two PNGs.
+
+**The gate, written per your answers.** Q9 → gate on beating **O25** on the scene split;
+the Gordon and ZTT comparisons stay as the plan's floor, labelled in their docstrings as
+the weaker statement. Q6/Q7 → the zenith half is *reported*, not gated. Mutation-tested:
+with the emulator's contribution zeroed — the "zero-output emulator" the original
+Gordon-only gate would have waved through — the two gate assertions fail and the rest
+pass.
+
+**The interaction worth recording, because it defeats the fix chosen for it.** Q7
+selected option 3 partly on my argument that the fallback would make the zenith gate
+deterministic: an emulator trained on 0°/30° would degrade to the backbone at 60°. But
+your accompanying clarification set the sanctioned envelope at **0–60°** — "it should be
+fine to do anything up to that angle" — so the fallback deliberately does **not** fire
+there. Measured: it triggers on **0 of 9960** samples, and the 0/30-trained hybrid scores
+identically (12.24% for the worst seed) with the policy on or off. The fallback is still
+right beyond 60°; it simply cannot rescue that half of the gate. So the gate stops at the
+scene split, and a test pins the inertness so the reasoning cannot quietly rot. I would
+have missed this if I had implemented option 3 and assumed it did what I proposed it for.
+
+**Figures**, both rendered and inspected: the per-λ ladder for all five models on
+held-out scenes (which shows at a glance that O25, not Gordon, is the line to beat), and
+the unseen-60° comparison as a dot-and-range plot where only the MLP has a range. Two
+rounds of fixes — the ladder's legend sat on top of two curves and moved below the axes;
+and the linear emulator's row fell between both label branches and rendered as a bare dot
+with no number, because its seed range collapses to a point. Every row now carries its
+value, and a seed-independent model says so.
+
+**§6 of the record states the headline as it actually is**: the hybrid beats the state of
+the art by **2.3×** in distribution and **loses to it out of distribution** (O25 4.63%
+deterministic at the unseen 60°, against the hybrid's 4.74–12.24% seed range). It also
+records that O25's 0.69% is its *best case*, since its coefficients were fitted on our
+training split with our own metric as the objective — the fair way to run a rival, and a
+fact that has to travel with the number.
+
+### 2026-08-06 (M4 task 2 — the validation protocol, and Q7's fallback)
+
+**Built** the design §6 protocol in `robust/rt/validation.py`, the runner
+`design/py/run_validation.py`, and the Q7 fallback in `robust/rt/hybrid.py`, with 16
+tests in a new `robust/tests/test_validation.py`. Suite **265 passed** (242 + 23 skipped
+without `$OS_COLOR`), ruff clean. Artefacts written to `design/validation/`
+(`metrics.md`, `metrics.csv`, `rrms_per_wavelength.csv`).
+
+**Q7 implemented as option 3, plus your correction.** `hybrid.rrs_forward` /`forward`
+now take `on_out_of_domain ∈ {"warn", "ztt"}`; `"ztt"` zeroes the learned correction
+outside the accepted range so the model degrades to the backbone exactly where M3
+measured the emulator to be unreliable. Default unchanged, so no existing number moves.
+
+Your clarification — *warn beyond 60°, anything up to it is fine* — turned out to change
+the semantics, not just a threshold. The check was comparing against **the angles a
+given emulator happened to see**; you are describing **the span the project sanctions**.
+So `SUPPORTED_THETA_S = (0.0, 60.0)` is now a project constant, and the zenith feature is
+judged against it while the other six keep using the trained range, where "outside what I
+learned" genuinely does mean unreliable. For the shipped weights nothing changes (they
+already saw 0–60°); what changes is that a 0/30-trained fit may now be asked for 60°
+without complaint. `out_of_domain(..., theta_s_limits=None)` still asks the other
+question — "is *this fit* extrapolating?" — which is the one the research runs want.
+
+**The fallback is built on a traceable mask, not the warning check**, and that was a
+deliberate design decision rather than a detail: the warning needs concrete values and is
+skipped under `jit`, so a policy hung off it would lapse silently the moment anyone
+compiled the model — the hot path. A test pins it by comparing jitted against eager for
+the same function (5e-7 apart, XLA fusing `rrs_ztt + 0.0` in float32) against what a
+lapsed policy looks like (2e-1, five orders of magnitude larger). Bitwise equality was
+the wrong instrument here and my first check reported a false failure because of it.
+
+**Two things the protocol found in code I had just written:**
+
+1. **A model that ignores a variable was scored as infinitely wrong.** O25 has no
+   phase-function input, so `d/dB_p` is exactly zero — and my ratio-based gradient report
+   turned 0/0 into `inf`, i.e. it converted a *documented blind spot* into a gate
+   failure. Now an exact zero on both sides reports 0.0, and a non-finite difference
+   (a step that left the physical domain) still reports `inf`. Both are pinned.
+2. **O25 is not differentiable at its own table nodes.** Its coefficient lookup is
+   piecewise linear in `θs`, so `jax.grad` takes one one-sided slope at a node while the
+   central difference averages both: measured **69%** disagreement at 30°. That is
+   inherent to any LUT model, but it matters here because **L23's three angles *are* the
+   nodes**, so a naive gradient check on L23 geometry lands on one every time. The
+   protocol evaluates at 45° instead, where all four variables agree to ≤3e-9, and both
+   `o25_coefficients` and `gradient_report` now say so.
+
+**The measured protocol** (full batch, rRMS % in `rrs`, held-out scenes): Gordon 7.21,
+ZTT 5.93, O25 0.69, hybrid-linear 2.54, hybrid-MLP 0.30. Per zenith the backbone
+degrades (4.26 / 4.67 / 8.11) while O25 and the hybrid do not (0.68/0.69/0.71 and
+0.30/0.30/0.32). Per `B_p` bin nothing varies much — as expected, and the table says
+plainly that a 1.72× span cannot speak to phase-function generalisation. Throughput:
+hybrid **6.0× ZTT**; O25 0.18×; Gordon 0.08×. Gradient gate: every model, every variable,
+≤5e-9 against a 1e-6 tolerance.
+
+**Two smaller fixes.** The throughput table reported ZTT as *0.72× itself*, because I
+timed the reference twice and wall-clock wanders ~20%; the ratio now comes from the same
+loop, so the reference reads exactly 1.00. And my own "write via a temp file" class fix
+from the PR review had a latent defect: `mkstemp` creates files at **0600**, and
+`os.replace` preserves that, so every artefact it produced would have been committed
+unreadable to anyone else. All three writers now restore the permissions a plain `open()`
+would have given under the process umask.
+
+### 2026-08-06 (M4 task 1 — O25, and it is a much harder benchmark than Gordon)
+
+**Built the O25 comparison model** in `robust/rt/baselines.py` (+274 lines) with 22 tests
+in `robust/tests/test_baselines.py`. Suite **249 passed**, ruff clean. Q7/Q8 were
+unanswered, so I proceeded on my Q8 recommendation: implement O25's form, refit it on the
+train split, label it a refit, and leave PR05 out. Your clearing of the three Outstanding
+items is noted — nothing below depends on them.
+
+**API**: `Rrs_o25` (the primitive — O25 is defined in `Rrs`, the reverse of Gordon's
+arrangement), `rrs_o25` for scoring, `o25_coefficients(theta_s)` for the lookup,
+`fit_o25(...)` to refit, `O25_L23_REFIT` as the embedded table, `O25_RRS_CEILING`.
+
+**The result, and it reframes the milestone.** Full batch, rRMS % in `rrs`:
+
+| model | train | held-out scenes | held-out @60° |
+|---|---|---|---|
+| standard Gordon | 7.21 | 7.21 | 9.01 |
+| ZTT backbone | 5.95 | 5.93 | 8.11 |
+| **O25 form, refit on L23** (12 par) | **0.70** | **0.69** | **0.71** |
+| hybrid, MLP (417 par) | 0.30 | 0.30 | 0.32 |
+
+Twelve fitted numbers — four coefficients at each of three zeniths — get within **2.3×**
+of our 417-parameter hybrid, and O25's train and held-out figures are identical, so there
+is nothing to dismiss as overfitting. Per zenith on held-out scenes: O25 0.68 / 0.69 /
+0.71 against ZTT's 4.26 / 4.67 / 8.11. **And at the unseen 60°** — O25 refit on 0°/30°
+only, its lookup clamped to the 30° row — O25 scores **4.63% deterministically**, beating
+the hybrid's *best* seed (4.74%) and its median (7.75%). Raised as **Q9**: the honest
+headline for M4 is now "beats the state of the art in distribution by 2.3×, loses to it
+out of distribution", not "beats a 1988 model by 24×".
+
+**The fitting objective was the one real judgement call, and it went against us.** O25 is
+linear in its four coefficients, so the fit is a closed-form `lstsq` — deterministic, no
+seed, no learning rate. But the *weighting* is a choice, and it is worth 4×: the paper's
+unweighted least squares in `Rrs` gives 2.5–2.7% rRMS, while weighting each residual by
+`1/Rrs` — matching the relative metric we score everything with — gives 0.70%. An
+unweighted objective optimises the bright blue and abandons the dark red, which is exactly
+the failure mode our metric exists to expose. Reproducing the paper's choice would have
+made our own hybrid look four times better than a fair comparison allows, so the fair fit
+is the default and the paper's is behind `weighted=False`. This is the same BING lesson
+that shaped the emulator's loss, arriving from the opposite direction: applied to a rival.
+
+**PR05 is deliberately absent**, documented in the module docstring: its coefficients are
+a 4-D `(θs, θv, Δφ, γb)` lookup the paper does not print and the repo does not hold, and
+L23 is nadir-only so a refit could never populate the two sensor-geometry axes — it would
+be a different object wearing the same name. Recorded as a gap rather than approximated.
+
+**Provenance is the load-bearing test.** The fitted table is embedded as a constant, the
+way `conventions.BB_W_L23` is, so O25 runs in CI without `$OS_COLOR`; and
+`test_fit_o25_reproduces_the_embedded_table` refits on the real data and requires the
+constants back (max difference 1.24e-7, the table's own 8-figure rounding), so they cannot
+drift from the code that made them. `fit_o25` also *requires* an explicit `train=` mask —
+fitting a rival on the test split would flatter the model it is compared against, which is
+the one direction of bias nobody thinks to check.
+
+**I mutation-tested the tests rather than trusting a green run**, since they were drafted
+by a subagent: swapping `Gw1` with `Gp0` in the lookup fails 6 of them; making `fit_o25`
+ignore its train mask fails 3, including the provenance gate; dropping the per-sample
+coefficient broadcast fails 4. All 22 pass on the restored code. Also pinned as
+*deliberate* rather than accidental: O25 ignores `wave` (its coefficients are
+λ-independent by construction) and ignores `phase_params` entirely (the phase function is
+baked into its calibration set) — both bitwise, both with the reason in the docstring.

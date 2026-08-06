@@ -43,6 +43,7 @@ from __future__ import annotations
 import warnings
 
 import jax
+import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from . import conventions
@@ -50,6 +51,7 @@ from . import ztt as _ztt
 
 __all__ = [  # noqa: RUF022  - grouped by role
     "MODES",
+    "OUT_OF_DOMAIN_POLICIES",
     "forward",
     "rrs_forward",
     "DomainWarning",
@@ -60,6 +62,21 @@ MODES = ("ztt", "emulator", "hybrid")
 
 #: Modes whose result depends on the learned emulator.
 _LEARNED_MODES = ("emulator", "hybrid")
+
+#: What to do when the emulator is asked for inputs outside the accepted range.
+#:
+#: ``"warn"`` (the default, and the behaviour since M3) evaluates the emulator anyway
+#: and raises :class:`DomainWarning`. ``"ztt"`` additionally **zeroes the learned
+#: correction there**, so the model degrades to the analytic backbone exactly where
+#: M3 measured the emulator to be unreliable.
+#:
+#: The second is the other half of JXP's instruction — *"we won't use the emulator at
+#: larger angles (or will warn the user)"* (prompt 4, Q6; chosen in prompt 5, Q7). It
+#: is an option rather than the default because switching it on changes numbers, and a
+#: model whose output depends on a flag nobody set is its own kind of trap. The
+#: threshold is :data:`robust.rt.emulator.SUPPORTED_THETA_S` for the solar zenith and
+#: the trained range for everything else.
+OUT_OF_DOMAIN_POLICIES = ("warn", "ztt")
 
 
 class DomainWarning(UserWarning):
@@ -132,6 +149,7 @@ def rrs_forward(
     *,
     emulator=None,
     check_domain: bool = True,
+    on_out_of_domain: str = "warn",
 ) -> Float[Array, "*batch wave"]:
     """Subsurface remote-sensing reflectance ``rrs(wave)`` — the scored quantity.
 
@@ -162,6 +180,13 @@ def rrs_forward(
         training range. Default ``True``. Skipped automatically whenever any input
         is traced — under ``jit``, and under ``jax.grad`` even of a single input —
         since the check needs concrete values.
+    on_out_of_domain : str, optional
+        One of :data:`OUT_OF_DOMAIN_POLICIES`. ``"warn"`` (default) evaluates the
+        emulator everywhere; ``"ztt"`` zeroes its correction on samples outside the
+        accepted range, so those fall back to the analytic backbone. Unlike
+        ``check_domain``, this one is **traceable** and therefore applies under
+        ``jit`` and ``grad`` too — a policy that lapsed under compilation would be
+        worse than none.
 
     Returns
     -------
@@ -177,6 +202,11 @@ def rrs_forward(
     """
     if mode not in MODES:
         raise ValueError(f"forward: mode must be one of {MODES}; got {mode!r}")
+    if on_out_of_domain not in OUT_OF_DOMAIN_POLICIES:
+        raise ValueError(
+            f"forward: on_out_of_domain must be one of {OUT_OF_DOMAIN_POLICIES}; "
+            f"got {on_out_of_domain!r}"
+        )
 
     rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
     if mode == "ztt":
@@ -186,6 +216,12 @@ def rrs_forward(
     if check_domain:
         _check_domain(emulator, iops, phase_params, geometry, wave)
     delta_rrs = emulator.delta_rrs(iops, phase_params, geometry, wave, rrs_ztt=rrs_ztt)
+
+    if on_out_of_domain == "ztt" and emulator.domain is not None:
+        # Traceable, so the policy holds under jit exactly as it does outside it.
+        outside = emulator.out_of_domain_mask(iops, phase_params, geometry, wave)
+        delta_rrs = jnp.where(outside[..., None], 0.0, delta_rrs)
+
     return delta_rrs if mode == "emulator" else rrs_ztt + delta_rrs
 
 
@@ -198,6 +234,7 @@ def forward(
     *,
     emulator=None,
     check_domain: bool = True,
+    on_out_of_domain: str = "warn",
 ) -> Float[Array, "*batch wave"]:
     """Elastic remote-sensing reflectance ``Rrs(wave)`` — the public forward model.
 
@@ -206,7 +243,7 @@ def forward(
 
     Parameters
     ----------
-    iops, phase_params, geometry, wave, mode, emulator, check_domain
+    iops, phase_params, geometry, wave, mode, emulator, check_domain, on_out_of_domain
         As :func:`rrs_forward`.
 
     Returns
@@ -239,5 +276,6 @@ def forward(
             mode,
             emulator=emulator,
             check_domain=check_domain,
+            on_out_of_domain=on_out_of_domain,
         )
     )

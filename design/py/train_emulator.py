@@ -168,6 +168,12 @@ def write_weights(emulator, delta, batch, out: Path) -> int:
                 f"correction. {out} left untouched; candidate discarded"
             )
             return 1
+        # mkstemp creates 0600; a committed artefact must be readable by everyone
+        # who can read the repo, so restore the permissions a plain open() would
+        # have given it under the process umask.
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
         os.replace(tmp, out)
     finally:
         # Covers all three exits: after a successful replace the candidate is gone

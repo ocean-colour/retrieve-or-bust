@@ -173,6 +173,25 @@ _STD_FLOOR = 1e-8
 #: 1% sits between them with ~27x of headroom below and ~48x above.
 DOMAIN_TOL = 0.01
 
+#: The solar-zenith range the project treats as **supported**, in degrees — a project
+#: decision, not a property of any particular fit.
+#:
+#: JXP's call (prompt 5, Q7): *"I meant to warn when we extrapolate beyond 60 deg. It
+#: should be fine to do anything up to that angle."* L23 provides 0°, 30° and 60°, so
+#: 0–60° is the span the reference data covers and inside which interpolation is
+#: sanctioned. The domain check therefore judges ``cos_theta_s`` against **this**
+#: envelope rather than against the angles a given emulator happened to see: a fit
+#: trained on 0°/30° only is *allowed* to be asked for 60° without complaint, even
+#: though that is extrapolation for it (and M3 measured that its accuracy there is
+#: seed-dependent — the permission is a policy, not a promise).
+#:
+#: Every other feature is still judged against its trained range, where "outside what
+#: I learned" genuinely does mean "unreliable". Pass ``theta_s_limits=None`` to
+#: :meth:`Emulator.out_of_domain` to judge the zenith by the trained range too, which
+#: is the right question when the subject is a fit's extrapolation rather than the
+#: package's supported envelope.
+SUPPORTED_THETA_S = (0.0, 60.0)
+
 #: Guard inside the size penalty's square root, and **not** cosmetic: two
 #: deliberate choices collide without it. The output layer is zero-initialised, so
 #: ``δ ≡ 0`` at step 0; the penalty is an RMS, so its derivative
@@ -541,13 +560,15 @@ class Emulator:
         wave: Float[Array, " wave"] | None = None,
         *,
         tol: float = DOMAIN_TOL,
+        theta_s_limits: tuple[float, float] | None = SUPPORTED_THETA_S,
     ) -> dict[str, DomainBreach]:
-        """Which features are evaluated meaningfully outside the training range.
+        """Which features are evaluated meaningfully outside the accepted range.
 
         A **boundary check**: it needs concrete values, so it cannot run under
         ``jit`` (the same rule as ``validate()`` in :mod:`robust.rt.types`).
         :func:`robust.rt.hybrid.forward` calls it on the caller's behalf when the
-        inputs are concrete.
+        inputs are concrete. For the traceable version — the one a fallback policy
+        can act on inside ``jit`` — see :meth:`out_of_domain_mask`.
 
         Parameters
         ----------
@@ -557,6 +578,11 @@ class Emulator:
             Ignore breaches closer than ``tol`` × the trained span; see
             :data:`DOMAIN_TOL` for why this is not zero. ``tol=0.0`` reports any
             excursion at all.
+        theta_s_limits : tuple of float or None, optional
+            Solar-zenith range (degrees) to judge ``cos_theta_s`` against, instead of
+            the trained one. Defaults to :data:`SUPPORTED_THETA_S`, the envelope the
+            project sanctions. ``None`` uses the trained range, which is the right
+            question when asking whether *this fit* is extrapolating.
 
         Returns
         -------
@@ -585,7 +611,7 @@ class Emulator:
                 "not produced by fit()), so its training range is unknown"
             )
         x = np.asarray(features(iops, phase_params, geometry, wave))
-        lo, hi = np.asarray(self.domain)
+        lo, hi = np.asarray(_effective_domain(self.domain, theta_s_limits))
         report = {}
         for j, name in enumerate(FEATURES):
             col = x[..., j]
@@ -609,11 +635,92 @@ class Emulator:
             )
         return report
 
+    def out_of_domain_mask(
+        self,
+        iops,
+        phase_params,
+        geometry,
+        wave: Float[Array, " wave"] | None = None,
+        *,
+        tol: float = DOMAIN_TOL,
+        theta_s_limits: tuple[float, float] | None = SUPPORTED_THETA_S,
+    ) -> Float[Array, "*batch"]:
+        """Per-sample boolean: is this sample outside the accepted range?
+
+        The **traceable** counterpart of :meth:`out_of_domain`. It reports no detail
+        and raises no warning, but it is pure JAX, so a caller can act on it — which
+        is what :func:`robust.rt.hybrid.forward`'s ``on_out_of_domain="ztt"`` policy
+        does. That distinction matters: a policy implemented with the host-side check
+        would silently stop applying under ``jit``, and a model that changes its
+        answer when you compile it is worse than one with no policy at all.
+
+        Parameters
+        ----------
+        iops, phase_params, geometry, wave, tol, theta_s_limits
+            As :meth:`out_of_domain`.
+
+        Returns
+        -------
+        Array
+            Boolean, shape ``(...,)`` — the batch shape without the wavelength axis.
+            ``True`` where **any** feature at **any** wavelength lies more than
+            ``tol`` × the span outside the accepted range.
+
+        Raises
+        ------
+        ValueError
+            If this emulator carries no :attr:`domain`.
+        """
+        if self.domain is None:
+            raise ValueError(
+                "Emulator.out_of_domain_mask: this emulator carries no domain (it "
+                "was not produced by fit()), so its training range is unknown"
+            )
+        x = features(iops, phase_params, geometry, wave)
+        lo, hi = _effective_domain(self.domain, theta_s_limits)
+        span = hi - lo
+        # Same zero-span guard as out_of_domain: a feature that is constant in the
+        # training data (theta_v, dphi in L23) cannot be scaled by its own span.
+        scale = jnp.where(span > 0.0, span, jnp.maximum(jnp.abs(hi), 1.0))
+        excess = jnp.maximum(lo - x, x - hi) / scale
+        return jnp.any(excess > tol, axis=(-1, -2))
+
     def _standardise(
         self, x: Float[Array, "... feature"]
     ) -> Float[Array, "... feature"]:
         """Apply the stored per-feature standardisation."""
         return (x - self.mean) / self.std
+
+
+def _effective_domain(domain, theta_s_limits):
+    """The stored domain, with ``cos_theta_s`` replaced by the supported envelope.
+
+    Splits the two meanings the domain check carries: for the IOP and wavelength
+    features the trained range is the right bound, because outside it the network is
+    genuinely unconstrained; for the solar zenith the bound is a *project decision*
+    (:data:`SUPPORTED_THETA_S`), so a fit trained on a subset of angles is still
+    allowed to be used across the whole sanctioned span.
+
+    Parameters
+    ----------
+    domain : Array
+        ``(2, len(FEATURES))`` of ``[min; max]``.
+    theta_s_limits : tuple of float or None
+        Solar-zenith range in degrees, or ``None`` to leave the trained range alone.
+
+    Returns
+    -------
+    Array
+        The effective ``(2, len(FEATURES))`` bounds.
+    """
+    domain = jnp.asarray(domain)
+    if theta_s_limits is None:
+        return domain
+    # cos is decreasing in the angle, so the larger zenith gives the LOWER bound.
+    lo = jnp.cos(jnp.deg2rad(jnp.asarray(max(theta_s_limits), dtype=domain.dtype)))
+    hi = jnp.cos(jnp.deg2rad(jnp.asarray(min(theta_s_limits), dtype=domain.dtype)))
+    j = FEATURES.index("cos_theta_s")
+    return domain.at[0, j].set(lo).at[1, j].set(hi)
 
 
 def _delta(model, params, x_std, config: EmulatorConfig):
