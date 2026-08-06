@@ -29,7 +29,7 @@ every bump.
 | **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | 🟡 in progress | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | 🟡 code, tests, notebook, review done (tasks 1–4 of 5) | `robust.rt.{emulator,hybrid}` |
-| **M4** | Validation (*prototype done*) | 🟡 models, protocol, gate done (tasks 1–3 of 6) | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
+| **M4** | Validation (*prototype done*) | 🟡 models, protocol, gate, notebook done (tasks 1–4 of 6) | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 | ⬜ future | — |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -51,7 +51,7 @@ latency are **reported** here, not thresholded. The gradient-correctness check
 `$OS_COLOR` unset, **246 passed + 23 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
-reference data on disk (missing data skips, never fails). All four notebooks in
+reference data on disk (missing data skips, never fails). All five notebooks in
 `notebooks/RT/` execute end to end with no errors.
 
 ---
@@ -1191,7 +1191,7 @@ prototype done: every model scored on identical data, per λ / per solar zenith 
 | 1 | O25 comparison model in `baselines.py` | ✅ done |
 | 2 | `validation.py` protocol + `design/py/run_validation.py` | ✅ done |
 | 3 | Acceptance gate in `test_validation.py`; artefacts committed | ✅ done |
-| 4 | `notebooks/RT/rt_elastic_coding_5.ipynb` — the M4 explainer | ⬜ pending |
+| 4 | `notebooks/RT/rt_elastic_coding_5.ipynb` — the M4 explainer | ✅ done |
 | 5 | PR-review pass | ⬜ pending |
 | 6 | Prototype hand-off + edit to `rt_elastic_coding_prompt_6.md` | ⬜ pending |
 
@@ -1284,9 +1284,10 @@ like (2e-1).
 ### 6.6 Speed and gradients
 
 Jitted, 9960×81, CPU: Gordon 0.25 ms (0.08× ZTT), O25 0.55 ms (0.18×), ZTT 2.96 ms
-(1.00×), hybrid 17.8 ms (**6.0×**). Wall-clock wanders ~20% between runs, so the ratio
-is the reproducible number — the table's reference row reads exactly 1.00 by
-construction, after a first version that timed ZTT twice and reported it as 0.72× itself.
+(1.00×), hybrid 17.8 ms (**6.0×**). Repeated runs put the hybrid between **4.5× and
+6.0×**, so neither column is reproducible to better than ~35% and the *ordering* is what
+to rely on. (The table's reference row reads exactly 1.00 by construction, after a first
+version that timed ZTT twice and reported it as 0.72× itself.)
 
 Gradient gate, float64, per-variable steps, tolerance 1e-6 — every model, every variable
 at or below **5e-9**.
@@ -1315,6 +1316,27 @@ The consequence to state whenever these numbers are quoted: **O25's 0.69% is its
 case** — its coefficients were fitted on our training split with our metric as the
 objective, and it is labelled *"O25 form, refit on L23"* rather than presented as the
 published model. `fit_o25` requires an explicit `train=` mask for the same reason.
+
+### 6.8 Notebook
+
+`notebooks/RT/rt_elastic_coding_5.ipynb` — the M4 explainer, **executed** with outputs
+(21 cells, 3 figures, ~8 min on the full batch; degrades to the committed fixture
+without `$OS_COLOR`). Its subject is the *protocol and its verdict*, not another
+accuracy claim: §1 the benchmark change and what it does to the headline, §2 whether
+the comparison was fair, §3 the required breakdowns, §4 the unseen zenith, §5 speed
+and gradients, §6 **what the prototype may and may not say** — written as two explicit
+lists.
+
+Three figures, each earning its place: the per-λ ladder for all five models (which
+shows at a glance that the gap that matters is to O25, not to Gordon); **O25 fitted
+both ways**, showing the unweighted objective doing better in the blue and far worse
+in the red, i.e. the 3.8× that the paper's own choice would have handed us; and the
+unseen-60° comparison as a dot-and-range plot in which only the MLP has a range.
+
+The notebook also demonstrates the two gradient traps live, side by side: O25's
+`theta_s` derivative disagrees by **7e-1** *on* a table node (30°) and by **2e-10**
+between nodes (45°), and its `B_p` derivative reads exactly 0 because the model
+genuinely ignores the phase function.
 
 ## 7. M5 — Beyond week 1
 
@@ -1408,7 +1430,8 @@ notebooks/RT/
   rt_elastic_coding_1.ipynb  ✅ M0 explainer (executed, 2 figures)
   rt_elastic_coding_2.ipynb  ✅ M1 explainer (executed, 3 figures)
   rt_elastic_coding_3.ipynb  ✅ M2 explainer (executed, 3 figures)
-  rt_elastic_coding_4.ipynb  ✅ M3 explainer (executed, 4 figures)
+  rt_elastic_coding_4.ipynb  ✅ M3 explainer (executed, 6 figures)
+  rt_elastic_coding_5.ipynb  ✅ M4 explainer (executed, 3 figures)
 
 .github/workflows/
   ci.yml                     ✅ pytest (py3.12, py3.14) + ruff check/format

@@ -420,6 +420,38 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-06 (M4 task 4 — the notebook, whose own output caught my throughput claim)
+
+**Built** `notebooks/RT/rt_elastic_coding_5.ipynb` — 21 cells, 3 figures, executed on the
+full batch (~8 min), degrading to the committed fixture without `$OS_COLOR`. Record §6.8
+added, M4 flipped to "tasks 1–4 of 6". Suite still **269 passed**, ruff clean.
+
+The subject is the protocol and its **verdict**, not another accuracy claim. §6 is two
+explicit lists — *may say* and *may not say* — because that is the actual deliverable of a
+validation milestone, and it is the section a reader will quote.
+
+**Three figures, each doing work no table does.** The per-λ ladder for all five models,
+which shows at a glance that the gap that matters is to O25 and not to Gordon. **O25
+fitted both ways**, which is the fairness argument made visible: the unweighted objective
+is *better in the blue* and far worse in the red, so the paper's own choice would have
+handed us a 3.8× flattering comparison. And the unseen-60° dot-and-range plot where only
+the MLP has a range — the figure the milestone turns on.
+
+**The notebook demonstrates the two gradient traps side by side**, which a table cannot:
+O25's `theta_s` derivative disagrees by **7e-1** *on* a table node (30°) and by **2e-10**
+between them (45°), and its `B_p` derivative reads exactly 0 because the model genuinely
+ignores the phase function. Both would look like gate failures to anyone who had not been
+told, and L23's three angles are exactly the nodes.
+
+**And once again the notebook's own output contradicted my prose.** I had written "the
+hybrid costs ~6× the backbone"; the cell measured 4.53×. Checking four runs: 6.01, 4.95,
+4.53, 4.45 — so **the ratio itself wanders ~35%**, and my standing line that "wall-clock
+wanders but the ratio is the reproducible part" was an overstatement I had already copied
+into the record. Both are now corrected to state the range and to say that the *ordering*
+is what holds. That is the fifth notebook in a row where executing the prose against the
+code caught something; the pattern is reliable enough that I now expect it rather than
+being surprised.
+
 ### 2026-08-06 (M4 task 3 — the acceptance gate, and an interaction between two answers)
 
 **Built** the gate in `robust/tests/test_validation.py` (now 20 tests), the two committed
