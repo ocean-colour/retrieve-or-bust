@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.15
-**Date:** 2026-08-06
+**Version:** 0.16
+**Date:** 2026-08-07
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -29,7 +29,7 @@ every bump.
 | **M1** | Data & conventions | ✅ done | `robust.rt.{conventions,types}`, `robust.rt.data.l23` |
 | **M2** | ZTT analytic backbone (JAX) | 🟡 in progress | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | 🟡 code, tests, notebook, review done (tasks 1–4 of 5) | `robust.rt.{emulator,hybrid}` |
-| **M4** | Validation (*prototype done*) | 🟡 tasks 1–5 of 6 done; hand-off pending | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
+| **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 | ⬜ future | — |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -1193,7 +1193,7 @@ prototype done: every model scored on identical data, per λ / per solar zenith 
 | 3 | Acceptance gate in `test_validation.py`; artefacts committed | ✅ done |
 | 4 | `notebooks/RT/rt_elastic_coding_5.ipynb` — the M4 explainer | ✅ done |
 | 5 | PR-review pass (self-review; §6.9) | ✅ done |
-| 6 | Prototype hand-off + edit to `rt_elastic_coding_prompt_6.md` | ⬜ pending |
+| 6 | Prototype hand-off + edit to `rt_elastic_coding_prompt_6.md` | ✅ done |
 
 ### 6.2 The headline, and why it is not the one M3 implied
 
@@ -1351,6 +1351,26 @@ The notebook also demonstrates the two gradient traps live, side by side: O25's
 `theta_s` derivative disagrees by **7e-1** *on* a table node (30°) and by **2e-10**
 between nodes (45°), and its `B_p` derivative reads exactly 0 because the model
 genuinely ignores the phase function.
+
+### 6.10 Definition of done — the prototype, and what it may claim
+
+The coding plan's acceptance is *"hybrid beats standard Gordon on **both** held-out
+splits, and passes the gradient-correctness gate"*. **By the gate as amended (§6.3), the
+prototype passes** and the Week-1 milestone is complete. The amendments, both JXP's and
+both recorded rather than quietly applied: gate on beating **O25** on the scene split
+(Gordon is the weakest model in the table and ZTT alone already beats it), and **report**
+the zenith split rather than gating it (the outcome is seed-dependent).
+
+The reviewer-facing summary is [`prototype_summary.md`](prototype_summary.md), which
+states the six things the prototype may **not** claim alongside the one it may. In short:
+0.30% rRMS on held-out scenes, uniform across the spectrum and the three solar zeniths,
+differentiable to ≤5e-9, at ~5× the backbone's cost — but a **2.3×** margin over the
+modern benchmark rather than the 24× over a 1988 model, with geometry extrapolation
+unresolved, phase-function generalisation untested, and O25's own number being its best
+case on our training data.
+
+Every number in that summary is checked programmatically against
+`design/validation/metrics.csv` and against live `pytest` runs, not transcribed.
 
 ### 6.9 The review pass (task 5)
 
