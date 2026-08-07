@@ -313,6 +313,60 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-05 (M3 task 5 — handed M4 off in prompt 5, and found a dead pointer in it)
+
+**Rewrote `rt_elastic_coding_prompt_5.md`** (74 → 374 lines) from what M3 established.
+**M3 is complete** — tasks 1–5 done, plus the extra notebook section you asked for.
+
+The doc leads with the two things that will otherwise be discovered late:
+
+**1. Half of M4's acceptance gate is seed-dependent.** The plan requires the hybrid to
+beat standard Gordon on *both* held-out splits. The scene split passes by 24×
+(0.30% vs 7.21%). The unseen-60° split gives 4.74 / 8.37 / 7.75 / 5.40 / 12.24% over five
+seeds against Gordon's 9.01% — four pass, one fails, and the committed default seed passes
+comfortably at 4.74%. That last fact is the trap, so the doc says plainly: do not gate on
+the seed that passes. **Q7** offers three ways to write the gate and recommends
+implementing the *fallback* half of your Q6 answer — "we won't use the emulator at larger
+angles **or** will warn" — as an `on_out_of_domain ∈ {"warn","ztt"}` option, since the
+warning exists but the "won't use it" does not. With the fallback the gate passes
+deterministically at 8.09%, because that is the model actually being used.
+
+**2. PR05 and O25 do not exist in the repo, and this doc pointed at code that isn't
+there.** The old prompt 5 said to reuse "the Gordon ladder and O25 form" from
+`context/RT/make_rt_elastic_figures.py`. I grepped it: **zero O25 references** — the
+script has the Gordon ladder, the L23 loader, four unweighted fitters and an `rrms`, and
+nothing else. Left as written, that line would have sent the next session hunting for
+code that never existed. Corrected, with an inventory of what the script *does* provide
+and its two caveats (numpy/scipy, not JAX; reads only the 0° file, so no geometry axis).
+
+A Fable agent dug out what the two models actually are, and the answer changes M4's shape:
+**O25** (Pitarch+ 2025) is a bivariate quadratic in the water/particle split pseudo-albedos
+— which maps exactly onto our `IOPs(a, bb_w, bb_p)` — with four geometry-only coefficient
+LUTs; **PR05** (Park & Ruddick 2005) is a 4th-order polynomial in `ω_b` with a **4-D**
+`(θs, θv, Δφ, γb)` LUT. Neither paper *prints* its coefficients (O25 has plots only; PR05
+gives ranges), neither is in the repo, and neither is importable from `bing` or `ocpy` —
+checked, including git history. O25's are published as code; PR05's live behind a 2005
+MUMM URL or inside POLYMER. Hence **Q8**: fetch, or re-fit and relabel? I recommend
+re-fitting O25 on the *train* split (labelled "O25 form, refit on L23" — the paper does
+this itself) and dropping PR05 from the gate, because L23 is nadir-only and a nadir-only
+refit of a BRDF model is a different object. I also flagged that I will not pull external
+code without your go-ahead.
+
+Also carried across: the API by name including the M3 additions; the four-model results
+table with the instruction to **keep the linear row in every table** (it is what makes the
+MLP's gain read as ~8× rather than ~20×); the ~4.8–5× throughput ratio; nine gotchas —
+including the `splits.zenith_test` overlap that bit me, the `B_p` bins having only 1.75× of
+range so they cannot speak to phase-function generalisation, and the "validate before
+overwriting a committed artifact" rule from this milestone's PR review; and the three
+Outstanding items.
+
+**I verified the specifics rather than trusting the brief**: both transcribed equations
+against `context/RT/rt_elastic_model.md`, the ladder CSV's 700 nm row
+(9.04/5.74/0.35/0.37), the absence of O25 in the figure script, both PDFs on disk, and
+every one of the 16 API names in the doc's import block by importing them. Given how many
+of my own stale numbers this milestone has caught, quoting a subagent unchecked was not
+worth the risk.
+
 ### 2026-08-05 (M3 task 4 — the PR review: two real findings, fixed by class)
 
 **PR #11 is open** on the M3 diff (commit `6dcaf63`) and Bugbot found **2 issues**,

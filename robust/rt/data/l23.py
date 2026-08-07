@@ -315,6 +315,12 @@ def write_fixture(
                 f"write_fixture: snapshot loads {batch.n_sample} samples, expected "
                 f"{len(zeniths) * n_scene}; {path} left untouched"
             )
+        # mkstemp creates 0600; a committed artefact must be readable by everyone
+        # who can read the repo, so restore the permissions a plain open() would
+        # have given it under the process umask.
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
