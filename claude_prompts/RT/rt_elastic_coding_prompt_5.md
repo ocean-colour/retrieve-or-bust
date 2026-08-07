@@ -424,6 +424,54 @@ Record work in the Logs section below, format:
 
 ## Logs
 
+### 2026-08-07 (M4 task 6 — the prototype hand-off; **M4 and the Week-1 prototype are done**)
+
+**Delivered** `design/prototype_summary.md` (the one-page reviewer-facing account), record
+**v0.16** with M4 flipped to done and a new **§6.10 definition of done**, and a rewritten
+`rt_elastic_coding_prompt_6.md` for M5 (66 → ~250 lines). Suite **279 passed** (256 + 23
+skipped without `$OS_COLOR`), ruff clean, branch clean apart from these files.
+
+**The prototype passes the gate as amended, and the summary says exactly that.** The
+plan asked for "beats standard Gordon on both held-out splits + the gradient gate"; two
+amendments were made deliberately and are recorded rather than quietly applied — gate on
+beating **O25** on the scene split (Gordon is the weakest model in the table, and ZTT
+alone already beats it), and **report** the zenith split rather than gate it (the outcome
+is seed-dependent). By that gate it passes.
+
+**The summary is built around what the prototype may *not* claim**, and that is the
+deliberate shape: one paragraph for the result, six numbered items for its limits — the
+2.3× margin over the modern benchmark rather than 24× over a 1988 one; O25's 0.69% being
+its best case on our own training split; geometry extrapolation unresolved and losing to
+O25 at an unseen angle; phase-function generalisation untested rather than passed; nadir
+only; and µ∞ from TT2017 because the 2018 coefficients are unpublished. A reviewer who
+reads only the table would over-claim; a reviewer who reads the list cannot.
+
+**Every number in it is checked, not transcribed.** A script parses the summary's table
+back out and compares it against `design/validation/metrics.csv` row by row, recomputes
+the two ratios, and runs `pytest` twice to confirm the test counts — all 12 table entries
+consistent, ratios 23.8× and 2.3×, counts 279 and 256. Given how many stale numbers this
+milestone has produced, a summary written by hand and left unverified was not worth the
+risk.
+
+**The M5 hand-off leads with the finding that reframes the next milestone.** M5's agenda
+is no longer "extend the model" but "attack the two reasons the margin is 2.3× and not
+better": the emulator has never seen a varied phase function or an off-nadir view. The
+doc carries the API by name (44 names, all verified by import), the results table with
+what each number *forbids*, eight gotchas including the three notebook-discipline rules
+this milestone learned the hard way, and the note that `on_out_of_domain="ztt"` will start
+firing on every sample the moment multi-angular data arrives — correct behaviour, but
+surprising if unexpected.
+
+**Two questions raised, one of them blocking.** **Q10**: M5's entire sketch depends on
+data the repo does not have, and the three routes differ by more than effort — commission
+HydroLight runs (the only one that tests the phase-function axis), obtain PB24 (settles
+geometry soonest, and is O25's own calibration set, so O25 will be at its strongest on
+it), or neither, in which case M5 is API work and the two headline gaps stay open. I
+recommend PB24 first with the HydroLight specification written in parallel, and I have
+said I will not fetch external data or code without a go-ahead. **Q11**: what the hybrid
+should do off-nadir before it has been trained there, now that the domain fix flags every
+such view.
+
 ### 2026-08-07 (M4 task 5, second round — PR #12, on a fix I had just made)
 
 **PR #12 is open** on the finished M4 work, at exactly our HEAD (`e552295`), and Bugbot
