@@ -108,6 +108,8 @@ class IOPs:
         a: Spectrum,
         bb: Spectrum,
         wave: Float[Array, " wave"] | None = None,
+        *,
+        bb_w_mode: str = "clamp",
     ) -> IOPs:
         """Build from total backscattering, splitting off pure water.
 
@@ -130,6 +132,11 @@ class IOPs:
             Total backscattering (m^-1), same shape as ``a``.
         wave : Array, optional
             Wavelengths (nm); defaults to the canonical grid.
+        bb_w_mode : str, optional
+            Passed to :func:`~robust.rt.conventions.bb_w`. The default
+            ``"clamp"`` is what M0-M4 used and keeps every existing number
+            identical; a grid reaching past 750 nm should say whether it wants
+            ``"extrapolate"`` instead, because the clamp is otherwise silent.
 
         Returns
         -------
@@ -140,14 +147,20 @@ class IOPs:
         Does not validate. ``bb < bb_w`` yields a negative ``bb_p``, which is
         physically impossible and usually means ``bb`` was already the non-water
         part; call :meth:`validate` to catch it.
+
+        A dataset that tabulates its own pure-water backscattering (PB24 does)
+        should use those values rather than this constructor -- the table here is
+        L23's water column, and nothing guarantees another campaign shares it.
         """
         a = jnp.asarray(a)
         bb = jnp.asarray(bb)
-        bb_w = conventions.bb_w(conventions.canonical_wave() if wave is None else wave)
+        bb_w = conventions.bb_w(
+            conventions.canonical_wave() if wave is None else wave, mode=bb_w_mode
+        )
         bb_w = jnp.broadcast_to(bb_w, a.shape)
         return cls(a=a, bb_w=bb_w, bb_p=bb - bb_w)
 
-    def validate(self, wave: Float[Array, " wave"] | None = None) -> None:
+    def validate(self, wave: Float[Array, " wave"] | None = None, *, grid=None) -> None:
         """Raise ``ValueError`` unless the IOPs are physical and consistent.
 
         Boundary check only -- do not call inside ``jit``/``vmap``; see the module
@@ -156,8 +169,14 @@ class IOPs:
         Parameters
         ----------
         wave : Array, optional
-            If given, also require it to be the canonical grid and to match the
+            If given, also require it to be a known grid and to match the
             trailing axis.
+        grid : None, str, or WaveGrid, optional
+            Which grid ``wave`` must be; ``None`` means L23's canonical grid, so
+            every pre-M5 call site keeps its meaning. The trailing axis is
+            checked against **that grid's** band count rather than against
+            :data:`~robust.rt.conventions.N_WAVE`, which is what let this check
+            be L23-only.
 
         Raises
         ------
@@ -173,11 +192,12 @@ class IOPs:
         conventions.check_iop(self.bb_w, "IOPs.bb_w")
         conventions.check_iop(self.bb_p, "IOPs.bb_p")
         if wave is not None:
-            conventions.check_wave(wave)
-            if self.n_wave != conventions.N_WAVE:
+            g = conventions.wave_grid(grid)
+            conventions.check_wave(wave, grid=g)
+            if self.n_wave != g.n_wave:
                 raise ValueError(
                     f"IOPs: trailing axis {self.n_wave} does not match the "
-                    f"canonical grid ({conventions.N_WAVE})"
+                    f"{g.name} grid ({g.n_wave})"
                 )
 
 

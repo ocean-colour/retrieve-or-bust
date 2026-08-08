@@ -105,8 +105,12 @@ my first reading of the data (see the log entry).
    PB24 hands us `Rrs`, `rrs` and `Q` on the same grid to fit it with. Scoring is
    unaffected: we score in `rrs`, which is tabulated.
 3. **`mu_d`, `mu_u`, `mu_tot`, `Q` and the K's are tabulated**, so ZTT's internals can be
-   validated against HydroLight *component by component* instead of only end-to-end. The
-   TT2017 µ∞ substitution (the standing Eq-(8) gap) becomes directly measurable.
+   validated against HydroLight *component by component* instead of only end-to-end —
+   **partly**. `ztt.py` exposes `mu_d`, `mu_infinity` and `mu_infinity_tt2017` and nothing
+   else in that family, and PB24's `mu_u`/`mu_tot` are near-surface AOPs while µ∞ is the
+   *asymptotic* average cosine — different quantities even for a perfect model. So `mu_d`
+   is directly checkable; the TT2017 µ∞ substitution is **not**, without an asymptotic
+   proxy whose assumptions we would have to state. Task 13 carries the narrowed version.
 4. **Scale needs a decision.** OLCI is 5000 × 1300 = **6.5 M spectra**; hyperspectral is
    the same count at 451 bands. Neither fits the "load the whole batch" habit M1–M4 was
    built on. See **Q12**.
@@ -135,8 +139,9 @@ from robust.rt import baselines as B     # rrs_gordon, Rrs_gordon; rrs_o25, Rrs_
                                          # fit_o25, o25_coefficients, O25_L23_REFIT
 from robust.rt import emulator as E      # fit, fit_l23, features, FEATURES, Emulator,
                                          # EmulatorConfig, LINEAR_CONFIG, save, load,
-                                         # load_default, SUPPORTED_THETA_S, DOMAIN_TOL,
-                                         # out_of_domain, out_of_domain_mask
+                                         # load_default, SUPPORTED_THETA_S, DOMAIN_TOL
+                                         # NB: out_of_domain / out_of_domain_mask are
+                                         # Emulator *methods*, not module exports
 from robust.rt import hybrid as H        # forward, rrs_forward, MODES, DomainWarning,
                                          # OUT_OF_DOMAIN_POLICIES
 from robust.rt import validation as V    # rrms, rrms_per_wavelength, group_rrms,
@@ -226,9 +231,12 @@ samples because the envelope reached exactly as far as the data did).
    unless cached. Cache the assembled arrays to `.npz` once and validate the cache the way
    `l23.write_fixture` does (temp → verify → `os.replace`), or the loader becomes the
    bottleneck in every run.
-10. **PB24 is O25's own calibration set.** Any comparison on it favours O25, and that must
-    be said in the same sentence as the number. It is the honest direction for the bias to
-    run, and it is not a reason to skip the comparison.
+10. **PB24 is O25's own calibration set — but the bias runs the other way for the O25 we
+    can fit.** The *published* O25 is favoured on its home data, and that must be said in
+    the same sentence as any number. Our `fit_o25`, however, has **no view-angle axis**
+    (`baselines.py:374`), so off-nadir it handicaps the benchmark rather than flattering
+    it. Both halves must appear together, or the comparison misleads in whichever
+    direction the reader assumes. Task 8 exists to remove the second half.
 11. **`rrs` is exactly 0 at some grazing geometries** (θv = 87.5°, θs ∈ {70, 80},
     λ ≥ 721 nm — float32 underflow), so `rrms`, which divides by truth, returns `inf`
     unless the loader filters or the metric guards. Guard *and* report the count dropped;
@@ -243,9 +251,11 @@ samples because the envelope reached exactly as far as the data did).
 - **PR #12** is open; if Bugbot adds findings after JXP pushes, fold them into the review
   task.
 - **Equation (8)'s `m1..m16`** remain unpublished; µ∞ comes from Twardowski & Tonizzo
-  (2017) and `mu_inf_coeffs=` swaps them in. Report as *ZTT with the TT2017 µ∞*. **New:**
-  PB24 tabulates `mu_u`/`mu_d`/`mu_tot`, so the size of this substitution is now
-  measurable rather than merely disclosed.
+  (2017) and `mu_inf_coeffs=` swaps them in. Report as *ZTT with the TT2017 µ∞*. **New,
+  and narrower than first claimed:** PB24 tabulates `mu_d`, which ZTT computes, so *that*
+  becomes checkable; its `mu_u`/`mu_tot` are near-surface quantities and do not correspond
+  to ZTT's asymptotic µ∞, so the Eq-(8) gap is **not** sized by simple comparison
+  (consequence 3, task 13).
 - **The published O25/PR05 coefficients** are still not in the repo; every O25 number is
   a refit. PR05 needs a 4-D `(θs, θv, Δφ, γb)` LUT — PB24 is the first dataset we hold
   that actually spans those axes, so implementing PR05 becomes possible if it earns its
@@ -261,6 +271,28 @@ samples because the envelope reached exactly as far as the data did).
    your questions in the Q&A section first. Use Fable if you can. Log your work.
 2. Read this doc. Execute the 2nd task. Check my answers in Q&A. Use Fable if you can.
    Log your work.
+3. Read this doc. Execute the 3rd task — a second wavelength grid in `conventions`. Use
+   Fable if you can. Log your work.
+4. Read this doc. Execute the 4th task — the PB24 loader. Check my answers in Q&A. Use
+   Fable if you can. Log your work.
+5. Read this doc. Execute the 5th task — the three splits. Use Fable if you can. Log your
+   work.
+6. Read this doc. Execute the 6th task — extend the validation toolkit. Log your work.
+7. Read this doc. Execute the 7th task — the geometry-aware surface transfer. Use Fable if
+   you can. Log your work.
+8. Read this doc. Execute the 8th task — give O25 a geometry-indexed table. Use Fable if
+   you can. Log your work.
+9. Read this doc. Execute the 9th task — the PB24 benchmark. Use Fable if you can. Log
+   your work.
+10. Read this doc. Execute the 10th task — make the envelope per-model. Log your work.
+11. Read this doc. Execute the 11th task — retrain the emulator. Check Q15 and Q16 first.
+    Use Fable if you can. Log your work.
+12. Read this doc. Execute the 12th task — the cross-dataset check. Log your work.
+13. Read this doc. Execute the 13th task — ZTT's internals against HydroLight. Log your
+    work.
+14. Read this doc. Execute the 14th task — promote `PhaseParams`. Log your work.
+15. Read this doc. Execute the 15th task — freeze the `forward` API. Log your work.
+16. Read this doc. Execute the 16th task — notebook, review, hand-off. Log your work.
 
 ## M5
 
@@ -300,84 +332,322 @@ samples because the envelope reached exactly as far as the data did).
    Raised: **Q15** (what M5's acceptance gate should be), so task 2 can sequence against a
    target rather than invent one.
 
-2. **Sequence this milestone and fill §7.** The data question is settled, so this task is
-   scoping, not coding: its deliverable is the task list below rewritten as a sequence
-   with a test gating each step, plus a filled §7 of the record. Sequence by what each
-   step *unlocks*, not by size, and say plainly which steps are blocked and on what.
+2. **Sequence this milestone and fill §7.** ✅ done 2026-08-08. The sequence is **tasks
+   3–12** below and the record's **§7** is filled (record now **v0.17**). The scope bullets
+   that used to live here are gone deliberately — they would have become a second,
+   divergent copy of the same list.
 
-   The scope, as it now stands:
+   **This sequence is the second draft.** The first was reviewed against the code by an
+   adversarial agent and was wrong in ways worth recording: it assumed the L23 machinery
+   would accept a second dataset (it will not — `check_wave` rejects any grid but L23's
+   81 bands, and `gradient_report` *raises* unless the perturbed variables are exactly
+   `{a, bb_p, B_p, theta_s}`); it treated the O25 benchmark as "one `lstsq`" when
+   `fit_o25` has **no view-angle axis at all**, which would have made the milestone's gate
+   a straw man; it scheduled a cross-dataset check that cannot pass by construction; and
+   it repeated a claim of mine that was simply false — see the correction under task 7.
+   Two prerequisite tasks were missing entirely. The findings are in §7.7 of the record.
 
-   - **A PB24 loader** — `robust/rt/data/pb24.py`, mirroring `l23.py`'s contract
-     (`load_batch`, `make_splits`, a committed small fixture so CI runs real numbers with
-     no data mount). Per **Q12** it reads the **OLCI files** (12 bands, 1.3 GB) and
-     exposes a **documented geometry-subsampling knob** for cheap runs; keep the reader
-     factored so the hyperspectral files open through the same path later. New problems
-     `l23.py` never had: 5000 files rather than one archive, 6.5 M spectra, and a 4-D
-     geometry grid to flatten. Derive `a`, `b_p`, `bb_p`, `B_p` from the components; carry
-     `i_classes` from the `.mat` as a stratification variable (counts are very unbalanced:
-     84 to 1042 of 5000); apply the **Q14** angle window (θs, θv ≤ 70°) as the default
-     load, with the 80–87.75° shell loadable on request as the extrapolation set; and drop
-     or guard the exactly-zero `rrs` samples (gotcha 11), reporting the count. Note the
-     interaction: those zeros live at θv = 87.5°, so the Q14 window removes them from
-     training anyway — the guard is for the extrapolation set, where they remain.
-   - **Splits that test what M4 could not.** At least three: held-out **realisations**;
-     held-out **`B_p` band** (the phase-function axis, now measurable); held-out
-     **geometry** — and per **Q14** that last one is now defined by the data rather than
-     chosen: train 0–70°, test the 80/87.75° shell. It is the direct successor to M4's
-     unseen-60° split, which is the half we lost, so expect it to be the hardest number in
-     the milestone and treat a bad result there as information. The `B_p` split is the one
-     that converts M4's item 4 from "untested" to a number — but state its confound:
-     `B_p` correlates with chlorophyll, so holding out a `B_p` band also shifts the water
-     type, and `aph` shapes are reused across realisations, so a realisation split does
-     not fully separate shapes either.
-   - **A geometry-aware surface transfer.** `conventions.Rrs_to_rrs`/`rrs_to_Rrs` hard-code
-     Lee's nadir `A = 0.52`, `B = 1.7`, which PB24 shows is wrong by a median 15–24% and up
-     to 23× off-nadir, and by **45.7% at the median at θv = 60°** — inside the Q14 training
-     window (consequence 2). `forward` returns `Rrs` through that map, so this is an
-     API-visible correctness bug the moment we leave nadir — and PB24 gives `Rrs`, `rrs`
-     and `Q` on one grid, so `A(θv, θs, Δφ)` is directly fittable. Keep the nadir constants
-     as the default so every M4 number stays reproducible; gate the new path with a test
-     that fails on the old one at 60°. **Sequence this before the benchmark**, not merely
-     early: `grep` shows the map on the path of Gordon (`baselines.py:126`), O25
-     (`baselines.py:302`), ZTT (`ztt.py:939`), the hybrid (`hybrid.py:270`) *and* the
-     emulator's training targets (`emulator.py:978`) — so run out of order, it would
-     charge every model with an interface error none of them committed. PB24 supplies
-     `rrs` directly, which also lets the emulator's targets bypass the map entirely.
-   - **Benchmark first, model second.** Before retraining anything, score ZTT, Gordon and
-     **O25 refit on PB24** across the full BRDF. That fixes the target and tells us
-     whether the analytic backbone alone already degrades off-nadir — and PB24 is O25's
-     own calibration set, so this is the comparison at its least flattering to us. What
-     M5's gate should then be is **Q15**.
-   - **Retrain the emulator on PB24** with `theta_v` and `dphi` live (**Q11**'s answer),
-     re-run the §6 protocol on all three splits, and report **seed spreads** (gotcha 3).
-     Per **Q13** this **adds** a model rather than replacing one: ship the new weights
-     alongside as `files/emulator_pb24.npz` and leave `load_default()` on the L23 model,
-     so every M4 number stays reproducible from a clean checkout. Assert what retraining
-     is supposed to achieve rather than assuming it: after training, an off-nadir view
-     inside 0–70° must **stop** being flagged by the domain check, and 80°+ must still be.
-   - **The cross-dataset check** (**Q13**'s second half) — score the PB24-trained emulator
-     on **L23, without refitting**. This is the strongest generalisation evidence available
-     to us and it costs one evaluation: a model trained on one HydroLight campaign, judged
-     on another. It also fixes the rule for promotion — `load_default()` moves only if the
-     PB24 model wins on **L23's own held-out split** too, which is a harder test than
-     winning on its home data.
-   - **Validate ZTT's internals against HydroLight** — PB24 tabulates `mu_d`, `mu_u`,
-     `mu_tot` and `Q`, so the µ∞/µd substitution can be checked directly instead of only
-     end-to-end. Cheap, and it either retires the standing Eq-(8) caveat or quantifies it.
-   - **Promote `PhaseParams`** from `B_p` to the ZTT backward-VSF parameterization
-     (design §4.2), as *additional* fields defaulting to `None` so no signature changes.
-   - **Freeze the `forward` API** as the shared engine for training-data generation and
-     the separately designed inversion.
+   How it is ordered: **3 → 4 → 5** are prerequisites (make the machinery dataset-agnostic,
+   then load, then split), **6** unblocks three later tasks at once, **7 → 8 → 9** builds an
+   honest benchmark before any model is trained, and **10 → 11 → 12** is the model work.
+   Tasks **13 and 14** need only the loader and can run in any slack; **15 goes last**
+   because 7, 10, 11 and 14 can each still move the signature it freezes.
 
-   Still off the critical path, but not dead: **commissioned HydroLight runs** with a
-   non-Fournier-Forand VSF family. PB24 varies the FF *parameter*, so it tests our §4.2
-   parameterization; only a second family tests generalisation *across* families. Worth a
-   specification if M5's held-out-`B_p` result is good, worth nothing if it is not.
+---
 
-   Sequence these by what each one *unlocks*, not by size, and gate each with a test as
-   M0–M4 did. Say plainly which tasks are blocked on data that does not exist yet.
+3. **Make `conventions` accept a second wavelength grid.** ✅ **done 2026-08-08.**
+   *Unlocks: the loader — nothing about PB24 can be validated until this lands.*
 
-3. **(to be written by task 1)**
+   **What landed.** `WaveGrid` + a `GRIDS` registry (`canonical`/`l23` → L23's 81 bands,
+   `olci` → PB24's 12), `wave_grid()` to resolve `None`/name/object, `grid_wave()` as
+   `canonical_wave()`'s grid-aware counterpart, `check_wave(..., grid=)`,
+   `IOPs.validate(..., grid=)` now checking the trailing axis against **that grid's** band
+   count instead of `N_WAVE`, and `bb_w(..., mode=)` with `check_bb_w_range` beside it.
+   **295 tests pass** (was 279), ruff clean.
+
+   Three things worth knowing:
+   - **The check kept its teeth.** OLCI bands against the L23 grid still raise, and so does
+     a 12-band grid that is not quite OLCI's — the validator is now *per grid*, not
+     relaxed. The L23 grid is named `"canonical"` precisely so the M0–M4 error messages,
+     and the tests that match on them, are unchanged.
+   - **`bb_w` past 750 nm is now a stated choice.** `"clamp"` stays the default so every
+     M4 number is untouched; `"extrapolate"` continues the red tail via
+     `BB_W_TAIL_EXPONENT = -4.140855`, **fitted here from the table** (it reproduces
+     650–750 nm to 2.2e-4 relative and a test re-derives it); `"raise"` refuses, for
+     boundary use. At PB24's 753 nm band the clamp reads **1.6% high**, and at 800 nm —
+     where the hyperspectral files reach — **23% high**.
+   - **PB24 tabulates its own `bbw`**, so its loader should use the file's values and never
+     reach this table at all. The mode exists for callers that cannot.
+
+   `check_wave` rejects anything that is not L23's canonical 81-band 350–750 nm grid
+   (`conventions.py:228`), `IOPs.validate` hard-codes `N_WAVE` (`types.py:175`), and
+   `bb_w` clamps outside 350–750 (`conventions.py:184`) — so PB24's 12 OLCI bands, one of
+   which is **753 nm**, would either be rejected or silently given `bb_w(750)`. Add a grid
+   parameter (or a named-grid registry) rather than loosening the check: the check has
+   caught real bugs and should keep catching them per grid.
+
+   **Gate:** the L23 path is unchanged — every existing `conventions`/`types` test passes
+   untouched; a PB24-grid `IOPs` validates; `bb_w(753)` is either computed or refuses, and
+   a test says which; the clamp can no longer fire silently.
+   **Depends on:** nothing. **Blocked:** no.
+
+4. **The PB24 loader** — `robust/rt/data/pb24.py`. *Unlocks: everything below.*
+
+   Follow `l23.py`'s *shape* (`load_batch`, `make_splits`, `npz_reader`, `write_fixture`,
+   a committed fixture so CI runs real numbers with no data mount) but **not its field
+   list**: `L23Batch` carries `Rrs` alone (`l23.py:139`) and derives `rrs` through the
+   nadir map. PB24's batch must carry **`rrs` and `Rrs` and `Q`**, and **`mu_d`, `mu_u`,
+   `mu_tot`** and the K's, because tasks 7, 9 and 13 consume them — and because task 4's
+   own gate freezes the cache bit-identically, so a field added later invalidates it.
+   Read the **OLCI** files per Q12; keep the reader factored for the hyperspectral set.
+   Assemble atomically (temp → verify → `os.replace`), flatten the 4-D geometry grid,
+   derive `a`, `b_p`, `bb_p`, `B_p` from the components, carry `i_classes`. Default load =
+   the **Q14 window** (θs, θv ≤ 70°), with the 80–87.75° shell on request. Subsampling is
+   an **explicit argument**, never a hidden sample, and reports what it dropped.
+
+   **Gate:** golden values against the raw netCDF for two named realisations at named
+   geometries (the M1 pattern); the committed fixture regenerates bit-identically; the
+   angle window asserts the count it removed; the geometry grid is asserted identical
+   across a sample of files; the module skips cleanly without `$OS_COLOR`. **The
+   zero-`rrs` filter is gated on the *shell* load, not the default** — inside the Q14
+   window it removes exactly zero samples, so asserting its count there would pass
+   vacuously. Decide and document *what* it drops: the zeros are per-band (λ ≥ 721 nm at
+   θv = 87.5°), so dropping whole spectra discards good bands.
+   **Depends on:** 3. **Blocked:** no.
+
+5. **The three splits** — `pb24.make_splits`. *Unlocks: every comparison in M5.*
+
+   `realisation` (random 20% by file — M4's analogue); `bp_band` (hold out a band of
+   per-realisation mean `B_p` — **the phase-function axis, and the reason M5 exists**);
+   `geometry` (train 0–70°, test the 80/87.75° shell, per Q14). The geometry split is the
+   direct successor to M4's unseen-60°, which is the half we lost, so expect it to be the
+   hardest number in the milestone and treat a bad result there as information.
+
+   **Note the load interaction:** the geometry split's test set lives *outside* task 4's
+   default window, so it requires the shell load. `l23.make_splits` raises on an empty
+   split (`l23.py:531`); mirror that, or the geometry split silently scores nothing.
+
+   **Gate:** disjoint, exhaustive and deterministic given a seed; **every split's test set
+   asserted non-empty**; the geometry test set contains only θ ≥ 80°; the `bp_band` split
+   **measures and reports its own confound** (`B_p` correlates with chlorophyll at
+   corr(log, log) = −0.65, so holding out a band also shifts the water type) and a test
+   asserts that report exists and is non-trivial — the confound must be visible in the
+   artefact, not just in this doc.
+   **Depends on:** 4. **Blocked:** no.
+
+6. **Extend the validation toolkit.** *Unlocks: tasks 7, 11 and 14 — a shared dependency
+   the first draft of this sequence missed entirely.*
+
+   Three limits, all of them deliberate choices made when L23 was the only dataset:
+   - `gradient_report` **raises** unless the perturbed set is exactly
+     `{a, bb_p, B_p, theta_s}` (`validation.py:317`), so no gate can check a gradient
+     w.r.t. `theta_v` or `dphi` (task 11) or w.r.t. new `PhaseParams` fields (task 14).
+     The guard itself is right — it exists because an extra key used to report 0.0, i.e.
+     "perfect agreement", for a variable never perturbed (gotcha 5). Extend it; do not
+     relax it.
+   - `scalar()` rebuilds `types.PhaseParams(B_p=...)` (`validation.py:337`), silently
+     **dropping** any other field, so a task-14 model would be certified at the wrong
+     phase function with no symptom.
+   - `rrms` divides by truth with no mask (`validation.py:110`), and `group_rrms` **omits**
+     empty groups (`validation.py:166`) while `run_validation.py:381` zips `.values()`
+     against hard-coded headers — with 8 zeniths and 8 view angles on PB24, a possibly
+     empty bin mislabels columns without crashing.
+
+   **Gate:** a regression test per limit, each demonstrated to fail before the fix — the
+   extended `gradient_report` still raises on an unknown variable; a perturbation of a new
+   field changes the output (so it is provably applied); `group_rrms` returns labels
+   alongside values and a test feeds it an empty bin.
+   **Depends on:** nothing (pure `validation.py` work). **Blocked:** no.
+
+7. **A geometry-aware surface transfer** — `conventions`. *Unlocks: an honest `Rrs` at any
+   view angle, and O25's score (task 8).*
+
+   `Rrs_to_rrs`/`rrs_to_Rrs` hard-code Lee's nadir `A = 0.52`, `B = 1.7`; PB24 measures a
+   median 45.7% error at θv = 60°, **inside** the Q14 training window (consequence 2). Fit
+   the geometry dependence from PB24's own `Rrs`, `rrs` and `Q`: `A(θv)` at minimum,
+   testing whether θs and Δφ terms earn their place. Keep the nadir constants as the
+   **default** so every M4 number stays reproducible, and decide explicitly whether the fit
+   ships as an embedded table (the `O25_L23_REFIT` pattern) or as a function.
+
+   **Correcting the claim that put this task here.** I wrote in task 1's log that the nadir
+   map "would charge every model with an interface error none of them committed". That is
+   wrong, and the code says so: `rrs_gordon` and `rrs_ZTT` are the primitives and never
+   touch the map — `Rrs_gordon` (`baselines.py:126`) and `Rrs_ZTT` (`ztt.py:939`) are
+   above-water *wrappers* — and task 11 reads PB24's tabulated `rrs` directly, so the
+   emulator's targets bypass it too. **Exactly one scoring path is contaminated:**
+   `rrs_o25` (`baselines.py:302`), because O25 alone is defined in `Rrs`. The ordering
+   survives — O25 is the benchmark, so its score must be clean before task 9 — but it
+   rests on one model, not five.
+
+   **Gate:** the default path is bit-identical to today's, pinned by a test carrying M4's
+   numbers; the fitted path cuts the θv = 60° transfer error by ≥5× on **held-out**
+   realisations; gradient-checked through the task-6 toolkit, evaluated **between** table
+   nodes if tabulated (gotcha 4); `jit`-safe under the `_is_traced` convention.
+   **Depends on:** 4, 5 (the held-out gate needs a split), 6. **Blocked:** no.
+
+8. **Give O25 a geometry-indexed coefficient table.** *Unlocks: a benchmark worth beating —
+   without this, task 11's gate is a straw man.*
+
+   `fit_o25` groups **by solar zenith only** (`baselines.py:374`) and `o25_coefficients` is
+   a 1-D `jnp.interp` in θs (`baselines.py:202`). O25 as published indexes θs, θv **and**
+   Δφ. On PB24 the current fitter would average 8 × 13 = 104 view geometries into four
+   coefficients per zenith — and worse, its default `zeniths=(0.0, 30.0, 60.0)`
+   (`baselines.py:313`) **succeeds silently** on PB24, fitting 3 of the 8 in-window
+   zeniths and interpolating the rest. Extend the table to 3-D and make the zenith list
+   dataset-derived rather than defaulted.
+
+   **This reverses a claim in this doc.** I wrote that PB24 favours O25 because it is O25's
+   own calibration set. For the *published* O25 that is true; for the O25 **we can
+   currently fit**, the opposite holds off-nadir — a θs-only table cannot represent the
+   BRDF, so our benchmark would lose for reasons that have nothing to do with our model,
+   and we would claim the difference. Say this out loud wherever the comparison appears.
+
+   **Gate:** the 3-D refit beats the θs-only refit off-nadir on held-out data by a stated
+   margin (if it does not, the extra axes are not earning their place and we say so); the
+   L23 path reproduces `O25_L23_REFIT` exactly, so M4's numbers are untouched; fitting
+   with a zenith absent from the data **raises** instead of interpolating over it.
+   **Depends on:** 5, 7. **Blocked:** no.
+
+9. **Benchmark on PB24, before training anything** — `design/py/run_pb24_validation.py`.
+   *Unlocks: the target every later number is measured against.*
+
+   Score Gordon, ZTT and O25 (task 8's form, refit on the train mask only) across the full
+   BRDF on all three splits, with the §6 cuts (per λ, per θs, **per θv**, per `B_p` bin).
+   This also answers a question we have never asked: whether the analytic backbone degrades
+   off-nadir on its own.
+
+   **Gate:** an aggregation-consistency test (M4's stale-figure lesson — the per-cut
+   numbers must aggregate to the table); **header↔group alignment asserted explicitly**,
+   not just totals (task 6's third limit); O25 labelled a refit everywhere it appears;
+   CSVs written with `csv.writer` and round-tripped by a test that parses them back.
+   **Depends on:** 8. **Blocked:** no.
+
+10. **Make the sanctioned envelope per-model.** *Unlocks: task 11 without corrupting the
+    shipped L23 model.*
+
+    `SUPPORTED_THETA_S = (0.0, 60.0)` is a single module constant used as the default for
+    **every** emulator's domain check (`emulator.py:201, 571, 663`; `hybrid.py:77`), with
+    no view-angle counterpart, and `test_validation.py:291` pins its value. Widening it to
+    Q14's 0–70° for the PB24 model would silently widen the **shipped L23 model's**
+    envelope too — a 65° query against a net trained to 60° would become "in domain",
+    which is precisely the seed-dependent regime M4 measured and warned about. The envelope
+    belongs with the weights (or `out_of_domain` needs per-axis limits); either way it is
+    an API change, so it must land **before** task 15 freezes the signature.
+
+    **Gate:** the L23 model's effective envelope is still 0–60° after the change — pinned
+    by a test that fails if a PB24-trained model's envelope leaks into it; a view-angle
+    envelope exists and is enforced; `test_validation.py:291`'s intent is preserved rather
+    than deleted.
+    **Depends on:** 4. **Blocked:** no.
+
+11. **Retrain the emulator on PB24** — `fit_pb24`, `design/py/train_emulator_pb24.py`.
+    *Unlocks: the milestone's claim.*
+
+    `theta_v` and `dphi` **live** (Q11), reading `rrs` targets directly. Per Q13 this
+    **adds** a model: ship `files/emulator_pb24.npz` beside the L23 weights and leave
+    `load_default()` where it is. Sweep ≥5 seeds and report the spread (gotcha 3).
+
+    **An unmade decision, on this task's critical path — see Q16.** `fit()` materialises
+    features and trains **full-batch, unshuffled** (`emulator.py:831`), justified in its
+    docstring by L23's ~0.6 M rows. PB24's Q14 window is 5000 × 8 × 8 × 13 ≈ 4.16 M samples
+    × 12 λ ≈ **50 M rows** — 83× L23, plus a full-batch `rrs_ZTT` precompute and a
+    standardised copy per eval mask. Either `fit()` grows mini-batching (which changes the
+    "reproducible from the seed alone, no data-order dependence" property the
+    bit-identical gate leans on) or training runs on a sanctioned subsample. Q12's knob
+    permits the latter; nobody has said how much.
+
+    **Per Q16, training runs on a subsample:** all 5000 realisations, subsampled
+    geometries — realisations carry the phase-function variation M5 is about, while the
+    832 in-window geometries are dense and smooth. `fit()` keeps its "reproducible from the
+    seed alone" property. Train at **two** subsample factors and compare, so the choice is
+    evidenced rather than assumed; mini-batching becomes a proposal only if the cheaper
+    factor measurably costs accuracy.
+
+    **Gate (Q15, decided — option 2):** beat O25-refit-on-PB24 (task 8's honest form) on
+    the **realisation** split *and* the **held-out-`B_p`** split; **report** the geometry
+    split with its seed spread. Plus: a θv = 40° view inside the window must **stop** being
+    flagged and 80° must still be; the architecture guard runs on the emulator being
+    serialised, not on a proxy (PR #12); regenerated weights are bit-identical between
+    runs; the training-set size and subsample factor are **stated in the artefact**, not
+    just chosen.
+    **Depends on:** 9, 10. **Blocked:** no.
+
+12. **The cross-dataset check: the PB24 model on L23.** *Unlocks: the strongest
+    generalisation statement available to us — but not the one the first draft promised.*
+
+    **The grids do not match, and this nearly shipped as a free number.** L23 spans
+    350–750 nm in 81 bands (`conventions.py:107`); PB24 OLCI spans 400–753 in 12. `wave_nm`
+    is a live feature and the domain is the training min/max, and `out_of_domain_mask`
+    flags a sample if **any** feature at **any** λ breaches (`emulator.py:704`) — so 350 nm,
+    which sits 14% of the span below the boundary against a `DOMAIN_TOL` of 0.01, flags
+    **every L23 sample**. With `on_out_of_domain="ztt"` the "cross-dataset check" would
+    have scored the bare backbone on 100% of L23 and called it a result.
+
+    So: score on the **overlapping band range only**, report the count and the range, and
+    treat 350–395 nm as what it is — genuine extrapolation, reported separately, never
+    folded into the headline.
+
+    **Gate:** the overlap is computed, not assumed, and asserted non-empty; the fraction of
+    L23 flagged out-of-domain is reported beside the score; **the promotion rule is encoded
+    as a conditional, not a constant** — a test that computes the rule's inputs and asserts
+    `load_default()` returns the L23 model *unless* the PB24 model wins L23's own held-out
+    split. A test that merely pins today's answer would pass trivially and get edited the
+    day it mattered, which is the failure it is meant to prevent.
+    **Depends on:** 11. **Blocked:** no.
+
+13. **ZTT's internals against HydroLight** — *narrowed, because the first draft promised
+    more than the code can deliver.* Runs in parallel with 7–12.
+
+    `ztt.py` exposes `mu_d`, `mu_infinity` and `mu_infinity_tt2017` — **no `mu_u`, no
+    `mu_tot`, no `Q`**. And PB24's `mu_u`/`mu_tot` are near-surface AOPs while ZTT's µ∞ is
+    the *asymptotic* average cosine: different quantities, even for a perfect model. So the
+    directly comparable pair is **`mu_d` against PB24's `mu_d`**, per band and per zenith.
+    For µ∞, either derive an asymptotic proxy from the tabulated K's and say exactly what
+    the proxy assumes, or report that the Eq-(8) caveat **cannot be sized this way** — and
+    then say so in the record instead of leaving the promise standing.
+
+    **Gate:** `mu_d` agreement reported per band and per zenith against a documented
+    tolerance, with the measured discrepancy **pinned by a test** so a future change to
+    `mu_d` announces itself; whatever is concluded about µ∞ is written into §7.3 and
+    `prototype_summary.md`, including "not resolved" if that is the answer.
+    **Depends on:** 4. **Blocked:** no.
+
+14. **Promote `PhaseParams`** to the ZTT backward-VSF parameterization (design §4.2), as
+    *additional* fields defaulting to `None`. *Unlocks: the design's phase-function
+    parameterization, and the M5 → inversion hand-off.*
+
+    **Gate:** every existing test passes **untouched** — that is the proof the extension
+    changed no signature (record §3.2); `forward` with the new fields `None` is
+    bit-identical to before; the new fields are gradient-checked **through task 6's
+    extended `gradient_report`**, and a test proves the perturbation is actually applied
+    (gotcha 5 — `scalar()` used to drop exactly these fields).
+    **Depends on:** 4, 6; informed by 13. **Blocked:** no.
+
+15. **Freeze the `forward` API.** *Unlocks: the inversion track and training-data
+    generation, which both want a stable engine.*
+
+    **Gate:** a signature-pinning test (the M0 pattern) plus a record §8 note stating what
+    "frozen" permits and forbids.
+    **Depends on:** 7, 10, 11, 14 — **last**, because each can still move the signature.
+    **Blocked:** no.
+
+16. **Notebook, review, hand-off** — `notebooks/RT/rt_elastic_coding_6.ipynb`, then a
+    PR-review pass, then the edit to `rt_elastic_coding_prompt_7.md`. The rhythm M0–M4
+    settled. **Depends on:** 15.
+
+---
+
+**Not scheduled, and why — stated plainly rather than left implied:**
+
+- **VSF-family generalisation** — blocked on **commissioned HydroLight runs with a
+  non-Fournier-Forand family**, which nobody has ordered. PB24 varies the FF *parameter*,
+  so tasks 5 and 11 test our §4.2 parameterization; only a second family tests
+  generalisation *across* families. Worth specifying if M5's held-out-`B_p` result is
+  good, worth nothing if it is not. **This is the one headline gap M5 will not close.**
+- **The hyperspectral λ-interpolation check** — unblocked, deferred by Q12. It answers
+  "does the correction interpolate across λ", which 12 OLCI bands cannot.
+- **PR05** — now *implementable* for the first time, since PB24 spans its 4-D
+  `(θs, θv, Δφ, γb)` LUT, but it earns its place only if O25 stops being the benchmark.
 
 ### Q&A
 
@@ -528,7 +798,8 @@ the extrapolation set); and the fallback policy now has something to fall back *
 beyond 70° it fires on real data instead of on nothing, which is the case M4 could never
 exercise.
 
-**Q15 (task 1 → task 2, Claude → JXP). What is M5's acceptance gate?**
+**Q15 ✅ answered — option 2. (Task 1 → task 2, Claude → JXP.) What is M5's acceptance
+gate?**
 
 M4's gate was amended twice by you, and both amendments were right, so I would rather agree
 this one before the numbers exist than after. The candidates, given three splits:
@@ -550,6 +821,48 @@ we are proposing to gate on beating a rival *on its home data*, which is the har
 and the one worth claiming. — *Not blocking: task 2 will sequence against option 2 and mark
 the gate provisional until you say otherwise.*
 
+>A.  Ok, use 2.
+
+**Taken as decided, and task 11's gate is no longer provisional:** beat O25-refit-on-PB24
+on the **held-out-realisation** split **and** the **held-out-`B_p`** split; **report** the
+geometry split with its seed spread. Recorded in `rt_elastic_implementation.md` §7.4 and in
+the coding plan's §M5 gate. Note what task 8 now has to do for this gate to mean anything —
+the O25 we can currently fit has no view-angle axis, so beating it off-nadir would measure
+our fitter, not our model.
+
+**Q16 ✅ answered — option 1, subsample. (Task 2 → task 11, Claude → JXP.) How much of PB24
+does the emulator actually train on?**
+
+This surfaced from a code review of the sequence, not from the data. `fit()` materialises
+every feature and trains **full-batch and unshuffled** (`emulator.py:831`); its docstring
+justifies that by L23's ~0.6 M rows. PB24 inside the Q14 window is 5000 × 8 θs × 8 θv ×
+13 φ ≈ 4.16 M samples × 12 λ ≈ **50 M rows — 83× L23** — plus a full-batch `rrs_ZTT`
+precompute and a standardised copy per evaluation mask. 3000 full-batch Adam steps over
+that on CPU-only JAX is hours and many GB, against the ~60 s regime `train_emulator.py`
+was built for. Two ways out:
+
+1. **Train on a sanctioned subsample** — Q12's knob already permits it. Keeps `fit()`'s
+   "reproducible from the seed alone, no data-order dependence" property, which the
+   bit-identical-weights gate leans on. My instinct: keep **all 5000 realisations** and
+   subsample *geometries*, since realisations carry the phase-function variation M5 is
+   about, while the 832 in-window geometries are dense and smooth.
+2. **Give `fit()` mini-batching.** Uses everything, but changes the reproducibility
+   contract and is a real change to a module M3/M4 validated.
+
+My recommendation: **1 for M5, with the training-set size stated in the artefact rather
+than buried in a default**, and 2 only if the geometry subsample measurably costs accuracy.
+— *Not blocking until task 11; tasks 3–10 are unaffected.*
+
+>A.  Ok, let's go with 1 for now.
+
+**Taken as decided.** Task 11 trains on a subsample: **all 5000 realisations, subsampled
+geometries**, with the row count and the subsampling factor written into the artefact
+rather than left in a default. `fit()` keeps its "reproducible from the seed alone"
+property, which the bit-identical-weights gate depends on. If the geometry subsample
+measurably costs accuracy, mini-batching becomes a proposal with evidence behind it rather
+than a guess — and the way to find out is to train at two subsample factors and compare,
+which costs one extra run.
+
 ## Next
 
 → M5's own hand-off, when it closes.
@@ -561,6 +874,116 @@ Record work in the Logs section below, format:
 ### <Date> (Short summary)
 
 <Detailed description of the work and what you learned>
+
+### 2026-08-08 (Task 3 — `conventions` learns a second wavelength grid; record v0.18)
+
+**What I did.** The first code of M5, and the smallest task in it: give the package a grid
+concept so PB24 can enter without loosening the check that has been catching grid bugs
+since M1. `WaveGrid` + `GRIDS` registry + `wave_grid()`/`grid_wave()`; `check_wave` and
+`IOPs.validate` take a `grid=`; `bb_w` takes a `mode=`; `check_bb_w_range` added beside it.
+**+16 tests, 295 pass** (272 + 23 skipped without `$OS_COLOR`), ruff clean. Also folded in
+JXP's Q15 (gate on the realisation **and** `B_p` splits) and Q16 (train on a subsample),
+which turned task 11's provisional gate into a decided one.
+
+**The design decision worth recording.** The obvious way to accept a second dataset is to
+relax `check_wave` — accept any ascending grid and move on. That would have been wrong in a
+specific way: the canonical-grid check has caught real bugs (M1's loader, M2's golden
+values), and a check that accepts everything catches nothing. So the grid became a
+*parameter* rather than a *loosening*: OLCI bands against the L23 grid still raise, and so
+does a 12-band grid that is not quite OLCI's. Same for `bb_w` — instead of quietly widening
+the table, the clamp became a named choice with a measured alternative.
+
+**A number I measured rather than quoted.** The module docstring said `bb_w` "falls as
+λ^-4.2 (fitted)", and Morel's molecular value is −4.32. Neither is right for extrapolating
+*past* 750 nm: the whole-range fit is −4.215, but the red tail alone (650–750 nm) is
+**−4.140855**, and that reproduces the tail to 2.2e-4 relative. Since continuing the tail is
+the only thing the constant is used for, it is fitted to the tail — and a test re-derives it
+from the table so it cannot drift. The clamp it replaces reads **1.6% high** at PB24's
+753 nm band and **23% high** at 800 nm, where the hyperspectral files reach.
+
+**Two of my own tests were wrong on the first run**, and both corrections were worth more
+than the tests. I asserted 9 OLCI bands fall off the 5 nm grid; it is 6 — I had counted 490,
+620 and 665 as off-grid when they are multiples of 5, and the same error was in the
+docstring I wrote beside it. And my continuity check at the 750 nm seam failed at 1.1e-3
+against a 1e-4 tolerance — not a discontinuity but **the function's own slope**: at
+d ln bb_w/d ln λ = −4.14, 0.2 nm *is* 0.11%. The test now checks the value and the log-slope
+across the seam, which is what "continuous" should have meant. A third failure was a real
+regression: my new error messages said "the l23 grid" where M0–M4's said "the canonical
+grid", and an existing test matching on that wording caught it. That is exactly the gate
+"every existing test passes untouched" doing its job on the first task it applied to — so
+the L23 grid is *named* `"canonical"`, and the messages are byte-identical.
+
+**What I learned.** A prerequisite task is the cheapest place to discover that a package's
+"general" API is not. Every one of the four changes here was a spot where M0–M4 made a
+reasonable single-dataset choice that reads as universal — `N_WAVE` in a shape check, a
+canonical grid in a validator, a table whose support silently defines a clamp. None was a
+mistake at the time; all four would have surfaced as puzzling numbers three tasks later.
+
+### 2026-08-08 (Task 2 — M5 sequenced as tasks 3–16; record §7 filled, v0.17)
+
+**What I did.** Turned the scope bullets into a sequence of tasks, each with a gate that
+can actually fail and an explicit dependency list, and filled §7 of the record
+(§7.1 task status, §7.2 the data as measured, §7.3 what the data changed about the plan,
+§7.4 the Q10–Q15 decisions, §7.5 the sequence and what is blocked). Bumped the record to
+**v0.17** and extended the Prompts list so each task has a prompt. Also updated the coding
+plan's §M5 stub, which still said "M5 milestones will be detailed once M4 results are in"
+and still described commissioning HydroLight runs as the route — both now false.
+
+**Then a Fable agent reviewed the sequence against the code and found it wrong in eight
+places** — enough that what shipped is a second draft with **six more tasks** (16, not 10).
+I verified every load-bearing finding myself before rewriting; all of them held. The full
+list is record §7.7, and the pattern behind them is one thing: **the M0–M4 machinery
+quietly assumes L23 is the only dataset**, and my sequence assumed it was general. The two
+that would have cost the most: the cross-dataset check **could not have passed** (L23 starts
+at 350 nm, an OLCI-trained emulator's domain starts at 400, and one out-of-domain λ flags
+the whole sample — so the "free cross-dataset number" would have been the bare backbone
+scored on all of L23 and reported as a result); and the O25 benchmark **would have been a
+straw man** (`fit_o25` has no view-angle axis at all, so on PB24 it averages 104 view
+geometries into four coefficients per zenith, and beating it off-nadir would have measured
+our fitter's limitation rather than our model). Two prerequisite tasks were missing
+outright — a second wavelength grid in `conventions`, and an extension to
+`gradient_report`, which currently *raises* on any variable outside
+`{a, bb_p, B_p, theta_s}` and so could not have gated a single one of the three gradient
+checks I wrote.
+
+**A correction I have to make in my own voice.** I wrote in task 1's log that the nadir
+`Rrs ↔ rrs` map "is on the path of every model we have" and put task 5 before the benchmark
+on that basis. It is not. `rrs_gordon` and `rrs_ZTT` are the primitives and never touch the
+map; the lines I cited (`baselines.py:126`, `ztt.py:939`) are the above-water *wrappers*,
+and the emulator's targets read PB24's tabulated `rrs`. **Exactly one scoring path is
+contaminated: `rrs_o25`**, because O25 alone is defined in `Rrs`. The ordering survives —
+O25 is the benchmark — but on one model's account, not five. I had the grep output in front
+of me and read the function names without reading which direction they convert.
+
+**Deliberate omission.** I deleted task 2's scope bullets rather than leaving them beside
+the sequence they became. Two lists of the same work drift, and the drifting copy is
+always the one someone reads — this milestone has already spent effort on a stale figure
+and a stale CSV for exactly that reason.
+
+**Gates, second time round.** The review also found **two of mine that would have passed
+vacuously** — the zero-`rrs` filter removes nothing inside the Q14 window, so asserting its
+count there proves nothing, and the geometry split's test set is empty on a default load,
+so "contains only θ ≥ 80°" is true of the empty set. Both now sit on the shell load with
+non-emptiness asserted. Task 12's promotion-rule test was worse than vacuous: pinning
+"`load_default()` returns the L23 model" passes trivially today and gets *edited* the day
+it matters, which is precisely the failure it was supposed to prevent. It is now a
+conditional — compute the rule's inputs, assert the outcome follows.
+
+**Raised Q16.** `fit()` trains full-batch and unshuffled on L23's 0.6 M rows; PB24's Q14
+window is ≈50 M rows, 83× larger. Either `fit()` grows mini-batching (changing the
+reproducibility contract the bit-identical-weights gate leans on) or we train on a
+sanctioned subsample. Nobody had decided, and it sits on task 11's critical path.
+
+**What I learned.** Two things, one of them uncomfortable. The uncomfortable one: I wrote
+"sequencing is a technical claim, not a preference, and it is checkable" in this morning's
+log, ran the check, and then **misread its output** — I saw `Rrs_to_rrs` in five files and
+concluded five contaminated models without asking which direction each call converts. A
+check you run but read carelessly is worse than no check, because it produces a confident
+wrong claim instead of an admitted uncertainty. The other: a plan written against an API's
+*documentation* generalises; a plan written against its *implementation* survives. Every
+one of the eight findings was a place where M0–M4 made a reasonable L23-specific choice —
+canonical grid, four FD variables, one envelope constant, θs-only O25 — that reads as
+general until you open the file.
 
 ### 2026-08-08 (Task 1 — Q12–Q14 folded in; the surface transfer moves ahead of the benchmark)
 

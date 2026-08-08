@@ -140,7 +140,28 @@ table + figures produced and committed.
 - Freeze the `forward` API as the shared engine for training-data generation and (the
   separately designed) inversion.
 
-*(M5 milestones will be detailed once M4 results are in.)*
+**Detailed 2026-08-08, and one bullet above is now out of date.** M5's reference data is
+**PB24** (`$OS_COLOR/SD/v5`), which turned out to vary the particle backscatter ratio per
+realisation (~30×) as well as the geometry — so the *held-out phase-function split* is
+constructible without commissioning HydroLight runs, and commissioning drops to a stretch
+item that answers only the across-VSF-family question. PB24 also showed that the Lee-2002
+`Rrs ↔ rrs` map is nadir-only (45.7% median error at θv = 60°), adding a
+**geometry-aware surface transfer** task that this sketch did not anticipate.
+
+The task sequence (3–12), with a test gating each, lives in
+[`claude_prompts/RT/rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md)
+§M5; the record of what was decided and why is
+[`rt_elastic_implementation.md`](rt_elastic_implementation.md) §7.
+
+**Gate (acceptance) — provisional, pending JXP's answer to Q15.** Hybrid retrained on PB24
+**beats O25 refit on PB24** on the held-out-realisation split **and** the held-out-`B_p`
+split; the geometry split (train 0–70°, test 80–87.75°) is **reported**, not gated, on the
+same reasoning that took M4's zenith split out of its gate.
+
+For that gate to mean anything, O25 must first be given a **geometry-indexed coefficient
+table**: `fit_o25` as built groups by solar zenith only, which off-nadir handicaps the
+benchmark rather than flattering it (record §7.6, finding 2). Beating a rival we crippled
+is not a result.
 
 ---
 

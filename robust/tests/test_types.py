@@ -348,3 +348,65 @@ def test_validate_is_not_usable_under_jit():
     """
     with pytest.raises(jax.errors.TracerArrayConversionError):
         jax.jit(lambda x: (x.validate(), 0.0)[1])(make_iops())
+
+
+# ------------------------------------------------- a second wavelength grid --
+# M5 task 3. `IOPs.validate` used to compare the trailing axis against
+# `conventions.N_WAVE`, which is what made it L23-only.
+
+
+def test_validate_accepts_a_pb24_grid_batch():
+    """A 12-band OLCI batch validates against its own grid."""
+    wave = C.grid_wave("olci")
+    n = C.OLCI_GRID.n_wave
+    iops = T.IOPs(
+        a=jnp.full((4, n), 0.05),
+        bb_w=jnp.full((4, n), 1e-3),
+        bb_p=jnp.full((4, n), 2e-3),
+    )
+
+    iops.validate(wave, grid="olci")  # must not raise
+
+
+def test_validate_still_refuses_the_wrong_grid():
+    """The check moved, it did not soften: OLCI data against L23 still fails."""
+    wave = C.grid_wave("olci")
+    n = C.OLCI_GRID.n_wave
+    iops = T.IOPs(
+        a=jnp.full((2, n), 0.05),
+        bb_w=jnp.full((2, n), 1e-3),
+        bb_p=jnp.full((2, n), 2e-3),
+    )
+
+    with pytest.raises(ValueError, match="expected the canonical grid"):
+        iops.validate(wave)
+
+
+def test_validate_catches_a_trailing_axis_that_lies_about_its_grid():
+    """Right grid, wrong number of bands in the arrays."""
+    wave = C.grid_wave("olci")
+    iops = T.IOPs(
+        a=jnp.full((2, 11), 0.05),
+        bb_w=jnp.full((2, 11), 1e-3),
+        bb_p=jnp.full((2, 11), 2e-3),
+    )
+
+    with pytest.raises(ValueError, match="does not match the olci grid"):
+        iops.validate(wave, grid="olci")
+
+
+def test_from_total_bb_default_is_the_old_clamp_exactly():
+    """The M0-M4 path is bit-identical; the mode only changes what you ask for."""
+    wave = C.grid_wave("olci")
+    a = jnp.full((3, C.OLCI_GRID.n_wave), 0.05)
+    bb = jnp.full((3, C.OLCI_GRID.n_wave), 5e-3)
+
+    clamped = T.IOPs.from_total_bb(a, bb, wave)
+    explicit = T.IOPs.from_total_bb(a, bb, wave, bb_w_mode="clamp")
+    extrapolated = T.IOPs.from_total_bb(a, bb, wave, bb_w_mode="extrapolate")
+
+    np.testing.assert_array_equal(np.asarray(clamped.bb_w), np.asarray(explicit.bb_w))
+    # they differ only in the one band past the table, and only there
+    differs = np.asarray(clamped.bb_w[0] != extrapolated.bb_w[0])
+    assert differs.sum() == 1
+    assert differs[-1]  # 753 nm

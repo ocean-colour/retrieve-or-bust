@@ -23,6 +23,8 @@ package -- the loader, a public constructor -- and leave ``forward`` clean.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
@@ -41,11 +43,22 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "N_WAVE",
     "WAVE",
     "canonical_wave",
+    # Named grids (M5: a second dataset)
+    "WaveGrid",
+    "OLCI_WAVE",
+    "L23_GRID",
+    "OLCI_GRID",
+    "GRIDS",
+    "wave_grid",
+    "grid_wave",
     # Pure water
     "BB_W_L23",
+    "BB_W_RANGE",
+    "BB_W_TAIL_EXPONENT",
     "bb_w",
     # Validators
     "check_wave",
+    "check_bb_w_range",
     "check_iop",
     "check_rrs",
 ]
@@ -132,6 +145,116 @@ def canonical_wave(dtype=None) -> Float[Array, " 81"]:
     return jnp.asarray(WAVE, dtype=dtype)
 
 
+# ---------------------------------------------------------------- named grids -
+#: PB24's OLCI band centres (nm), read from the files themselves rather than
+#: transcribed: every ``SD_OLCI_no_R_*.nc`` carries this identical ``lambda``
+#: coordinate. Note it is **not** a subsample of :data:`WAVE` -- half its bands
+#: (412, 443, 673, 681, 709, 753) fall between 5 nm nodes -- and its last band
+#: lies 3 nm beyond :data:`WAVE_MAX`, which is what :func:`check_bb_w_range` is
+#: for.
+OLCI_WAVE = np.array(
+    [400.0, 412.0, 443.0, 490.0, 510.0, 560.0, 620.0, 665.0, 673.0, 681.0, 709.0, 753.0]
+)
+
+
+@dataclass(frozen=True)
+class WaveGrid:
+    """A named wavelength grid a dataset is defined on.
+
+    M0-M4 had exactly one grid, so "the canonical grid" and "the wavelength grid"
+    were the same sentence and :func:`check_wave` could hard-code it. M5 adds a
+    second dataset on different bands, and the fix is deliberately *not* to
+    loosen the check: a grid mismatch has caught real bugs, and it should keep
+    catching them **per grid**. So the check gains a grid rather than losing its
+    teeth.
+
+    Attributes
+    ----------
+    name : str
+        Registry key, e.g. ``"l23"``.
+    wave : ndarray
+        Band centres (nm), ascending.
+    description : str
+        One line, for error messages.
+    """
+
+    name: str
+    wave: np.ndarray
+    description: str = ""
+
+    @property
+    def n_wave(self) -> int:
+        """Number of bands."""
+        return int(self.wave.shape[0])
+
+    @property
+    def span(self) -> tuple[float, float]:
+        """``(min, max)`` band centre, nm."""
+        return float(self.wave[0]), float(self.wave[-1])
+
+
+#: L23's grid -- the canonical one, and the default everywhere a grid is optional.
+#: Named ``"canonical"`` rather than ``"l23"`` so the validator messages M0-M4
+#: wrote (and their tests match on) are unchanged; ``"l23"`` is an alias.
+L23_GRID = WaveGrid("canonical", WAVE, "L23 elastic release, 350-750 nm at 5 nm")
+
+#: PB24's OLCI grid (Pitarch & Brando; see the M5 hand-off).
+OLCI_GRID = WaveGrid("olci", OLCI_WAVE, "PB24 OLCI bands, 400-753 nm")
+
+#: Every grid the package knows by name, plus the ``"l23"`` alias.
+GRIDS = {g.name: g for g in (L23_GRID, OLCI_GRID)} | {"l23": L23_GRID}
+
+
+def wave_grid(grid=None) -> WaveGrid:
+    """Resolve a grid specification to a :class:`WaveGrid`.
+
+    Parameters
+    ----------
+    grid : None, str, or WaveGrid, optional
+        ``None`` (the default) means :data:`L23_GRID`, so every pre-M5 call site
+        keeps its meaning. A string is looked up in :data:`GRIDS`; a
+        :class:`WaveGrid` is returned unchanged.
+
+    Returns
+    -------
+    WaveGrid
+
+    Raises
+    ------
+    KeyError
+        On an unknown name, listing the ones that exist -- a typo should not
+        silently fall back to the canonical grid.
+    """
+    if grid is None:
+        return L23_GRID
+    if isinstance(grid, WaveGrid):
+        return grid
+    try:
+        return GRIDS[grid]
+    except KeyError:
+        raise KeyError(
+            f"unknown wavelength grid {grid!r}; known grids: {sorted(GRIDS)}"
+        ) from None
+
+
+def grid_wave(grid=None, dtype=None) -> Float[Array, " wave"]:
+    """A named grid's band centres as a JAX array.
+
+    Parameters
+    ----------
+    grid : None, str, or WaveGrid, optional
+        As :func:`wave_grid`.
+    dtype : optional
+        Passed to ``jnp.asarray``.
+
+    Returns
+    -------
+    Array
+        Shape ``(n_wave,)``.
+    """
+    return jnp.asarray(wave_grid(grid).wave, dtype=dtype)
+
+
 # --------------------------------------------------- pure-water backscattering
 #: Pure-water backscattering on :data:`WAVE`, m^-1.
 #:
@@ -181,7 +304,22 @@ BB_W_L23 = np.array(
 )  # fmt: skip
 
 
-def bb_w(wave: Float[Array, "..."] | None = None) -> Float[Array, "..."]:
+#: The range :data:`BB_W_L23` actually supports, nm. Outside it, every answer is
+#: a choice rather than a lookup -- see :func:`bb_w`'s ``mode``.
+BB_W_RANGE = (WAVE_MIN, WAVE_MAX)
+
+#: Power-law exponent of :data:`BB_W_L23` over its **red tail** (650-750 nm),
+#: fitted in log-log: ``bb_w ~ lambda ** BB_W_TAIL_EXPONENT``. Measured, not
+#: quoted -- it reproduces the tabulated tail to 2.2e-4 relative, and a test
+#: re-derives it from the table. The whole-range fit gives -4.215 and the
+#: literature's molecular value is -4.32 (Morel 1974); the tail fit is the right
+#: one for extrapolating *past* 750 nm, which is the only thing it is used for.
+BB_W_TAIL_EXPONENT = -4.140855
+
+
+def bb_w(
+    wave: Float[Array, "..."] | None = None, *, mode: str = "clamp"
+) -> Float[Array, "..."]:
     """Pure-water backscattering coefficient.
 
     Linearly interpolates :data:`BB_W_L23`. Differentiable in ``wave`` and safe
@@ -191,23 +329,60 @@ def bb_w(wave: Float[Array, "..."] | None = None) -> Float[Array, "..."]:
     ----------
     wave : Array, optional
         Wavelengths (nm). Defaults to the canonical grid, where the table is
-        returned exactly. Values outside 350-750 nm are clamped to the end
-        points by ``jnp.interp`` rather than extrapolated -- the L23 reference
-        says nothing beyond its own range.
+        returned exactly.
+    mode : {"clamp", "extrapolate", "raise"}, optional
+        What to do outside :data:`BB_W_RANGE`. ``"clamp"`` (default) holds the
+        end points, which is ``jnp.interp``'s behaviour and what M0-M4 relied on;
+        ``"extrapolate"`` continues the fitted red tail
+        (:data:`BB_W_TAIL_EXPONENT`); ``"raise"`` refuses, and is a **boundary**
+        option only -- it inspects concrete values, so it cannot run under
+        ``jit``.
 
     Returns
     -------
     Array
         ``bb_w(wave)`` in m^-1.
+
+    Raises
+    ------
+    ValueError
+        For an unknown ``mode``, or under ``mode="raise"`` when any wavelength
+        falls outside the table.
+
+    Notes
+    -----
+    **Why this has a mode at all.** On L23's grid the question never arose: the
+    table's support *is* the grid, so the clamp could not fire. PB24's OLCI grid
+    ends at 753 nm, 3 nm past the table, where clamping overstates ``bb_w`` by
+    1.6% -- small, but silent, and it grows to 23% at 800 nm where the
+    hyperspectral files reach. Making the choice explicit is cheaper than
+    discovering later which one a number was computed with.
+
+    PB24 tabulates its own ``bbw`` per band, so its loader should prefer the
+    file's values over this table entirely; the mode exists for callers that
+    cannot.
     """
+    if mode not in ("clamp", "extrapolate", "raise"):
+        raise ValueError(
+            f"bb_w: mode must be 'clamp', 'extrapolate' or 'raise'; got {mode!r}"
+        )
     if wave is None:
         return jnp.asarray(BB_W_L23)
-    return jnp.interp(jnp.asarray(wave), jnp.asarray(WAVE), jnp.asarray(BB_W_L23))
+    if mode == "raise":
+        check_bb_w_range(wave, name="bb_w wave")
+    x = jnp.asarray(wave)
+    table = jnp.interp(x, jnp.asarray(WAVE), jnp.asarray(BB_W_L23))
+    if mode != "extrapolate":
+        return table
+    lo, hi = BB_W_RANGE
+    tail = jnp.asarray(BB_W_L23)[-1] * (x / hi) ** BB_W_TAIL_EXPONENT
+    head = jnp.asarray(BB_W_L23)[0] * (x / lo) ** BB_W_TAIL_EXPONENT
+    return jnp.where(x > hi, tail, jnp.where(x < lo, head, table))
 
 
 # ------------------------------------------------------------------ validators
-def check_wave(wave, *, name: str = "wave", atol: float = 1e-3) -> None:
-    """Raise unless ``wave`` is the canonical grid.
+def check_wave(wave, *, name: str = "wave", atol: float = 1e-3, grid=None) -> None:
+    """Raise unless ``wave`` is the expected grid.
 
     Parameters
     ----------
@@ -218,23 +393,65 @@ def check_wave(wave, *, name: str = "wave", atol: float = 1e-3) -> None:
     atol : float, optional
         Absolute tolerance in nm. The default 1e-3 nm is far tighter than any
         real grid difference but loose enough for float32 round-tripping.
+    grid : None, str, or WaveGrid, optional
+        Which grid to check against; ``None`` means :data:`L23_GRID`, so every
+        pre-M5 call site is unchanged. The check is **per grid**, not relaxed:
+        passing PB24's bands while expecting L23's still fails, which is the
+        point.
 
     Raises
     ------
     ValueError
-        If the shape or the values differ from :data:`WAVE`.
+        If the shape or the values differ from the grid.
+    KeyError
+        If ``grid`` names a grid that does not exist.
+    """
+    g = wave_grid(grid)
+    arr = np.asarray(wave, dtype=float)
+    if arr.shape != (g.n_wave,):
+        raise ValueError(
+            f"{name}: expected the {g.name} grid of shape ({g.n_wave},), "
+            f"got {arr.shape}"
+        )
+    if not np.allclose(arr, g.wave, atol=atol, rtol=0.0):
+        worst = int(np.argmax(np.abs(arr - g.wave)))
+        lo, hi = g.span
+        raise ValueError(
+            f"{name}: not the {g.name} {lo:.0f}-{hi:.0f} nm grid; "
+            f"largest difference {arr[worst] - g.wave[worst]:+.4g} nm at index "
+            f"{worst} (got {arr[worst]:.4g}, expected {g.wave[worst]:.4g})"
+        )
+
+
+def check_bb_w_range(wave, *, name: str = "wave") -> None:
+    """Raise if any wavelength falls outside :data:`BB_W_L23`'s support.
+
+    The boundary counterpart to :func:`bb_w`'s ``mode``: call it where a grid
+    enters the package, so that a clamp -- which is silent by construction, being
+    ``jnp.interp``'s default -- cannot be the thing nobody noticed.
+
+    Parameters
+    ----------
+    wave : array_like
+        Wavelengths (nm).
+    name : str, optional
+        Name used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If any wavelength lies outside :data:`BB_W_RANGE`.
     """
     arr = np.asarray(wave, dtype=float)
-    if arr.shape != (N_WAVE,):
+    lo, hi = BB_W_RANGE
+    outside = (arr < lo) | (arr > hi)
+    if np.any(outside):
+        bad = arr[outside]
         raise ValueError(
-            f"{name}: expected the canonical grid of shape ({N_WAVE},), got {arr.shape}"
-        )
-    if not np.allclose(arr, WAVE, atol=atol, rtol=0.0):
-        worst = int(np.argmax(np.abs(arr - WAVE)))
-        raise ValueError(
-            f"{name}: not the canonical {WAVE_MIN:.0f}-{WAVE_MAX:.0f} nm grid; "
-            f"largest difference {arr[worst] - WAVE[worst]:+.4g} nm at index "
-            f"{worst} (got {arr[worst]:.4g}, expected {WAVE[worst]:.4g})"
+            f"{name}: {bad.size} wavelength(s) outside the bb_w table's "
+            f"{lo:.0f}-{hi:.0f} nm support (e.g. {bad.min():.4g}, {bad.max():.4g} nm); "
+            "bb_w would clamp there. Pass mode='extrapolate' to continue the fitted "
+            "tail, or use the dataset's own bb_w."
         )
 
 

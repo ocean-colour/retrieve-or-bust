@@ -293,3 +293,139 @@ def test_check_rrs_rejects_negative_and_nonfinite():
         C.check_rrs(np.array([-1e-6]))
     with pytest.raises(ValueError, match="non-finite"):
         C.check_rrs(np.array([np.nan]))
+
+
+# --------------------------------------------------------------- named grids -
+# M5 task 3. The point of these is not that a second grid exists but that adding
+# it did not weaken the first: `check_wave` still refuses a grid mismatch, it
+# just now refuses *per grid*.
+
+
+def test_wave_grid_resolves_none_str_and_object():
+    """``None`` is L23's grid, so every pre-M5 call site keeps its meaning."""
+    assert C.wave_grid() is C.L23_GRID
+    assert C.wave_grid("l23") is C.L23_GRID
+    assert C.wave_grid("olci") is C.OLCI_GRID
+    assert C.wave_grid(C.OLCI_GRID) is C.OLCI_GRID
+
+
+def test_wave_grid_rejects_an_unknown_name():
+    """A typo must not fall back to the canonical grid."""
+    with pytest.raises(KeyError, match="unknown wavelength grid"):
+        C.wave_grid("oclci")
+
+
+def test_olci_grid_is_pb24s_bands():
+    """12 bands, 400-753 nm, ascending, and not a subset of the 5 nm grid."""
+    assert C.OLCI_GRID.n_wave == 12
+    assert C.OLCI_GRID.span == (400.0, 753.0)
+    assert np.all(np.diff(C.OLCI_WAVE) > 0.0)
+
+    # Half the bands fall between 5 nm nodes, so this is a genuinely different
+    # grid rather than a subsample of the canonical one.
+    off_grid = [w for w in C.OLCI_WAVE if w % C.WAVE_STEP != 0.0]
+
+    assert off_grid == [412.0, 443.0, 673.0, 681.0, 709.0, 753.0]
+
+
+def test_check_wave_still_refuses_a_mismatch_per_grid():
+    """The teeth are intact: each grid rejects the other."""
+    with pytest.raises(ValueError, match="expected the canonical grid"):
+        C.check_wave(C.OLCI_WAVE)
+    with pytest.raises(ValueError, match="expected the olci grid"):
+        C.check_wave(C.WAVE, grid="olci")
+
+    C.check_wave(C.OLCI_WAVE, grid="olci")  # and accepts its own
+
+
+def test_check_wave_rejects_right_length_wrong_values():
+    """A 12-band grid that is not OLCI's still fails, not just a wrong shape."""
+    nearly = C.OLCI_WAVE.copy()
+    nearly[3] += 0.5
+
+    with pytest.raises(ValueError, match="not the olci"):
+        C.check_wave(nearly, grid="olci")
+
+
+def test_grid_wave_returns_a_device_array(jax_x64):
+    """``grid_wave`` is ``canonical_wave``'s grid-aware counterpart."""
+    assert C.grid_wave("olci").dtype == jnp.float64
+    np.testing.assert_allclose(np.asarray(C.grid_wave("olci")), C.OLCI_WAVE)
+    np.testing.assert_allclose(
+        np.asarray(C.grid_wave()), np.asarray(C.canonical_wave())
+    )
+
+
+# ------------------------------------------- bb_w beyond the table's support -
+
+
+def test_bb_w_tail_exponent_is_re_derived_from_the_table():
+    """The embedded exponent is measured, not quoted."""
+    fitted, _ = np.polyfit(np.log(C.WAVE[-20:]), np.log(C.BB_W_L23[-20:]), 1)
+
+    assert fitted == pytest.approx(C.BB_W_TAIL_EXPONENT, abs=1e-5)
+
+    # and it reproduces the tail it was fitted to
+    model = C.BB_W_L23[-1] * (C.WAVE[-20:] / C.WAVE_MAX) ** C.BB_W_TAIL_EXPONENT
+    assert np.abs(model / C.BB_W_L23[-20:] - 1.0).max() < 1e-3
+
+
+def test_bb_w_at_753_says_which_answer_it_gave():
+    """PB24's reddest band is 3 nm past the table; the three modes differ."""
+    clamped = float(C.bb_w(jnp.asarray(753.0)))
+    extrapolated = float(C.bb_w(jnp.asarray(753.0), mode="extrapolate"))
+
+    assert clamped == pytest.approx(C.BB_W_L23[-1])  # unchanged default
+    assert extrapolated < clamped  # the tail keeps falling
+    assert extrapolated / clamped == pytest.approx(0.9836, abs=5e-4)  # 1.6% low
+
+    with pytest.raises(ValueError, match="outside the bb_w table"):
+        C.bb_w(jnp.asarray(753.0), mode="raise")
+
+
+def test_bb_w_extrapolate_is_continuous_at_the_boundary():
+    """No step at 750 nm, and no kink either.
+
+    The first draft of this test asserted agreement to 1e-4 across +/-0.1 nm and
+    failed at 1.1e-3 -- which is not a discontinuity but the function's own slope
+    (``d ln bb_w / d ln lambda = -4.14`` gives exactly 0.11% over 0.2 nm). So
+    check the two things that actually matter: the value does not jump across the
+    seam, and the slope does not either.
+    """
+    eps = 1e-3
+    inside = float(C.bb_w(jnp.asarray(750.0 - eps), mode="extrapolate"))
+    outside = float(C.bb_w(jnp.asarray(750.0 + eps), mode="extrapolate"))
+
+    assert outside < inside  # still falling
+    assert abs(outside / inside - 1.0) < 1e-4  # no step
+
+    # slope on each side, in log-log, against the fitted tail exponent
+    def log_slope(centre):
+        a = float(C.bb_w(jnp.asarray(centre - 0.5), mode="extrapolate"))
+        b = float(C.bb_w(jnp.asarray(centre + 0.5), mode="extrapolate"))
+        return np.log(b / a) / np.log((centre + 0.5) / (centre - 0.5))
+
+    assert log_slope(747.0) == pytest.approx(C.BB_W_TAIL_EXPONENT, rel=0.02)
+    assert log_slope(753.0) == pytest.approx(C.BB_W_TAIL_EXPONENT, rel=0.02)
+
+
+def test_bb_w_extrapolate_is_still_jittable_and_differentiable():
+    """The new branch must not leave the forward path's contract."""
+    f = jax.jit(lambda w: C.bb_w(w, mode="extrapolate"))
+
+    assert float(f(jnp.asarray(800.0))) > 0.0
+    assert float(jax.grad(lambda w: C.bb_w(w, mode="extrapolate"))(800.0)) < 0.0
+
+
+def test_bb_w_rejects_an_unknown_mode():
+    """A typo in a mode must not silently clamp."""
+    with pytest.raises(ValueError, match="mode must be"):
+        C.bb_w(jnp.asarray(440.0), mode="extraploate")
+
+
+def test_check_bb_w_range_flags_what_the_clamp_would_swallow():
+    """The boundary counterpart to the mode: loaders can ask before they load."""
+    C.check_bb_w_range(C.WAVE)  # L23's grid is exactly the support
+
+    with pytest.raises(ValueError, match="outside the bb_w table"):
+        C.check_bb_w_range(C.OLCI_WAVE, name="PB24 lambda")
