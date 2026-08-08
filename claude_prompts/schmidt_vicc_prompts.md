@@ -39,6 +39,187 @@ Read the papers in the `context/papers/Biomass` folder.
 16. Perform the 9th Task under "First draft"
 17. Perform the 10th Task under "First draft"
 
+18. Perform the 1st Task under "Export"
+19. Perform the 2nd Task under "Export"
+20. Perform the 3rd Task under "Export"
+
+## Export
+
+### Tasks
+
+1. Over the past 10 years, NASA funded a major program called "EXPORTS". This is its main website: https://oceanexports.org/.  Please do a deep dive into what it was funded to do and what it actually accomplished.  If you need me to download any papers, let me know.  I will ask you to generate a report eventually, but first ask me questions in the Q&A section below.  Use Fable if you can.  Log your work.
+
+2. See my answers to the Q&A questions below.  Ask me additional questions if needed.  Use Fable if you can.  Log your work.
+
+3. Ok, read my answers to the FQ questions below.  Then proceed to write the report.  Use Fable if you can.  Log your work.
+
+### Q&A
+
+#### Round 1 — EXPORTS deep dive (2026-08-08)
+
+I did the deep dive: the 2015 Science Plan, Siegel et al. 2016 (the *Front. Mar. Sci.* science
+plan — our report's ref [24], now fully verified), the Oct 2016 Implementation Plan, the two
+operational overviews (Siegel et al. 2021 *Elementa* for Station P; Johnson et al. 2024 *Prog.
+Oceanogr.* for the N Atlantic), the Siegel/DeVries/Cetinić/Bisson 2023 *Ann. Rev. Mar. Sci.*
+synthesis, Nowicki et al. 2022, the SeaBASS archive record, and the program's publication list.
+Digest first, then questions.
+
+**What it was funded to do.** A NASA OBB field campaign (NSF co-funded; conceived 2013 from a
+ROSES-2012 scoping study, renamed from COOPEX), whose stated goal was "a predictive
+understanding of the export and fate of global ocean NPP," under the explicit hypothesis that
+export and fate can be predicted from surface-ecosystem characteristics **assessable from
+satellite ocean color** — with "the next generation of ocean carbon cycle… satellite algorithms
+to be used on the upcoming PACE mission" as funded rationale in every planning document. Three
+science questions: SQ1 export pathways, SQ2 fate/transfer efficiency below the euphotic zone,
+SQ3 use the knowledge to reduce uncertainty in contemporary and future export estimates (the
+remote-sensing promise). Design: quantify all three export pathways (gravitational, migrant,
+mixing) *simultaneously*, at two deployments bracketing the export-regime space — 18
+science-team projects (13 NASA + 5 NSF), >100 scientists, ~30 institutions. Cost: the SDT's
+proposed Goal Plan was $71.5M/7 yr; the only as-executed figure I can find is "$40M"
+(single-sourced to WHOI's OTZ site — no NASA-official number exists publicly).
+
+**What it accomplished.** (i) Both campaigns executed as designed and hit the intended
+contrast: Station P (Aug–Sep 2018), the low end-member — Ez-ratio 0.10 ± 0.06, 100-m trap flux
+1.38 ± 0.77 mmol C m⁻² d⁻¹, a ×3 trap-vs-²³⁴Th discrepancy, an episodic salp bloom raising
+export efficiency 1.5–2.6×; PAP (May 2021), the high end-member — declining diatom bloom
+sampled inside a retentive eddy, POC flux 11→14 mmol C m⁻² d⁻¹ (~10× the Pacific), BCP
+efficiency rising 10%→30%, four storms resolved by >40 autonomous assets. (ii) The
+EXPORTS-era global synthesis: export ~10.2 Pg C yr⁻¹ partitioned **gravitational ~70% /
+mixing ~20% / migrant ~10%**, ~1,300 Pg C sequestered (Nowicki 2022 — already our ref [23];
+Siegel 2023). (iii) An open data legacy: 11,031 SeaBASS granules, >400 parameters, 43 PIs.
+(iv) ~105 publications, ~6,900 citations. **What it did not deliver:** the SQ3 promise. There
+is no mechanistic Rrs→export satellite algorithm; the satellite-facing product is a
+satellite-*driven* diagnostic inverse model, the 4–10 Pg C yr⁻¹ methodological spread stands
+in Siegel 2023's own Table 1, and the program's own optics papers found bbp instrument
+calibrations mutually inconsistent at 95% confidence (Erickson 2022) — i.e., the campaign ran
+into precisely the retrieval/uncertainty wall our proposal targets. Siegel 2023's closing
+section calls for a *future* operational satellite+in-situ+model system — which is, almost
+verbatim, our WP structure.
+
+---
+
+**EQ1 — Purpose and framing of the eventual report.** Is the EXPORTS report (a) a
+VICC-proposal input like `biomass_summary.md` — i.e., a fenced mapping at the end arguing
+that EXPORTS supplied the process understanding and the data, and that the un-delivered SQ3
+(satellite prediction with defensible uncertainty) is exactly our lane — or (b) a neutral
+standalone review? My lean: (a), same structure as the biomass report.
+
+EQ1: (a)
+
+**EQ2 — How candid on promise-vs-delivery?** The honest evaluative claim is that EXPORTS
+delivered pathway partitioning and a superb archive but not the satellite predictive
+capability its name and funding rationale promised. Stated baldly, that reads as criticism of
+colleagues (Siegel, Cetinić, Behrenfeld are the names on everything, and plausibly reviewers
+or future partners). My lean: make the point entirely through the program's own words —
+SQ3 as written in 2016, Siegel 2023's own "future research directions" concession, Erickson
+2022's calibration result — with zero editorializing, framed as "the field's own synthesis
+identifies the remaining gap." Agree, or soften further / sharpen?
+
+EQ2: Agreed, no need to Editorialize.  But if you identify flaws or shortcoming that they did not report on, do discuss them.
+
+**EQ3 — Scope and depth.** ~105 papers exist; paper-by-paper coverage is neither possible nor
+useful. Proposed shape: §1 what was funded and why (incl. the PACE rationale); §2 the two
+campaigns and their headline numbers; §3 the global synthesis and whether the numbers moved;
+§4 the remote-sensing deliverable, honestly assessed; §5 data legacy; §6 lessons/mapping for
+the VICC pitch. Length like `biomass_summary.md` or shorter? And should it live at
+`reports/exports_summary.md`?
+
+EQ3:  That sounds good.  The length should be about the same as `biomass_summary.md`.  And, yes, have it live in the `reports/exports_summary.md` file.
+
+**EQ4 — The cost figure.** "$40M" is single-sourced (WHOI OTZ website); the $71.5M was the
+SDT's *proposed* Goal Plan, never an appropriation; NASA published no figure. Do you know the
+as-executed number, or should the report say "order $40M (reported), against a proposed
+$71.5M Goal Plan" with the sourcing caveat? A wrong dollar figure in front of this audience
+would be embarrassing, so I will not state one without a source.
+
+EQ4: I do not have any numbers.  Report as you can.
+
+**EQ5 — Papers to download.** Most key papers are open access or have open preprints I can
+use (Siegel 2016/2021/2023, Nowicki 2022, Estapa 2021, Buesseler 2020, Steinberg 2023,
+Stephens 2025; Johnson 2024 and Siegel 2025 via EarthArXiv; Kramer 2022 via Ifremer;
+Cetinić 2024 via MTU). Four have no open copy I could find — please download if you want them
+used at full depth, otherwise I will work from abstracts/citing papers:
+  1. Clevenger et al. 2024, *Mar. Chem.* 258:104346 (the PAP ²³⁴Th/POC flux time series) — doi:10.1016/j.marchem.2023.104346
+  2. Briggs et al. 2020, *Science* 367:791 (fragmentation = 49 ± 22% of mesopelagic flux loss; BGC-Argo, not EXPORTS data, but load-bearing context) — doi:10.1126/science.aay1790
+  3. Traylor et al. 2025, *L&O* (autonomous observations across both export regimes) — doi:10.1002/lno.70002
+  4. Johnson et al. 2024 *final* version, *Prog. Oceanogr.* 220:103170, if you want me citing the journal version rather than the preprint — doi:10.1016/j.pocean.2023.103170
+Also: are the EarthArXiv/NTRS preprints acceptable as sources where finals are paywalled?
+
+EQ5: I have put the first 3 papers in `Oceanography/python/retrieve-or-bust/context/papers/EXPORTS`.  You can use the preprint for the 4th.  That is acceptable as a source where finals are paywalled.
+
+**EQ6 — Feedback into the existing documents.** Two concrete hooks. (i) `biomass_summary.md`
+§2.5 carries "5–15 Gt C yr⁻¹, unchanged since the 1980s"; the EXPORTS-era synthesis gives a
+defensible central ~10 Pg C yr⁻¹ *with pathway-resolved partitioning* (though the cross-method
+spread genuinely stands). Update §2.5 to reflect this once the EXPORTS report exists? (ii) The
+EOI names COCO2/InMOS/SUBSEA/CLARiTy for differentiation; EXPORTS is NASA, not Schmidt, but a
+carbon panel will know it — should one sentence position us relative to EXPORTS ("EXPORTS
+supplied the process understanding and field data; we build the satellite retrieval and UQ
+system it called for"), or is that better left for the full proposal stage?
+
+EQ6:  Just perform (i).  I will work on the EOI draft later.
+
+#### Round 2 — after the EQ answers (2026-08-08)
+
+All six answered; nearly everything is settled: **EQ1(a)** VICC-input framing with a fenced
+mapping like the biomass report; **EQ2** critique through the program's own words, *plus* a
+mandate to discuss flaws they did not report themselves; **EQ3** the six-section shape at
+`reports/exports_summary.md`, biomass-report length; **EQ4** cost stated as "order $40M
+(reported), against a proposed $71.5M Goal Plan" with the sourcing caveat; **EQ5** the three
+PDFs are in `context/papers/EXPORTS` — verified present and text-extractable (and both
+inferred DOIs, Clevenger `10.1016/j.marchem.2023.104346` and Traylor `10.1002/lno.70002`, are
+now confirmed from the PDFs themselves) — with the Johnson 2024 EarthArXiv preprint as the
+fourth source; **EQ6** only the `biomass_summary.md` §2.5 update.
+
+**Decisions I am taking without asking** (say the word if any is wrong): the report inherits
+the biomass report's conventions — Vancouver references with verified DOIs, the uncertainty-
+conventions box, 95% CIs where derivable; the §2.5 update to `biomass_summary.md` happens in
+the **same pass** as the report (it is a small surgical edit and the numbers come from the
+same sources); preprints are cited alongside the journal DOI, per your EQ5 answer.
+
+Two questions remain — both are calibration on the EQ2 mandate and the figures, not new
+scope.
+
+**FQ1 — Does the "unreported flaws" mandate extend to program-level design choices, or stay
+scientific/technical?** The measurement-level shortcomings (the ×3 trap-vs-²³⁴Th gap, the bbp
+calibration inconsistency, the broken steady-state assumption in the mesopelagic budget, the
+salp-bloom stochasticity) were all *reported by EXPORTS itself* — candour is a strength of the
+program. The flaws I found that they have **not** discussed in print are programmatic:
+  (a) **The descope was never reconciled with the design logic.** The 2016 Goal Plan called
+      for 4 deployments (two visits per basin, 388 sea days) precisely because the satellite-
+      algorithm goal requires spanning the ecosystem-state space; the executed program was one
+      snapshot per basin (one of them in the lowest-signal season at Station P), and no
+      published assessment asks what the two-point sampling means for the SQ3/global-
+      extrapolation promise.
+  (b) **No Southern Ocean deployment**, despite it being a dominant export region and the
+      original scoping trio including an ice/Southern-Ocean campaign concept (ICESOCC) that
+      was never executed — so the global partitioning rests on extrapolation into the regime
+      that matters most.
+  (c) **The PACE timing mismatch is structural.** The field phase ended May 2021; PACE
+      launched Feb 2024. Zero coincident field+PACE data exist, so the founding promise —
+      algorithms *developed and validated* for PACE within the program — could not have been
+      closed end-to-end regardless of scientific execution. (This also cuts favourably for
+      us: the EXPORTS archive is exactly the pre-launch algorithm-development dataset our
+      retrieval system needs, and we would be the ones closing the loop with actual PACE
+      overpasses.)
+  My lean: include all three, in a clearly-labelled program-level subsection of §4, stated
+  factually with the descope numbers from the Implementation Plan — no judgement language.
+  Confirm, or restrict to scientific/measurement critique only?
+
+FQ1: Yes, please include all three.
+
+**FQ2 — Figures.** The biomass report carries 6 Python-generated figures
+(`reports/py/biomass_figs.py`); I propose the same treatment here, with a new module
+`reports/py/exports_figs.py` and 2–3 figures: (i) the two-campaign contrast — POC flux,
+Ez-ratio, and transfer efficiency at Station P vs PAP on a common axis, showing the designed
+end-member bracketing was achieved; (ii) the global pathway partitioning (gravitational
+~70% / mixing ~20% / migrant ~10% of ~10.2 Pg C yr⁻¹, with IQRs, and the 4–10 Pg C yr⁻¹
+cross-method spread beside it — accomplishment and open problem in one image); (iii)
+optionally, a promise-vs-delivery timeline (2013 scoping → 2015/16 plans → 2018/2021
+deployments → 2024 PACE launch) that makes the FQ1(c) point visually. Include figures, and
+if so, all three or drop (iii)?
+
+FQ2: Yes, include all three.
+
 ## First draft
 
 1. We will write a first draft of the EOI proposal.  Draw on these files for context:
@@ -1455,3 +1636,158 @@ natural swaps are: a PACE/OCI true-colour granule or the NASA PACE spacecraft re
 
 Next: unchanged — trim the EOI to 3 pages, insert the two proposal PNGs, complete the budget, export to
 PDF.
+
+### 2026-08-08 (Export prompt 1: EXPORTS deep dive; posed EQ1–EQ6 — no report written)
+
+Executed the 1st "Export" task: a deep dive into NASA's EXPORTS program (what it was funded to do,
+what it accomplished). Per the prompt, **no report was written** — findings are digested in the
+Export Q&A section with six questions (EQ1–EQ6), and the papers worth downloading are listed there
+(EQ5).
+
+**Method.** Three parallel research agents, each working from primary sources with web
+search + full-text fetches: (i) program design and funding (the 2015 Science Plan PDF, Siegel et
+al. 2016 *Front. Mar. Sci.*, the Oct 2016 Implementation Plan, ROSES selection documents, NASA/OCB
+announcements); (ii) the two field campaigns and their results (full text of Siegel et al. 2021
+*Elementa* and the Siegel et al. 2023 *Ann. Rev. Mar. Sci.* synthesis via NTRS, plus the campaign
+papers); (iii) accomplishments, data legacy and the remote-sensing deliverable (SeaBASS archive
+record, publications list, retrospectives). Claims were kept only when tied to a URL/DOI; extracted
+full texts of Siegel 2021/2023 and the Science Plan are in the session scratchpad.
+
+**What it was funded to do.** Goal: "a predictive understanding of the export and fate of global
+ocean NPP"; central hypothesis that export/fate are predictable from surface-ecosystem properties
+**assessable from satellite ocean color**, with next-generation algorithms for PACE as explicit
+funded rationale in every planning document. SQ1 pathways / SQ2 subsurface fate / SQ3 reduce
+uncertainty in export estimates via remote sensing. Two deployments bracketing the export-regime
+space; all three export pathways quantified simultaneously; 18 science-team projects (13 NASA +
+5 NSF), >100 scientists. Proposed Goal Plan $71.5M/7 yr; as-executed cost only single-sourced at
+"$40M" (WHOI OTZ site) — no NASA-official figure exists, flagged to JXP in EQ4.
+
+**What it accomplished.** Station P 2018 (low end-member: Ez-ratio 0.10 ± 0.06; 100-m flux
+1.38 ± 0.77 mmol C m⁻² d⁻¹; ×3 trap-vs-²³⁴Th gap; salps raising export efficiency 1.5–2.6×) and
+PAP 2021 (high end-member: eddy-following bloom demise; flux 11→14 mmol C m⁻² d⁻¹, ~10× the
+Pacific; efficiency 10%→30%) — the designed contrast was achieved. Global synthesis: export
+~10.2 Pg C yr⁻¹, gravitational ~70% / mixing ~20% / migrant ~10%, ~1,300 Pg C sequestered
+(Nowicki 2022, Siegel 2023). Open archive: 11,031 SeaBASS granules, >400 parameters. ~105 papers,
+~6,900 citations.
+
+**The finding that matters for the EOI.** The SQ3 remote-sensing promise was not delivered: no
+mechanistic Rrs→export algorithm exists; the satellite-facing product is a satellite-driven
+diagnostic inverse model; the 4–10 Pg C yr⁻¹ cross-method spread stands in Siegel 2023's own
+Table 1; and EXPORTS' own optics work found bbp instrument calibrations mutually inconsistent at
+95% confidence (Erickson 2022). Siegel 2023 closes by calling for a future operational
+satellite+in-situ+model system — nearly verbatim our proposed architecture. EQ2 asks how candidly
+to state this (my lean: entirely through the program's own words); EQ6 asks whether it feeds back
+into `biomass_summary.md` §2.5 and the EOI differentiation.
+
+**Corrections to prior context.** Our report's ref [24] (Siegel 2016 science plan) is verified.
+Briggs et al. 2020 (*Science*, fragmentation 49 ± 22%) is **not** an EXPORTS product — BGC-Argo
+floats, N Atlantic + Southern Ocean — though it motivates the EXPORTS-NA fragmentation work; noted
+so we do not miscredit it. The NA overview is Johnson et al. 2024 *Prog. Oceanogr.* 220:103170
+(not *Elementa*), with an open EarthArXiv preprint.
+
+**Unverified, flagged in the Q&A:** the as-executed program cost; the complete *Elementa*
+special-collection contents (UC Press 403s automated access); a NA-specific pathway-partitioning
+synthesis (none found — likely does not exist yet); the Clevenger 2024 DOI string (volume/pages
+verified via ADS, DOI inferred).
+
+Next: await EQ1–EQ6, then write the EXPORTS report.
+
+### 2026-08-08 (Export prompt 2: read the EQ answers, posed a short Round-2 — no report yet)
+
+Executed the 2nd "Export" task: read JXP's EQ1–EQ6 answers and posed **FQ1–FQ2**. The report is
+not yet requested, so nothing was written to `reports/`.
+
+**Settled by the EQ answers.** EQ1(a) VICC-input framing with a fenced mapping, biomass-report
+structure; EQ2 no editorializing, critique through the program's own words — **but with a new
+mandate to discuss flaws EXPORTS did not report on itself**; EQ3 the proposed six-section shape,
+biomass-report length, at `reports/exports_summary.md`; EQ4 no insider cost figure — report
+"order $40M (reported)" vs the proposed $71.5M Goal Plan, with the sourcing caveat; EQ5 papers
+delivered; EQ6 update `biomass_summary.md` §2.5 only (JXP handles the EOI himself).
+
+**Verification done this pass.** The three requested PDFs are in `context/papers/EXPORTS`
+(`briggs2020.pdf`, `clevenger2024.pdf`, `traylor2025.pdf`) — all present, all text-extractable
+via pypdf. The two DOI strings I had flagged as inferred are now **confirmed from the PDFs
+themselves**: Clevenger 2024 `10.1016/j.marchem.2023.104346` (Mar. Chem. 258:104346 on the
+masthead) and Traylor 2025 `10.1002/lno.70002` (L&O 70:S165–S178 — note it landed in a
+supplement issue).
+
+**Why a Round 2 at all.** EQ2's addendum ("if you identify flaws or shortcomings that they did
+not report on, do discuss them") changes the report from summary to critique, and the flaws I
+actually found that EXPORTS has *not* discussed in print are **programmatic, not scientific** —
+the measurement-level warts (trap-vs-²³⁴Th ×3, bbp calibration inconsistency, broken mesopelagic
+steady state, salp stochasticity) were all self-reported by the program. FQ1 therefore asks
+whether the critique may extend to program-level design: (a) the descope from the 4-deployment /
+two-visits-per-basin Goal Plan to one snapshot per basin, never reconciled in print with the
+design's own ecosystem-state-space logic; (b) no Southern Ocean deployment (the unexecuted
+ICESOCC concept), leaving the global partitioning extrapolated into a dominant export regime;
+(c) the structural PACE timing mismatch (field phase ended May 2021, PACE launched Feb 2024 —
+zero coincident data, so the founding "algorithms for PACE" promise could not be closed within
+the program). My lean: include all three in a labelled program-level subsection, stated
+factually; (c) doubles as our opening — the EXPORTS archive is the pre-launch training set and
+we close the loop with actual PACE data. FQ2 asks about figures (proposed
+`reports/py/exports_figs.py` with 2–3: campaign contrast, global pathway partitioning +
+cross-method spread, and optionally the promise-vs-delivery timeline).
+
+**Decisions taken without asking** (flagged for override in the Q&A): inherit the biomass
+report's conventions (Vancouver + verified DOIs, uncertainty-conventions box, 95% CIs where
+derivable); perform the §2.5 update in the same pass as the report; cite preprints alongside
+journal DOIs where finals are paywalled, per EQ5.
+
+Next: await FQ1–FQ2, then write `reports/exports_summary.md` and the §2.5 update.
+
+### 2026-08-08 (Export prompt 3: wrote reports/exports_summary.md + 3 figures; updated biomass §2.5)
+
+Executed the 3rd "Export" task. FQ1 (all three program-level critiques in) and FQ2 (all three
+figures) both confirmed. **Report written.**
+
+**Deliverables.**
+- `reports/exports_summary.md` — ~5,200 words, six sections per EQ3: §1 what was funded and why
+  (the PACE rationale quoted from the 2015/2016 plans; Goal Plan $71.5M vs the single-sourced
+  "$40M" as-executed figure, caveated per EQ4); §2 the two campaigns with headline numbers and
+  the method-level lesson; §3 the global synthesis and whether the numbers moved; §4 the
+  remote-sensing deliverable, honestly assessed — §4.3 the gaps the program reported itself,
+  §4.4 the three unreported program-level shortcomings (descope, no Southern Ocean, PACE timing);
+  §5 data legacy, publication metrics, the untraceable synthesis phase, and the unplanned
+  mCDR-verification legacy; §6 the fenced VICC mapping (five steps + cautions).
+- `reports/py/exports_figs.py` → three PNGs in `reports/figs/`: `exports_fig1_campaign_contrast`
+  (the ×10 site contrast achieved / same-site methods disagree ×2–3),
+  `exports_fig2_pathways` (Nowicki partitioning 72/19/10% beside the still-open ~4–11 Gt C yr⁻¹
+  cross-method ladder), `exports_fig3_timeline` (promise-vs-delivery; the 33-month field→PACE gap).
+- `reports/biomass_summary.md` §2.5 updated per EQ6(i): a new EXPORTS-era bullet (10.2 Gt C yr⁻¹
+  central, 72/19/10% partitioning, ~1,300 Pg C sequestration; envelope unchanged), a pointer in
+  §2.5.1, and ref 30's "(first author to confirm)" flag cleared (Wang W-L, Fu W, Le Moigne FAC —
+  established during the EOI-references verification pass).
+
+**Sources actually read.** Full text: Siegel 2021 overview, Siegel 2023 review (NTRS), the 2015
+Science Plan, and the three JXP-supplied PDFs (Clevenger 2024, Traylor 2025, Briggs 2020 — key
+numbers confirmed against the PDFs themselves, e.g. Traylor's site contrast GPP ×5 / NCP ×13 /
+fCorg 3.4 ± 0.7 vs 20.3 ± 2.3 mmol C m⁻² d⁻¹, ez-ratios 0.24 vs 0.69). Johnson 2024 via the
+EarthArXiv preprint per EQ5.
+
+**Verification performed.**
+- **All 40 reference DOIs verified against Crossref metadata** (author/year/title, plus
+  volume/pages for entries stating them) in two batch API passes; the two title-search stragglers
+  resolved Saba 2021 (10.1002/lno.11709) and failed to resolve the Graff Elementa 11:00112 POC
+  reconciliation paper, which is therefore **not cited**.
+- **Citation integrity scripted**: every [n] in the body resolves, no orphaned references (40/40).
+- **Figures inspected as rendered PNGs, not assumed.** Three defects found and fixed by looking:
+  (i) fig2's estimate labels collided with their error bars (moved to y-tick labels); (ii) fig3's
+  gap annotation ran through three event labels (given its own band; labels re-laid at three
+  depths); (iii) a `"PACE" in txt` marker-nudge condition also matched the Science Plan label
+  (which quotes "…PACE mission"), drawing a spurious diagonal across the plot — the classic
+  substring-match bug, fixed with `startswith`.
+- **Prose re-diffed against the figure values** (the recurring-defect check): 72/19/10%,
+  7.3/1.9/1.0, the 4.0–10.64 ladder, 1.38 ± 0.77 / 3.4 ± 0.7 / 11→14 / 20.3 ± 2.3, and the
+  33-month gap all match between report text, captions, and `exports_figs.py`.
+- `reports/py/` is not ruff-clean by existing convention (biomass_figs.py fails identically), so
+  exports_figs.py matches its sibling's style rather than diverging.
+
+**Honest-critique balance, per EQ2/FQ1.** §4.3 carries only self-reported gaps (Erickson 2022's
+bbp calibrations mutually inconsistent at 95%; Siegel 2023's own "operational system" concession;
+the Eos sequel), each through the program's words. §4.4 carries the three unreported structural
+observations, stated factually with the Implementation Plan's own numbers and an explicit "none
+diminishes the science that was done." Briggs 2020 is explicitly marked as NOT an EXPORTS product.
+One inference is labelled as such: the global inverse model is constrained by satellite
+NPP/climatologies, not the 2018/2021 field data, so the field→global-number loop is indirect.
+
+Next: the EXPORTS report is done; JXP reviews. The EOI draft remains with JXP (EQ6ii).

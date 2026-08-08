@@ -155,6 +155,14 @@ physiologically decoupled. In-situ autotrophic-carbon census gives C:Chl varying
   Satellite/inverse export algorithms (Siegel et al.; DeVries & Weber; Nowicki et al.)
   [23,24] differ in both magnitude and spatial pattern; export uncertainty dominates
   above ~900 m, transfer efficiency below [22,23].
+- **The EXPORTS-era update (2026-08-08).** NASA's EXPORTS program now provides a
+  pathway-resolved central estimate: **10.2 (9.7–10.7, 25–75% quartiles) Gt C yr⁻¹**
+  at the euphotic-zone base, split **gravitational 72% / mixing 19% / migrant 10%**,
+  with ~1,300 Pg C of biological-pump sequestration attributed by pathway and
+  residence time [23]. This changes the *character* of the estimate — partitioned and
+  mechanistic rather than a bare range — but it is one more point inside the same
+  cross-method spread, which stands. See `reports/exports_summary.md` for the full
+  assessment of what EXPORTS did and did not deliver.
 
 ![Uncertainty as disagreement across methods](figs/fig3_uncertainty_cascade.png)
 
@@ -166,7 +174,10 @@ argues, are not comparable measures. Ranges from refs [6–24].*
 
 **Not very** — and its unreliability is structural, not statistical. The **5–15 Gt C
 yr⁻¹** range is a **spread of independent best estimates, not a confidence interval**,
-and it has **not narrowed in ~40 years** [5].
+and it has **not narrowed in ~40 years** [5]. (The EXPORTS-era synthesis sharpens the
+*central* estimate and its mechanism — see the bullet above and
+`reports/exports_summary.md` — without narrowing this envelope: the 2011–2023
+independent estimates still span ~4–11 Gt C yr⁻¹.)
 
 - **It is not a probabilistic interval.** The two most recent global estimates —
   model-ensemble **6.08 ± 1.17** (1σ; 95% CI ≈ 3.8–8.4) [22] and hydrographic
@@ -517,7 +528,7 @@ also answers the collaborator's implied challenge — it makes the biological pr
 27. Bisson KM, et al. (as ref. 25). doi:10.1364/OE.503496
 28. Graff JR, Milligan AJ, Behrenfeld MJ. The measurement of phytoplankton biomass using flow-cytometric sorting and elemental analysis of carbon. *Limnol Oceanogr Methods.* 2012;10:910–920. doi:10.4319/lom.2012.10.910
 29. NASA OB.DAAC. PACE OCI Level-2 Regional Ocean Biogeochemical Properties, v3.1 (incl. carbon_phyto, carbon_phyto_unc, POC). 2025. doi:10.5067/PACE/OCI/L2/BGC/3.1 *(dataset DOI — confirm exact string at earthdata.nasa.gov)*
-30. (Authors) Biological carbon pump estimate based on multidecadal hydrographic data. *Nature.* 2023;624:579–585. doi:10.1038/s41586-023-06772-4 *(first author to confirm)*
+30. Wang W-L, Fu W, Le Moigne FAC, et al. Biological carbon pump estimate based on multidecadal hydrographic data. *Nature.* 2023;624:579–585. doi:10.1038/s41586-023-06772-4
 31. Henson SA, Laufkötter C, Leung S, Giering SLC, Palevsky HI, Cavan EL. Uncertain response of ocean biological carbon export in a changing world. *Nat Geosci.* 2022;15:248–254. doi:10.1038/s41561-022-00927-0
 32. (Authors) Distinct sources of uncertainty in simulations of the ocean biological carbon pump at different depths. *Commun Earth Environ.* 2024;5:236. doi:10.1038/s43247-024-01561-x
 33. Claustre H, Johnson KS, Takeshita Y. Observing the global ocean with Biogeochemical-Argo. *Annu Rev Mar Sci.* 2020;12:23–48. doi:10.1146/annurev-marine-010419-010956
