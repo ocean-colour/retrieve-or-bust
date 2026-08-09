@@ -44,6 +44,7 @@ Read the papers in the `context/papers/Biomass` folder.
 20. Perform the 3rd Task under "Export"
 
 21. Perform the 1st Task under "GO-SHIP"
+22. Perform the 2nd Task under "GO-SHIP"
 
 ## GO-SHIP
 
@@ -53,6 +54,8 @@ Read the papers in the `context/papers/Biomass` folder.
    - To what extent does it have radiometry?
    - How about Cp measurements?
 Write a report named `context/go_ship_summary.md` that summarizes your findings.  Use Fable if you can.  Log your work.
+
+2. Read more about Bio-GO-SHIP and add to the report.  Note that I have mvoed the report to `reports/go_ship_summary.md`.  Use Fable if you can.  Log your work.
 
 ## Export
 
@@ -1852,3 +1855,45 @@ the ESSD 2025 IOP compilation is AMT, not GO-SHIP — the latter kept only as th
 contrast citation for what radiometry+IOPs on a repeat line looks like.
 
 Next: JXP reviews `context/go_ship_summary.md`.
+
+### 2026-08-09 (GO-SHIP prompt 2: Bio-GO-SHIP deep dive; expanded reports/go_ship_summary.md)
+
+Prompt 22 (2nd Task under "GO-SHIP"): read more about Bio-GO-SHIP and add to the report,
+now living at `reports/go_ship_summary.md` (move confirmed on disk — `context/` copy gone,
+`reports/` copy present and intact). Model: Fable.
+
+**Sources read this pass**: the live program site `biogoship.org` (overview, cruise
+plans 404s aside), Clayton et al. 2022 (*Front. Mar. Sci.* 9:767443) re-read for the
+measurement suite, sampling modes, roadmap, cost posture, and PACE framing; Larkin et
+al. 2021 (*Sci. Data* 8:107) for the pilot-era omics record; Tanioka et al. 2022
+(*Sci. Data* 9:688, GO-POPCORN) for the particle-stoichiometry dataset; Gerace et al.
+2025 (*PNAS* 122:e2411835122) as the trend-detection exemplar from GO-SHIP data.
+
+**What was added** — a new §5 "Bio-GO-SHIP in depth" (relevance section renumbered §6):
+- **History in two phases.** Opportunistic pilot era 2011–2020: 971 surface metagenomes
+  from 932 stations on eight campaigns (I09N 2016, P18 2016–17, I07N 2018, AMT-28 2018,
+  C13.5 2020 + three pre-GO-SHIP cruises), sampled from the underway line every 4–6 h at
+  ~26.5 km median spacing; plus GO-POPCORN (~2,600 paired surface POC/PON/POP, 70°S–73°N).
+  Formal implementation 2022–: I05/P02/A13.5 designated the first fully sampled sections;
+  completed occupations now include P02 2022, Arctic (*Healy*, Nov 2022), A16N 2023,
+  I05 2023, I08S 2024, I09N — optics/pigments from six already in SeaBASS.
+- **Measurement suite split by mode**: underway flow-through (hyperspectral AC-S a/c,
+  bb3 multi-λ backscatter, FLBB, FRRF, IFCB, flow cytometry, discrete filtration for
+  HPLC/POC/omics) vs CTD/discrete (omics, C:N:P, eDNA, UVP, bio-acoustics); claimed cost
+  <~10% of GO-SHIP ops. Funders: NOPP pilot (NOAA+NASA), now NSF/NOAA/NASA/Minderoo.
+- **The PACE framing is Clayton et al.'s own** — the underway IOP+pigment data as the
+  algorithm testbed — and the report keeps the §3 caveat sharp: still no radiometry;
+  Bio-GO-SHIP constrains water-side IOPs/constituents, not Rrs.
+- **§6 relevance gains item 5**: the coincident AC-S+bbp+HPLC+POC/N/P data as a
+  conversion-factor resource (Cphyto↔POC↔bbp/cp and its regional stoichiometric
+  variability) — mapping onto the conversion-uncertainty terms the biomass report ranks
+  as dominant.
+- Header/source-note updated; §1's Bio-GO-SHIP paragraph now points to §5 (its wrong
+  "formal pilot 2022–" phrasing fixed — the pilot era began ~2011 opportunistically).
+
+**Verification**: the three new DOIs checked against Crossref before citing, and the
+volume/article numbers (8:107, 9:688, 122:e2411835122) confirmed rather than trusted
+from memory; scripted citation-integrity check passes — [1]–[19] all cited and all
+defined, no orphans (one false positive from a year starting a line in ref 7).
+
+Next: JXP reviews the expanded `reports/go_ship_summary.md`.

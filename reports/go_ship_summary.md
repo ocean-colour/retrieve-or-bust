@@ -3,7 +3,8 @@
 *Prepared 2026-08-09 as context for the Schmidt Sciences VICC proposal. Task: explore
 https://www.go-ship.org/ and assess (i) what GO-SHIP is, (ii) the extent of its
 backscattering measurements, (iii) the extent of its radiometry, and (iv) its cp
-(beam attenuation) measurements.*
+(beam attenuation) measurements. Updated the same day (prompt 22) with an expanded
+Bio-GO-SHIP section (§5).*
 
 > **A note on sources.** As of 2026-08-09 the official site `www.go-ship.org` is not
 > serving program content — the domain resolves to a DreamHost parking page, and
@@ -11,8 +12,10 @@ backscattering measurements, (iii) the extent of its radiometry, and (iv) its cp
 > therefore built from the US program site (`usgoship.ucsd.edu`), the GO-SHIP program
 > description paper (Sloyan et al. 2019 [1]), the GOOS network page [2], the SCOR
 > Working Group 154 report on plankton/bio-optical measurements for GO-SHIP [3], the
-> Bio-GO-SHIP program paper (Clayton et al. 2022 [4]), NASA OB.DAAC/SeaBASS holdings
-> [5,6], and the Gardner–Mishonov–Richardson transmissometer literature [7–10].
+> Bio-GO-SHIP program paper (Clayton et al. 2022 [4]), the Bio-GO-SHIP website
+> (`biogoship.org`, which is live) and its flagship data papers [16,17], NASA
+> OB.DAAC/SeaBASS holdings [5,6], and the Gardner–Mishonov–Richardson
+> transmissometer literature [7–10].
 
 ---
 
@@ -49,10 +52,10 @@ Programme / JGOFS survey (1986–1996) and the CLIVAR Repeat Hydrography program
 The decade-scale synthesis of the first GO-SHIP survey (heat, carbon, ventilation
 change) is Talley et al. 2016 [11].
 
-**Bio-GO-SHIP** [4] is the ongoing effort (formal pilot 2022–) to add systematic
-biological/bio-optical observations to GO-SHIP: HPLC pigments, POC, flow cytometry,
-omics, imaging, and underway inherent optical properties. It is the main vehicle by
-which optics beyond the transmissometer is entering the program.
+**Bio-GO-SHIP** [4] is the ongoing effort to add systematic biological/bio-optical
+observations to GO-SHIP: HPLC pigments, POC, flow cytometry, omics, imaging, and
+underway inherent optical properties. It is the main vehicle by which optics beyond
+the transmissometer is entering the program — described in depth in §5.
 
 ---
 
@@ -146,7 +149,73 @@ global particle/optics dataset in existence.**
 
 ---
 
-## 5. Relevance to our proposal (brief)
+## 5. Bio-GO-SHIP in depth
+
+**What it is.** Bio-GO-SHIP is the (initially US-led) program to make systematic,
+protocol-standardized biological and bio-optical observations a routine part of
+GO-SHIP occupations — "to measure, understand, and predict the distribution and
+biogeochemical role of pelagic plankton communities" [4]. It grew out of the SCOR
+WG 154 recommendations [3] and was launched as a pilot with NOAA and NASA funding
+through the National Oceanographic Partnership Program (NOPP); it now lists NSF,
+NOAA, NASA, and the Minderoo Foundation as supporters, with US and international
+team pages and a stated goal of exporting community-approved protocols globally
+(AMT, operating since 1995, is its explicit role model) [4,18].
+
+**History and status.**
+
+- *Opportunistic pilot era (2011–2020).* Underway-intake biological sampling was
+  piloted on GO-SHIP and allied cruises well before the formal program: the
+  flagship product is 971 surface metagenomes from 932 stations across eight
+  campaigns — I09N (2016), P18 (2016–17), I07N (2018), AMT-28 (2018), C13.5 (2020),
+  plus three pre-GO-SHIP cruises (BVAL46 2011, AE1319 2013, NH1418 2014) — sampled
+  from the ship's seawater line every 4–6 h, giving a median station spacing of
+  ~26.5 km, far finer than any prior global omics survey [16]. The same era
+  produced **GO-POPCORN**: ~2,600 paired surface POC/PON/POP measurements
+  (70°S–73°N, all major basins, plus ~965 particulate chemical-oxygen-demand
+  measurements) from Bio-GO-SHIP cruises 2011–2020 [17].
+- *Formal implementation (2022–).* I05, P02, and A13.5 were designated the first
+  fully sampled Bio-GO-SHIP sections (2022–2023) [4]; completed occupations now
+  include P02 (N Pacific, 2022), the Arctic section aboard USCGC *Healy*
+  (Nov 2022, including the North Pole), A16N (2023, two legs), I05 (2023), I08S
+  (2024), and I09N — the optics/pigments from six of these are already in SeaBASS
+  [6,18].
+
+**The measurement suite** [4] splits by sampling mode:
+
+- *Underway flow-through (continuous, ~5–7 m intake)*: bio-optical sensors — the
+  hyperspectral **AC-S** (particulate absorption and attenuation, from which
+  chlorophyll, pigment proxies, POC, and a particle-size index are derived),
+  **bb3-class multi-λ backscattering**, FLBB, **FRRF** photophysiology — plus
+  automated imaging (IFCB) and flow cytometry, and discrete filtration from the
+  same line for HPLC, POC/N/P, and omics.
+- *Discrete/CTD*: flow cytometry, omics (metabarcoding/metagenomics/
+  metatranscriptomics), C:N:P elemental analysis, eDNA, imaging (UVP), and
+  bio-acoustics.
+- *Cost posture*: adding the suite is estimated at **<~10% of GO-SHIP operating
+  costs** [4] — the argument being that the ships, berths, and Level 1 context are
+  already paid for.
+
+**The satellite connection is explicit.** Clayton et al. frame the underway
+IOP+pigment+imaging data as the testbed for "algorithms for biological proxies from
+remote sensing data … particularly with the upcoming launch of PACE" [4]; the
+SeaBASS/OB.DAAC pipeline [5,6] exists for exactly that purpose. Note, however, that
+the suite still contains **no radiometry** (§3) — Bio-GO-SHIP constrains the
+water-side IOPs and constituents, not Rrs.
+
+**Early science yield** (evidence the model works): the global-metagenome
+"microbes as biosensors" line [16]; particle-stoichiometry climatologies and their
+export implications [17]; and, from the GO-SHIP hydrographic record itself, the
+2025 detection of a five-decade decline in upper-ocean phosphate-to-nitrate
+availability [19] — a demonstration that repeat-section data support exactly the
+kind of multi-decadal trend detection our proposal targets on the optics side.
+
+**Data**: sequence data to GenBank/SRA, bio-optics to SeaBASS, biogeochemistry to
+BCO-DMO, hydrography to CCHDO, biodiversity records to OBIS, all FAIR-linked from
+the program site [4,18].
+
+---
+
+## 6. Relevance to our proposal (brief)
 
 1. **The cp archive is a ready-made, four-decade, full-depth particle record** on
    repeat lines with coincident Level 1 carbon-system data — a natural constraint
@@ -163,7 +232,12 @@ global particle/optics dataset in existence.**
 4. **Bio-GO-SHIP is the institutional on-ramp** for adding optics to GO-SHIP; its
    SeaBASS pipeline (bbp, cp, absorption, HPLC, POC on recent A16N/I05/I08S/I09N/
    P02 occupations) is the template a satellite-era in-situ optics contribution
-   would follow.
+   would follow — and its stated purpose (PACE-era algorithm testing) is our lane.
+5. **Bio-GO-SHIP's coincident AC-S + bbp + HPLC + POC/N/P underway data are a
+   conversion-factor resource**: the Cphyto↔POC↔bbp/cp relationships (and their
+   regional stoichiometric variability, GO-POPCORN [17]) are precisely the
+   conversion uncertainties our biomass report ranks among the dominant terms in
+   the satellite carbon-stock error budget.
 
 ---
 
@@ -215,3 +289,13 @@ global particle/optics dataset in existence.**
 15. Cetinić I, Perry MJ, Briggs NT, et al. Particulate organic carbon and inherent
     optical properties during 2008 North Atlantic Bloom Experiment. *J Geophys
     Res.* 2012;117:C06028. doi:10.1029/2011JC007771
+16. Larkin AA, Garcia CA, Garcia N, et al. High spatial resolution global ocean
+    metagenomes from Bio-GO-SHIP repeat hydrography transects. *Sci Data.*
+    2021;8:107. doi:10.1038/s41597-021-00889-9
+17. Tanioka T, Larkin AA, Moreno AR, et al. Global Ocean Particulate Organic
+    Phosphorus, Carbon, Oxygen for Respiration, and Nitrogen (GO-POPCORN).
+    *Sci Data.* 2022;9:688. doi:10.1038/s41597-022-01809-1
+18. Bio-GO-SHIP program website. https://biogoship.org/
+19. Gerace SD, Yu J, Moore JK, Martiny AC. Observed declines in upper ocean
+    phosphate-to-nitrate availability. *Proc Natl Acad Sci USA.*
+    2025;122:e2411835122. doi:10.1073/pnas.2411835122
