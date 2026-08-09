@@ -43,6 +43,17 @@ Read the papers in the `context/papers/Biomass` folder.
 19. Perform the 2nd Task under "Export"
 20. Perform the 3rd Task under "Export"
 
+21. Perform the 1st Task under "GO-SHIP"
+
+## GO-SHIP
+
+1. Here is the main web page for the GO-SHIP program: https://www.go-ship.org/.  Please explore it and answer the following questions:
+   - What is the GO-SHIP program?
+   - To what extent has it measured back-scattering properties of the ocean?
+   - To what extent does it have radiometry?
+   - How about Cp measurements?
+Write a report named `context/go_ship_summary.md` that summarizes your findings.  Use Fable if you can.  Log your work.
+
 ## Export
 
 ### Tasks
@@ -1791,3 +1802,53 @@ One inference is labelled as such: the global inverse model is constrained by sa
 NPP/climatologies, not the 2018/2021 field data, so the field→global-number loop is indirect.
 
 Next: the EXPORTS report is done; JXP reviews. The EOI draft remains with JXP (EQ6ii).
+
+### 2026-08-09 (GO-SHIP prompt 1: explored the program, wrote context/go_ship_summary.md)
+
+Prompt 21 (1st Task under "GO-SHIP"): explore https://www.go-ship.org/ and answer four
+questions (what is GO-SHIP; extent of backscattering; radiometry; Cp), reporting to
+`context/go_ship_summary.md`. Model: Fable.
+
+**First finding, before any science: `www.go-ship.org` is dead.** The domain currently
+serves a DreamHost parking page and subsidiary URLs (`HydroMan.html`, `DatReq.html`)
+404; web.archive.org is not reachable from this environment. The report is therefore
+built from substitutes and says so up front: `usgoship.ucsd.edu` (live), Sloyan et al.
+2019 (*Front. Mar. Sci.* 6:445, the program paper), the GOOS network page, the SCOR
+WG 154 report on plankton/bio-optics for GO-SHIP (Boss et al., misclab PDF — read as
+extracted pages, not summarized blind), Clayton et al. 2022 (Bio-GO-SHIP,
+*Front. Mar. Sci.* 9:767443), NASA OB.DAAC/SeaBASS holdings, and the
+Gardner–Mishonov–Richardson transmissometer literature.
+
+**Answers, compressed.** (i) GO-SHIP = the WOCE/CLIVAR-heritage network of ~55
+sustained decadal-repeat full-depth hydrographic reference lines, ~12 nations, Level
+1/2/3 measurement hierarchy, data at CCHDO; the only climate-quality full-water-column
+element of GOOS. (ii) **Backscattering: historically absent** (never Level 1/2);
+arriving now via two young channels — rosette FLBB (bbp 700 nm, single angle) on US
+cruises since ~2021 explicitly to validate GO-BGC/BGC-Argo floats, and Bio-GO-SHIP
+underway flow-through bbp/cp archived in SeaBASS from six occupations (A16N 2023 ×2,
+I05 2023, I08S 2024, I09N, P02; PIs Graff/Mitchell/Poulton). No long, multi-spectral,
+uncertainty-characterized bbp record exists. (iii) **Radiometry: effectively none** —
+above-water PAR from ship met sensors only; no in-water Ed/Lu, no Rrs, nothing
+radiometric in the SeaBASS Bio-GO-SHIP holdings; shipborne hyperspectral radiometry
+lives outside GO-SHIP (AMT FRM radiometry; SO-PACE pySAS on ships of opportunity).
+(iv) **Cp is the crown jewel**: C-Star-class 660 nm transmissometers on the CTD at
+essentially every station of US-occupied lines since WOCE (~4 decades), consolidated
+in the Gardner/Mishonov/Richardson Global Transmissometer Database V3 (order-10⁴
+full-depth profiles, >70 cruises, cp in ~85% of casts), supporting decadal
+repeat-transect particle comparisons, nepheloid-layer maps, and POC climatologies —
+with honest caveats (single λ, calibration drift, regionally varying cp→POC).
+
+**Report shape**: four Q&A sections + a brief §5 mapping to the proposal (cp archive
+as full-depth POC-proxy constraint; GO-SHIP as the BGC-Argo bbp traceability chain;
+the radiometry gap as a cheap enhancement opportunity; Bio-GO-SHIP as the
+institutional on-ramp), 15 Vancouver references.
+
+**Verification**: all six from-memory DOIs checked against Crossref; one was wrong —
+the pySAS *Oceanography* paper is 10.5670/oceanog.2022.**210**, not .203 (the .203 I
+first wrote resolves to an unrelated civic-activism paper) — fixed before delivery.
+Two dead ends hit and reported rather than papered over: the JTECH-D-23-0161 bbp
+paper surfaced by search turned out to be about SVP drifters (not Bio-GO-SHIP), and
+the ESSD 2025 IOP compilation is AMT, not GO-SHIP — the latter kept only as the
+contrast citation for what radiometry+IOPs on a repeat line looks like.
+
+Next: JXP reviews `context/go_ship_summary.md`.
