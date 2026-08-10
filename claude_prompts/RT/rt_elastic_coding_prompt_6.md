@@ -87,7 +87,10 @@ my first reading of the data (see the log entry).
    with any result: these are one *family* (Fournier-Forand), so this tests our §4.2
    parameterization rather than generalisation across VSF families; and `bbph/bph` is
    correlated with chlorophyll (corr(log, log) = −0.65) without being a function of it,
-   so a `B_p` split is **not** independent of the water type it holds out.
+   so a `B_p` split is **not** independent of the water type it holds out. For the
+   **bulk `B_p`** a split would actually use, the correlation is weaker — **−0.49** over
+   600 realisations (task 5) — and the span is wider than first recorded: **12.4×**
+   (0.0025–0.0315), against the 6.2× seen in ~50 files here.
 2. **The Lee-2002 surface transfer fails off-nadir, and this is a finding, not a
    footnote.** My first spot check — file 0001, 443 nm, nadir, θs=0 — agreed to 0.2%, and
    I wrote that our `conventions` map onto this dataset. Across all 1300 geometries the
@@ -345,7 +348,7 @@ samples because the envelope reached exactly as far as the data did).
    `fit_o25` has **no view-angle axis at all**, which would have made the milestone's gate
    a straw man; it scheduled a cross-dataset check that cannot pass by construction; and
    it repeated a claim of mine that was simply false — see the correction under task 7.
-   Two prerequisite tasks were missing entirely. The findings are in §7.7 of the record.
+   Two prerequisite tasks were missing entirely. The findings are in §7.10 of the record.
 
    How it is ordered: **3 → 4 → 5** are prerequisites (make the machinery dataset-agnostic,
    then load, then split), **6** unblocks three later tasks at once, **7 → 8 → 9** builds an
@@ -391,7 +394,35 @@ samples because the envelope reached exactly as far as the data did).
    a test says which; the clamp can no longer fire silently.
    **Depends on:** nothing. **Blocked:** no.
 
-4. **The PB24 loader** — `robust/rt/data/pb24.py`. *Unlocks: everything below.*
+4. **The PB24 loader** — `robust/rt/data/pb24.py`. ✅ **done 2026-08-09.**
+   *Unlocks: everything below.*
+
+   **What landed.** `PB24Batch` (carrying `rrs` **and** `Rrs` and `Q` and the µ's,
+   unlike `L23Batch`), `LoadReport`, `load_batch`, `select`, `write_fixture`,
+   `npz_reader`, `read_classes`, `data_dir`/`file_path`, and a committed
+   **`robust/tests/files/pb24_small.npz`** (471 kB, 3 realisations, *all* 1300
+   geometries each). **+28 tests, 323 pass**, ruff clean.
+
+   Four things worth knowing:
+   - **A stride aliases, and it nearly went unnoticed.** Flattening
+     `(theta_s, theta, phi)` in C order puts the 13 azimuths innermost, so
+     `geometry_stride=13` keeps **one azimuth** — deleting the BRDF axis this
+     milestone exists to study, while still returning a plausible batch. The
+     report now carries per-axis `coverage`, `aliased_axes` names the casualties,
+     and the loader warns. Found by *running* the loader, not by reading it.
+   - **The zero-`rrs` gate bites where it was told to.** In the OLCI set the zeros
+     are only at 753 nm, θs = 80°, θv = 87.5° — realisation 993 has exactly two —
+     so the fixture includes 993 and the assertions run on the **shell**. Inside
+     the window the filter removes nothing, which a second test states explicitly
+     so the choice is not folklore. The cost of dropping whole spectra is
+     reported, not hidden: 2 spectra removed to exclude 2 values, so **22 good
+     bands lost**.
+   - **The sidecar is opt-in.** `water_classes="auto"` reads the `.mat`; the
+     default attaches none. A loader that behaves differently depending on whether
+     `$OS_COLOR` is mounted makes fixture-backed tests non-deterministic.
+   - **Measured scale, for task 11 and Q16:** 20 realisations × 832 geometries =
+     16 640 samples in 0.6 s and 8 MB, so the full window is **~2 min and ~2 GB**
+     of resident arrays before training touches it.
 
    Follow `l23.py`'s *shape* (`load_batch`, `make_splits`, `npz_reader`, `write_fixture`,
    a committed fixture so CI runs real numbers with no data mount) but **not its field
@@ -415,7 +446,36 @@ samples because the envelope reached exactly as far as the data did).
    θv = 87.5°), so dropping whole spectra discards good bands.
    **Depends on:** 3. **Blocked:** no.
 
-5. **The three splits** — `pb24.make_splits`. *Unlocks: every comparison in M5.*
+5. **The three splits** — `pb24.make_splits`. ✅ **done 2026-08-10.**
+   *Unlocks: every comparison in M5.*
+
+   **What landed.** `make_splits`, `Splits`, `SplitReport`, `confound_reference`,
+   `SPLIT_KINDS`/`DEFAULT_SPLIT_KINDS`, `SPLIT_SEED`, `TEST_FRACTION`,
+   `BP_BAND_QUANTILES`; `PB24Batch` gained `labels` (`C`, `N`, `Y` per sample — already
+   in the fixture, so it did **not** need regenerating). **+13 tests, 336 pass**, ruff
+   clean.
+
+   Four decisions and one correction:
+   - **`bp_band` holds out an *interior* band** (quantiles 0.4–0.6), so the train side is
+     both tails and the test is *interpolation* across phase functions. Extrapolation is
+     already the geometry split's job, and conflating them would leave a bad number
+     unattributable. `detail` reports the band edges, the train tails, and
+     `n_train_inside_band` (0 by construction).
+   - **`geometry` refuses a window-only batch** rather than scoring an empty set — the
+     interaction task 2 flagged. The error names the fix (`angles="all"`).
+   - **The confound is measured, and so is its yardstick.** `confound_reference` reports
+     what a *random* hold-out of the same size does, because ratios against 1.0 are
+     uninterpretable here: over 12 seeds at 600 realisations a random split moves median
+     chlorophyll across **[0.53, 1.90]**. Only `B_p_mean` is tight under randomness
+     ([0.98, 1.08]), so it is the one entry where a departure means something immediately.
+   - **A correction to this doc.** It said `B_p` correlates with chlorophyll at
+     **−0.65**; that figure is task 0's, and it is for the *phytoplankton component ratio*
+     `bbph/bph`. For the **bulk `B_p`** the split actually uses, measured over 600
+     realisations, it is **−0.49**. Still a real confound, weaker than advertised, and now
+     pinned by a test.
+   - **`B_p` spans more than first recorded:** 12.4× across 600 realisations
+     (0.0025–0.0315), against the 6.2× measured from ~50 files at task 0. Better news for
+     the milestone than the earlier figure.
 
    `realisation` (random 20% by file — M4's analogue); `bp_band` (hold out a band of
    per-realisation mean `B_p` — **the phase-function axis, and the reason M5 exists**);
@@ -430,13 +490,42 @@ samples because the envelope reached exactly as far as the data did).
    **Gate:** disjoint, exhaustive and deterministic given a seed; **every split's test set
    asserted non-empty**; the geometry test set contains only θ ≥ 80°; the `bp_band` split
    **measures and reports its own confound** (`B_p` correlates with chlorophyll at
-   corr(log, log) = −0.65, so holding out a band also shifts the water type) and a test
-   asserts that report exists and is non-trivial — the confound must be visible in the
-   artefact, not just in this doc.
+   corr(log, log) = **−0.49** for the bulk `B_p`, measured at task 5; the −0.65 first
+   quoted here is the *component* ratio `bbph/bph`) and a test asserts that report exists
+   and is non-trivial — the confound must be visible in the artefact, not just in this
+   doc.
    **Depends on:** 4. **Blocked:** no.
 
-6. **Extend the validation toolkit.** *Unlocks: tasks 7, 11 and 14 — a shared dependency
-   the first draft of this sequence missed entirely.*
+6. **Extend the validation toolkit.** ✅ **done 2026-08-10.** *Unlocks: tasks 7, 11 and 14
+   — a shared dependency the first draft of this sequence missed entirely.*
+
+   **What landed.** `rrms(..., where=)`, `rrms_per_wavelength(..., where=)`,
+   `group_rrms(..., expected=, where=)`, a generalised `gradient_report`,
+   `FD_STEPS_EXTRA` and `default_steps()`; `design/py/run_validation.py` now derives its
+   table headers from the labels. **+8 tests, 346 pass**, ruff clean.
+
+   - **`gradient_report` perturbs any field, not four names.** Variables resolve against
+     the dataclasses themselves and every container is rebuilt with
+     `dataclasses.replace`, so a field this module has never heard of survives and is
+     provably perturbed. Subsets and extra *known* variables are now legal; what still
+     raises is a name the inputs cannot offer — including `wind`, a real field that is
+     `None` here and would otherwise have become `None + 1e-3`. **The old guard's
+     contract changed deliberately**, and its test was rewritten rather than patched: it
+     demanded exactly M2's four variables, which is what made every M5 gate
+     inexpressible.
+   - **`rrms`'s mask is applied twice**, before and after the division. Masking only
+     afterwards leaves `0/0` in the graph — `jnp.where` hides the NaN forward, and
+     reverse-mode propagates it through the discarded branch, so the loss would look
+     healthy and the gradient would be NaN. A test asserts exactly that asymmetry.
+   - **`group_rrms(expected=)` fixes a hazard that could not fire on L23.** Iterating
+     `np.unique` can only produce non-empty groups, so the function was *incapable* of
+     returning a short dict — which is why zipping `.values()` against hard-coded headers
+     was safe for three fixed zeniths and is not for PB24's eight. Missing groups now
+     come back as `nan`, and `run_validation.py` zips labels.
+   - **Both `gradient_report` regressions were demonstrated**, not asserted: reverting the
+     closure to its pre-task-6 form fails them, restoring it passes. And the refactored
+     `run_validation.py` reproduces every deterministic row of the committed
+     `metrics.md` bit-for-bit.
 
    Three limits, all of them deliberate choices made when L23 was the only dataset:
    - `gradient_report` **raises** unless the perturbed set is exactly
@@ -875,6 +964,169 @@ Record work in the Logs section below, format:
 
 <Detailed description of the work and what you learned>
 
+### 2026-08-10 (Task 6 — the validation toolkit; a guard I deliberately changed; record v0.21)
+
+**What I did.** The three limits task 2's review found in `validation.py`, each of which
+blocks a later gate: `gradient_report`'s fixed four variables, `scalar()` silently
+dropping `PhaseParams` fields, and `rrms` having no mask. Plus the real call site the
+third one endangered — `design/py/run_validation.py` zipped `group_rrms(...).values()`
+against hard-coded headers. **+8 tests, 346 pass** (316 + 30 skipped), ruff clean.
+
+**The decision that needed care: I changed a contract on purpose.** The old guard demanded
+that `steps` name *exactly* `{a, bb_p, B_p, theta_s}`, and an existing test pinned it —
+including that a **subset** must raise. That guard was right for its time: the closure
+genuinely could not honour a subset (KeyError from inside) or an extra key (reported 0.0,
+"perfect agreement", for something never perturbed). But it is also precisely what makes
+every M5 gate inexpressible, so "extend it, do not relax it" needed unpacking:
+
+- subsets and extra *known* variables are now **legal**, because the implementation can
+  honour them — task 7 wants to check only the new surface-transfer path, task 14 only the
+  new fields;
+- what still raises is a name the inputs **cannot offer**, including `wind` — a real field
+  that is `None` here and would otherwise have become `None + 1e-3`;
+- the failure the old guard prevented is now **structural**: every name is resolved to a
+  real field and perturbed through `dataclasses.replace`, so "named but not perturbed" is
+  no longer a reachable state rather than a forbidden one.
+
+I rewrote that test rather than patching it, and said so in both the test's docstring and
+the record. Quietly deleting an assertion that encodes an earlier decision is how a suite
+stops meaning anything.
+
+**The subtlety in the mask.** `rrms` divides by truth, so masking has to happen *before*
+the division as well as after. Masking only afterwards leaves `0/0` in the graph:
+`jnp.where` hides the NaN in the forward pass, and reverse-mode differentiation propagates
+it through the discarded branch. Since `rrms` doubles as M3's training loss, that would
+have produced a loss that looks healthy and a gradient that is NaN — the worst shape a bug
+can take. The test asserts the asymmetry directly: masked gradient finite, unmasked not.
+
+**A hazard that could not fire on L23.** `group_rrms` iterates `np.unique(labels)`, which
+can only produce non-empty groups — so it was *incapable* of returning a short dict, and
+zipping `.values()` against three fixed zenith headers was safe. On PB24, with eight
+zeniths and eight view angles, a split can omit one and every column shifts left without
+raising. `expected=` makes the key set fixed and `run_validation.py` now indexes by label.
+
+**Demonstrated rather than asserted.** I reverted `gradient_report`'s closure to its
+pre-task-6 form and watched both new regression tests fail, then restored it and watched
+them pass. And I checked the refactored `run_validation.py` against the committed
+`metrics.md`: every deterministic row — Gordon, ZTT, O25 on both the per-zenith and
+per-`B_p` tables — reproduces bit-for-bit, so the change is behaviour-preserving on L23
+while being correct on PB24.
+
+**What I learned.** "Do not relax the guard" was the right instruction and the wrong
+summary of the work. The guard conflated two things: *which variables the caller may ask
+for* (too narrow, and the reason the task exists) and *whether an asked-for variable is
+actually perturbed* (the real invariant). Separating them let the first widen while the
+second got stronger — enforced by construction instead of by a set comparison. When an old
+constraint blocks new work, the useful question is which invariant it was protecting, not
+whether to keep or drop it.
+
+### 2026-08-10 (Task 5 — the three splits, and a confound weaker than I claimed; record v0.20)
+
+**What I did.** `pb24.make_splits` with the three splits M5 needs — `realisation`,
+`bp_band`, `geometry` — each carrying a `SplitReport`, plus `confound_reference`.
+`PB24Batch` gained `labels` (`C`, `N`, `Y`); they were already in `RAW_FIELDS`, so the
+committed fixture did **not** change and its bit-identical gate still holds. **+13 tests,
+336 pass** (306 + 30 skipped), ruff clean.
+
+**The design decision.** `bp_band` holds out an **interior** quantile band, so the train
+side is both tails and the split tests *interpolation* across phase functions.
+Extrapolation is already the geometry split's job, and running both in one split would
+leave a bad number unattributable to either. Choosing this before seeing any result is
+the same discipline as writing the gate before the numbers exist.
+
+**Where measurement changed what I would have written.** The gate said the `B_p` split
+must report its confound, and I had the sentence ready: "corr(log, log) = −0.65, so
+holding out a band also shifts the water type." Two things were wrong with it.
+
+1. **−0.65 is the wrong quantity.** That is task 0's figure for the *phytoplankton
+   component ratio* `bbph/bph`. The split uses the **bulk** `B_p`. Measured over 600
+   realisations, that correlation is **−0.49**. Real, and weaker than advertised. Both the
+   record and this doc said −0.65 in a sentence about the split; both now say what they
+   mean, and a test pins the bulk figure.
+2. **The ratios are uninterpretable against 1.0**, which I only saw by running the
+   report. PB24's labels are heavy-tailed, so a *random* hold-out of the same size already
+   moves median chlorophyll across **[0.53, 1.90]** over 12 seeds. A reported "C = 1.5"
+   therefore means nothing on its own — and I would have shipped exactly that number as
+   evidence of a confound. Hence `confound_reference`, which measures the random-split
+   band on the batch in hand. Only `B_p_mean` is tight under randomness ([0.98, 1.08]),
+   so it is the one entry where a departure is immediately meaningful.
+
+**Two limits of the metric, written down because they read as results.** For `bp_band`
+the `B_p_mean` ratio is ~1.0 — an interior band and its two tails share a median — so the
+intended separation lives in `detail` (band edges, train tails, `n_train_inside_band`),
+not in the ratio. For `geometry` every confound entry is exactly 1.0, which is correct and
+is a useful control: that split divides angles, not water bodies.
+
+**Also measured:** `B_p` spans **12.4×** across 600 realisations (0.0025–0.0315), against
+the 6.2× recorded from ~50 files at task 0. The earlier figure was a small-sample floor,
+and the milestone's headline axis is wider than the record claimed.
+
+**One more tautology of mine.** `assert splits.seed == 8` — testing that a field I stored
+was stored. It now sweeps ten seeds and requires the draw to land on more than one
+realisation, which is the honest version given that with three fixture realisations two
+seeds can agree by chance. That is the third in three tasks; the pattern is always the
+same, a test written to *describe* behaviour rather than to *discriminate* between right
+and wrong behaviour.
+
+**What I learned.** A confound is not disclosed by quoting a correlation from a different
+quantity in a different sample. It is disclosed by measuring, on the split that was
+actually built, how far it moves the things it did not mean to move — and by measuring
+what "far" means. The reference band is the part I would not have thought to build if I
+had not first computed a ratio and been unable to say whether 1.5 was large.
+
+### 2026-08-09 (Task 4 — the PB24 loader; a stride that deletes the BRDF; record v0.19)
+
+**What I did.** `robust/rt/data/pb24.py`, following `l23.py`'s shape — `load_batch`,
+`write_fixture`, `npz_reader`, `select`, a committed fixture holding the loader's *input*
+so CI runs real numbers — with the field list deliberately wider: `rrs` **and** `Rrs` and
+`Q` and the average cosines, because tasks 7, 9 and 13 consume them and the fixture is
+gated bit-identically, so a field added later invalidates every cache in existence. Plus
+`LoadReport`, which every load returns. **+28 tests, 323 pass** (294 + 29 skipped without
+`$OS_COLOR`), ruff clean.
+
+**The finding of the day, and I found it by running the thing rather than reading it.**
+The geometry grid flattens `(theta_s, theta, phi)` in C order, so the 13 azimuths sit
+innermost — which means **`geometry_stride=13` keeps exactly one azimuth**. My very first
+smoke test used stride 13 because 13 looked like a nice number, and printed `dphi uniq
+[0.0]`. A subsample that silently deletes the BRDF axis, in the milestone whose entire
+purpose is the BRDF, while returning a batch that validates and looks completely normal.
+`LoadReport` now carries per-axis `coverage`, `aliased_axes` names the casualties, and the
+loader warns with the arithmetic. This lands directly on **Q16**: the sanctioned subsample
+has to be checked for *coverage*, not just for size — "how many samples" was the wrong
+question to have asked.
+
+**Two gates that had to be made non-vacuous.** The zero-`rrs` filter removes nothing inside
+the Q14 window — I said so in task 2 and it is true — so the assertions run on the *shell*,
+and the fixture deliberately includes realisation **993**, which carries the only two
+zero-`rrs` values in the OLCI set (both at 753 nm, θs = 80°, θv = 87.5°). A second test
+states the inertness inside the window explicitly, so the choice of the shell is recorded
+rather than folklore. And the cost of dropping whole spectra is now a number in the report:
+2 spectra removed to exclude 2 bad values, **22 good bands lost**.
+
+**Two things the code caught in me.** `write_fixture`'s own verification refused to write:
+it loads the snapshot back through the real loader and counts samples, and my expected
+count ignored that the default filter drops 993's two zeros — the atomic-write check
+working exactly as designed, on its author. And my `mu_d` test contained
+`assert ... == approx(0.0) or True`, a tautology, the same "test that cannot fail" defect
+M4's review found four of. It now asserts `mu_d` takes exactly **8** distinct values in the
+window, one per solar zenith: a broadcast bug collapses that to 1, a mis-indexed gather
+inflates it.
+
+**One design change while writing it.** `load_batch` originally read the water-class
+sidecar automatically. That makes a fixture-backed test behave differently depending on
+whether `$OS_COLOR` is mounted — non-determinism smuggled in as convenience — so classes
+are opt-in via `water_classes="auto"`.
+
+**Measured, for Q16 and task 11:** 20 realisations × 832 in-window geometries = 16 640
+samples in 0.6 s and 8 MB, so the full window is **~2 min and ~2 GB** resident before
+training touches it. That is the number the subsample decision should be made against.
+
+**What I learned.** Run the thing on real data at the first opportunity, with a
+deliberately awkward argument. Reading the loader would never have shown me the azimuth
+collapse; one print of `dphi uniq` did. The pattern is the same one as yesterday's nadir
+spot check — an artefact that looks right at the point you sample it — except this time the
+sampling was cheap enough to do before writing any prose about it.
+
 ### 2026-08-08 (Task 3 — `conventions` learns a second wavelength grid; record v0.18)
 
 **What I did.** The first code of M5, and the smallest task in it: give the package a grid
@@ -932,7 +1184,7 @@ and still described commissioning HydroLight runs as the route — both now fals
 **Then a Fable agent reviewed the sequence against the code and found it wrong in eight
 places** — enough that what shipped is a second draft with **six more tasks** (16, not 10).
 I verified every load-bearing finding myself before rewriting; all of them held. The full
-list is record §7.7, and the pattern behind them is one thing: **the M0–M4 machinery
+list is record §7.10, and the pattern behind them is one thing: **the M0–M4 machinery
 quietly assumes L23 is the only dataset**, and my sequence assumed it was general. The two
 that would have cost the most: the cross-dataset check **could not have passed** (L23 starts
 at 350 nm, an OLCI-trained emulator's domain starts at 400, and one out-of-domain λ flags
@@ -1094,5 +1346,3 @@ Q12 and gotcha 9.
 replace L23 as the training set — I propose keeping L23 as an independent *dataset* test
 and not repointing `load_default()`), Q14 (the sanctioned envelope, now that the data
 reaches 87.75°). All three carry a default so task 1 proceeds without answers.
-
-## Logs

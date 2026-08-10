@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.18
-**Date:** 2026-08-08
+**Version:** 0.21
+**Date:** 2026-08-10
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -30,7 +30,7 @@ every bump.
 | **M2** | ZTT analytic backbone (JAX) | ✅ done | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
-| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–3 done, 4–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` (planned) |
+| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–6 done, 7–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **295 passed** (`ocean14`); with
-`$OS_COLOR` unset, **272 passed + 23 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **346 passed** (`ocean14`); with
+`$OS_COLOR` unset, **316 passed + 30 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1502,10 +1502,12 @@ phase function** and the **full BRDF** — on the reference data that turned out
 both. M4's summary lists six things the prototype may not claim (§6.10); M5 exists to
 convert items 4 and 5 from *untested* into *measured*.
 
-**Status: scoped, not started.** Tasks 0–2 (answers, answers, sequencing) are done; tasks
-3–12 are specified with a gate each in
+**Status: in progress.** Tasks 0–2 (answers, answers, sequencing) and the two prerequisites
+— **3** (a second wavelength grid, §7.6) and **4** (the PB24 loader, §7.7) — plus **5**
+(the three splits, §7.8) and **6** (the validation toolkit, §7.9) are done; tasks 7–16 are
+specified with a gate each in
 [`rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md) §M5
-and summarised in §7.4 below. No `robust/` code has changed for M5.
+and summarised in §7.5 below.
 
 ### 7.1 Task status
 
@@ -1515,16 +1517,16 @@ and summarised in §7.4 below. No `robust/` code has changed for M5.
 | 1 | Fold in Q12/Q13/Q14 | — | ✅ done |
 | 2 | Sequence the milestone; fill this section | — | ✅ done |
 | 3 | `conventions` accepts a second wavelength grid | L23 path unchanged; a PB24-grid `IOPs` validates; `bb_w(753)` cannot clamp silently | ✅ done |
-| 4 | `robust/rt/data/pb24.py` — the loader | golden values vs raw netCDF; fixture regenerates bit-identically; angle window asserts its count; zero-`rrs` gate on the **shell** load | ⬜ |
-| 5 | `pb24.make_splits` — realisation / `B_p` band / geometry | disjoint, deterministic, **every test set non-empty**; the `B_p` split reports its chlorophyll confound | ⬜ |
-| 6 | Extend `validation.py` — `gradient_report` axes, `rrms` masking, group↔header alignment | one regression test per limit, each demonstrated to fail first | ⬜ |
+| 4 | `robust/rt/data/pb24.py` — the loader | golden values vs raw netCDF; fixture regenerates bit-identically; angle window asserts its count; zero-`rrs` gate on the **shell** load | ✅ done |
+| 5 | `pb24.make_splits` — realisation / `B_p` band / geometry | disjoint, deterministic, **every test set non-empty**; the `B_p` split reports its chlorophyll confound | ✅ done |
+| 6 | Extend `validation.py` — `gradient_report` axes, `rrms` masking, group↔header alignment | one regression test per limit, each demonstrated to fail first | ✅ done |
 | 7 | Geometry-aware surface transfer in `conventions` | default path bit-identical to M4; fitted path ≥5× better at θv = 60°; gradient-checked | ⬜ |
 | 8 | O25 gains a geometry-indexed coefficient table | 3-D refit beats θs-only off-nadir or is dropped; L23 path reproduces `O25_L23_REFIT` exactly; a missing zenith **raises** | ⬜ |
 | 9 | PB24 benchmark — Gordon, ZTT, O25 refit | aggregation consistency **and header↔group alignment**; refit on train mask only; CSVs round-trip | ⬜ |
 | 10 | Per-model sanctioned envelope | the L23 model stays 0–60° after the change, pinned by test; a view-angle envelope exists | ⬜ |
 | 11 | Retrain the emulator with `theta_v`/`dphi` live | **provisional (Q15)**: beat O25 on the realisation *and* `B_p` splits; report geometry; training-set size stated in the artefact | ⬜ |
 | 12 | Cross-dataset check — PB24 model on L23 | overlap computed not assumed; out-of-domain fraction reported; promotion rule encoded as a **conditional** | ⬜ |
-| 13 | ZTT `mu_d` vs HydroLight (µ∞ narrowed — see §7.7) | `mu_d` discrepancy pinned by test; the µ∞ conclusion written down, including "not resolved" | ⬜ |
+| 13 | ZTT `mu_d` vs HydroLight (µ∞ narrowed — see §7.10) | `mu_d` discrepancy pinned by test; the µ∞ conclusion written down, including "not resolved" | ⬜ |
 | 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ⬜ |
 | 15 | Freeze the `forward` API | signature-pinning test | ⬜ |
 | 16 | Notebook 6, PR review, hand-off | the M0–M4 rhythm | ⬜ |
@@ -1658,7 +1660,148 @@ I asserted as 9 when it is 6, and a continuity check whose 1e-4 tolerance mistoo
 function's own slope (0.11% over 0.2 nm at −4.14) for a discontinuity — it now checks the
 value *and* the log-slope across the seam.
 
-### 7.7 What an adversarial review of the sequence found
+### 7.7 Task 4 as built — the PB24 loader
+
+`robust/rt/data/pb24.py`, following `l23.py`'s *shape* but not its field list.
+
+- **`PB24Batch`** carries `rrs` **and** `Rrs` — the reason being §7.3: `L23Batch`
+  holds `Rrs` alone and derives `rrs` through the nadir Lee map, which is wrong
+  off-nadir by a median 45.7% at θv = 60°. PB24 tabulates `rrs`, so scoring never
+  touches that map. Also `Q`, `mu_d`/`mu_u`/`mu_tot` by default, the seven K's on
+  request (`extras=`), `realisation`, optional `water_class`, and a `LoadReport`.
+- **`RAW_FIELDS` is complete rather than minimal** (31 fields). The fixture is
+  gated bit-identically, so a field added later invalidates every cache in
+  existence; storing the lot once is cheaper than a second migration.
+- **Angle selection** is `angles="window"` (Q14's 0–70° envelope, the default),
+  `"shell"` (its complement, the extrapolation set) or `"all"`. Window = 832 of
+  1300 geometries; shell = 468.
+- **Subsampling is explicit and reported.** `geometry_stride` never defaults to
+  anything but 1, and `LoadReport` records what each stage dropped.
+- **`bb_w` is the file's own `bbw`**, never `conventions.bb_w` — that table is
+  L23's water column. It also means the 753 nm band needs no extrapolation, so
+  task 3's `mode=` is not on this path.
+- **Fixture:** `robust/tests/files/pb24_small.npz`, 471 kB, realisations
+  (1, 993, 2500) with all 1300 geometries each. 993 is there because it carries
+  the only defect in the OLCI set.
+
+**Two findings from building it.**
+
+1. **The stride aliases.** Flattening `(theta_s, theta, phi)` in C order puts the
+   13 azimuths innermost, so `geometry_stride=13` keeps exactly one azimuth and
+   returns a batch with no BRDF variation at all — while looking entirely normal.
+   `LoadReport.coverage` now records kept-vs-available distinct values per angle
+   axis, `aliased_axes` names any casualties, and the loader warns. This matters
+   directly for Q16: the sanctioned subsample must be checked for coverage, not
+   just for size.
+2. **The zero-`rrs` values are narrower than feared.** In the OLCI band set they
+   occur only at 753 nm with θs = 80°, θv = 87.5° — two values in realisation 993
+   across the sampled files, none at all inside the Q14 window. Dropping whole
+   spectra therefore costs 22 good bands to exclude 2 bad values, which the report
+   states so the trade is visible when task 6 gives `rrms` a mask.
+
+**Measured scale**, which Q16's answer needs: 20 realisations × 832 geometries =
+16 640 samples load in 0.6 s and 8 MB, so the full window is **~2 min and ~2 GB**
+resident before training touches it.
+
+**Tests: +28** (`test_pb24.py`), suite **323 passed**, ruff clean. One of them was
+a tautology on first writing (`assert x == approx(0) or True`) — the same
+"test that cannot fail" defect M4's review found four of; it now asserts that
+`mu_d` takes exactly 8 distinct values in the window, one per solar zenith, which
+a broadcast bug would collapse to 1 and a mis-indexed gather would inflate.
+
+### 7.8 Task 5 as built — the three splits
+
+`pb24.make_splits` returns a :class:`Splits` of ``{kind: (train, test)}`` masks plus a
+:class:`SplitReport` each. `PB24Batch` gained `labels` (`C`, `N`, `Y` per sample); those
+were already in `RAW_FIELDS`, so **the committed fixture did not change** and its
+bit-identical gate still holds.
+
+| kind | holds out | answers |
+|---|---|---|
+| `realisation` | random 20% of realisations, whole | M4's scene split, transplanted |
+| `bp_band` | interior quantile band 0.4–0.6 of per-realisation mean `B_p` | **phase-function interpolation** — why M5 exists |
+| `geometry` | the 80/87.75° shell | successor to M4's unseen-60°, the half the prototype lost |
+
+**Why an interior band.** Holding out the top or the bottom of `B_p` would test
+extrapolation, which is already the geometry split's job; conflating them would leave a
+bad number unattributable. Train is therefore both tails, and `detail` carries the band
+edges, the train tails and `n_train_inside_band` (0 by construction) so the separation is
+inspectable rather than asserted.
+
+**The confound, and its yardstick.** The gate required the `B_p` split to report the
+confound it induces. It does — `test/train` ratio of median `C`, `N`, `Y`, `a`, `bb_p`,
+`B_p` — but building it surfaced that **the ratios are uninterpretable against 1.0**:
+PB24's label distributions are heavy-tailed, so a *random* hold-out of the same size moves
+median chlorophyll across **[0.53, 1.90]** over 12 seeds at 600 realisations. Hence
+`confound_reference`, which measures that band on the batch in hand. Only `B_p_mean` is
+tight under randomness ([0.98, 1.08]), so it is the single entry where a departure is
+immediately meaningful.
+
+Two limits of the metric, stated because they are easy to misread:
+
+- For `bp_band` the `B_p_mean` ratio reads ~1.0, since an interior band and its two tails
+  share a median. The intended separation lives in `detail`, not in a ratio of medians.
+- For `geometry` every confound entry is exactly 1.0 — correct, and a useful control: that
+  split divides angles, not water bodies, so it moves no IOP statistic at all.
+
+**A correction to §7.2 and to the M5 hand-off.** Both recorded that `B_p` correlates with
+chlorophyll at **−0.65**. That figure is task 0's and it is for the *phytoplankton
+component ratio* `bbph/bph`. For the **bulk `B_p`** the split actually uses, measured over
+600 realisations, it is **−0.49** — a real confound, weaker than advertised. A test pins
+it. Relatedly, `B_p`'s per-realisation span is **12.4×** over 600 realisations
+(0.0025–0.0315), against the 6.2× measured from ~50 files at task 0.
+
+**Tests: +13**, suite **336 passed**, ruff clean. One was a tautology on first writing
+(`assert splits.seed == 8`, which cannot fail); it now sweeps ten seeds and requires the
+draw to land on more than one realisation — the honest version of "the seed reaches the
+draw", given that with three fixture realisations two seeds can agree by chance.
+
+### 7.9 Task 6 as built — the validation toolkit
+
+Three limits, each a reasonable single-dataset choice, each blocking an M5 gate. The
+common thread: **all three were invisible on L23 and all three are load-bearing on PB24.**
+
+**1. `gradient_report` now perturbs any field.** Variables are resolved against the
+dataclasses themselves (`_containers`) and every container is rebuilt with
+`dataclasses.replace`, so a field this module has never heard of survives the round trip
+and is provably perturbed. `FD_STEPS` is unchanged as the default, `FD_STEPS_EXTRA` adds
+`theta_v`, `dphi`, `bb_w`, and `default_steps()` **raises rather than inventing** a step
+for an unknown quantity — a guessed step turns a gradient gate into a statement about step
+size.
+
+The old guard demanded *exactly* M2's four variables. That contract is **deliberately
+changed**, and its test rewritten rather than patched: subsets and extra *known* variables
+are now legal, because the implementation can honour them. What still raises is a name the
+inputs cannot offer, including `wind` — a real field that is `None` here and would
+otherwise have become `None + 1e-3`. The failure the old guard existed to prevent (an
+extra key reporting 0.0, "perfect agreement", for a variable never perturbed) is now
+structural rather than enforced.
+
+**2. `rrms(..., where=)`, masked twice.** `truth` is replaced by 1.0 where the mask is
+False *before* the division, not merely zeroed after. Masking afterwards leaves `0/0` in
+the graph: `jnp.where` hides the NaN in the forward pass while reverse-mode differentiation
+propagates it through the discarded branch — so the loss would look healthy and the
+gradient would be NaN. Since `rrms` doubles as M3's training loss, that distinction is the
+whole point, and a test asserts the asymmetry (masked gradient finite, unmasked not). A
+wholly-masked group returns `nan`, so an empty selection announces itself.
+
+**3. `group_rrms(..., expected=)`.** Iterating `np.unique(labels)` can only produce
+non-empty groups, so this function was *incapable* of returning a short dict — which is
+precisely why zipping its `.values()` against hard-coded headers was safe for L23's three
+fixed zeniths. PB24 has eight solar zeniths and eight view angles, any of which a split or
+a subsample may omit, and a missing group would shift every column to its left without
+raising. Missing labels now return `nan`, and `design/py/run_validation.py` derives its
+headers from the labels and indexes by name.
+
+**Demonstrated, not asserted.** Reverting `gradient_report`'s closure to its pre-task-6
+form fails both new regression tests; restoring it passes them. And the refactored
+`run_validation.py` reproduces **every deterministic row** of the committed `metrics.md`
+bit-for-bit (Gordon, ZTT and O25 on the per-zenith and per-`B_p` tables), so the change is
+behaviour-preserving on L23 while being correct on PB24.
+
+**Tests: +8**, suite **346 passed**, ruff clean.
+
+### 7.10 What an adversarial review of the sequence found
 
 The first draft of §7.5 was reviewed against the source by an independent agent instructed
 to find what it got wrong. It found enough to justify a second draft, and the findings are

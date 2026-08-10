@@ -377,17 +377,36 @@ def main() -> int:
         "",
     ]
     held = splits.scene_test
+    # Headers derived from the labels rather than hard-coded, and the groups
+    # requested by name: zipping `.values()` against a fixed header list is only
+    # safe while every group is guaranteed non-empty, which L23's three fixed
+    # zeniths happen to be and PB24's eight are not (M5 task 6).
+    zenith_groups = {
+        name: V.group_rrms(truth[held], pred[held], zen[held], expected=L.ZENITHS)
+        for name, pred in models.items()
+    }
+    zenith_labels = sorted(next(iter(zenith_groups.values())))
     lines.append(
         V.markdown_table(
             [
-                [name, *V.group_rrms(truth[held], pred[held], zen[held]).values()]
-                for name, pred in models.items()
+                [name, *(groups[label] for label in zenith_labels)]
+                for name, groups in zenith_groups.items()
             ],
-            ["model", "0 deg", "30 deg", "60 deg"],
+            ["model", *(f"{label:.0f} deg" for label in zenith_labels)],
         )
     )
 
     bp_labels, bp_edges = V.bp_bin_labels(batch.phase_params.B_p)
+    bp_groups = {
+        name: V.group_rrms(
+            truth[held],
+            pred[held],
+            bp_labels[held],
+            expected=range(len(bp_edges) - 1),
+        )
+        for name, pred in models.items()
+    }
+    bp_bins = sorted(next(iter(bp_groups.values())))
     lines += [
         "",
         "## Per `B_p` bin (held-out scenes, equal-count bins)",
@@ -400,10 +419,10 @@ def main() -> int:
         "",
         V.markdown_table(
             [
-                [name, *V.group_rrms(truth[held], pred[held], bp_labels[held]).values()]
-                for name, pred in models.items()
+                [name, *(groups[label] for label in bp_bins)]
+                for name, groups in bp_groups.items()
             ],
-            ["model", "bin 0", "bin 1", "bin 2", "bin 3"],
+            ["model", *(f"bin {label:.0f}" for label in bp_bins)],
         ),
         "",
         "## Unseen 60 deg (trained on 0/30 only)",
