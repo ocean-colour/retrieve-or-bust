@@ -23,7 +23,10 @@ package -- the loader, a public constructor -- and leave ``forward`` clean.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
@@ -56,6 +59,13 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "BB_W_RANGE",
     "BB_W_TAIL_EXPONENT",
     "bb_w",
+    # Geometry-aware surface transfer (M5)
+    "SurfaceTransfer",
+    "SURFACE_TABLE",
+    "fit_surface_transfer",
+    "save_transfer",
+    "load_transfer",
+    "default_transfer",
     # Validators
     "check_wave",
     "check_bb_w_range",
@@ -78,7 +88,27 @@ B_RRS = 1.7
 RRS_POLE = 1.0 / B_RRS
 
 
-def Rrs_to_rrs(Rrs: Float[Array, "..."]) -> Float[Array, "..."]:
+def _coefficients(geometry, transfer):
+    """``(A, B)`` for a conversion: the nadir constants, or a fitted table.
+
+    Passing neither is the M0-M4 path and returns :data:`A_RRS`, :data:`B_RRS`
+    unchanged, so every existing number is reproducible from a clean checkout.
+    """
+    if geometry is None and transfer is None:
+        return A_RRS, B_RRS
+    if geometry is None:
+        raise ValueError(
+            "conventions: a surface transfer needs a geometry; pass geometry= "
+            "or neither"
+        )
+    table = default_transfer() if transfer is None else transfer
+    A, B = table.coefficients(geometry)
+    return A[..., None], B[..., None]
+
+
+def Rrs_to_rrs(
+    Rrs: Float[Array, "..."], *, geometry=None, transfer=None
+) -> Float[Array, "..."]:
     """Subsurface remote-sensing reflectance from the above-water value.
 
     ``rrs = Rrs / (A + B * Rrs)``.
@@ -87,33 +117,50 @@ def Rrs_to_rrs(Rrs: Float[Array, "..."]) -> Float[Array, "..."]:
     ----------
     Rrs : Array
         Above-water remote-sensing reflectance (sr^-1).
+    geometry : robust.rt.types.Geometry, optional
+        Viewing geometry. **Omit it and nothing changes**: the nadir constants
+        :data:`A_RRS` / :data:`B_RRS` are used, which is what M0-M4 measured and
+        what keeps their numbers reproducible. Supply it to use a fitted
+        geometry-dependent transfer, which off-nadir is worth up to a factor of
+        six -- see :class:`SurfaceTransfer`.
+    transfer : SurfaceTransfer, optional
+        Which table to use; defaults to :func:`default_transfer` when a geometry
+        is given.
 
     Returns
     -------
     Array
-        Subsurface remote-sensing reflectance (sr^-1).
+        Subsurface remote-sensing reflectance (sr^-1). With a geometry, the
+        trailing axis of ``Rrs`` is taken to be wavelength and the coefficients
+        broadcast across it.
     """
-    return Rrs / (A_RRS + B_RRS * Rrs)
+    A, B = _coefficients(geometry, transfer)
+    return Rrs / (A + B * Rrs)
 
 
-def rrs_to_Rrs(rrs: Float[Array, "..."]) -> Float[Array, "..."]:
+def rrs_to_Rrs(
+    rrs: Float[Array, "..."], *, geometry=None, transfer=None
+) -> Float[Array, "..."]:
     """Above-water remote-sensing reflectance from the subsurface value.
 
     ``Rrs = A * rrs / (1 - B * rrs)``, the exact inverse of
-    :func:`Rrs_to_rrs`. Diverges at ``rrs = RRS_POLE`` and returns *negative*
+    :func:`Rrs_to_rrs`. Diverges at ``rrs = 1 / B`` and returns *negative*
     values beyond it; see :func:`check_rrs`.
 
     Parameters
     ----------
     rrs : Array
         Subsurface remote-sensing reflectance (sr^-1).
+    geometry, transfer
+        As :func:`Rrs_to_rrs`; omitting both is the nadir path and is unchanged.
 
     Returns
     -------
     Array
         Above-water remote-sensing reflectance (sr^-1).
     """
-    return A_RRS * rrs / (1.0 - B_RRS * rrs)
+    A, B = _coefficients(geometry, transfer)
+    return A * rrs / (1.0 - B * rrs)
 
 
 # ----------------------------------------------------------- wavelength grid -
@@ -515,3 +562,267 @@ def check_rrs(values, name: str = "rrs", subsurface: bool = True) -> None:
             f"rrs_to_Rrs pole {RRS_POLE:.4g} (maximum {arr.max():.6g}); "
             "ocean rrs is ~1e-3 to 5e-2, so check the units"
         )
+
+
+# ----------------------------------------------- geometry-aware surface transfer
+#: Where the fitted transfer table ships, relative to this package.
+SURFACE_TABLE = "files/surface_pb24.npz"
+
+
+@dataclass(frozen=True)
+class SurfaceTransfer:
+    """Lee-form coefficients ``A``, ``B`` tabulated against viewing geometry.
+
+    :data:`A_RRS` and :data:`B_RRS` are *nadir* constants. Measured against PB24,
+    ``Rrs = A rrs / (1 - B rrs)`` with those values is good at nadir and fails
+    progressively off-nadir -- a median 6.6% over the sanctioned 0-70 degree
+    window and 27% at ``theta_v = 60`` alone, because the true ``A`` falls from
+    0.53 at nadir to 0.34 at 70 degrees as the Fresnel transmittance drops.
+
+    So ``A`` and ``B`` become functions of ``(theta_s, theta_v, dphi)``,
+    tabulated on the reference grid and interpolated trilinearly. Three findings
+    shaped this:
+
+    - **All three angles earn their place.** At ``theta_v = 60`` the per-geometry
+      ``A`` still spans 0.28-0.46 across solar zenith and azimuth, so a
+      ``A(theta_v)`` table alone leaves a median 3.4% and up to 70% error against
+      the full one.
+    - **``Q`` does not.** Lee's ``B = 1.7`` is really ``rbar * Q`` with ``Q``
+      assumed ~3.5, and PB24 tabulates the real ``Q`` (0.9-6.0). Refitting with
+      it in place -- ``1 - rbar Q rrs`` -- scores 1.71% against 1.74% for simply
+      fitting ``B`` per geometry. It is not worth carrying, which is fortunate:
+      :func:`robust.rt.forward` has no ``Q`` to offer.
+    - **The residual does not go to zero.** Even fitting both coefficients at
+      every geometry leaves a median 1.8%, so the Lee *form* is the floor here,
+      not the coefficients. Reported rather than papered over.
+
+    Attributes
+    ----------
+    theta_s, theta_v, dphi : numpy.ndarray
+        Ascending node vectors, degrees.
+    A, B : numpy.ndarray
+        Coefficients of shape ``(n_theta_s, n_theta_v, n_dphi)``.
+    provenance : str
+        What was fitted, on what, and when.
+    """
+
+    theta_s: np.ndarray
+    theta_v: np.ndarray
+    dphi: np.ndarray
+    A: np.ndarray
+    B: np.ndarray
+    provenance: str = ""
+
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        """``(n_theta_s, n_theta_v, n_dphi)``."""
+        return (self.theta_s.size, self.theta_v.size, self.dphi.size)
+
+    def coefficients(self, geometry):
+        """``(A, B)`` at a geometry, by trilinear interpolation.
+
+        Parameters
+        ----------
+        geometry : robust.rt.types.Geometry
+            Angles in degrees; any batch shape.
+
+        Returns
+        -------
+        tuple of Array
+            ``A`` and ``B``, broadcast to ``geometry.theta_s``'s shape.
+
+        Notes
+        -----
+        Differentiable and ``jit``-safe. Values outside the node range clamp to
+        the edge rather than extrapolating -- past 87.75 degrees the sun is below
+        the horizon, so there is nothing to extrapolate *to*.
+
+        **Piecewise linear means kinks at the nodes.** ``jax.grad`` returns a
+        one-sided slope there while a central difference averages both sides, and
+        they disagree by O(1) at an exact node. Gradient checks must be run
+        *between* nodes -- the same care ``o25_coefficients`` needs (M4 gotcha 4).
+        """
+        A = jnp.asarray(self.A)
+        B = jnp.asarray(self.B)
+        i_s, w_s = _axis_weights(geometry.theta_s, self.theta_s)
+        i_v, w_v = _axis_weights(geometry.theta_v, self.theta_v)
+        i_d, w_d = _axis_weights(geometry.dphi, self.dphi)
+
+        out = []
+        for table in (A, B):
+            total = 0.0
+            for ds, ws in ((0, 1.0 - w_s), (1, w_s)):
+                for dv, wv in ((0, 1.0 - w_v), (1, w_v)):
+                    for dd, wd in ((0, 1.0 - w_d), (1, w_d)):
+                        total = (
+                            total + ws * wv * wd * table[i_s + ds, i_v + dv, i_d + dd]
+                        )
+            out.append(total)
+        return out[0], out[1]
+
+
+def _axis_weights(x, nodes):
+    """Lower index and fractional weight for trilinear interpolation."""
+    nodes = jnp.asarray(nodes)
+    x = jnp.asarray(x)
+    n = nodes.shape[0]
+    idx = jnp.clip(jnp.searchsorted(nodes, x, side="right") - 1, 0, n - 2)
+    lo = nodes[idx]
+    hi = nodes[idx + 1]
+    return idx, jnp.clip((x - lo) / (hi - lo), 0.0, 1.0)
+
+
+def fit_surface_transfer(
+    rrs, Rrs, theta_s, theta_v, dphi, *, provenance: str = ""
+) -> SurfaceTransfer:
+    """Fit ``A`` and ``B`` per geometry by least squares.
+
+    ``Rrs = A rrs + B (Rrs rrs)`` is **linear in both coefficients**, so this is
+    one ``lstsq`` per geometry -- no seed, no learning rate, no stopping rule, and
+    the same fairness argument that applies to :func:`robust.rt.baselines.fit_o25`
+    applies here.
+
+    Parameters
+    ----------
+    rrs, Rrs : array_like
+        Shape ``(n_sample, n_wave)``, paired subsurface and above-water
+        reflectance.
+    theta_s, theta_v, dphi : array_like
+        Per-sample angles, shape ``(n_sample,)``, degrees.
+    provenance : str, optional
+        Recorded on the result.
+
+    Returns
+    -------
+    SurfaceTransfer
+
+    Raises
+    ------
+    ValueError
+        If any grid cell has no samples -- a table with a hole would interpolate
+        across it silently.
+    """
+    rrs = np.asarray(rrs, dtype=float)
+    Rrs = np.asarray(Rrs, dtype=float)
+    nodes = [np.unique(np.asarray(a, dtype=float)) for a in (theta_s, theta_v, dphi)]
+    index = [
+        np.searchsorted(node, np.asarray(a, dtype=float))
+        for node, a in zip(nodes, (theta_s, theta_v, dphi), strict=True)
+    ]
+
+    shape = tuple(node.size for node in nodes)
+    A = np.full(shape, np.nan)
+    B = np.full(shape, np.nan)
+    flat = (index[0] * shape[1] + index[1]) * shape[2] + index[2]
+    for cell in np.unique(flat):
+        mask = flat == cell
+        r = rrs[mask].ravel()
+        R = Rrs[mask].ravel()
+        design = np.stack([r, R * r], axis=1)
+        coef, *_ = np.linalg.lstsq(design, R, rcond=None)
+        i = np.unravel_index(cell, shape)
+        A[i], B[i] = coef
+
+    if not np.isfinite(A).all():
+        missing = int((~np.isfinite(A)).sum())
+        raise ValueError(
+            f"fit_surface_transfer: {missing} of {A.size} grid cells had no "
+            "samples; a table with holes interpolates across them silently"
+        )
+    return SurfaceTransfer(
+        theta_s=nodes[0],
+        theta_v=nodes[1],
+        dphi=nodes[2],
+        A=A,
+        B=B,
+        provenance=provenance,
+    )
+
+
+def save_transfer(path, transfer: SurfaceTransfer) -> None:
+    """Write a :class:`SurfaceTransfer` to ``.npz``, atomically.
+
+    Temp file -> load back -> verify -> :func:`os.replace`, the pattern PR #11
+    settled on: validate first, overwrite second.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+    transfer : SurfaceTransfer
+    """
+    path = Path(path)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(
+            tmp,
+            theta_s=transfer.theta_s,
+            theta_v=transfer.theta_v,
+            dphi=transfer.dphi,
+            A=transfer.A,
+            B=transfer.B,
+            provenance=np.asarray(transfer.provenance),
+        )
+        back = load_transfer(tmp)
+        if back.shape != transfer.shape or not np.allclose(back.A, transfer.A):
+            raise ValueError(
+                f"save_transfer: the written table does not load back equal; "
+                f"{path} left untouched"
+            )
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def load_transfer(path) -> SurfaceTransfer:
+    """Read a :class:`SurfaceTransfer` from ``.npz``.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+
+    Returns
+    -------
+    SurfaceTransfer
+    """
+    data = np.load(path)
+    return SurfaceTransfer(
+        theta_s=data["theta_s"],
+        theta_v=data["theta_v"],
+        dphi=data["dphi"],
+        A=data["A"],
+        B=data["B"],
+        provenance=str(data["provenance"]),
+    )
+
+
+def default_transfer() -> SurfaceTransfer:
+    """The table shipped with the package, read once and cached.
+
+    Returns
+    -------
+    SurfaceTransfer
+
+    Raises
+    ------
+    FileNotFoundError
+        If the table is absent -- regenerate with ``design/py/fit_surface.py``.
+    """
+    global _DEFAULT_TRANSFER
+    if _DEFAULT_TRANSFER is None:
+        path = Path(__file__).parent / SURFACE_TABLE
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"conventions: no fitted surface table at {path}; regenerate it "
+                "with design/py/fit_surface.py"
+            )
+        _DEFAULT_TRANSFER = load_transfer(path)
+    return _DEFAULT_TRANSFER
+
+
+#: Cache for :func:`default_transfer`.
+_DEFAULT_TRANSFER: SurfaceTransfer | None = None

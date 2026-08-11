@@ -348,7 +348,7 @@ samples because the envelope reached exactly as far as the data did).
    `fit_o25` has **no view-angle axis at all**, which would have made the milestone's gate
    a straw man; it scheduled a cross-dataset check that cannot pass by construction; and
    it repeated a claim of mine that was simply false — see the correction under task 7.
-   Two prerequisite tasks were missing entirely. The findings are in §7.10 of the record.
+   Two prerequisite tasks were missing entirely. The findings are in §7.11 of the record.
 
    How it is ordered: **3 → 4 → 5** are prerequisites (make the machinery dataset-agnostic,
    then load, then split), **6** unblocks three later tasks at once, **7 → 8 → 9** builds an
@@ -548,8 +548,38 @@ samples because the envelope reached exactly as far as the data did).
    alongside values and a test feeds it an empty bin.
    **Depends on:** nothing (pure `validation.py` work). **Blocked:** no.
 
-7. **A geometry-aware surface transfer** — `conventions`. *Unlocks: an honest `Rrs` at any
-   view angle, and O25's score (task 8).*
+7. **A geometry-aware surface transfer** — `conventions`. ✅ **done 2026-08-10.**
+   *Unlocks: an honest `Rrs` at any view angle, and O25's score (task 8).*
+
+   **What landed.** `SurfaceTransfer` (a trilinearly-interpolated `A`/`B` table on PB24's
+   10 × 10 × 13 angle grid), `fit_surface_transfer`, `save_transfer`/`load_transfer`/
+   `default_transfer`, `Rrs_to_rrs`/`rrs_to_Rrs` gaining keyword-only `geometry=` and
+   `transfer=`, plus `design/py/fit_surface.py` and the committed
+   `robust/rt/files/surface_pb24.npz` (19 kB). **+12 tests, 358 pass**, ruff clean.
+
+   **Measured on held-out realisations** (fitted on 320, scored on 80 it never saw):
+
+   | θv | 0° | 30° | 50° | 60° | 70° | 87.5° | window |
+   |---|---|---|---|---|---|---|---|
+   | nadir constants | 1.84% | 4.32% | 17.81% | **33.15%** | 65.63% | 238.88% | 6.81% |
+   | fitted table | 1.56% | 2.04% | 3.34% | **4.57%** | 6.43% | 14.57% | 2.05% |
+   | gain | 1.2× | 2.1× | 5.3× | **7.2×** | 10.2× | 16.4× | 3.3× |
+
+   Four things the measurement decided, none of them guessable from the design:
+   - **All three angles earn their place.** At θv = 60° the per-geometry `A` still spans
+     0.28–0.46 across θs and Δφ, so an `A(θv)`-only table leaves a median 3.4% and up to
+     70% against the full one.
+   - **`Q` does not.** Lee's `B = 1.7` is really `r̄·Q` with `Q` assumed ~3.5, and PB24
+     tabulates the real `Q` (0.9–6.0). Refitting with it in place scores **1.71% against
+     1.74%** for simply fitting `B` per geometry — no gain, and fortunate, because
+     `forward` has no `Q` to offer.
+   - **A table, not a smooth function.** A 10-term smooth fit in the cosines reaches only
+     4.4× at θv = 60°, below the gate; the table gives 7.2×. The cost is LUT kinks, so the
+     gradient gate runs *between* nodes (gotcha 4).
+   - **The residual does not go to zero:** even fitting both coefficients everywhere
+     leaves a median 1.8%. The Lee *form* is the floor here, not the coefficients.
+   - **The nadir path is bit-identical**, pinned by a test, and every M0–M4 call site still
+     passes no geometry — verified, not assumed.
 
    `Rrs_to_rrs`/`rrs_to_Rrs` hard-code Lee's nadir `A = 0.52`, `B = 1.7`; PB24 measures a
    median 45.7% error at θv = 60°, **inside** the Q14 training window (consequence 2). Fit
@@ -964,6 +994,54 @@ Record work in the Logs section below, format:
 
 <Detailed description of the work and what you learned>
 
+### 2026-08-10 (Task 7 — the surface transfer; four questions the data answered; record v0.22)
+
+**What I did.** `SurfaceTransfer` in `conventions` — Lee's `A` and `B` tabulated on PB24's
+10 × 10 × 13 angle grid, interpolated trilinearly — plus the fitter, the atomic
+save/load, `design/py/fit_surface.py`, and the committed 19 kB table. `Rrs_to_rrs` and
+`rrs_to_Rrs` take keyword-only `geometry=`/`transfer=`; omitting both is the M0–M4 path
+and is bit-identical. **+12 tests, 358 pass**, ruff clean.
+
+**I measured before designing, and it changed the design four times.**
+
+1. **The pairing was worth checking first.** Before fitting anything I tested whether
+   PB24's `rrs(θ)` is the same direction as `Rrs(θ)` or the Snell-refracted one — because
+   if it were refracted, the whole task would be a coordinate fix rather than a fit.
+   `rrs × Q = R` to **0.00%** at every geometry settles it: same direction. And pairing
+   with the refracted angle flattens the ratio only partly (0.53 → 0.49 at 60°, still 0.30
+   at 87.5°), so refraction is part of the story and Fresnel transmittance is the rest.
+2. **`Q` looked like the answer and wasn't.** Fitted `A`,`B` per geometry still left 4.7%
+   at nadir, which is poor for two free parameters at one geometry — and the reason is
+   visible in Lee's own algebra: `B = 1.7` is `r̄·Q` with `Q` assumed ~3.5, while PB24's
+   real `Q` spans 0.9–6.0. So I refit with `1 − r̄·Q·rrs`, expecting the residual to
+   collapse. It scored **1.71% against 1.74%** — no gain. Fortunate as well as tidy:
+   `forward` has no `Q` at prediction time, so a `Q`-dependent transfer would have been
+   unusable exactly where it is needed.
+3. **The gate chose table over function.** I wanted the smooth 10-term fit — compact, no
+   LUT kinks, no gotcha-4 care needed. It reaches 4.4× at θv = 60°, and the gate says ≥5×.
+   The table gives 7.2×. So the table ships and the gradient check runs between nodes.
+4. **The residual has a floor.** Fitting both coefficients at all 1300 geometries still
+   leaves a median 1.8%. That is the Lee *form*, not the coefficients, and it is worth
+   writing down because the obvious next move — more coefficients — will not help.
+
+**On the honesty of the number.** The fit is scored only on realisations it never saw: 320
+train, 80 held out, using task 5's split. A 2600-parameter table fitted and reported on the
+same water bodies would have produced a beautiful and meaningless table. The gate asked for
+held-out and it was right to.
+
+**A correction to my own framing, carried from task 2.** The doc still said this task
+exists because the nadir map contaminates "every model". It doesn't — `rrs_gordon` and
+`rrs_ZTT` never touch it, and task 11's targets read PB24's tabulated `rrs`. Exactly one
+scoring path is affected, `rrs_o25`, which is why this lands before task 8 rather than
+before everything.
+
+**What I learned.** Three of the four decisions above were *available* from the data before
+any code was written, and two of them contradicted what I would have built. The pattern
+across this milestone is consistent: a twenty-line probe run before the design costs less
+than the design that has to be undone. The one that stings slightly is `Q` — I had a
+correct physical story for why it should help, and the measurement said it doesn't. A good
+mechanism is not evidence of a good improvement.
+
 ### 2026-08-10 (Task 6 — the validation toolkit; a guard I deliberately changed; record v0.21)
 
 **What I did.** The three limits task 2's review found in `validation.py`, each of which
@@ -1184,7 +1262,7 @@ and still described commissioning HydroLight runs as the route — both now fals
 **Then a Fable agent reviewed the sequence against the code and found it wrong in eight
 places** — enough that what shipped is a second draft with **six more tasks** (16, not 10).
 I verified every load-bearing finding myself before rewriting; all of them held. The full
-list is record §7.10, and the pattern behind them is one thing: **the M0–M4 machinery
+list is record §7.11, and the pattern behind them is one thing: **the M0–M4 machinery
 quietly assumes L23 is the only dataset**, and my sequence assumed it was general. The two
 that would have cost the most: the cross-dataset check **could not have passed** (L23 starts
 at 350 nm, an OLCI-trained emulator's domain starts at 400, and one out-of-domain λ flags

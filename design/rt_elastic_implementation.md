@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.21
+**Version:** 0.22
 **Date:** 2026-08-10
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ every bump.
 | **M2** | ZTT analytic backbone (JAX) | ✅ done | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
-| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–6 done, 7–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
+| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–7 done, 8–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **346 passed** (`ocean14`); with
-`$OS_COLOR` unset, **316 passed + 30 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **358 passed** (`ocean14`); with
+`$OS_COLOR` unset, **327 passed + 31 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1504,8 +1504,8 @@ convert items 4 and 5 from *untested* into *measured*.
 
 **Status: in progress.** Tasks 0–2 (answers, answers, sequencing) and the two prerequisites
 — **3** (a second wavelength grid, §7.6) and **4** (the PB24 loader, §7.7) — plus **5**
-(the three splits, §7.8) and **6** (the validation toolkit, §7.9) are done; tasks 7–16 are
-specified with a gate each in
+(the three splits, §7.8), **6** (the validation toolkit, §7.9) and **7** (the surface
+transfer, §7.10) are done; tasks 8–16 are specified with a gate each in
 [`rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md) §M5
 and summarised in §7.5 below.
 
@@ -1520,13 +1520,13 @@ and summarised in §7.5 below.
 | 4 | `robust/rt/data/pb24.py` — the loader | golden values vs raw netCDF; fixture regenerates bit-identically; angle window asserts its count; zero-`rrs` gate on the **shell** load | ✅ done |
 | 5 | `pb24.make_splits` — realisation / `B_p` band / geometry | disjoint, deterministic, **every test set non-empty**; the `B_p` split reports its chlorophyll confound | ✅ done |
 | 6 | Extend `validation.py` — `gradient_report` axes, `rrms` masking, group↔header alignment | one regression test per limit, each demonstrated to fail first | ✅ done |
-| 7 | Geometry-aware surface transfer in `conventions` | default path bit-identical to M4; fitted path ≥5× better at θv = 60°; gradient-checked | ⬜ |
+| 7 | Geometry-aware surface transfer in `conventions` | default path bit-identical to M4; fitted path ≥5× better at θv = 60°; gradient-checked | ✅ done |
 | 8 | O25 gains a geometry-indexed coefficient table | 3-D refit beats θs-only off-nadir or is dropped; L23 path reproduces `O25_L23_REFIT` exactly; a missing zenith **raises** | ⬜ |
 | 9 | PB24 benchmark — Gordon, ZTT, O25 refit | aggregation consistency **and header↔group alignment**; refit on train mask only; CSVs round-trip | ⬜ |
 | 10 | Per-model sanctioned envelope | the L23 model stays 0–60° after the change, pinned by test; a view-angle envelope exists | ⬜ |
 | 11 | Retrain the emulator with `theta_v`/`dphi` live | **provisional (Q15)**: beat O25 on the realisation *and* `B_p` splits; report geometry; training-set size stated in the artefact | ⬜ |
 | 12 | Cross-dataset check — PB24 model on L23 | overlap computed not assumed; out-of-domain fraction reported; promotion rule encoded as a **conditional** | ⬜ |
-| 13 | ZTT `mu_d` vs HydroLight (µ∞ narrowed — see §7.10) | `mu_d` discrepancy pinned by test; the µ∞ conclusion written down, including "not resolved" | ⬜ |
+| 13 | ZTT `mu_d` vs HydroLight (µ∞ narrowed — see §7.11) | `mu_d` discrepancy pinned by test; the µ∞ conclusion written down, including "not resolved" | ⬜ |
 | 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ⬜ |
 | 15 | Freeze the `forward` API | signature-pinning test | ⬜ |
 | 16 | Notebook 6, PR review, hand-off | the M0–M4 rhythm | ⬜ |
@@ -1801,7 +1801,59 @@ behaviour-preserving on L23 while being correct on PB24.
 
 **Tests: +8**, suite **346 passed**, ruff clean.
 
-### 7.10 What an adversarial review of the sequence found
+### 7.10 Task 7 as built — the geometry-aware surface transfer
+
+`conventions` gained `SurfaceTransfer`: `A` and `B` of the Lee form tabulated on PB24's
+10 × 10 × 13 `(theta_s, theta_v, dphi)` grid and interpolated trilinearly.
+`Rrs_to_rrs` / `rrs_to_Rrs` take keyword-only `geometry=` and `transfer=`; **omitting both
+is the M0–M4 path and is bit-identical**, pinned by a test, and every M0–M4 call site was
+verified still to pass neither. The table ships as `robust/rt/files/surface_pb24.npz`
+(19 kB), regenerated by `design/py/fit_surface.py`.
+
+**Held-out performance** — fitted on 320 realisations, scored on 80 it never saw:
+
+| θv | 0° | 30° | 50° | 60° | 70° | 87.5° | window |
+|---|---|---|---|---|---|---|---|
+| nadir constants | 1.84% | 4.32% | 17.81% | **33.15%** | 65.63% | 238.88% | 6.81% |
+| fitted table | 1.56% | 2.04% | 3.34% | **4.57%** | 6.43% | 14.57% | 2.05% |
+| gain | 1.2× | 2.1× | 5.3× | **7.2×** | 10.2× | 16.4× | 3.3× |
+
+**Four things the data decided, none of them guessable from the design.**
+
+1. **All three angles earn their place.** The task said "`A(θv)` at minimum, testing
+   whether θs and Δφ terms earn their place". They do: at θv = 60° the per-geometry `A`
+   still spans 0.28–0.46 across solar zenith and azimuth, and a θv-only table leaves a
+   median 3.4% error against the full one, up to 70%. Azimuth is irrelevant at nadir (by
+   symmetry) and worth 27% at θv = 60°.
+2. **`Q` does not.** Lee's `B = 1.7` is really `r̄·Q` with `Q` assumed ~3.5; PB24 tabulates
+   the real `Q`, which spans 0.9–6.0 in the window. Refitting as `1 − r̄·Q·rrs` scores a
+   median **1.71%** against **1.74%** for simply fitting `B` per geometry — no gain. That
+   is fortunate as well as tidy: `forward` has no `Q` to offer at prediction time, so a
+   `Q`-dependent transfer would have been unusable where it is needed.
+3. **A table beats a smooth function, and the gate decided it.** A 10-term smooth fit in
+   the angle cosines reaches 4.4× at θv = 60° — below the ≥5× the gate requires — while the
+   table gives 7.2×. The cost is that a piecewise-linear table has kinks at its nodes, so
+   the gradient check runs *between* them (M4 gotcha 4), which the gate anticipated.
+4. **The residual does not go to zero.** Fitting both coefficients at every one of the 1300
+   geometries still leaves a median 1.8% in the window. The Lee *form* is the floor, not
+   the coefficients — worth stating, because the obvious next move (more coefficients)
+   will not help.
+
+**Structural confirmations from the same probe**, both worth keeping:
+
+- `rrs × Q = R` to **0.00%** at every geometry in the files checked, so PB24's `rrs` is
+  genuinely direction-dependent and is paired with `Rrs` in the *same* direction. The
+  alternative reading — that `rrs` is tabulated at the Snell-refracted angle — was tested
+  and refuted: pairing `Rrs(θv)` with `rrs` interpolated to the refracted angle flattens
+  the ratio only partly (0.53 → 0.49 at 60°, still 0.30 at 87.5°), so refraction explains
+  some of the fall-off and the Fresnel transmittance the rest.
+- The fit is one `lstsq` per grid cell, so it has no seed, no learning rate and no stopping
+  rule, and `fit_surface_transfer` **raises** if any cell has no samples rather than
+  leaving a hole for the interpolator to cross in silence.
+
+**Tests: +12**, suite **358 passed**, ruff clean.
+
+### 7.11 What an adversarial review of the sequence found
 
 The first draft of §7.5 was reviewed against the source by an independent agent instructed
 to find what it got wrong. It found enough to justify a second draft, and the findings are
