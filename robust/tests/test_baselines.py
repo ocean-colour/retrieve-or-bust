@@ -37,7 +37,7 @@ from robust.rt import conventions as C
 from robust.rt import validation as V
 from robust.rt.data import l23
 from robust.rt.types import Geometry, IOPs, PhaseParams
-from robust.tests.conftest import needs_l23
+from robust.tests.conftest import needs_l23, needs_pb24
 
 N = C.N_WAVE
 
@@ -645,14 +645,59 @@ def test_fit_o25_honours_the_train_mask(l23_small_batch):
 
 
 def test_fit_o25_rejects_a_mask_with_an_empty_zenith(l23_small_batch):
-    """An empty group raises rather than silently fitting the other angles."""
+    """An empty group raises; a named-but-absent zenith raises.
+
+    **Restated for M5 (task 8).** ``zeniths`` used to default to
+    ``(0.0, 30.0, 60.0)``, which is right for L23 and silently wrong elsewhere:
+    on PB24 it fits 3 of the 8 in-window zeniths and interpolates across the
+    other 5 without a word. The default is now to derive the list from the
+    training data, so what must raise has shifted -- see the companion test for
+    the coverage check that replaces the old blanket guard.
+    """
     args = (l23_small_batch.iops, l23_small_batch.Rrs, l23_small_batch.geometry)
 
-    with pytest.raises(ValueError, match="no samples"):
+    with pytest.raises(ValueError, match="no samples at all"):
         B.fit_o25(*args, train=np.zeros(l23_small_batch.n_sample, dtype=bool))
 
-    with pytest.raises(ValueError, match="60"):
-        B.fit_o25(*args, train=l23_small_batch.zenith != 60.0)
+    with pytest.raises(ValueError, match="no samples at theta_s = 60"):
+        B.fit_o25(
+            *args, train=l23_small_batch.zenith != 60.0, zeniths=(0.0, 30.0, 60.0)
+        )
+
+
+def test_fit_o25_refuses_to_ignore_a_zenith_the_data_contains(l23_small_batch):
+    """**Regression (M5 task 8).** The silent failure PB24 would have hit.
+
+    Naming a subset of the angles present in the training data used to succeed,
+    fitting some and interpolating across the rest. On L23 that is invisible
+    (its three zeniths *are* the old default); on PB24 it would have quietly
+    discarded five of eight.
+    """
+    args = (l23_small_batch.iops, l23_small_batch.Rrs, l23_small_batch.geometry)
+    everything = np.ones(l23_small_batch.n_sample, dtype=bool)
+
+    with pytest.raises(ValueError, match="does not cover"):
+        B.fit_o25(*args, train=everything, zeniths=(0.0, 30.0))
+
+
+def test_fit_o25_derives_the_zeniths_from_the_training_data(l23_small_batch):
+    """The new default, and what a held-out zenith now produces.
+
+    Holding a zenith out of the training mask yields a table without that row --
+    correct, and visible in the row count, which is what makes the clamp at
+    evaluation time a decision rather than an accident.
+    """
+    args = (l23_small_batch.iops, l23_small_batch.Rrs, l23_small_batch.geometry)
+    everything = np.ones(l23_small_batch.n_sample, dtype=bool)
+
+    full = B.fit_o25(*args, train=everything)
+    held = B.fit_o25(*args, train=l23_small_batch.zenith != 60.0)
+
+    assert [row[0] for row in full] == [0.0, 30.0, 60.0]
+    assert [row[0] for row in held] == [0.0, 30.0]
+    # and the derived default reproduces the old explicit one exactly
+    explicit = B.fit_o25(*args, train=everything, zeniths=(0.0, 30.0, 60.0))
+    np.testing.assert_array_equal(np.asarray(full), np.asarray(explicit))
 
 
 def test_fit_o25_weighted_default_beats_the_papers_unweighted_fit(l23_small_batch):
@@ -714,3 +759,221 @@ def test_full_l23_respects_the_o25_validity_ceiling(l23_batch):
     would be extrapolating in brightness. This is the test that notices.
     """
     assert float(jnp.max(l23_batch.Rrs)) < B.O25_RRS_CEILING
+
+
+# --------------------------------------- O25 over the full geometry (task 8) -
+# The benchmark M5's gate is measured against. If it is crippled, beating it
+# means nothing -- so these tests are about O25 being given its best shot.
+
+
+def _toy_o25_table():
+    """A 2 x 2 x 2 table with a deliberate view-angle dependence."""
+    G = np.zeros((2, 2, 2, 4))
+    G[..., 0] = 0.06  # Gw0
+    G[..., 1] = 0.03  # Gw1
+    G[..., 2] = np.array([0.04, 0.02])[None, :, None]  # Gp0 falls with theta_v
+    G[..., 3] = 0.15  # Gp1
+    return B.O25Table(
+        theta_s=np.array([0.0, 60.0]),
+        theta_v=np.array([0.0, 60.0]),
+        dphi=np.array([0.0, 180.0]),
+        G=G,
+        provenance="toy",
+    )
+
+
+def test_a_lifted_zenith_table_reproduces_the_one_d_path_exactly(l23_small_batch):
+    """**Gate.** The L23 path is untouched by the new machinery.
+
+    ``O25Table.from_rows`` lifts the shipped zenith-only table into the 3-D form
+    with one view-angle and one azimuth node. It must then evaluate to exactly
+    what ``o25_coefficients`` gives, or M4's numbers would have moved.
+    """
+    batch = l23_small_batch
+    lifted = B.O25Table.from_rows(B.O25_L23_REFIT)
+
+    one_d = B.Rrs_o25(batch.iops, None, batch.geometry, batch.wave)
+    three_d = B.Rrs_o25(batch.iops, None, batch.geometry, batch.wave, coeffs=lifted)
+
+    np.testing.assert_allclose(
+        np.asarray(three_d), np.asarray(one_d), rtol=1e-6, atol=0.0
+    )
+
+
+def test_the_table_interpolates_between_nodes_and_clamps_outside():
+    table = _toy_o25_table()
+    geometry = Geometry(
+        theta_s=jnp.asarray([0.0, 0.0, 0.0]),
+        theta_v=jnp.asarray([0.0, 30.0, 89.0]),
+        dphi=jnp.asarray([0.0, 0.0, 0.0]),
+    )
+
+    _, _, Gp0, _ = table.coefficients(geometry)
+
+    assert float(Gp0[0]) == pytest.approx(0.04)  # at a node
+    assert float(Gp0[1]) == pytest.approx(0.03)  # halfway
+    assert float(Gp0[2]) == pytest.approx(0.02)  # clamped past the last node
+
+
+def test_the_table_is_jittable_and_differentiable_between_nodes():
+    """A lookup table has kinks at its nodes, so check at 25 deg (M4 gotcha 4)."""
+    table = _toy_o25_table()
+
+    def f(theta_v):
+        geometry = Geometry(
+            theta_s=jnp.asarray([30.0]), theta_v=theta_v, dphi=jnp.asarray([90.0])
+        )
+        return table.coefficients(geometry)[2][0]
+
+    assert float(jax.jit(f)(jnp.asarray([25.0]))) > 0.0
+    slope = jax.grad(lambda t: f(jnp.asarray([t])))(25.0)
+    assert float(slope) < 0.0  # Gp0 falls with view angle in the toy table
+
+
+def test_fit_o25_table_recovers_a_known_answer():
+    """A round trip: build data from a table, fit it back."""
+    rng = np.random.default_rng(3)
+    n = 800
+    theta_s = rng.choice([0.0, 60.0], n)
+    theta_v = rng.choice([0.0, 60.0], n)
+    dphi = rng.choice([0.0, 180.0], n)
+    geometry = Geometry(
+        theta_s=jnp.asarray(theta_s),
+        theta_v=jnp.asarray(theta_v),
+        dphi=jnp.asarray(dphi),
+    )
+    iops = IOPs(
+        a=jnp.asarray(rng.uniform(0.02, 0.5, (n, 5))),
+        bb_w=jnp.asarray(rng.uniform(1e-4, 3e-3, (n, 5))),
+        bb_p=jnp.asarray(rng.uniform(1e-3, 2e-2, (n, 5))),
+    )
+    truth = _toy_o25_table()
+    Rrs = B.Rrs_o25(iops, None, geometry, coeffs=truth)
+
+    fitted = B.fit_o25_table(
+        iops, Rrs, geometry, train=np.ones(n, dtype=bool), min_samples=10
+    )
+
+    assert fitted.shape == (2, 2, 2)
+    np.testing.assert_allclose(fitted.G, truth.G, rtol=1e-4, atol=1e-6)
+
+
+def test_fit_o25_table_refuses_a_thin_or_empty_cell():
+    """Four coefficients from a handful of points is noise, not a benchmark."""
+    rng = np.random.default_rng(4)
+    n = 60
+    geometry = Geometry(
+        theta_s=jnp.zeros(n),
+        theta_v=jnp.asarray(np.repeat([0.0, 60.0], n // 2)),
+        dphi=jnp.zeros(n),
+    )
+    iops = IOPs(
+        a=jnp.asarray(rng.uniform(0.02, 0.5, (n, 3))),
+        bb_w=jnp.asarray(rng.uniform(1e-4, 3e-3, (n, 3))),
+        bb_p=jnp.asarray(rng.uniform(1e-3, 2e-2, (n, 3))),
+    )
+    Rrs = B.Rrs_o25(iops, None, geometry, coeffs=B.O25Table.from_rows())
+
+    with pytest.raises(ValueError, match="fewer than"):
+        B.fit_o25_table(
+            iops, Rrs, geometry, train=np.ones(n, dtype=bool), min_samples=10_000
+        )
+
+
+def test_rrs_o25_can_use_the_geometry_aware_transfer():
+    """The one scoring path the nadir transfer contaminates."""
+    geometry = Geometry(
+        theta_s=jnp.asarray([30.0]),
+        theta_v=jnp.asarray([55.0]),
+        dphi=jnp.asarray([90.0]),
+    )
+    iops = IOPs(
+        a=jnp.asarray([[0.08, 0.05]]),
+        bb_w=jnp.asarray([[2e-3, 1.5e-3]]),
+        bb_p=jnp.asarray([[5e-3, 4e-3]]),
+    )
+
+    nadir = B.rrs_o25(iops, None, geometry, coeffs=B.O25_L23_REFIT)
+    aware = B.rrs_o25(
+        iops, None, geometry, coeffs=B.O25_L23_REFIT, transfer=C.default_transfer()
+    )
+
+    # At 55 deg the fitted A is well below 0.52, so the same Rrs implies a
+    # noticeably larger subsurface rrs.
+    assert float(aware[0, 0]) > float(nadir[0, 0]) * 1.1
+
+
+@needs_pb24
+def test_the_three_d_table_beats_the_zenith_only_refit_on_held_out_pb24():
+    """**The gate.** The extra axes must earn their place, or we say they do not.
+
+    Measured: 1.67x better overall on held-out realisations, and 1.58-1.86x at
+    every view angle -- the gain is roughly uniform because the zenith-only fit's
+    error comes from pooling *all* view geometries into one fit per solar zenith,
+    which hurts at nadir as much as anywhere.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=40, angles="window")
+    splits = P.make_splits(batch, kinds=("realisation",))
+    train, test = splits.train("realisation"), splits.test("realisation")
+
+    rows = B.fit_o25(batch.iops, batch.Rrs, batch.geometry, train=train)
+    table = B.fit_o25_table(batch.iops, batch.Rrs, batch.geometry, train=train)
+    transfer = C.default_transfer()
+
+    assert len(rows) == 8  # derived from the data, not the old (0, 30, 60)
+    assert table.shape == (8, 8, 13)
+
+    def score(coeffs):
+        pred = B.rrs_o25(
+            batch.iops,
+            None,
+            batch.geometry,
+            batch.wave,
+            coeffs=coeffs,
+            transfer=transfer,
+        )
+        return float(V.rrms(batch.rrs[test], pred[test]))
+
+    one_d, three_d = score(rows), score(table)
+
+    assert three_d < one_d / 1.4, (
+        f"the extra axes are not earning their place: {one_d:.2f}% -> {three_d:.2f}%"
+    )
+
+
+@needs_pb24
+def test_the_nadir_transfer_would_have_hidden_the_difference():
+    """Why task 7 had to precede task 8, as a measurement rather than a claim.
+
+    Scored through the *nadir* transfer, the interface error swamps both models
+    and the 3-D table's advantage all but disappears -- so a benchmark built in
+    the other order would have concluded the extra axes did not matter.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=40, angles="window")
+    splits = P.make_splits(batch, kinds=("realisation",))
+    train, test = splits.train("realisation"), splits.test("realisation")
+
+    rows = B.fit_o25(batch.iops, batch.Rrs, batch.geometry, train=train)
+    table = B.fit_o25_table(batch.iops, batch.Rrs, batch.geometry, train=train)
+
+    def score(coeffs, transfer):
+        pred = B.rrs_o25(
+            batch.iops,
+            None,
+            batch.geometry,
+            batch.wave,
+            coeffs=coeffs,
+            transfer=transfer,
+        )
+        return float(V.rrms(batch.rrs[test], pred[test]))
+
+    aware_gain = score(rows, C.default_transfer()) / score(table, C.default_transfer())
+    nadir_gain = score(rows, None) / score(table, None)
+
+    assert aware_gain > 1.4
+    assert nadir_gain < 1.2
+    assert aware_gain > nadir_gain * 1.3

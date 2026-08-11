@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.22
-**Date:** 2026-08-10
+**Version:** 0.23
+**Date:** 2026-08-11
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -30,7 +30,7 @@ every bump.
 | **M2** | ZTT analytic backbone (JAX) | ✅ done | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
-| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–7 done, 8–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
+| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–8 done, 9–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **358 passed** (`ocean14`); with
-`$OS_COLOR` unset, **327 passed + 31 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **368 passed** (`ocean14`); with
+`$OS_COLOR` unset, **335 passed + 33 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1504,8 +1504,9 @@ convert items 4 and 5 from *untested* into *measured*.
 
 **Status: in progress.** Tasks 0–2 (answers, answers, sequencing) and the two prerequisites
 — **3** (a second wavelength grid, §7.6) and **4** (the PB24 loader, §7.7) — plus **5**
-(the three splits, §7.8), **6** (the validation toolkit, §7.9) and **7** (the surface
-transfer, §7.10) are done; tasks 8–16 are specified with a gate each in
+(the three splits, §7.8), **6** (the validation toolkit, §7.9), **7** (the surface
+transfer, §7.10) and **8** (O25's geometry table, §7.11) are done; tasks 9–16 are
+specified with a gate each in
 [`rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md) §M5
 and summarised in §7.5 below.
 
@@ -1521,12 +1522,12 @@ and summarised in §7.5 below.
 | 5 | `pb24.make_splits` — realisation / `B_p` band / geometry | disjoint, deterministic, **every test set non-empty**; the `B_p` split reports its chlorophyll confound | ✅ done |
 | 6 | Extend `validation.py` — `gradient_report` axes, `rrms` masking, group↔header alignment | one regression test per limit, each demonstrated to fail first | ✅ done |
 | 7 | Geometry-aware surface transfer in `conventions` | default path bit-identical to M4; fitted path ≥5× better at θv = 60°; gradient-checked | ✅ done |
-| 8 | O25 gains a geometry-indexed coefficient table | 3-D refit beats θs-only off-nadir or is dropped; L23 path reproduces `O25_L23_REFIT` exactly; a missing zenith **raises** | ⬜ |
+| 8 | O25 gains a geometry-indexed coefficient table | 3-D refit beats θs-only off-nadir or is dropped; L23 path reproduces `O25_L23_REFIT` exactly; a missing zenith **raises** | ✅ done |
 | 9 | PB24 benchmark — Gordon, ZTT, O25 refit | aggregation consistency **and header↔group alignment**; refit on train mask only; CSVs round-trip | ⬜ |
 | 10 | Per-model sanctioned envelope | the L23 model stays 0–60° after the change, pinned by test; a view-angle envelope exists | ⬜ |
 | 11 | Retrain the emulator with `theta_v`/`dphi` live | **provisional (Q15)**: beat O25 on the realisation *and* `B_p` splits; report geometry; training-set size stated in the artefact | ⬜ |
 | 12 | Cross-dataset check — PB24 model on L23 | overlap computed not assumed; out-of-domain fraction reported; promotion rule encoded as a **conditional** | ⬜ |
-| 13 | ZTT `mu_d` vs HydroLight (µ∞ narrowed — see §7.11) | `mu_d` discrepancy pinned by test; the µ∞ conclusion written down, including "not resolved" | ⬜ |
+| 13 | ZTT `mu_d` vs HydroLight (µ∞ narrowed — see §7.12) | `mu_d` discrepancy pinned by test; the µ∞ conclusion written down, including "not resolved" | ⬜ |
 | 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ⬜ |
 | 15 | Freeze the `forward` API | signature-pinning test | ⬜ |
 | 16 | Notebook 6, PR review, hand-off | the M0–M4 rhythm | ⬜ |
@@ -1853,7 +1854,56 @@ verified still to pass neither. The table ships as `robust/rt/files/surface_pb24
 
 **Tests: +12**, suite **358 passed**, ruff clean.
 
-### 7.11 What an adversarial review of the sequence found
+### 7.11 Task 8 as built — O25 over the full geometry
+
+`O25Table` holds the four coefficients on the whole `(theta_s, theta_v, dphi)` grid;
+`Rrs_o25` dispatches on the type, so `O25_L23_REFIT` and the 1-D path are untouched.
+`fit_o25_table` is the 3-D counterpart of `fit_o25` — still one `lstsq` per cell, still no
+seed or stopping rule — and refuses a cell with fewer than 40 samples. The trilinear
+machinery is `conventions.interp_geometry`, shared with §7.10's `SurfaceTransfer`: one
+implementation, tested once.
+
+**`fit_o25`'s `zeniths` default is gone.** It was `(0.0, 30.0, 60.0)` — right for L23,
+silently wrong anywhere else, and on PB24 it would have fitted 3 of the 8 in-window
+zeniths and interpolated across the other 5 without a word. It now derives the list from
+the training data, and naming a subset that omits an angle the data contains **raises**.
+The old test pinned the old default and was rewritten; a companion test pins that holding
+a zenith out of the mask yields a table with fewer rows, so the clamp at evaluation time
+is visible rather than accidental.
+
+**Held-out result** (120 realisations, fitted on 96, scored on 24), rRMS in `rrs` through
+the §7.10 transfer:
+
+| θv | 0° | 20° | 40° | 60° | 70° | all |
+|---|---|---|---|---|---|---|
+| θs-only refit | 4.69% | 5.76% | 9.51% | 15.44% | 18.95% | 11.03% |
+| 3-D refit | 2.58% | 3.15% | 6.01% | 9.30% | 10.97% | **6.59%** |
+| gain | 1.82× | 1.83× | 1.58× | 1.66× | 1.73× | **1.67×** |
+
+Three consequences.
+
+1. **The extra axes earn their place**, and the gain is roughly *uniform* in view angle
+   rather than concentrated off-nadir. The reason is that the zenith-only fit's error comes
+   from pooling all 104 view geometries into four numbers per solar zenith, which damages
+   nadir as much as 70°.
+2. **This is the measurement that justifies the task order.** Scored through the *nadir*
+   transfer instead, the same comparison reads 20.02% vs 18.89% — a **1.06×** gain. Built
+   in the other order, task 8 would have concluded the extra axes did not matter, because
+   the interface error swamps both models. A test pins the contrast.
+3. **The benchmark M5 is gated against is far weaker than M4's.** O25 refit on PB24 scores
+   **6.59%** where its L23 refit scored **0.69%**. PB24 spans 12× in `B_p` and O25 has no
+   phase-function input at all, so this is M5's own axis appearing in the rival's score. It
+   must always be quoted as O25's number *on this data*; setting 6.59% beside 0.69% would
+   be comparing two datasets, not two models.
+
+**On the direction of the bias, restated.** §7.2 recorded that PB24 favours O25 because it
+is O25's calibration set. That holds for the *published* O25. For the O25 we can fit, the
+zenith-only table was a handicap we imposed, and this task removes it — so any margin the
+hybrid shows at task 11 is now earned rather than manufactured.
+
+**Tests: +10**, suite **368 passed**, ruff clean.
+
+### 7.12 What an adversarial review of the sequence found
 
 The first draft of §7.5 was reviewed against the source by an independent agent instructed
 to find what it got wrong. It found enough to justify a second draft, and the findings are

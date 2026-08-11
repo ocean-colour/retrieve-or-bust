@@ -62,6 +62,7 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     # Geometry-aware surface transfer (M5)
     "SurfaceTransfer",
     "SURFACE_TABLE",
+    "interp_geometry",
     "fit_surface_transfer",
     "save_transfer",
     "load_transfer",
@@ -642,34 +643,87 @@ class SurfaceTransfer:
         they disagree by O(1) at an exact node. Gradient checks must be run
         *between* nodes -- the same care ``o25_coefficients`` needs (M4 gotcha 4).
         """
-        A = jnp.asarray(self.A)
-        B = jnp.asarray(self.B)
-        i_s, w_s = _axis_weights(geometry.theta_s, self.theta_s)
-        i_v, w_v = _axis_weights(geometry.theta_v, self.theta_v)
-        i_d, w_d = _axis_weights(geometry.dphi, self.dphi)
-
-        out = []
-        for table in (A, B):
-            total = 0.0
-            for ds, ws in ((0, 1.0 - w_s), (1, w_s)):
-                for dv, wv in ((0, 1.0 - w_v), (1, w_v)):
-                    for dd, wd in ((0, 1.0 - w_d), (1, w_d)):
-                        total = (
-                            total + ws * wv * wd * table[i_s + ds, i_v + dv, i_d + dd]
-                        )
-            out.append(total)
-        return out[0], out[1]
+        nodes = (self.theta_s, self.theta_v, self.dphi)
+        return (
+            interp_geometry(self.A, nodes, geometry),
+            interp_geometry(self.B, nodes, geometry),
+        )
 
 
 def _axis_weights(x, nodes):
-    """Lower index and fractional weight for trilinear interpolation."""
+    """Lower index and fractional weight for linear interpolation along one axis.
+
+    A single-node axis degenerates to that node with zero weight, so a table that
+    does not resolve an angle -- L23 is nadir-only, so its O25 refit has one
+    ``theta_v`` node -- still evaluates rather than indexing out of bounds.
+    """
     nodes = jnp.asarray(nodes)
     x = jnp.asarray(x)
     n = nodes.shape[0]
+    if n == 1:
+        return (
+            jnp.zeros(jnp.shape(x), dtype=int),
+            jnp.zeros(jnp.shape(x), dtype=jnp.asarray(x).dtype),
+        )
     idx = jnp.clip(jnp.searchsorted(nodes, x, side="right") - 1, 0, n - 2)
     lo = nodes[idx]
     hi = nodes[idx + 1]
     return idx, jnp.clip((x - lo) / (hi - lo), 0.0, 1.0)
+
+
+def interp_geometry(table, nodes, geometry):
+    """Trilinear interpolation of a geometry-indexed table.
+
+    Shared by :class:`SurfaceTransfer` and :class:`robust.rt.baselines.O25Table`,
+    which index the same three angles on the same reference grid -- one
+    implementation, tested once.
+
+    Parameters
+    ----------
+    table : array_like
+        Shape ``(n_theta_s, n_theta_v, n_dphi, ...)``; trailing axes are carried
+        through, so a table of four O25 coefficients works as well as a scalar.
+    nodes : tuple of array_like
+        ``(theta_s, theta_v, dphi)`` node vectors, ascending, degrees.
+    geometry : robust.rt.types.Geometry
+        Angles in degrees, any batch shape.
+
+    Returns
+    -------
+    Array
+        Shape ``geometry.theta_s.shape + table.shape[3:]``.
+
+    Notes
+    -----
+    Differentiable and ``jit``-safe. Values outside the nodes **clamp** rather
+    than extrapolating. Piecewise linear, so there are kinks at the nodes: run
+    gradient checks *between* them (M4 gotcha 4).
+    """
+    values = jnp.asarray(table)
+    trailing = values.ndim - 3
+    i_s, w_s = _axis_weights(geometry.theta_s, nodes[0])
+    i_v, w_v = _axis_weights(geometry.theta_v, nodes[1])
+    i_d, w_d = _axis_weights(geometry.dphi, nodes[2])
+    if trailing:
+        expand = (...,) + (None,) * trailing
+        w_s, w_v, w_d = w_s[expand], w_v[expand], w_d[expand]
+
+    total = 0.0
+    for ds, ws in ((0, 1.0 - w_s), (1, w_s)):
+        for dv, wv in ((0, 1.0 - w_v), (1, w_v)):
+            for dd, wd in ((0, 1.0 - w_d), (1, w_d)):
+                total = (
+                    total
+                    + ws
+                    * wv
+                    * wd
+                    * values[
+                        jnp.minimum(i_s + ds, values.shape[0] - 1),
+                        jnp.minimum(i_v + dv, values.shape[1] - 1),
+                        jnp.minimum(i_d + dd, values.shape[2] - 1),
+                    ]
+                )
+    return total
 
 
 def fit_surface_transfer(

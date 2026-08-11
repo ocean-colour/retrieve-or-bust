@@ -348,7 +348,7 @@ samples because the envelope reached exactly as far as the data did).
    `fit_o25` has **no view-angle axis at all**, which would have made the milestone's gate
    a straw man; it scheduled a cross-dataset check that cannot pass by construction; and
    it repeated a claim of mine that was simply false — see the correction under task 7.
-   Two prerequisite tasks were missing entirely. The findings are in §7.11 of the record.
+   Two prerequisite tasks were missing entirely. The findings are in §7.12 of the record.
 
    How it is ordered: **3 → 4 → 5** are prerequisites (make the machinery dataset-agnostic,
    then load, then split), **6** unblocks three later tasks at once, **7 → 8 → 9** builds an
@@ -604,8 +604,38 @@ samples because the envelope reached exactly as far as the data did).
    nodes if tabulated (gotcha 4); `jit`-safe under the `_is_traced` convention.
    **Depends on:** 4, 5 (the held-out gate needs a split), 6. **Blocked:** no.
 
-8. **Give O25 a geometry-indexed coefficient table.** *Unlocks: a benchmark worth beating —
-   without this, task 11's gate is a straw man.*
+8. **Give O25 a geometry-indexed coefficient table.** ✅ **done 2026-08-11.**
+   *Unlocks: a benchmark worth beating — without this, task 11's gate is a straw man.*
+
+   **What landed.** `O25Table` (coefficients on the full `(θs, θv, Δφ)` grid, trilinear),
+   `O25Table.from_rows`, `fit_o25_table`, `Rrs_o25` dispatching on the table type,
+   `rrs_o25(..., transfer=)`, and `fit_o25`'s zenith list now **derived from the data**.
+   `conventions.interp_geometry` was factored out so the surface table and this one share
+   one implementation. **+10 tests, 368 pass**, ruff clean.
+
+   **Measured on held-out realisations** (120 loaded, fitted on 96, scored on 24), rRMS in
+   `rrs` through the task-7 transfer:
+
+   | θv | 0° | 20° | 40° | 60° | 70° | all |
+   |---|---|---|---|---|---|---|
+   | θs-only refit | 4.69% | 5.76% | 9.51% | 15.44% | 18.95% | 11.03% |
+   | 3-D refit | 2.58% | 3.15% | 6.01% | 9.30% | 10.97% | **6.59%** |
+   | gain | 1.82× | 1.83× | 1.58× | 1.66× | 1.73× | **1.67×** |
+
+   Three findings, one of which reorders how the milestone reads:
+   - **The extra axes earn their place: 1.67× overall.** The gain is roughly *uniform*
+     across view angle, which was not what I expected — the θs-only fit's error comes from
+     pooling all 104 view geometries into one fit per zenith, so it hurts at nadir as much
+     as at 70°.
+   - **Task 7 had to come first, and here is the measurement.** Scored through the *nadir*
+     transfer, the same comparison gives 20.02% vs 18.89% — a **1.06×** gain instead of
+     1.67×. Built in the other order, this task would have concluded the extra axes did not
+     matter. A test pins that.
+   - **O25 is much weaker on PB24 than on L23: 6.59% against 0.69%.** The benchmark M5 is
+     gated against is not the one M4 met. PB24 varies `B_p` by 12× and O25 has no
+     phase-function input at all, so this is the milestone's own axis showing up in the
+     rival's score — good news for the hybrid's prospects, and it must be quoted as
+     *O25's* number on *this* data, never compared against 0.69%.
 
    `fit_o25` groups **by solar zenith only** (`baselines.py:374`) and `o25_coefficients` is
    a 1-D `jnp.interp` in θs (`baselines.py:202`). O25 as published indexes θs, θv **and**
@@ -994,6 +1024,53 @@ Record work in the Logs section below, format:
 
 <Detailed description of the work and what you learned>
 
+### 2026-08-11 (Task 8 — O25 over the full geometry; the ordering, measured; record v0.23)
+
+**What I did.** `O25Table` — O25's four coefficients on the whole `(θs, θv, Δφ)` grid —
+plus `fit_o25_table`, dispatch in `Rrs_o25`, `rrs_o25(..., transfer=)`, and the removal of
+`fit_o25`'s `zeniths=(0, 30, 60)` default. Factored the trilinear machinery into
+`conventions.interp_geometry` so this table and task 7's share one implementation.
+**+10 tests, 368 pass** (335 + 33 skipped), ruff clean.
+
+**The result the task was for.** On held-out realisations the 3-D table beats the
+zenith-only refit by **1.67×** overall (11.03% → 6.59%), and by 1.58–1.86× at every view
+angle. So the extra axes earn their place, and the benchmark task 11 is gated against is no
+longer one we crippled.
+
+**The thing I did not expect: the gain is uniform in view angle.** I assumed a θs-only
+table would be fine near nadir and fail off-nadir, so the gain would grow with θv. It is
+1.82× at nadir and 1.66× at 60°. The reason, once measured, is obvious in hindsight — the
+zenith-only fit pools all 104 view geometries into four numbers per solar zenith, so it is
+contaminated *everywhere*, not just where the geometry is extreme. A model can be wrong at
+nadir because of what it saw at 70°.
+
+**The task order, converted from an argument into a measurement.** I have been asserting
+since task 2 that task 7 must precede task 8. Scored through the *nadir* transfer, the same
+1-D vs 3-D comparison reads 20.02% vs 18.89% — a **1.06×** gain instead of 1.67×. Built in
+the other order I would have measured almost no difference, concluded the extra axes were
+not worth it, and shipped the straw man. That is now a test rather than a paragraph.
+
+**The number that will reshape task 9 and 11.** O25 refit on PB24 scores **6.59%** where
+its L23 refit scored **0.69%**. The benchmark M5 must beat is nearly ten times weaker than
+M4's — not because we broke it (this task was about not breaking it) but because PB24
+spans 12× in `B_p` and **O25 has no phase-function input at all**. That is M5's own axis
+showing up in the rival's score. It has to be quoted as O25's number *on this data*;
+putting 6.59% next to 0.69% would be comparing two datasets and calling it two models.
+
+**A guard I removed and had to replace.** `fit_o25`'s `zeniths` default was pinned by a
+test asserting that holding out 60° raises. Under derivation it no longer raises — it
+returns a two-row table, which is what a zenith hold-out *means*. But the old guard was
+protecting something real, so it is replaced by two tests: naming a subset that omits an
+angle the data contains now raises (the PB24 bug), and holding a zenith out yields a
+visibly shorter table. Second time this milestone I have widened a guard's scope while
+strengthening what it actually protects.
+
+**What I learned.** "X must precede Y" is a claim with a number attached, and the number is
+usually cheap to get. I had the argument for the ordering from a `grep` at task 2, then a
+correction to it at task 7, and only here the actual size of the effect — 1.67× versus
+1.06×. The habit worth keeping is not "measure before designing" but "measure the thing the
+decision rests on", which is often not the headline quantity at all.
+
 ### 2026-08-10 (Task 7 — the surface transfer; four questions the data answered; record v0.22)
 
 **What I did.** `SurfaceTransfer` in `conventions` — Lee's `A` and `B` tabulated on PB24's
@@ -1262,7 +1339,7 @@ and still described commissioning HydroLight runs as the route — both now fals
 **Then a Fable agent reviewed the sequence against the code and found it wrong in eight
 places** — enough that what shipped is a second draft with **six more tasks** (16, not 10).
 I verified every load-bearing finding myself before rewriting; all of them held. The full
-list is record §7.11, and the pattern behind them is one thing: **the M0–M4 machinery
+list is record §7.12, and the pattern behind them is one thing: **the M0–M4 machinery
 quietly assumes L23 is the only dataset**, and my sequence assumed it was general. The two
 that would have cost the most: the cross-dataset check **could not have passed** (L23 starts
 at 350 nm, an OLCI-trained emulator's domain starts at 400, and one out-of-domain λ flags
