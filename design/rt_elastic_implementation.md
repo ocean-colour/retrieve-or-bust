@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.29
+**Version:** 0.30
 **Date:** 2026-08-13
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ every bump.
 | **M2** | ZTT analytic backbone (JAX) | ✅ done | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
-| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–14 done (11 **failed its gate**), 15–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
+| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–15 done (11 **failed its gate**), 16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **407 passed** (`ocean14`); with
-`$OS_COLOR` unset, **363 passed + 44 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **416 passed** (`ocean14`); with
+`$OS_COLOR` unset, **372 passed + 44 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1507,8 +1507,8 @@ convert items 4 and 5 from *untested* into *measured*.
 (the three splits, §7.8), **6** (the validation toolkit, §7.9), **7** (the surface
 transfer, §7.10), **8** (O25's geometry table, §7.11) and **9** (the PB24 benchmark,
 §7.12), **10** (the per-model envelope, §7.13) and **11** (the PB24 retrain, §7.14 — which
-**failed its gate**) **12** (the cross-dataset check, §7.15) **13** (ZTT's internals, §7.16) and **14** (the backward-VSF axis, §7.17) are done;
-tasks 15–16 are specified with a gate each in
+**failed its gate**) **12** (the cross-dataset check, §7.15) **13** (ZTT's internals, §7.16) **14** (the backward-VSF axis, §7.17) and **15** (the API freeze, §8.0) are done; task 16
+is specified with a gate each in
 [`rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md) §M5
 and summarised in §7.5 below.
 
@@ -1531,7 +1531,7 @@ and summarised in §7.5 below.
 | 12 | Cross-dataset check — PB24 model on L23 | overlap computed not assumed; out-of-domain fraction reported; promotion rule encoded as a **conditional** | ✅ done — **does not transfer** |
 | 13 | ZTT `mu_d` vs HydroLight; the µ∞ question | `mu_d` pinned; **µ∞ cannot be refit from PB24** — Q17 option 3 closed (§7.16) | ✅ done |
 | 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ✅ done |
-| 15 | Freeze the `forward` API | signature-pinning test | ⬜ |
+| 15 | Freeze the `forward` API | signature-pinning test | ✅ done — §8.0 |
 | 16 | Notebook 6, PR review, hand-off | the M0–M4 rhythm | ⬜ |
 
 ### 7.2 The reference data — PB24, as measured
@@ -2288,6 +2288,85 @@ The scale problem the review raised — `fit()` is full-batch and PB24 is 83× L
 ---
 
 ## 8. Cross-cutting conventions (as implemented)
+
+### 8.0 The frozen `forward` API (M5 task 15)
+
+`robust.rt.forward` is the shared engine for training-data generation and for the
+separately designed inversion. Both need it to stop moving, so as of M5 task 15 its call
+surface is **frozen and pinned by tests** (`robust/tests/test_env.py`, "M5 task 15"):
+
+```python
+forward(iops, phase_params, geometry, wave=None, mode="hybrid", *,
+        emulator=None, check_domain=True, on_out_of_domain="warn") -> Rrs
+```
+
+Frozen means these four things are asserted, and a change to any of them fails the suite:
+
+1. **The signature** — parameter names, order, kind (positional-or-keyword vs
+   keyword-only), and defaults.
+2. **The pytree field order** of `IOPs`, `PhaseParams`, `Geometry`. Order is part of the
+   API, not an implementation detail: these are registered pytrees, so `tree_flatten`'s
+   leaf order is observable and anything that zips leaves would silently misalign.
+3. **That every optional container field defaults to `None`** — which is what makes
+   appending one safe.
+4. **The enumerations the signature refers to**, `MODES` and `OUT_OF_DOMAIN_POLICIES`.
+
+**Permitted — but still a deliberate act.** The signature test asserts *exact* equality,
+so even a permitted change fails it until `FROZEN_FORWARD` is edited in the same commit.
+That is the point: the freeze does not decide what may change, it decides that nothing
+changes by accident.
+
+- Appending a **keyword-only** argument whose default preserves existing behaviour.
+- Appending a field to `IOPs` / `PhaseParams` / `Geometry` that **defaults to `None`** and
+  changes nothing when left unset. M1 designed for this (§3.2) and M5 task 14 did it —
+  400 tests passed untouched and no call site changed (§7.17).
+- Adding new *functions* alongside `forward`, or new optional parameters to them.
+- Changing anything private (leading underscore), or any docstring.
+
+**Forbidden**
+
+- Renaming, reordering, or removing a parameter or a container field.
+- Changing a parameter from positional-or-keyword to keyword-only, or the reverse.
+- Changing what an existing default *does* — including indirectly. `emulator=None`
+  resolves through `emulator.load_default()`, and `on_out_of_domain` consults the
+  emulator's own `Envelope` (§7.13); repointing either changes `forward`'s numbers without
+  touching its signature, which is why Q13's promotion rule is itself a test (§7.15).
+- Changing the **return convention**: `forward` returns above-water `Rrs`, and the
+  subsurface counterpart is the separately named `hybrid.rrs_forward`. Scoring happens in
+  `rrs` (design §6), so the two must never be confused.
+
+**What an audit of the freeze found, and what closed it.** A signature pin is worth less
+than it looks, because the ways a downstream caller actually gets hurt mostly leave the
+signature alone. Four gaps were found and closed:
+
+1. **The numbers were unpinned.** `emulator=None` resolves through `load_default()`, and
+   Q13's promotion rule explicitly *permits* that file to change (§7.15) — so training data
+   generated today need not match a regeneration tomorrow, with every test green. Now the
+   shipped weights are pinned **by SHA-256 digest** and `forward`'s output **by value** on
+   the committed fixture. Changing the default model stays allowed; it becomes a deliberate
+   edit with a diff.
+2. **The `Rrs` convention could have slipped off-nadir.** Every hybrid test runs on L23,
+   which is nadir-only, so wiring §7.10's geometry-aware transfer into `forward` *for
+   off-nadir geometries only* would have passed the entire suite while changing every
+   number a multi-angular caller sees. Now pinned at an off-nadir geometry.
+3. **`rrs_forward` was not frozen**, though scoring and training both happen in `rrs`
+   (design §6) — arguably making it the more load-bearing surface of the two. Now frozen
+   against the same tuple.
+4. **The `Emulator` pytree contract was untested.** `config` and `envelope` are static and
+   the arrays are leaves, and the inversion is told to rely on that — but every test in the
+   suite *closed over* an emulator rather than passing it through `jit`/`grad`, and
+   closures are not flattened. Dropping the `static` metadata would have stayed green until
+   an inversion tried to differentiate w.r.t. the weights. Now exercised as an argument
+   across both transforms.
+
+**What the freeze still does not cover, deliberately.** Dtype beyond the pinned float32
+default, batch-rank conventions past two axes, and the `features()` trailing-axis rule
+(`B_p` reads as a spectrum iff its last axis is `n_wave`, so a batch of exactly 81 samples
+on the 81-band grid is ambiguous — documented in `emulator.py`, untested). These are noted
+rather than fixed; the first two are cheap to add when a caller needs them, the third wants
+an API change rather than a test.
+
+### 8.1 Other cross-cutting conventions
 
 *Filled in as they land. Intended (from the design + coding plan):*
 

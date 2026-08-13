@@ -981,8 +981,42 @@ samples because the envelope reached exactly as far as the data did).
     (gotcha 5 — `scalar()` used to drop exactly these fields).
     **Depends on:** 4, 6; informed by 13. **Blocked:** no.
 
-15. **Freeze the `forward` API.** *Unlocks: the inversion track and training-data
-    generation, which both want a stable engine.*
+15. **Freeze the `forward` API.** ✅ **done 2026-08-13.** *Unlocks: the inversion track and
+    training-data generation, which both want a stable engine.*
+
+    **What landed.** Nine tests in `test_env.py` and a policy in record **§8.0**.
+    **+9 tests, 416 pass**, ruff clean.
+
+    The signature freeze itself pins four things: `forward`'s parameter names, order, kind
+    and defaults; the **field order** of `IOPs`/`PhaseParams`/`Geometry` (these are
+    registered pytrees, so leaf order is observable); that every optional container field
+    defaults to `None`; and the `MODES`/`OUT_OF_DOMAIN_POLICIES` enumerations. Demonstrated
+    to bite: renaming `wave` and inserting a container field each fail it.
+
+    **But a signature pin is worth less than it looks, and a Fable audit said so.** The
+    ways a downstream caller actually gets hurt mostly leave the signature alone. Four gaps,
+    all now closed:
+    - **The numbers were unpinned.** `emulator=None` resolves through `load_default()`, and
+      Q13's promotion rule *permits* that file to change — so training data generated today
+      need not match a regeneration tomorrow, with every test green. Now pinned by
+      **SHA-256 digest** of the weights *and* by **golden output values**; both
+      demonstrated to fail when perturbed.
+    - **The `Rrs` convention could have slipped off-nadir.** Every hybrid test runs on
+      nadir-only L23, so wiring task 7's geometry-aware transfer into `forward` *for
+      off-nadir only* would have passed the whole suite. Now pinned at an off-nadir
+      geometry.
+    - **`rrs_forward` wasn't frozen** — though scoring and training both happen in `rrs`,
+      arguably making it the more load-bearing surface. Now frozen against the same tuple.
+    - **The `Emulator` pytree contract was untested.** Every test *closed over* an
+      emulator; closures aren't flattened, so dropping the `static` metadata on
+      `config`/`envelope` would stay green until an inversion differentiated w.r.t. the
+      weights. Now exercised as an argument through `jit` and `grad`.
+
+    **And the audit corrected the policy I'd written.** §8.0 said adding a keyword-only
+    argument was "permitted without breaking the freeze"; the test asserts *exact* tuple
+    equality, so even a permitted change fails until `FROZEN_FORWARD` is edited. That is
+    the better behaviour — the freeze doesn't decide what may change, it decides that
+    nothing changes by accident — so the wording was fixed rather than the test.
 
     **Gate:** a signature-pinning test (the M0 pattern) plus a record §8 note stating what
     "frozen" permits and forbids.
@@ -1274,6 +1308,50 @@ Record work in the Logs section below, format:
 ### <Date> (Short summary)
 
 <Detailed description of the work and what you learned>
+
+### 2026-08-13 (Task 15 — the `forward` freeze, and what a freeze does not freeze; record v0.30)
+
+**What I did.** Froze `robust.rt.forward`: nine tests pinning the signature, the pytree
+field order, the `None`-default rule, and the two enumerations, plus record §8.0 stating
+what the freeze permits and forbids. **+9 tests, 416 pass**, ruff clean. Demonstrated it
+bites by renaming `wave` and by inserting a container field.
+
+**The audit was worth more than the freeze.** I wrote the signature pin, and a Fable agent
+then listed four ways a downstream caller gets hurt while every one of those tests stays
+green. All four were real:
+
+1. **The numbers.** `emulator=None` resolves through `load_default()`, and Q13's promotion
+   rule explicitly *permits* that file to change. So a training set generated from
+   `forward` need not match a regeneration, with a green suite throughout. There was no
+   golden output anywhere in the project. Now the weights are pinned by SHA-256 and the
+   output by value.
+2. **The `Rrs` convention off-nadir.** Every hybrid test runs on nadir-only L23, so wiring
+   task 7's transfer into `forward` *for off-nadir geometries only* would have passed
+   everything while changing every number a multi-angular caller sees.
+3. **`rrs_forward` wasn't frozen at all** — and scoring and training both happen in `rrs`,
+   so it is arguably the surface that matters more.
+4. **The `Emulator` pytree contract.** Every test in the suite closes over an emulator
+   rather than passing it through `jit`/`grad`, and closures are not flattened — so the
+   `static` metadata the inversion is told to rely on could have been dropped silently.
+
+**And it corrected the policy I had just written.** §8.0 said adding a keyword-only argument
+was "permitted without breaking the freeze". The test asserts exact tuple equality, so even
+a permitted change fails until `FROZEN_FORWARD` is edited. That is the better behaviour, so
+I fixed the wording rather than loosening the test: a freeze does not decide what may
+change, it decides that nothing changes by accident.
+
+**One self-inflicted lesson.** My first attempt to demonstrate the golden pin perturbed the
+output by exactly `1e-6` against a `rel=1e-6` tolerance, and it passed — I briefly took
+that as the test being weak. It was the demonstration being badly chosen. Re-run at 5e-4 it
+fails immediately. Worth noting because "the test didn't catch my change" is a claim that
+needs the same scrutiny as any other measurement.
+
+**What I learned.** Freezing a signature is the easy half and the half that feels like the
+work. The load-bearing question is *what a caller can observe*, and most of that is not in
+the signature: the numbers behind a default, the units of the return, the pytree structure,
+and the sibling function nobody thought to freeze. Ask what could change while the tests
+stay green — and then ask someone else, because the author is the worst-placed person to
+enumerate their own blind spots.
 
 ### 2026-08-13 (Task 14 — the backward-VSF axis; a design decision pays off; record v0.29)
 
