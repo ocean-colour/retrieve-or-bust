@@ -903,7 +903,7 @@ samples because the envelope reached exactly as far as the data did).
       **ψ ≳ 134°**. `Ψ_KLu = 1 + F(ψ)` **crosses zero at ψ = 110.4°** and is negative below
       it — flipping the sign of the ZTT denominator. In PB24's sanctioned window **42% of
       geometries have ψ < 134°** (extrapolation) and **16% have ψ < 110.4°** (sign-flipped);
-      the full grid reaches ψ = 44.3°, where `Ψ_KLu` is **−60.7**. **L23's minimum ψ is above
+      the full grid reaches ψ = 44.3°, where `Ψ_KLu` is **−60.6**. **L23's minimum ψ is above
       134°**, because nadir viewing pins ψ near backscatter — so the prototype could not
       have found this, and it is not a defect in our transcription but the published
       model's stated domain.
@@ -1023,9 +1023,22 @@ samples because the envelope reached exactly as far as the data did).
     **Depends on:** 7, 10, 11, 14 — **last**, because each can still move the signature.
     **Blocked:** no.
 
-16. **Notebook, review, hand-off** — `notebooks/RT/rt_elastic_coding_6.ipynb`, then a
-    PR-review pass, then the edit to `rt_elastic_coding_prompt_7.md`. The rhythm M0–M4
-    settled. **Depends on:** 15.
+16. **Notebook, review, hand-off** ✅ **done 2026-08-13.** The rhythm M0–M4 settled, plus
+    the report JXP asked for at Q17. **Depends on:** 15.
+
+    - **[`design/m5_report.md`](../../design/m5_report.md)** — the one-page account. Sets
+      out the whole Q17 chain: the backbone's validity domain, why a bounded relative
+      correction cannot absorb it, where each of the four options now stands, what M5 did
+      deliver, what may and may not be claimed, and the three defects an audit found in our
+      own work. **Every number in it was checked programmatically** against the committed
+      artefacts and the code — 10/10 consistent.
+    - **`notebooks/RT/rt_elastic_coding_6.ipynb`** — 12 cells, 3 figures, executed. Built
+      from a script that AST-parses every cell first; three numbers disagreed with the
+      record on the first run and were reconciled.
+    - **`rt_elastic_coding_prompt_7.md`** — the M6 hand-off, with the three routes M5's
+      measurements leave open and **Q18** (which route; is commissioning HydroLight runs on
+      the table) blocking its scoping task.
+    - **PR-review pass** — run by Fable over the whole milestone.
 
 ---
 
@@ -1309,6 +1322,42 @@ Record work in the Logs section below, format:
 
 <Detailed description of the work and what you learned>
 
+### 2026-08-13 (Task 16 — M5 closes on a negative result; record v0.31)
+
+**What I did.** The milestone close: `design/m5_report.md` (the report JXP asked for at
+Q17), `notebooks/RT/rt_elastic_coding_6.ipynb`, the M6 hand-off in
+`rt_elastic_coding_prompt_7.md`, and a Fable review pass over the whole milestone. **416
+tests pass**, ruff clean.
+
+**The report is the deliverable that mattered.** M5 failed its gate, and a failed milestone
+is exactly where an account can quietly become a defence. So the report leads with the
+failure, gives the oracle bound that makes it structural rather than a shortfall, and walks
+Q17's four options through to where measurement left each — including that **option 3, the
+one JXP assigned to task 13, turned out to be impossible**, and option 1, the one chosen,
+is implemented and insufficient. Section 6 lists the three defects an audit found in my own
+work, because the pattern is more useful to the next reader than the fixes.
+
+**Every number in it was checked programmatically** — a script parses the claims back out
+against `metrics.csv`, the shipped weights' digest, the collected test count, and live
+evaluations of `psi_KLu` and `geometry_to_paper_angles`. 10 of 10 consistent. That habit
+exists because of the five consecutive notebooks where it was not done.
+
+**The notebook caught me twice.** First a build bug: I split cell source on `\n` without
+keeping the terminators, so nbformat concatenated each cell onto one line. It passed the
+AST check — because that ran on the joined string in memory — and failed at execution. That
+is precisely why the rule is *verify `execution_count`, not the exit code*. Then, once it
+ran, three printed numbers disagreed with the record: the `Ψ_KLu` crossing (a coarse grid
+printing 110.30 against the record's 110.4), the surface-transfer gain (7.3× from the
+rounded table against 7.2× from the unrounded fit), and `Ψ_KLu(44.3)`. That last one was
+**mine, not the notebook's** — the true value is −60.6 and I had written −60.7 into three
+documents. All corrected.
+
+**What I learned.** A rounding disagreement between a document and its own figure is not
+pedantry — it is the only signal that the two were produced by different paths. Twice now
+the discrepancy has been the document being wrong rather than the code, and both times it
+surfaced only because the notebook prints what it computes instead of restating what I
+wrote. Make the artefact compute the claim.
+
 ### 2026-08-13 (Task 15 — the `forward` freeze, and what a freeze does not freeze; record v0.30)
 
 **What I did.** Froze `robust.rt.forward`: nine tests pinning the signature, the pytree
@@ -1397,7 +1446,7 @@ equal in a test unless the test is *about* them being equal.
 docstring already recorded the paper's fitted range — **ψ ≳ 134°** — and I had read that
 docstring at M2 without connecting it to anything, because L23 never leaves the range.
 `Ψ_KLu = 1 + F(ψ)` crosses zero at **110.4°**; PB24's sanctioned window has **42%** of its
-geometries below 134° and **16%** below 110.4°, reaching `Ψ_KLu = −60.7` at ψ = 44°. L23's
+geometries below 134° and **16%** below 110.4°, reaching `Ψ_KLu = −60.6` at ψ = 44°. L23's
 minimum ψ is **139.7°**. So the whole M5 failure is a published model being evaluated tens
 of degrees outside its stated domain, and the prototype could not have found it at any
 level of care.

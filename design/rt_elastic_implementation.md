@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.30
+**Version:** 0.31
 **Date:** 2026-08-13
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ every bump.
 | **M2** | ZTT analytic backbone (JAX) | ✅ done | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
-| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–15 done (11 **failed its gate**), 16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
+| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 **complete** — tasks 0–16 done; task 11 **failed its gate** and no PB24 weights ship (§7.14, `design/m5_report.md`) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -1507,8 +1507,9 @@ convert items 4 and 5 from *untested* into *measured*.
 (the three splits, §7.8), **6** (the validation toolkit, §7.9), **7** (the surface
 transfer, §7.10), **8** (O25's geometry table, §7.11) and **9** (the PB24 benchmark,
 §7.12), **10** (the per-model envelope, §7.13) and **11** (the PB24 retrain, §7.14 — which
-**failed its gate**) **12** (the cross-dataset check, §7.15) **13** (ZTT's internals, §7.16) **14** (the backward-VSF axis, §7.17) and **15** (the API freeze, §8.0) are done; task 16
-is specified with a gate each in
+**failed its gate**) **12** (the cross-dataset check, §7.15) **13** (ZTT's internals, §7.16) **14** (the backward-VSF axis, §7.17), **15** (the API freeze, §8.0) and **16** (the
+notebook, review and hand-off) are done. The one-page account for a reader is
+[`m5_report.md`](m5_report.md). The task specifications remain in
 [`rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md) §M5
 and summarised in §7.5 below.
 
@@ -1532,7 +1533,7 @@ and summarised in §7.5 below.
 | 13 | ZTT `mu_d` vs HydroLight; the µ∞ question | `mu_d` pinned; **µ∞ cannot be refit from PB24** — Q17 option 3 closed (§7.16) | ✅ done |
 | 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ✅ done |
 | 15 | Freeze the `forward` API | signature-pinning test | ✅ done — §8.0 |
-| 16 | Notebook 6, PR review, hand-off | the M0–M4 rhythm | ⬜ |
+| 16 | Notebook 6, PR review, hand-off + the M5 report | the M0–M4 rhythm | ✅ done |
 
 ### 7.2 The reference data — PB24, as measured
 
@@ -2141,7 +2142,7 @@ supersedes §7.12's first attribution (`bb/a`) and completes task 11's correctio
   denominator.
 - In PB24's **sanctioned Q14 window, 42% of geometries have ψ < 134°** (outside the fitted
   range) and **16% have ψ < 110.4°** (actually sign-flipped); the full grid reaches
-  **ψ = 44.3°**, where `Ψ_KLu` is **−60.7**. The two percentages answer different
+  **ψ = 44.3°**, where `Ψ_KLu` is **−60.6**. The two percentages answer different
   questions and both matter: the first is how much of the window is extrapolation, the
   second is how much of it is structurally broken.
 - **L23's minimum ψ is above 134°.** Nadir viewing pins the scattering angle near
