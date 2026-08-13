@@ -74,8 +74,25 @@ analytic backbone alone.
    axes are untested. The emulator's domain check now flags **any** off-nadir view —
    which is correct, and means the hybrid falls back to the backbone there under
    `on_out_of_domain="ztt"`.
+
+   **Update (M5):** that fallback is now known to be unsafe off-nadir. Measured on PB24,
+   the ZTT backbone returns a **non-physical (≤ 0) `rrs` on 22% of samples**, because the
+   scattering angle leaves the range `F(ψ)` was fitted over (item 6). Falling back to it
+   off-nadir substitutes one wrong answer for another.
 6. **ZTT's µ∞ is from Twardowski & Tonizzo (2017)**, because the 2018 paper's Equation
    (8) coefficients are not published. Report as *ZTT with the TT2017 µ∞*.
+
+   **Update (M5 task 13): this caveat cannot be closed with the data in hand, and it is
+   not the largest one.** µ∞ is the *asymptotic* mean cosine, `µ∞ = a/K∞`, and `K∞` is by
+   definition independent of the sun angle; PB24 tabulates seven diffuse-attenuation
+   coefficients and **every one varies by ~1.4× across solar zenith**, so none is `K∞` and
+   µ∞ cannot be refit from it. Meanwhile M5 measured that µ∞ accounts for **1%** of ZTT's
+   non-physical predictions on PB24 against **68%** for `Ψ_KLu`, whose quartic `F(ψ)` is
+   fitted only for scattering angles **ψ ≳ 134°** and crosses zero at **110.4°**. Nadir
+   viewing pins ψ above 134° (L23's minimum is 139.7°), which is why the Week-1 prototype's
+   numbers are unaffected — and why they say nothing about off-nadir use. A second axis
+   compounds it: `Md_star` and the TT2017 µ∞ are fitted for `bb/a` ≤ 0.1, which **36%** of
+   PB24 exceeds, and ZTT's `mu_d` goes **negative** there. See record §7.16.
 
 ## The acceptance gate, as amended
 

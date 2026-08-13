@@ -1051,3 +1051,96 @@ def test_default_steps_refuses_to_invent_one():
 
     with pytest.raises(KeyError, match="no measured step"):
         V.default_steps(["gamma"])
+
+
+# ------------------------------------ M5 task 9: the PB24 benchmark artefacts -
+# The gate is about the artefacts being consumable and self-consistent, which is
+# what M4's review found they were not: a stale figure, two malformed CSVs, and a
+# per-cut table whose columns could silently shift.
+
+PB24_VALIDATION = Path(__file__).resolve().parents[2] / "design" / "validation_pb24"
+
+
+def _read_committed_csv(name):
+    path = PB24_VALIDATION / name
+    if not path.is_file():
+        pytest.skip(f"PB24 benchmark artefact missing: {path}")
+    with path.open(newline="") as handle:
+        rows = list(csv.reader(handle))
+    return rows[0], rows[1:]
+
+
+def test_pb24_metrics_csv_parses_with_the_columns_it_promises():
+    """**Regression.** Model names contain commas; hand-joining broke this once."""
+    header, rows = _read_committed_csv("metrics.csv")
+
+    assert header[0] == "model"
+    assert rows, "no data rows"
+    for row in rows:
+        assert len(row) == len(header), (
+            f"{row[0]}: {len(row)} fields, header has {len(header)}"
+        )
+        for cell in row[1:]:
+            float(cell)
+
+
+def test_pb24_o25_is_labelled_a_refit_everywhere():
+    """It has seen the training data; a table that hides that is misleading."""
+    _, rows = _read_committed_csv("metrics.csv")
+    names = [row[0] for row in rows]
+
+    o25 = [name for name in names if "O25" in name]
+    assert o25, f"no O25 row among {names}"
+    for name in o25:
+        assert "refit" in name.lower(), name
+
+    text = (PB24_VALIDATION / "metrics.md").read_text()
+    assert "refit" in text.lower()
+    assert "not the published model" in text.lower()
+
+
+def test_pb24_view_angle_table_headers_match_its_values():
+    """**Regression (task 6).** A missing group used to shift every column left."""
+    header, rows = _read_committed_csv("rrms_per_view_angle.csv")
+
+    angles = [float(h.split()[0]) for h in header[1:]]
+    assert angles == sorted(angles)
+    assert angles[0] == 0.0
+    assert angles[-1] == pytest.approx(87.5)
+    for row in rows:
+        assert len(row) == len(header)
+
+
+def test_pb24_per_wavelength_csv_covers_the_olci_grid():
+    header, rows = _read_committed_csv("rrms_per_wavelength.csv")
+
+    waves = [float(row[0]) for row in rows]
+    np.testing.assert_allclose(waves, C.OLCI_WAVE, atol=1e-6)
+    assert header[0] == "wavelength_nm"
+    assert len(header) - 1 == len(rows[0]) - 1
+
+
+def test_pb24_non_physical_column_reports_ztt_and_not_the_others():
+    """The honesty column: ZTT leaves its domain on PB24, the others do not.
+
+    Pinned because it is the milestone's most consequential finding and the one a
+    future refactor is most likely to quietly drop.
+    """
+    header, rows = _read_committed_csv("metrics.csv")
+    assert header[-1] == "non_physical_pct"
+
+    values = {row[0]: float(row[-1]) for row in rows}
+    assert values["ZTT backbone"] > 10.0
+    assert values["standard Gordon"] == 0.0
+    assert any(v == 0.0 for k, v in values.items() if "O25" in k)
+
+
+def test_pb24_markdown_and_csv_agree():
+    """The stale-figure lesson: two artefacts of one run must not drift apart."""
+    header, rows = _read_committed_csv("metrics.csv")
+    text = (PB24_VALIDATION / "metrics.md").read_text()
+
+    for row in rows:
+        # the markdown rounds to two decimals; the CSV keeps four
+        rendered = f"| {row[0]} | " + " | ".join(f"{float(c):.2f}" for c in row[1:])
+        assert rendered in text, f"markdown and CSV disagree for {row[0]!r}"

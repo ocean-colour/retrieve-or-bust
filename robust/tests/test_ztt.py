@@ -36,6 +36,7 @@ import pytest
 from robust.rt import conventions as C
 from robust.rt import ztt as Z
 from robust.rt.types import Geometry, IOPs, PhaseParams
+from robust.tests.conftest import needs_l23, needs_pb24
 
 N = C.N_WAVE
 
@@ -526,3 +527,127 @@ def test_runs_on_the_cached_l23_fixture(l23_small_batch):
     assert rrs.shape == l23_small_batch.Rrs.shape
     assert np.all(np.isfinite(np.asarray(rrs)))
     assert float(jnp.min(rrs)) > 0.0
+
+
+# ------------------------ ZTT's internals against HydroLight (M5 task 13) ----
+# Three questions, and the answers are more useful than the milestone expected:
+# where mu_d stands, why the backbone collapses on PB24, and whether the standing
+# Equation-(8) caveat can be closed with this data. (It cannot.)
+
+
+def test_F_psi_goes_negative_below_the_range_its_paper_fitted():
+    """**The dominant cause of the backbone's collapse on PB24.**
+
+    ``F_psi`` is a quartic in the in-water scattering angle, and its own docstring
+    records the paper's fitted range: ψ ≳ 134°, ">95% of the angles a polar
+    orbiter sees". Below that it is extrapolation, and ``Ψ_KLu = 1 + F(ψ)`` turns
+    negative — which flips the sign of the ZTT denominator's leading term and with
+    it the whole model. Nadir viewing pins ψ near backscatter, so L23 could never
+    have exposed this.
+    """
+    psi = np.linspace(40.0, 180.0, 1401)
+    psi_k = np.asarray(Z.psi_KLu(jnp.asarray(psi)))
+
+    assert np.all(psi_k[psi >= 134.0] > 0.0), "positive throughout the fitted range"
+
+    # It is negative for *everything* below the crossing, not on some interval:
+    # the quartic simply has no business being evaluated there.
+    negative = psi[psi_k < 0.0]
+    assert negative.size > 0
+    assert negative.min() == pytest.approx(psi.min())
+    assert 105.0 < negative.max() < 115.0, (
+        f"psi_KLu crosses zero at {negative.max():.1f} deg; the record quotes "
+        "~110, comfortably below the paper's fitted range of psi >~ 134"
+    )
+
+
+@needs_l23
+def test_l23_geometry_never_leaves_the_fitted_scattering_range(l23_batch):
+    """Why the prototype could not have found this. Nadir pins ψ near 180°."""
+    _, _, _, psi = Z.geometry_to_paper_angles(l23_batch.geometry)
+
+    assert float(jnp.min(psi)) > 134.0
+
+
+@needs_pb24
+def test_pb24_leaves_the_fitted_scattering_range_on_much_of_the_window():
+    """And why PB24 does: a full BRDF sweeps ψ through 90°, not just backscatter."""
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=4, angles="all")
+    _, _, _, psi = Z.geometry_to_paper_angles(batch.geometry)
+    psi = np.asarray(psi)
+    window = (batch.theta_s <= 70.0) & (batch.theta_v <= 70.0)
+
+    assert psi.min() < 60.0  # the full grid reaches deep forward scattering
+    outside = float(np.mean(psi[window] < 134.0))
+    assert 0.3 < outside < 0.6, (
+        f"{100 * outside:.0f}% of the sanctioned window is outside ZTT's fitted "
+        "scattering range; the record quotes ~42%"
+    )
+
+
+@needs_pb24
+def test_mu_d_against_pb24s_tabulated_value():
+    """**The gate's measurable half.** Pinned so a change to ``mu_d`` announces itself.
+
+    The 2018 paper puts Equation (14)'s error below 1%. Against PB24 the median
+    is ~4% and it degrades with solar zenith — ~1.6% at 40°, ~14% at 70-80°. That
+    is a real disagreement rather than a defect here: ZTT's ``Md_star`` is itself
+    a fit over a narrower IOP range than PB24 spans.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=25, angles="all", extras=("mu_d",))
+    bb_over_a = batch.iops.bb / batch.iops.a
+    eta = batch.iops.bb_w / batch.iops.bb
+    _, theta_s_air, _, _ = Z.geometry_to_paper_angles(batch.geometry)
+
+    ours = np.asarray(Z.mu_d(jnp.asarray(theta_s_air)[:, None], bb_over_a, eta))
+    theirs = np.asarray(batch.aops["mu_d"])
+    rel = np.abs(ours / theirs - 1.0)
+
+    assert 0.02 < np.median(rel) < 0.08, f"median {np.median(rel) * 100:.2f}%"
+
+    # and it is worse at large solar zenith, which is the shape of the finding
+    at_40 = float(np.median(rel[batch.theta_s == 40.0]))
+    at_70 = float(np.median(rel[batch.theta_s == 70.0]))
+    assert at_70 > 3 * at_40
+
+
+@needs_pb24
+def test_mu_infinity_cannot_be_refit_from_pb24():
+    """**Q17 option 3 is closed, and this is why.**
+
+    µ∞ is the *asymptotic* mean cosine: by definition the light field at depth has
+    forgotten the boundary, so µ∞ = a / K∞ with K∞ independent of the solar
+    zenith. PB24 tabulates seven K's — and **every one of them varies by ~1.4x
+    across solar zenith**, so none of them is K∞. There is therefore no asymptotic
+    quantity in this dataset from which µ∞ could be derived, and the standing
+    Equation-(8) caveat cannot be closed with it.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(
+        realisations=8,
+        angles="window",
+        geometry_stride=(1, 8, 13),
+        extras=("Kd", "Ku", "Ko", "Kod", "Kou", "Knet", "KLu"),
+    )
+    assert len(set(batch.theta_s.tolist())) >= 6, "need several zeniths to test this"
+
+    for name, values in batch.aops.items():
+        if not name.startswith("K"):
+            continue
+        K = np.asarray(values)
+        spreads = []
+        for realisation in np.unique(batch.realisation):
+            rows = K[batch.realisation == realisation]
+            spreads.append(rows.max(axis=0) / np.maximum(rows.min(axis=0), 1e-30))
+        spread = float(np.median(np.concatenate(spreads)))
+
+        assert spread > 1.1, (
+            f"{name} barely varies with solar zenith ({spread:.3f}) -- if it is "
+            "asymptotic after all, mu_infinity could be refit from it and Q17's "
+            "option 3 reopens"
+        )

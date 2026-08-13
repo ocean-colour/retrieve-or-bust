@@ -24,6 +24,7 @@ here — they need the full L23 release and live in the implementation record.
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -35,6 +36,7 @@ from robust.rt import emulator as E
 from robust.rt import validation as V
 from robust.rt import ztt as Z
 from robust.rt.types import Geometry, IOPs, PhaseParams
+from robust.tests.conftest import needs_pb24
 
 N_FEATURES = len(E.FEATURES)
 
@@ -767,3 +769,512 @@ def test_hybrid_beats_the_backbone_on_the_fixture(l23_fit, l23_small_batch):
     assert np.all(np.diff(history.fit) <= 0.1)
     # The held-out-scene number exists and is finite at the end of training.
     assert np.isfinite(history.eval["scene_test"][-1])
+
+
+# ------------------------------------- the envelope is per-model (M5 task 10) -
+# Until M5 the sanctioned span was one module constant consulted by every
+# emulator. That is safe with one model and unsafe with two: widening it for a
+# PB24-trained net would have widened the shipped L23 net's envelope too.
+
+
+def _in_domain(batch, n: int = 4):
+    """A few real L23 samples, so only the angle under test is out of domain.
+
+    The synthetic batch spans absorptions the shipped model never saw, which
+    makes *every* query out of domain and any angle assertion vacuous.
+    """
+    return (
+        IOPs(
+            a=batch.iops.a[:n],
+            bb_w=batch.iops.bb_w[:n],
+            bb_p=batch.iops.bb_p[:n],
+        ),
+        PhaseParams(B_p=batch.phase_params.B_p[:n]),
+        batch.wave,
+    )
+
+
+def _wide_envelope():
+    """Q14's PB24 envelope: 0-70 degrees in both zeniths."""
+    return E.Envelope(theta_s=(0.0, 70.0), theta_v=(0.0, 70.0))
+
+
+def test_the_default_envelope_is_what_m0_m4_assumed():
+    """The module constant survives as the default, so old behaviour is intact."""
+    assert E.DEFAULT_ENVELOPE.theta_s == E.SUPPORTED_THETA_S == (0.0, 60.0)
+    assert E.DEFAULT_ENVELOPE.theta_v is None  # judged by the trained range
+    assert E.DEFAULT_ENVELOPE.dphi is None
+
+
+def test_the_shipped_model_keeps_its_own_envelope_when_another_widens():
+    """**The gate.** A PB24 model's envelope must not leak into the L23 one."""
+    shipped = E.load_default()
+    wide = dataclasses.replace(shipped, envelope=_wide_envelope())
+
+    assert shipped.envelope == E.DEFAULT_ENVELOPE
+    assert shipped.envelope.theta_s == (0.0, 60.0)
+    assert wide.envelope.theta_s == (0.0, 70.0)
+    # constructing the wide one changed nothing about the shipped one
+    assert E.load_default().envelope.theta_s == (0.0, 60.0)
+
+
+def test_a_65_degree_query_is_out_of_domain_for_l23_and_in_for_pb24(l23_small_batch):
+    """The behavioural consequence, not just the stored value.
+
+    65 degrees sits inside Q14's window and outside M4's. Before this task both
+    models would have answered the same way, because the answer came from a
+    module constant. Real L23 samples, so nothing *but* the angle is out of
+    domain.
+    """
+    shipped = E.load_default()
+    wide = dataclasses.replace(shipped, envelope=_wide_envelope())
+    iops, phase, wave = _in_domain(l23_small_batch)
+    n = iops.a.shape[0]
+    geometry = Geometry(
+        theta_s=jnp.full(n, 65.0), theta_v=jnp.zeros(n), dphi=jnp.zeros(n)
+    )
+
+    breaches = shipped.out_of_domain(iops, phase, geometry, wave)
+    assert "cos_theta_s" in breaches
+
+    assert "cos_theta_s" not in wide.out_of_domain(iops, phase, geometry, wave)
+
+
+def test_a_view_angle_envelope_exists_and_is_enforced(l23_small_batch):
+    """**The gate.** ``theta_v`` was unrepresentable before; now it is bounded."""
+    shipped = E.load_default()
+    wide = dataclasses.replace(shipped, envelope=_wide_envelope())
+    iops, phase, wave = _in_domain(l23_small_batch)
+    n = iops.a.shape[0]
+
+    inside = Geometry(
+        theta_s=jnp.full(n, 30.0), theta_v=jnp.full(n, 40.0), dphi=jnp.zeros(n)
+    )
+    beyond = Geometry(
+        theta_s=jnp.full(n, 30.0), theta_v=jnp.full(n, 80.0), dphi=jnp.zeros(n)
+    )
+
+    # L23's model was trained at nadir only, so ANY off-nadir view is flagged --
+    # correct, and unchanged by this task.
+    assert "cos_theta_v" in shipped.out_of_domain(iops, phase, inside, wave)
+    # The wide envelope sanctions 40 deg and still refuses 80.
+    assert "cos_theta_v" not in wide.out_of_domain(iops, phase, inside, wave)
+    assert "cos_theta_v" in wide.out_of_domain(iops, phase, beyond, wave)
+
+
+def test_the_traceable_mask_agrees_with_the_reported_breaches(l23_small_batch):
+    """Two implementations of one predicate must not diverge (PR #12's lesson)."""
+    wide = dataclasses.replace(E.load_default(), envelope=_wide_envelope())
+    iops, phase, wave = _in_domain(l23_small_batch)
+    n = iops.a.shape[0]
+
+    for angle, expected in ((40.0, False), (80.0, True)):
+        geometry = Geometry(
+            theta_s=jnp.full(n, 30.0),
+            theta_v=jnp.full(n, angle),
+            dphi=jnp.zeros(n),
+        )
+        mask = np.asarray(wide.out_of_domain_mask(iops, phase, geometry, wave))
+        reported = bool(wide.out_of_domain(iops, phase, geometry, wave))
+
+        assert bool(mask.all()) == expected
+        assert reported == expected
+
+
+def test_the_envelope_survives_a_save_load_round_trip(tmp_path):
+    """It travels with the weights, which is the whole point of the task."""
+    wide = dataclasses.replace(E.load_default(), envelope=_wide_envelope())
+    path = tmp_path / "wide.npz"
+
+    E.save(wide, path)
+    back = E.load(path)
+
+    assert back.envelope == wide.envelope
+    assert back.envelope is not E.DEFAULT_ENVELOPE
+
+
+def test_weights_written_before_this_task_load_with_the_old_behaviour():
+    """The committed L23 file has no envelope key; it must not change meaning."""
+    data = np.load(E.DEFAULT_WEIGHTS)
+
+    assert not any(key.startswith("envelope/") for key in data.files)
+    assert E.load(E.DEFAULT_WEIGHTS).envelope == E.DEFAULT_ENVELOPE
+
+
+def test_explicit_theta_s_limits_keep_their_m4_meaning(l23_small_batch):
+    """Three distinguishable states, so no existing call site changed meaning."""
+    shipped = E.load_default()
+    iops, phase, wave = _in_domain(l23_small_batch)
+    n = iops.a.shape[0]
+    geometry = Geometry(
+        theta_s=jnp.full(n, 65.0), theta_v=jnp.zeros(n), dphi=jnp.zeros(n)
+    )
+
+    # unset -> the model's envelope (0-60): 65 deg is out
+    assert "cos_theta_s" in shipped.out_of_domain(iops, phase, geometry, wave)
+    # an explicit tuple -> that span only
+    assert "cos_theta_s" not in shipped.out_of_domain(
+        iops, phase, geometry, wave, theta_s_limits=(0.0, 70.0)
+    )
+    # None -> the trained range, which for L23 is {0, 30, 60}
+    assert "cos_theta_s" in shipped.out_of_domain(
+        iops, phase, geometry, wave, theta_s_limits=None
+    )
+
+
+def test_cos_bounds_handles_an_azimuth_interval_that_crosses_180():
+    """``cos`` is not monotonic over azimuth; endpoints alone would narrow it."""
+    assert E._cos_bounds((0.0, 90.0)) == pytest.approx((0.0, 1.0))
+    # crossing 180 attains -1 in the interior, which the endpoints miss
+    lo, hi = E._cos_bounds((90.0, 270.0))
+    assert lo == pytest.approx(-1.0)
+    assert hi == pytest.approx(0.0, abs=1e-12)
+
+
+def test_an_invalid_envelope_is_refused():
+    with pytest.raises(ValueError, match="lo < hi"):
+        E.Envelope(theta_s=(70.0, 0.0))
+
+
+# ------------------------------------------- training on PB24 (M5 task 11) ---
+# The interesting tests here are not "does it train" but "does the gate mean
+# what it says", because task 9 found the backbone is non-physical on ~20% of
+# PB24 and the hybrid is a *bounded relative* correction to it.
+
+
+def test_backbone_is_usable_requires_every_band():
+    """A spectrum negative in the red is not one this form can correct."""
+    good = jnp.asarray([[1e-3, 2e-3, 3e-3]])
+    one_bad = jnp.asarray([[1e-3, -1e-9, 3e-3]])
+    a_nan = jnp.asarray([[1e-3, jnp.nan, 3e-3]])
+
+    assert bool(E.backbone_is_usable(good)[0])
+    assert not bool(E.backbone_is_usable(one_bad)[0])
+    assert not bool(E.backbone_is_usable(a_nan)[0])
+
+
+def test_the_pb24_envelope_is_q14s_window():
+    assert E.PB24_ENVELOPE.theta_s == (0.0, 70.0)
+    assert E.PB24_ENVELOPE.theta_v == (0.0, 70.0)
+    # and it is not the L23 one, which is the entire point of task 10
+    assert E.PB24_ENVELOPE != E.DEFAULT_ENVELOPE
+
+
+@needs_pb24
+def test_fit_pb24_reports_what_it_excluded():
+    """Coverage travels with the number, so "X%" is never quoted alone."""
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=6, angles="window", geometry_stride=(1, 4, 4))
+    splits = P.make_splits(batch, kinds=("realisation",))
+    config = E.EmulatorConfig(steps=20, seed=23)
+
+    _, _, coverage = E.fit_pb24(batch, splits, config=config)
+
+    assert coverage["n_total"] == batch.n_sample
+    assert 0 < coverage["n_train"] < coverage["n_total"]
+    assert coverage["n_excluded_backbone"] > 0  # PB24 always has some
+    assert 0.0 < coverage["usable_fraction"] <= 1.0
+
+
+@needs_pb24
+def test_fit_pb24_trains_only_on_a_usable_backbone():
+    """**The Q17 restriction, as behaviour.** Excluded samples must not train."""
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=6, angles="window", geometry_stride=(1, 4, 4))
+    splits = P.make_splits(batch, kinds=("realisation",))
+    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    usable = E.backbone_is_usable(rrs_ztt)
+    config = E.EmulatorConfig(steps=20, seed=23)
+
+    restricted, _, cov_r = E.fit_pb24(batch, splits, config=config, rrs_ztt=rrs_ztt)
+    everything, _, cov_e = E.fit_pb24(
+        batch,
+        splits,
+        config=config,
+        rrs_ztt=rrs_ztt,
+        restrict_to_usable_backbone=False,
+    )
+
+    assert cov_r["n_train"] < cov_e["n_train"]
+    assert cov_r["n_train"] == int((splits.train("realisation") & usable).sum())
+    # the restriction changes the model, so it is not a cosmetic flag
+    assert not np.allclose(np.asarray(restricted.mean), np.asarray(everything.mean))
+
+
+@needs_pb24
+def test_a_pb24_model_sanctions_off_nadir_and_the_l23_one_does_not():
+    """The two envelopes coexist — task 10's guarantee, exercised by task 11."""
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=4, angles="window", geometry_stride=(1, 4, 4))
+    splits = P.make_splits(batch, kinds=("realisation",))
+    emulator, _, _ = E.fit_pb24(
+        batch, splits, config=E.EmulatorConfig(steps=20, seed=23)
+    )
+
+    assert emulator.envelope == E.PB24_ENVELOPE
+
+    sub = P.select(batch, batch.theta_v == 40.0)
+    breaches = emulator.out_of_domain(
+        sub.iops, sub.phase_params, sub.geometry, sub.wave
+    )
+    assert "cos_theta_v" not in breaches  # 40 deg is inside Q14's window
+
+    beyond = dataclasses.replace(sub.geometry, theta_v=jnp.full(sub.n_sample, 85.0))
+    assert "cos_theta_v" in emulator.out_of_domain(
+        sub.iops, sub.phase_params, beyond, sub.wave
+    )
+
+
+@needs_pb24
+def test_the_bounded_correction_cannot_reach_pb24s_truth():
+    """**The finding that decides task 11.** The ceiling, not the network.
+
+    ``delta_max`` bounds the *relative* correction, so the best any emulator could
+    possibly do is ``rrs_ZTT * (1 + clip(truth/rrs_ZTT - 1, -d, d))`` — computed
+    with the truth in hand. At the shipped ``d = 0.5`` that oracle is far worse
+    than the O25 benchmark even on samples with a physical backbone, so a FAIL at
+    this bound says nothing about the emulator. Doubling the bound collapses the
+    oracle to ~0.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=40, angles="window", geometry_stride=(1, 2, 2))
+    splits = P.make_splits(batch, kinds=("realisation",))
+    test = splits.test("realisation")
+    rrs_ztt = np.asarray(
+        Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    )
+    truth = np.asarray(batch.rrs)
+    usable = E.backbone_is_usable(rrs_ztt)
+    mask = test & usable
+
+    def oracle(delta_max):
+        delta = np.clip(truth / rrs_ztt - 1.0, -delta_max, delta_max)
+        return float(V.rrms(truth[mask], (rrs_ztt * (1.0 + delta))[mask]))
+
+    tight = oracle(0.5)
+    loose = oracle(1.0)
+
+    assert tight > 10.0, f"the bound is not binding after all: {tight:.2f}%"
+    assert loose < 1.0, f"doubling the bound should make it reachable: {loose:.2f}%"
+    assert tight > loose * 10
+
+
+@needs_pb24
+def test_fit_pb24_trains_on_the_split_it_is_asked_for():
+    """**Regression.** The leak an audit found in task 11's first script.
+
+    The script fit the emulator once on the realisation split and then scored it
+    on the ``bp_band`` test set — of which **75% of realisations are in the
+    realisation split's training set**. That number was training error compared
+    against an honestly refit rival. ``fit_pb24`` takes ``kind`` precisely so the
+    right thing is a one-word choice; this pins that it honours it.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=10, angles="window", geometry_stride=(1, 4, 4))
+    splits = P.make_splits(batch, kinds=("realisation", "bp_band"))
+    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    usable = E.backbone_is_usable(rrs_ztt)
+    config = E.EmulatorConfig(steps=10, seed=23)
+
+    for kind in ("realisation", "bp_band"):
+        _, _, coverage = E.fit_pb24(batch, splits, kind, config=config, rrs_ztt=rrs_ztt)
+        expected = int((splits.train(kind) & usable).sum())
+        assert coverage["n_train"] == expected, kind
+
+    # and the two splits really are different, or the test above proves nothing
+    overlap = (splits.train("realisation") & splits.test("bp_band")).sum()
+    assert overlap > 0, "the splits coincide, so the leak could not have shown"
+
+
+@needs_pb24
+def test_excluding_an_unusable_backbone_also_narrows_the_geometry():
+    """Why the gate scores everything rather than only where the form works.
+
+    The samples the hybrid's form cannot represent are not a random slice of hard
+    water: they cluster at large view angles and back-scattering azimuths, because
+    the cause is ``psi_KLu(psi) < 0`` near 90-degree scattering. So restricting to
+    them narrows the *geometry* range too, and a comparison on the remainder is a
+    comparison on easier geometry as well as easier water.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=20, angles="window", geometry_stride=(1, 2, 2))
+    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    usable = E.backbone_is_usable(rrs_ztt)
+
+    assert 0.05 < (~usable).mean() < 0.6, "nothing excluded, or nearly everything"
+
+    # the excluded share rises steeply with view angle
+    by_view = {
+        float(v): float((~usable)[batch.theta_v == v].mean())
+        for v in np.unique(batch.theta_v)
+    }
+    assert by_view[max(by_view)] > 5 * max(by_view[min(by_view)], 1e-3)
+
+    # and it is structured across (theta_v, dphi) cells, not spread evenly: the
+    # worst cell loses many times the share the best one does. That is what makes
+    # a comparison on the survivors a comparison on easier *geometry*.
+    shares = [
+        float((~usable)[cell].mean())
+        for v in np.unique(batch.theta_v)
+        for d in np.unique(batch.dphi)
+        if (cell := (batch.theta_v == v) & (batch.dphi == d)).any()
+    ]
+    assert max(shares) > 3 * (min(shares) + 0.01)
+
+
+# ----------------------------------- the cross-dataset check (M5 task 12) ----
+# "Train on one HydroLight campaign, judge on another" is the strongest
+# generalisation evidence available to this project. It is also the easiest place
+# to publish a free number that means nothing, which is what these pin.
+
+
+def test_band_overlap_between_the_two_grids_is_computed_not_assumed():
+    """L23 starts at 350 nm; PB24's OLCI grid starts at 400.
+
+    A PB24-trained emulator's ``wave_nm`` domain therefore excludes 10 of L23's
+    81 bands, and scoring the whole grid folds genuine extrapolation into the
+    headline. The overlap is asserted non-empty because a future grid change
+    could silently empty it, and an empty overlap scores nothing while reporting
+    a number.
+    """
+    l23_wave = np.asarray(C.canonical_wave())
+    olci = np.asarray(C.OLCI_WAVE)
+    overlap = (l23_wave >= olci.min()) & (l23_wave <= olci.max())
+
+    assert overlap.any(), "no shared bands: the cross-dataset score would be empty"
+    assert overlap.sum() == 71
+    assert (~overlap).sum() == 10
+    assert l23_wave[~overlap].max() < 400.0  # all below, none above
+
+
+def test_load_default_is_pinned_by_the_promotion_rule_not_by_its_answer(
+    l23_small_batch,
+):
+    """**The gate.** The rule is a conditional, evaluated, not a constant.
+
+    Q13 fixed the rule before any number existed: ``load_default()`` returns the
+    L23 model **unless** a PB24-trained model wins L23's own held-out split. A
+    test that merely asserted "load_default is the L23 model" would pass
+    trivially and be edited on the day it mattered — which is the failure the
+    rule exists to prevent. So this computes both sides and asserts the
+    implication.
+    """
+    from robust.rt.data import l23
+
+    batch = l23_small_batch
+    splits = l23.make_splits(batch)
+    held = splits.scene_test
+    truth = np.asarray(C.Rrs_to_rrs(batch.Rrs))
+    ztt = np.asarray(
+        Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    )
+
+    shipped = E.load_default()
+    incumbent = float(
+        V.rrms(
+            truth[held],
+            (
+                ztt
+                * (
+                    1.0
+                    + np.asarray(
+                        shipped.relative_delta(
+                            batch.iops, batch.phase_params, batch.geometry, batch.wave
+                        )
+                    )
+                )
+            )[held],
+        )
+    )
+
+    challenger_path = Path(E.DEFAULT_WEIGHTS).parent / "emulator_pb24.npz"
+    if not challenger_path.is_file():
+        # No PB24 model is shipped (task 11 failed its gate), so the rule's
+        # premise is false and the default must be the L23 model. That is the
+        # conditional evaluating to its other branch, not the test being skipped.
+        assert Path(E.DEFAULT_WEIGHTS).name == "emulator_l23.npz"
+        assert shipped.envelope == E.DEFAULT_ENVELOPE
+        return
+
+    challenger = E.load(challenger_path)
+    rival = float(
+        V.rrms(
+            truth[held],
+            (
+                ztt
+                * (
+                    1.0
+                    + np.asarray(
+                        challenger.relative_delta(
+                            batch.iops, batch.phase_params, batch.geometry, batch.wave
+                        )
+                    )
+                )
+            )[held],
+        )
+    )
+
+    if rival < incumbent:
+        assert Path(E.DEFAULT_WEIGHTS).name == "emulator_pb24.npz", (
+            f"the PB24 model wins L23's held-out split ({rival:.2f}% vs "
+            f"{incumbent:.2f}%), so the promotion rule says it should be the default"
+        )
+    else:
+        assert Path(E.DEFAULT_WEIGHTS).name == "emulator_l23.npz", (
+            f"the PB24 model loses on L23 ({rival:.2f}% vs {incumbent:.2f}%), "
+            "so the default must stay with the L23 model"
+        )
+
+
+@needs_pb24
+def test_a_pb24_trained_emulator_does_not_transfer_to_l23():
+    """**The cross-dataset result**, and its caveat in the same test.
+
+    A PB24-trained emulator flags **every** L23 sample as out of domain and, asked
+    anyway, makes L23 worse than the bare backbone. Both halves are asserted: the
+    flag, so the number is never quoted as if the model were being used properly,
+    and the number, because "out of domain" alone would not tell you whether the
+    correction is harmless or destructive.
+    """
+    from robust.rt.data import l23
+    from robust.rt.data import pb24 as P
+
+    pb = P.load_batch(realisations=25, angles="window", geometry_stride=(1, 3, 4))
+    splits_pb = P.make_splits(pb, kinds=("realisation",))
+    emulator, _, _ = E.fit_pb24(
+        pb, splits_pb, "realisation", config=E.EmulatorConfig(steps=200, seed=23)
+    )
+
+    batch = l23.load_batch(scenes=slice(0, 120))
+    flagged = np.asarray(
+        emulator.out_of_domain_mask(
+            batch.iops, batch.phase_params, batch.geometry, batch.wave
+        )
+    )
+    assert flagged.mean() > 0.99, "L23 should be wholly outside a PB24 model's domain"
+
+    truth = np.asarray(C.Rrs_to_rrs(batch.Rrs))
+    ztt = np.asarray(
+        Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    )
+    delta = np.asarray(
+        emulator.relative_delta(
+            batch.iops, batch.phase_params, batch.geometry, batch.wave
+        )
+    )
+
+    backbone = float(V.rrms(truth, ztt))
+    transferred = float(V.rrms(truth, ztt * (1.0 + delta)))
+
+    assert transferred > backbone, (
+        f"the PB24 model improved L23 ({transferred:.2f}% vs {backbone:.2f}%) -- "
+        "if that is now true, the cross-dataset conclusion has changed"
+    )
+    # and it is not a small nudge: the correction runs near its own bound
+    assert np.median(np.abs(delta)) > 0.1

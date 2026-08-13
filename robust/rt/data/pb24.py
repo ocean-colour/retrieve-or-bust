@@ -244,8 +244,9 @@ class LoadReport:
         Geometries per realisation before and after the angle mode and stride.
     angles : str
         Which angle mode was applied (:data:`ANGLE_MODES`).
-    geometry_stride : int
-        Stride applied within the selected geometries; 1 means none.
+    geometry_stride : int or tuple of int
+        Stride applied within the selected geometries; 1 means none. A tuple is
+        per angle axis and preserves the grid's product structure.
     n_dropped_angle : int
         Geometries removed by the angle mode alone.
     n_dropped_stride : int
@@ -568,6 +569,56 @@ def _geometry_table(raw: dict[str, np.ndarray]) -> tuple[np.ndarray, ...]:
     )
 
 
+def _apply_stride(selected: np.ndarray, stride, angles) -> np.ndarray:
+    """Thin the selected geometries, either flat or **per axis**.
+
+    An ``int`` strides the flattened list, which is simple and has two failure
+    modes: it aliases against an axis length (the 13 azimuths, record §7.7) and --
+    worse -- it does not preserve the **product structure**. A strided flat list
+    populates only a fraction of the ``(theta_s, theta_v, dphi)`` cells, so
+    anything that fits a *gridded* table on the same batch, like
+    :func:`robust.rt.baselines.fit_o25_table`, finds most cells empty and refuses.
+
+    A 3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each angle axis
+    independently and keeps the full product of what survives. That is the right
+    shape of subsample whenever the batch has to serve a gridded fit as well as a
+    network, which on this milestone is always.
+
+    Parameters
+    ----------
+    selected : numpy.ndarray
+        Indices into the flattened geometry list, after the angle mode.
+    stride : int or tuple of int
+        Flat stride, or one per angle axis.
+    angles : tuple of numpy.ndarray
+        ``(theta_s, theta_v, dphi)`` over the *whole* flattened grid.
+
+    Returns
+    -------
+    numpy.ndarray
+        The kept indices, ascending.
+    """
+    if isinstance(stride, (int, np.integer)):
+        return selected[:: int(stride)]
+
+    if len(stride) != 3:
+        raise ValueError(
+            f"load_batch: a per-axis geometry_stride needs three values "
+            f"(theta_s, theta_v, dphi); got {stride!r}"
+        )
+    keep = np.ones(selected.size, dtype=bool)
+    for step, values in zip(stride, angles, strict=True):
+        step = int(step)
+        if step < 1:
+            raise ValueError(
+                f"load_batch: geometry_stride entries must be >= 1; {stride!r}"
+            )
+        present = np.unique(values[selected])
+        wanted = set(present[::step].tolist())
+        keep &= np.isin(values[selected], list(wanted))
+    return selected[keep]
+
+
 def _angle_mask(theta_s: np.ndarray, theta_v: np.ndarray, angles: str) -> np.ndarray:
     """Boolean mask over flattened geometries for an angle mode."""
     if angles not in ANGLE_MODES:
@@ -739,10 +790,13 @@ def load_batch(
         envelope, ``theta_s`` and ``theta_v`` both <= :data:`ANGLE_WINDOW_MAX`;
         ``"shell"`` is its complement, the deliberate extrapolation set; ``"all"``
         is the whole 1300.
-    geometry_stride : int, optional
-        Keep every ``k``-th geometry of those selected. This is the subsampling
-        knob Q12 sanctioned, and it is **explicit** by design: what it drops is
-        reported in :class:`LoadReport`, never assumed.
+    geometry_stride : int or tuple of int, optional
+        Thin the selected geometries. An ``int`` strides the flattened list; a
+        3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each angle axis and
+        **keeps the full product**, which is what a gridded fit on the same batch
+        needs (see :func:`_apply_stride`). Either way this is the subsampling knob
+        Q12 sanctioned and it is **explicit** by design: what it drops is reported
+        in :class:`LoadReport`, never assumed.
     extras : tuple of str, optional
         Which of :data:`EXTRA_FIELDS` to materialise as per-sample spectra.
         ``Q`` is always carried. Each extra costs one more ``(n_sample, n_wave)``
@@ -804,7 +858,7 @@ def load_batch(
         wanted = tuple(int(i) for i in realisations)
     if not wanted:
         raise ValueError("load_batch: `realisations` selects nothing")
-    if geometry_stride < 1:
+    if isinstance(geometry_stride, (int, np.integer)) and geometry_stride < 1:
         raise ValueError(
             f"load_batch: geometry_stride must be >= 1; got {geometry_stride}"
         )
@@ -860,7 +914,7 @@ def load_batch(
             mask = _angle_mask(theta_s, theta_v, angles)
             n_dropped_angle = int((~mask).sum())
             selected = np.flatnonzero(mask)
-            keep = selected[::geometry_stride]
+            keep = _apply_stride(selected, geometry_stride, (theta_s, theta_v, dphi))
             n_dropped_stride = int(selected.size - keep.size)
             if keep.size == 0:
                 raise ValueError(
@@ -878,7 +932,11 @@ def load_batch(
                     ("dphi", dphi),
                 )
             }
-            _warn_if_stride_aliases(coverage, geometry_stride)
+            # Only a *flat* stride can lose an angle by accident. A per-axis
+            # stride drops whole values because that is what it was asked to do,
+            # so warning about it would train the reader to ignore the warning.
+            if isinstance(geometry_stride, (int, np.integer)):
+                _warn_if_stride_aliases(coverage, geometry_stride)
             theta_s, theta_v, dphi = theta_s[keep], theta_v[keep], dphi[keep]
             zenith_index = zenith_index[keep]
         else:
@@ -944,7 +1002,7 @@ def load_batch(
         n_geometry_available=n_geometry_available,
         n_geometry=int(keep.size),
         angles=angles,
-        geometry_stride=int(geometry_stride),
+        geometry_stride=geometry_stride,
         n_dropped_angle=n_dropped_angle,
         n_dropped_stride=n_dropped_stride,
         n_dropped_zero_rrs=n_dropped_zero,

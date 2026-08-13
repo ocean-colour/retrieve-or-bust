@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.23
-**Date:** 2026-08-11
+**Version:** 0.28
+**Date:** 2026-08-13
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -30,7 +30,7 @@ every bump.
 | **M2** | ZTT analytic backbone (JAX) | ✅ done | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
-| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–8 done, 9–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
+| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–13 done (11 **failed its gate**), 14–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **368 passed** (`ocean14`); with
-`$OS_COLOR` unset, **335 passed + 33 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **400 passed** (`ocean14`); with
+`$OS_COLOR` unset, **356 passed + 44 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1505,8 +1505,10 @@ convert items 4 and 5 from *untested* into *measured*.
 **Status: in progress.** Tasks 0–2 (answers, answers, sequencing) and the two prerequisites
 — **3** (a second wavelength grid, §7.6) and **4** (the PB24 loader, §7.7) — plus **5**
 (the three splits, §7.8), **6** (the validation toolkit, §7.9), **7** (the surface
-transfer, §7.10) and **8** (O25's geometry table, §7.11) are done; tasks 9–16 are
-specified with a gate each in
+transfer, §7.10), **8** (O25's geometry table, §7.11) and **9** (the PB24 benchmark,
+§7.12), **10** (the per-model envelope, §7.13) and **11** (the PB24 retrain, §7.14 — which
+**failed its gate**) **12** (the cross-dataset check, §7.15) and **13** (ZTT's internals, §7.16) are done;
+tasks 14–16 are specified with a gate each in
 [`rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md) §M5
 and summarised in §7.5 below.
 
@@ -1523,11 +1525,11 @@ and summarised in §7.5 below.
 | 6 | Extend `validation.py` — `gradient_report` axes, `rrms` masking, group↔header alignment | one regression test per limit, each demonstrated to fail first | ✅ done |
 | 7 | Geometry-aware surface transfer in `conventions` | default path bit-identical to M4; fitted path ≥5× better at θv = 60°; gradient-checked | ✅ done |
 | 8 | O25 gains a geometry-indexed coefficient table | 3-D refit beats θs-only off-nadir or is dropped; L23 path reproduces `O25_L23_REFIT` exactly; a missing zenith **raises** | ✅ done |
-| 9 | PB24 benchmark — Gordon, ZTT, O25 refit | aggregation consistency **and header↔group alignment**; refit on train mask only; CSVs round-trip | ⬜ |
-| 10 | Per-model sanctioned envelope | the L23 model stays 0–60° after the change, pinned by test; a view-angle envelope exists | ⬜ |
-| 11 | Retrain the emulator with `theta_v`/`dphi` live | **provisional (Q15)**: beat O25 on the realisation *and* `B_p` splits; report geometry; training-set size stated in the artefact | ⬜ |
-| 12 | Cross-dataset check — PB24 model on L23 | overlap computed not assumed; out-of-domain fraction reported; promotion rule encoded as a **conditional** | ⬜ |
-| 13 | ZTT `mu_d` vs HydroLight (µ∞ narrowed — see §7.12) | `mu_d` discrepancy pinned by test; the µ∞ conclusion written down, including "not resolved" | ⬜ |
+| 9 | PB24 benchmark — Gordon, ZTT, O25 refit | aggregation consistency **and header↔group alignment**; refit on train mask only; CSVs round-trip | ✅ done |
+| 10 | Per-model sanctioned envelope | the L23 model stays 0–60° after the change, pinned by test; a view-angle envelope exists | ✅ done |
+| 11 | Retrain the emulator with `theta_v`/`dphi` live | Q15's gate: beat O25 on the realisation *and* `B_p` splits | ❌ **FAILED — structural; no weights shipped (§7.14)** |
+| 12 | Cross-dataset check — PB24 model on L23 | overlap computed not assumed; out-of-domain fraction reported; promotion rule encoded as a **conditional** | ✅ done — **does not transfer** |
+| 13 | ZTT `mu_d` vs HydroLight; the µ∞ question | `mu_d` pinned; **µ∞ cannot be refit from PB24** — Q17 option 3 closed (§7.16) | ✅ done |
 | 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ⬜ |
 | 15 | Freeze the `forward` API | signature-pinning test | ⬜ |
 | 16 | Notebook 6, PR review, hand-off | the M0–M4 rhythm | ⬜ |
@@ -1607,6 +1609,7 @@ a stretch item that answers only the across-families question.
 | **Q13** | Keep both datasets; L23 becomes an independent held-out **dataset** | ships `files/emulator_pb24.npz` beside the L23 weights; `load_default()` unchanged, so every M4 number stays reproducible; promotion rule written before the numbers exist (task 12) |
 | **Q14** | Train 0–70°; hold out 80–87.75° | `SUPPORTED_THETA_S` → `(0, 70)` plus a view-angle counterpart; the fallback will fire on real data for the first time (at M4 it triggered on 0 of 9960 samples, §6.3) |
 | **Q15** | **Option 2** — gate on realisation *and* `B_p` splits | task 11 beats O25-refit-on-PB24 on both; the geometry split is **reported**, on the same reasoning that took M4's zenith split out of its gate. Task 8 is what makes this meaningful — beating a θs-only O25 off-nadir would measure our fitter |
+| **Q17** | *open* — the hybrid's form cannot survive PB24 | ZTT returns non-physical `rrs` on 22.3% of PB24 (§7.12); a bounded *relative* correction cannot repair a sign-flipped backbone. Recommendation: restrict the envelope in `bb/a` now, refit µ∞ at task 13 |
 | **Q16** | **Option 1** — train on a subsample | all 5000 realisations, subsampled geometries; row count and subsample factor stated in the artefact; `fit()` keeps "reproducible from the seed alone", which the bit-identical-weights gate depends on. Two factors trained and compared, so the choice is evidenced |
 
 ### 7.5 The sequence, and what is blocked
@@ -1903,7 +1906,289 @@ hybrid shows at task 11 is now earned rather than manufactured.
 
 **Tests: +10**, suite **368 passed**, ruff clean.
 
-### 7.12 What an adversarial review of the sequence found
+### 7.12 Task 9 as built — the analytic models on PB24
+
+`design/py/run_pb24_validation.py` writes `design/validation_pb24/` (metrics.md, three
+CSVs, three figures). 200 realisations x 1300 geometries; O25 refit on **each split's own
+training mask**, with task 8's full-geometry table and scored through task 7's transfer.
+
+| model | realisation (held out) | `B_p` band (held out) | geometry (held out) | non-physical % |
+|---|---|---|---|---|
+| standard Gordon | 20.41 | 20.81 | 45.46 | 0.00 |
+| ZTT backbone | *not a usable number — see below* | | | **22.32** |
+| **O25, refit on PB24** | **6.53** | **6.02** | **22.46** | 0.00 |
+
+The realisation and `B_p` splits are restricted to Q14's window; the geometry split carries
+the shell. Unrestricted on an `angles="all"` batch they would mix in-window and shell
+samples on both sides, so one number would have answered two questions and neither cleanly.
+
+**PB24 is much harder than L23 for every model.** Gordon goes 7.21% → 20.41%, O25's refit
+0.69% → 6.53%. The benchmark M5's gate is measured against is therefore ~10x weaker than
+M4's, which is not a weaker benchmark — it is a harder dataset, and setting the two numbers
+side by side would be comparing datasets and calling it models.
+
+**ZTT is outside its validity domain, and this is the milestone's most consequential
+finding so far.**
+
+> **Corrected at task 11.** This section originally attributed the failure to
+> `mu_infinity_tt2017` being evaluated beyond the `bb/a` range it was fitted on. That
+> mechanism is real but it is **not the main cause**: of the non-physical predictions,
+> only **1%** have `µ∞ ≤ 0`, while **68%** have **`psi_KLu(ψ) < 0`**. ZTT's `psi_KLu`
+> parameterization goes negative for scattering angles **75.5°–108.7°** — near 90° — which
+> flips the `(a/bb)(1 − cos θv · ψ_KLu / µ∞)` term and hence the whole denominator. L23
+> fixes the view at nadir, so ψ never left the backscatter region and this could not fire;
+> PB24's full BRDF sweeps ψ down to 75°. The failure is therefore **geometric, not
+> IOP-driven**, which the stratification confirms: 3% of predictions are >100% wrong at
+> nadir against **41% at θv = 60°**, and 5% at Δφ = 0° against **34% at Δφ = 180°**, while
+> restricting `bb/a` to L23's range barely helps at all. §7.13 below is written on the
+> corrected mechanism.
+
+For the record, the `bb/a` excursion is real even though it is not the main cause: L23
+spans `bb/a` up to **0.59**, PB24 reaches **3.54**, and 7.4% of its values lie beyond
+anything L23 probed, where the fitted µ∞ polynomial reaches −0.027. Measured
+consequences of the failure as a whole:
+
+- **22.3% of ZTT's predicted `rrs` are ≤ 0** — non-physical, not merely wrong.
+- Its **rRMS is not a stable statistic**: 7061–18972% over 50/100/200/400 realisations,
+  determined by a handful of sign flips. Its stable statistics are the **median relative
+  error (~11%**, against 5.9% on L23) and the **non-physical share (14–22%)**.
+- Hence the table's **non-physical %** column. A model returning negative reflectance is
+  out of domain rather than inaccurate, and an rRMS cannot express the difference — the
+  same few samples that dominate the RMS also conceal how many there are.
+
+**What it does to task 11.** The hybrid is `rrs_ZTT · (1 + δ)` with `|δ| ≤ 0.5`. No bounded
+*relative* correction can turn a negative backbone into a positive reflectance, so on ~a
+fifth of PB24 the hybrid's functional form has nothing to correct toward. Raised as
+**Q17**, with four options and a recommendation (restrict the envelope in `bb/a` now, refit
+µ∞ from PB24's tabulated `mu_u`/`mu_tot` at task 13).
+
+**Gates.** Six artefact tests: the CSVs parse with the columns they promise (model names
+contain commas), O25 is labelled a refit in every artefact, the view-angle headers are
+derived from the same labels as the values (task 6's alignment fix), the wavelength CSV
+covers the OLCI grid, the non-physical column reports ZTT and not the others, and the
+markdown and CSV of one run are checked against each other row by row — the stale-figure
+lesson, enforced.
+
+**Tests: +6**, suite **374 passed**, ruff clean.
+
+### 7.13 Task 10 as built — the envelope belongs to the model
+
+`SUPPORTED_THETA_S` was a single module constant consulted by **every** emulator's domain
+check. Correct with one model; unsafe with two, because widening it for a PB24-trained net
+would have widened the shipped L23 net's envelope with it — and a 65° query against a model
+trained to 60° would have become "in domain", which is precisely the seed-dependent regime
+M4 measured and warned about (§5.5).
+
+So the envelope is now an **`Envelope`** — `theta_s`, `theta_v`, `dphi`, each a range or
+`None` meaning "judge by the trained range" — carried as a **static field of `Emulator`**
+and written into the weights file. `_effective_domain` generalises from the solar zenith to
+all three angles; `fit()` takes `envelope=`; `SUPPORTED_THETA_S` survives as the default's
+value, so `test_validation.py`'s pin keeps its intent.
+
+Four details worth recording:
+
+1. **Three call states have to stay distinguishable**, which is why a sentinel exists:
+   unset means *this model's* envelope, `None` keeps its M4 meaning of "the trained range",
+   and a `(lo, hi)` tuple keeps its M4 meaning of "the solar zenith specifically". Without
+   the sentinel, "not passed" and "passed `None`" would be the same call and one of the two
+   established meanings would have been lost silently.
+2. **`cos` is not monotonic over azimuth.** Bounding `cos_dphi` by its endpoints would
+   narrow an envelope that spans 0° or 180°, where the interior attains ±1. `_cos_bounds`
+   walks the interior extrema; narrowing a domain check silently is the one direction of
+   error it must not make.
+3. **Old weight files keep their meaning.** The committed L23 `.npz` predates the envelope
+   key, so `load` gives it the default — which is what it was evaluated under. Pinned by a
+   test that asserts the key is *absent* from the shipped file.
+4. **`None` is encoded as NaN** in the `.npz`, because npz has no null and any sentinel
+   angle would be indistinguishable from a real one.
+
+**A defect this task introduced, caught by its own gate.** `out_of_domain_mask`'s default
+was left at the old constant while `out_of_domain`'s moved to the sentinel, so the traceable
+predicate and the reported one disagreed — the exact PR #12 divergence, reintroduced. The
+test written for that defect class failed on the first run and named the disagreement.
+
+**Tests: +10**, suite **384 passed**, ruff clean.
+
+### 7.14 Task 11 as built — the retrain, and why its gate fails
+
+**No weights were shipped.** `design/py/train_emulator_pb24.py` refuses to write when the
+gate fails, because a committed `.npz` is a claim that the model is usable and `load()`
+carries no hint of provenance.
+
+**The result** (300 realisations, 3 seeds, held out, scored on the **full** test set;
+`fit_pb24` + per-axis geometry stride):
+
+| stride | δ_max | split | hybrid | **oracle** | O25 | gate |
+|---|---|---|---|---|---|---|
+| (1,2,2) | 0.5 | realisation | 5484.65% | **5324.10%** | 5.43% | FAIL |
+| (1,2,2) | 0.5 | `B_p` band | 4052.36% | **3954.03%** | 5.37% | FAIL |
+| (1,2,2) | 1.0 | realisation | 892.21% | **34.89%** | 5.43% | FAIL |
+| (1,2,2) | 1.0 | `B_p` band | 694.05% | **35.14%** | 5.37% | FAIL |
+| (1,3,4) | 0.5 | realisation | 7872.24% | **7785.27%** | 5.43% | FAIL |
+
+**The oracle column is the whole finding.** It is `rrs_ZTT · (1 + clip(truth/rrs_ZTT − 1,
+−δ, δ))` — the correction chosen *with the truth in hand*. No emulator can beat it. At the
+shipped `δ_max = 0.5` the trained hybrid is within **3%** of it, so the network is not the
+limitation: **the functional form is**. And doubling the bound is not a fix either — the
+oracle only reaches 34.89%, still 6× worse than O25, because a negative backbone requires
+`1 + δ < 0` and **no bounded relative correction of any size can repair it**.
+
+That closes off Q17 options 1 and 2 as sufficient answers. Either the backbone is fixed
+(option 3 — refit µ∞ *and* `psi_KLu`, task 13) or the correction stops being multiplicative
+(option 4). JXP kept option 4 live; this is the measurement that makes it necessary rather
+than possible.
+
+**Q16, answered by measurement rather than assumption.** Two geometry strides were trained
+and compared: the denser (1,2,2) scores 5484% against (1,3,4)'s 7872%, so density helps
+even in this regime. A **per-axis** stride had to be added to the loader first: a flat
+stride over the flattened geometry list does not preserve the grid's product structure, so
+`fit_o25_table` found 713 of 832 cells empty and refused — the gate's own rival could not be
+fitted on the batch the hybrid was trained on.
+
+**Three defects an adversarial audit found in the first version, all fixed and pinned:**
+
+1. **A leak.** The emulator was fit once on the realisation split and scored on the `B_p`
+   split as well — of which **75% of held-out realisations sit in that training set**. The
+   `bp_band` number would have been training error compared against an honestly refit
+   rival. `fit_pb24` takes `kind` for exactly this reason and is now called with it.
+2. **A comparison that flattered us.** Both models were scored only where the backbone is
+   physical. That excludes the samples only *our* form cannot represent, and since the
+   cause is geometric it narrows the geometry range with them. Measured: **O25 scores
+   9.46% on precisely the samples the restriction would drop**, so the exclusion was
+   self-flattery. Everything is now scored on the full test set; the restricted view
+   survives as a labelled diagnostic.
+3. **A handicap on the rival.** O25 was fitted in `Rrs` and converted to `rrs`, paying the
+   surface transfer's residual that the emulator never pays. Fitted directly in `rrs` it
+   scores **5.43%** against **5.74%**. Both are reported.
+
+A fourth, noted and not yet acted on: `make_splits(seed=23)` permutes whatever realisation
+set it is given, so **"seed 23" does not name one partition** — the shipped surface transfer
+was fitted on a 400-realisation split whose train side overlaps this gate's 800-realisation
+test side. It sits only in O25's path, so it favours the rival and a FAIL is conservative,
+but the hazard is repo-wide and belongs in task 16's report.
+
+**Tests: +14**, suite **392 passed**, ruff clean.
+
+### 7.15 Task 12 as built — the cross-dataset check
+
+`design/py/cross_dataset.py`: train on PB24, score on L23 without refitting. Task 11's
+failure sharpened the question. On PB24 the backbone is non-physical on ~20% of samples; on
+L23 it is healthy (5.93%). So L23 discriminates between an emulator that learned the
+residual physics and one that learned something local to its training set.
+
+**Result** — 150 realisations, 3000 steps, seed 23, L23's held-out scenes, rRMS in `rrs`:
+
+| model | all 81 bands | overlap (71 bands) | 350–395 nm |
+|---|---|---|---|
+| ZTT backbone | 5.93% | 5.99% | 5.54% |
+| hybrid, **PB24**-trained | **27.01%** | 28.56% | 10.99% |
+| hybrid, L23-trained (shipped) | 0.30% | 0.28% | 0.43% |
+
+**It does not transfer.** The PB24-trained correction makes L23 four to five times worse
+than applying no correction at all. Under Q13's promotion rule — fixed before any number
+existed — `load_default()` therefore stays with the L23 model, and the test encodes that
+as a conditional evaluated from both sides rather than as a pin on today's answer.
+
+**A claim corrected before it was written down.** The obvious reading is "it learned to
+compensate for a broken backbone". That asserts a structure, so it was measured: the
+correlation between the PB24 model's correction and what L23's backbone actually needs is
+**−0.028**, against **+0.999** for the L23-trained model on the same data. There is no
+relationship — it applies a median **+21.6%** where the backbone needs **+2.4%**. The
+supportable claim is the weaker one: **nothing transferable was learned**, and the
+compensation story remains a hypothesis rather than a finding.
+
+**Nor is it plain feature extrapolation.** Only `wave_nm` leaves the trained range (12.3%
+of values, L23's ten bands below 400 nm); every IOP and geometry feature sits inside PB24's
+domain, and restricting to the 71 overlapping bands leaves the number essentially unchanged
+(28.56%). So "it was asked outside its box" does not explain it either.
+
+**Both caveats travel with the number**: the model flags **100%** of L23 as out of domain
+(the `wave_nm` breach is enough on its own, since `out_of_domain_mask` fires when any
+feature at any wavelength breaches), and the grids share only 71 of 81 bands, with the rest
+reported separately.
+
+**Tests: +4** — the band overlap is computed and asserted non-empty; the transfer failure is
+pinned together with the out-of-domain flag, so the number can never be quoted as if the
+model were being used properly; and the promotion rule is a conditional that computes both
+sides.
+
+### 7.16 Task 13 as built — ZTT's internals, and the caveat that cannot be closed
+
+Three questions were asked of PB24's tabulated AOPs. The answers explain the milestone's
+central failure and close one of Q17's options.
+
+**1. `mu_d` is ~4× worse than advertised, worst where the sun is low, and goes negative.**
+Against PB24's tabulated `mu_d`, over all 5000 realisations: median **4.17%**, and the
+paper's <1% claim (§2.7) is violated at *every* tabulated zenith, even at its best. Per
+solar zenith: 1.6% at 40°, 5.4% at 50°, 9.2% at 60°, **14.1% at 70–80°**. (The 2.2% at
+87.75° is a sign crossing of the error, not recovered skill.)
+
+More seriously, **ZTT's `mu_d` reaches −1.020** — an average cosine of the downwelling
+field cannot be negative — with 550 values ≤ 0 across the release. Every value below 0.3
+occurs at **`bb/a` > 1.36**, far outside `Md_star`'s fitted range of 1e-4…1e-1; **36% of
+PB24's (realisation, band) pairs exceed 0.1**, and the release reaches `bb/a` = 20.1.
+Restricted to `bb/a` ≤ 0.1 the minimum is a physical 0.666. So this is the same story as
+`F(ψ)` on a second axis: a fitted expression evaluated far outside its range. Pinned by a
+test.
+
+**2. The backbone's collapse is the published model's own stated validity domain.** This
+supersedes §7.12's first attribution (`bb/a`) and completes task 11's correction:
+
+- `F_psi` is a quartic in the in-water scattering angle whose docstring already records the
+  paper's fitted range — **ψ ≳ 134°**, ">95% of the angles a polar orbiter sees".
+- `Ψ_KLu = 1 + F(ψ)` **crosses zero at ψ = 110.4°** and is negative for everything below,
+  which flips the sign of the `(a/bb)(1 − cos θv · Ψ_KLu / µ∞)` term and hence of the whole
+  denominator.
+- In PB24's **sanctioned Q14 window, 42% of geometries have ψ < 134°** (outside the fitted
+  range) and **16% have ψ < 110.4°** (actually sign-flipped); the full grid reaches
+  **ψ = 44.3°**, where `Ψ_KLu` is **−60.7**. The two percentages answer different
+  questions and both matter: the first is how much of the window is extrapolation, the
+  second is how much of it is structurally broken.
+- **L23's minimum ψ is above 134°.** Nadir viewing pins the scattering angle near
+  backscatter, so the Week-1 prototype could not have discovered this at any level of care.
+
+So ZTT is not mis-transcribed here and not mis-used by accident: it is being evaluated
+tens of degrees outside the range its authors fitted, on nearly half of the geometry M5
+sanctioned.
+
+**3. Q17's option 3 is closed — µ∞ cannot be *properly* refit from PB24.** µ∞ is the
+*asymptotic* mean cosine, `µ∞ = a/K∞`, and `K∞` is by definition independent of the
+incident field. PB24 tabulates `Kd`, `Ku`, `Ko`, `Kod`, `Kou`, `Knet`, `KLu` — and **every
+one varies by a median ~1.4× across solar zenith** (39–47% of its mean over 0–80°), so none
+is `K∞`. These are *surface* K's; the release contains no asymptotic quantity.
+
+The proxies rank as that predicts: **`a/Kd` is the only defensible one** — 100% inside
+(0, 1], because `Kd ≥ a` structurally, median 0.721, and closest to TT2017 (median
+difference 13.7%) — while `a/Ko` leaves (0,1] on 14% of samples and `a/Kou` on 34%. But
+`a/Kd` is a *downwelling surface* attenuation standing in for an asymptotic quantity, and
+it carries the corresponding bias (0.721 against TT2017's 0.797). Adopting it would replace
+a published parameterization with a proxy of our own whose error we could not characterise
+— which is the thing §7.16's own gate was written to avoid. **So the standing Equation-(8)
+caveat cannot be closed with PB24**, and a test pins the reason, written so it fails if any
+K turns out to be θs-independent after all.
+
+**A cross-check worth keeping**, because it separates "the model disagrees" from "the data
+disagrees": Gershun's law, `a/Knet = mu_tot`, holds in PB24 to a median ratio of **0.9999**
+(5–95%: 0.9964–1.0012). The tabulated K's, `a`, and the average cosines are mutually
+consistent, so every disagreement above is ZTT's, not PB24's.
+
+**Two out-of-domain axes, compounding.** The denominator term
+`(a/bb)(1 − cos θv · Ψ_KLu / µ∞)` can change sign through *either* factor: the geometry (ψ
+below 110.4°) or the IOPs (`bb/a` > 0.1 breaks both `Md_star` and the TT2017 µ∞, each of
+which goes negative on this data). A third, milder extrapolation: `eta_bb` spans 3.9e-6 to
+0.994 while TT2017's lowest knot is 0.0098, so the interpolation clamps below it.
+
+**The consequence for the milestone.** Q17's answer made option 3 "task 13's output". It is
+unavailable — and even if it were available it would address the wrong term, since task 11
+measured µ∞ at 1% of the non-physical predictions against `psi_KLu`'s 68%. Refitting `F(ψ)`
+is no better placed: it is *defined* as `K_Lu/K∞ − 1`, so it needs `K∞` as well. **Neither
+of ZTT's two failing internals can be repaired from PB24.** What remains is Q17 option 4
+(a correction form that does not multiply the backbone), a different backbone, or reference
+data that tabulates an asymptotic K.
+
+**Tests: +5**, suite **400 passed**, ruff clean.
+
+### 7.17 What an adversarial review of the sequence found
 
 The first draft of §7.5 was reviewed against the source by an independent agent instructed
 to find what it got wrong. It found enough to justify a second draft, and the findings are

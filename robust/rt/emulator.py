@@ -128,6 +128,9 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "features",
     "fit",
     "fit_l23",
+    "fit_pb24",
+    "PB24_ENVELOPE",
+    "backbone_is_usable",
     "save",
     "load",
     "DEFAULT_WEIGHTS",
@@ -199,6 +202,87 @@ DOMAIN_TOL = 0.01
 #: is the right question when the subject is a fit's extrapolation rather than the
 #: package's supported envelope.
 SUPPORTED_THETA_S = (0.0, 60.0)
+
+#: The sanctioned **view**-zenith range. ``None`` by default, meaning "judge
+#: ``theta_v`` by what this fit was trained on" -- which for an L23 model is the
+#: single value 0, so any off-nadir view is flagged. That is the correct answer
+#: for a nadir-only fit and it is why M4 needed no such constant; PB24-trained
+#: models set it explicitly (Q14: 0-70 degrees).
+SUPPORTED_THETA_V = None
+
+
+@dataclass(frozen=True)
+class Envelope:
+    """The angle ranges a *particular* emulator is sanctioned over.
+
+    Until M5 the envelope was one module constant, :data:`SUPPORTED_THETA_S`,
+    consulted by every emulator's domain check. That was right while there was
+    one model; it stops being right the moment two exist, because widening it for
+    a PB24-trained net would silently widen the **shipped L23 net's** envelope
+    too -- and a 65-degree query against a model trained to 60 would become "in
+    domain", which is exactly the seed-dependent regime M4 measured and warned
+    about (record §5.5).
+
+    So the envelope travels **with the weights**. It is a static field of
+    :class:`Emulator`, serialised by :func:`save`, and the module constant
+    survives only as this class's default.
+
+    A field left ``None`` means "judge that angle by the trained range", which is
+    the right question when the subject is a fit's own extrapolation rather than
+    a project decision.
+
+    Attributes
+    ----------
+    theta_s : tuple of float or None
+        Sanctioned solar-zenith range, degrees. Defaults to
+        :data:`SUPPORTED_THETA_S`.
+    theta_v : tuple of float or None
+        Sanctioned sensor-zenith range, degrees. Defaults to
+        :data:`SUPPORTED_THETA_V` (``None``).
+    dphi : tuple of float or None
+        Sanctioned relative-azimuth range, degrees. ``None`` by default; note
+        that ``cos`` is not monotonic over azimuth, so the bound is computed from
+        the interval rather than from its endpoints.
+    """
+
+    theta_s: tuple[float, float] | None = SUPPORTED_THETA_S
+    theta_v: tuple[float, float] | None = SUPPORTED_THETA_V
+    dphi: tuple[float, float] | None = None
+
+    def __post_init__(self) -> None:
+        """Reject a range that is not a range."""
+        for name in ("theta_s", "theta_v", "dphi"):
+            limits = getattr(self, name)
+            if limits is None:
+                continue
+            lo, hi = limits
+            if not lo < hi:
+                raise ValueError(
+                    f"Envelope.{name}: expected (lo, hi) with lo < hi; got {limits}"
+                )
+            object.__setattr__(self, name, (float(lo), float(hi)))
+
+    def describe(self) -> str:
+        """One line, for a log or an artefact."""
+        parts = []
+        for name in ("theta_s", "theta_v", "dphi"):
+            limits = getattr(self, name)
+            span = (
+                "trained range"
+                if limits is None
+                else f"{limits[0]:g}-{limits[1]:g} deg"
+            )
+            parts.append(f"{name} {span}")
+        return "; ".join(parts)
+
+
+#: The envelope M0-M4 behaved as if it had: the sanctioned solar-zenith span, and
+#: the trained range for everything else.
+DEFAULT_ENVELOPE = Envelope()
+
+#: Sentinel for "use the emulator's own envelope", so that an explicit ``None``
+#: can keep its established meaning of "judge by the trained range".
+_OWN_ENVELOPE = object()
 
 #: Guard inside the size penalty's square root, and **not** cosmetic: two
 #: deliberate choices collide without it. The output layer is zero-initialised, so
@@ -486,6 +570,10 @@ class Emulator:
         **training split only**.
     config : EmulatorConfig
         Architecture and hyper-parameters. Static (a ``meta_field``).
+    envelope : Envelope
+        The angle ranges **this** model is sanctioned over, carried with the
+        weights rather than read from a module constant — see :class:`Envelope`
+        for why that distinction matters once there is more than one model.
     domain : Array or None
         Per-feature ``[min; max]`` over the training split, shape
         ``(2, len(FEATURES))``; ``None`` for a hand-built emulator.
@@ -506,6 +594,7 @@ class Emulator:
     std: Float[Array, " feature"]
     config: EmulatorConfig = field(metadata={"static": True})
     domain: Float[Array, "2 feature"] | None = None
+    envelope: Envelope = field(default=DEFAULT_ENVELOPE, metadata={"static": True})
 
     def relative_delta(
         self,
@@ -568,7 +657,7 @@ class Emulator:
         wave: Float[Array, " wave"] | None = None,
         *,
         tol: float = DOMAIN_TOL,
-        theta_s_limits: tuple[float, float] | None = SUPPORTED_THETA_S,
+        theta_s_limits=_OWN_ENVELOPE,
     ) -> dict[str, DomainBreach]:
         """Which features are evaluated meaningfully outside the accepted range.
 
@@ -586,11 +675,13 @@ class Emulator:
             Ignore breaches closer than ``tol`` × the trained span; see
             :data:`DOMAIN_TOL` for why this is not zero. ``tol=0.0`` reports any
             excursion at all.
-        theta_s_limits : tuple of float or None, optional
-            Solar-zenith range (degrees) to judge ``cos_theta_s`` against, instead of
-            the trained one. Defaults to :data:`SUPPORTED_THETA_S`, the envelope the
-            project sanctions. ``None`` uses the trained range, which is the right
-            question when asking whether *this fit* is extrapolating.
+        theta_s_limits : tuple of float, None, or Envelope, optional
+            What to judge the **angle** features against instead of the trained
+            range. Unset (the default) uses :attr:`envelope`, this model's own
+            sanctioned span. ``None`` uses the trained range throughout, which is
+            the right question when asking whether *this fit* is extrapolating. A
+            ``(lo, hi)`` tuple overrides the solar zenith alone, as before; an
+            :class:`Envelope` overrides all three angles.
 
         Returns
         -------
@@ -619,7 +710,9 @@ class Emulator:
                 "not produced by fit()), so its training range is unknown"
             )
         x = np.asarray(features(iops, phase_params, geometry, wave))
-        lo, hi = np.asarray(_effective_domain(self.domain, theta_s_limits))
+        lo, hi = np.asarray(
+            _effective_domain(self.domain, self._envelope_for(theta_s_limits))
+        )
         report = {}
         for j, name in enumerate(FEATURES):
             col = x[..., j]
@@ -660,7 +753,7 @@ class Emulator:
         wave: Float[Array, " wave"] | None = None,
         *,
         tol: float = DOMAIN_TOL,
-        theta_s_limits: tuple[float, float] | None = SUPPORTED_THETA_S,
+        theta_s_limits=_OWN_ENVELOPE,
     ) -> Float[Array, "*batch"]:
         """Per-sample boolean: is this sample outside the accepted range?
 
@@ -694,7 +787,7 @@ class Emulator:
                 "was not produced by fit()), so its training range is unknown"
             )
         x = features(iops, phase_params, geometry, wave)
-        lo, hi = _effective_domain(self.domain, theta_s_limits)
+        lo, hi = _effective_domain(self.domain, self._envelope_for(theta_s_limits))
         span = hi - lo
         scale = jnp.where(span > 0.0, span, _STD_FLOOR)
         excess = jnp.maximum(lo - x, x - hi) / scale
@@ -703,6 +796,23 @@ class Emulator:
         # very same input. Negating the in-range test sends NaN to True in both.
         return jnp.any(~(excess <= tol), axis=(-1, -2))
 
+    def _envelope_for(self, theta_s_limits) -> Envelope | None:
+        """Resolve the ``theta_s_limits`` argument to an :class:`Envelope`.
+
+        Three states, deliberately distinguishable: unset means *this model's*
+        envelope; ``None`` keeps its established meaning of "judge everything by
+        the trained range"; a ``(lo, hi)`` tuple keeps its M4 meaning of "the
+        solar zenith specifically", which is why the sentinel exists at all --
+        without it, "not passed" and "passed None" would be the same call.
+        """
+        if theta_s_limits is _OWN_ENVELOPE:
+            return self.envelope
+        if theta_s_limits is None:
+            return None
+        if isinstance(theta_s_limits, Envelope):
+            return theta_s_limits
+        return Envelope(theta_s=tuple(theta_s_limits), theta_v=None, dphi=None)
+
     def _standardise(
         self, x: Float[Array, "... feature"]
     ) -> Float[Array, "... feature"]:
@@ -710,21 +820,39 @@ class Emulator:
         return (x - self.mean) / self.std
 
 
-def _effective_domain(domain, theta_s_limits):
-    """The stored domain, with ``cos_theta_s`` replaced by the supported envelope.
+def _cos_bounds(limits) -> tuple[float, float]:
+    """``(min, max)`` of ``cos`` over an angle interval, in degrees.
+
+    Not simply the endpoints: ``cos`` is monotonic on ``[0, 180]`` but the azimuth
+    axis is not confined there, so an interval spanning 0 or 180 attains ±1 in its
+    interior. Getting this wrong would narrow an envelope silently, which is the
+    one direction of error a domain check must not make.
+    """
+    lo, hi = float(limits[0]), float(limits[1])
+    values = [np.cos(np.deg2rad(lo)), np.cos(np.deg2rad(hi))]
+    # Interior extrema of cos sit at multiples of 180 degrees.
+    k = int(np.ceil(lo / 180.0))
+    while k * 180.0 <= hi:
+        values.append(np.cos(np.deg2rad(k * 180.0)))
+        k += 1
+    return float(min(values)), float(max(values))
+
+
+def _effective_domain(domain, envelope: Envelope | None):
+    """The stored domain, with the angle features replaced by the envelope.
 
     Splits the two meanings the domain check carries: for the IOP and wavelength
     features the trained range is the right bound, because outside it the network is
-    genuinely unconstrained; for the solar zenith the bound is a *project decision*
-    (:data:`SUPPORTED_THETA_S`), so a fit trained on a subset of angles is still
-    allowed to be used across the whole sanctioned span.
+    genuinely unconstrained; for the **angles** the bound is a *project decision*
+    (:class:`Envelope`), so a fit trained on a subset of angles is still allowed to
+    be used across the whole sanctioned span.
 
     Parameters
     ----------
     domain : Array
         ``(2, len(FEATURES))`` of ``[min; max]``.
-    theta_s_limits : tuple of float or None
-        Solar-zenith range in degrees, or ``None`` to leave the trained range alone.
+    envelope : Envelope or None
+        Sanctioned angle ranges; ``None`` leaves every trained range alone.
 
     Returns
     -------
@@ -732,13 +860,25 @@ def _effective_domain(domain, theta_s_limits):
         The effective ``(2, len(FEATURES))`` bounds.
     """
     domain = jnp.asarray(domain)
-    if theta_s_limits is None:
+    if envelope is None:
         return domain
-    # cos is decreasing in the angle, so the larger zenith gives the LOWER bound.
-    lo = jnp.cos(jnp.deg2rad(jnp.asarray(max(theta_s_limits), dtype=domain.dtype)))
-    hi = jnp.cos(jnp.deg2rad(jnp.asarray(min(theta_s_limits), dtype=domain.dtype)))
-    j = FEATURES.index("cos_theta_s")
-    return domain.at[0, j].set(lo).at[1, j].set(hi)
+    for name, feature in (
+        ("theta_s", "cos_theta_s"),
+        ("theta_v", "cos_theta_v"),
+        ("dphi", "cos_dphi"),
+    ):
+        limits = getattr(envelope, name)
+        if limits is None:
+            continue
+        lo, hi = _cos_bounds(limits)
+        j = FEATURES.index(feature)
+        domain = (
+            domain.at[0, j]
+            .set(jnp.asarray(lo, dtype=domain.dtype))
+            .at[1, j]
+            .set(jnp.asarray(hi, dtype=domain.dtype))
+        )
+    return domain
 
 
 def _delta(model, params, x_std, config: EmulatorConfig):
@@ -771,6 +911,7 @@ def fit(
     eval_masks: dict[str, np.ndarray] | None = None,
     config: EmulatorConfig | None = None,
     rrs_ztt: Float[Array, "sample wave"] | None = None,
+    envelope: Envelope = DEFAULT_ENVELOPE,
 ) -> tuple[Emulator, History]:
     """Train the residual emulator on ``rrs_truth − rrs_ZTT``.
 
@@ -888,7 +1029,14 @@ def fit(
         delta_rms=np.asarray(delta_rmss),
         eval={name: np.asarray(v) for name, v in curves.items()},
     )
-    emulator = Emulator(params=params, mean=mean, std=std, config=config, domain=domain)
+    emulator = Emulator(
+        params=params,
+        mean=mean,
+        std=std,
+        config=config,
+        domain=domain,
+        envelope=envelope,
+    )
     return emulator, history
 
 
@@ -986,6 +1134,148 @@ def fit_l23(
     )
 
 
+#: Q14's sanctioned angles for a PB24-trained model: 0-70 degrees in both zeniths,
+#: with the 80/87.75 shell held out as the extrapolation test.
+PB24_ENVELOPE = Envelope(theta_s=(0.0, 70.0), theta_v=(0.0, 70.0))
+
+
+def backbone_is_usable(rrs_ztt) -> np.ndarray:
+    """Per-sample: is the analytic backbone physical across the whole spectrum?
+
+    **Why this exists (M5 task 9, Q17).** ``mu_infinity_tt2017`` is a fit in
+    ``bb/a``; L23 spans ``bb/a`` up to 0.59 and PB24 reaches 3.54, where the fitted
+    polynomial goes negative and flips the sign of the ZTT denominator. The result
+    is a *non-physical* backbone -- ``rrs_ZTT <= 0`` on ~22% of PB24 -- and the
+    hybrid is ``rrs_ZTT * (1 + delta)`` with ``|delta| <= 0.5``, so **no bounded
+    relative correction can turn a negative backbone into a positive
+    reflectance**. Those samples are not hard, they are impossible for this
+    functional form.
+
+    JXP's answer to Q17 was to restrict the sanctioned envelope for now and report
+    the coverage, refitting µ∞ properly at task 13. This is the predicate that
+    restriction is built on: training excludes these samples, so the emulator's
+    stored ``domain`` excludes the ``log10_u`` range they occupy, so the ordinary
+    domain check flags them at evaluation time with no special case anywhere.
+
+    Parameters
+    ----------
+    rrs_ztt : array_like
+        Backbone prediction, shape ``(n_sample, n_wave)``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean, shape ``(n_sample,)``. A sample counts only if **every** band is
+        positive and finite: a spectrum that is negative in the red is not a
+        spectrum this model can correct, however good the blue looks.
+    """
+    values = np.asarray(rrs_ztt)
+    return np.all(np.isfinite(values) & (values > 0.0), axis=-1)
+
+
+def fit_pb24(
+    batch,
+    splits,
+    kind: str = "realisation",
+    *,
+    config: EmulatorConfig | None = None,
+    rrs_ztt: Float[Array, "sample wave"] | None = None,
+    envelope: Envelope = PB24_ENVELOPE,
+    restrict_to_usable_backbone: bool = True,
+) -> tuple[Emulator, History, dict]:
+    """Train on a PB24 batch — the M5 training run.
+
+    The PB24 counterpart of :func:`fit_l23`, and different from it in three ways
+    that all come from the data rather than from taste:
+
+    1. **The target is the tabulated ``rrs``**, not ``Rrs`` converted through the
+       surface map. PB24 ships both, and the nadir map is wrong off-nadir by a
+       median 45.7% at ``theta_v = 60`` (record §7.10) -- so training through it
+       would fit the emulator to an interface error.
+    2. **``theta_v`` and ``dphi`` are live features.** They are already in
+       :data:`FEATURES` and were constant in L23, which is exactly why the domain
+       check flagged every off-nadir view; PB24 makes them vary.
+    3. **Training is restricted to where the backbone is physical** (Q17; see
+       :func:`backbone_is_usable`), and to the sanctioned angle window, and the
+       excluded share is returned rather than absorbed.
+
+    Parameters
+    ----------
+    batch : robust.rt.data.pb24.PB24Batch
+    splits : robust.rt.data.pb24.Splits
+    kind : str, optional
+        Which split to train against; the held-out side becomes an eval curve.
+    config : EmulatorConfig, optional
+    rrs_ztt : Array, optional
+        Precomputed backbone, to avoid recomputing it per seed.
+    envelope : Envelope, optional
+        Sanctioned angles, stored with the weights. Defaults to
+        :data:`PB24_ENVELOPE`.
+    restrict_to_usable_backbone : bool, optional
+        Exclude samples whose backbone is non-physical (default True). ``False``
+        trains on everything and is provided so the cost of the restriction can be
+        *measured* rather than asserted.
+
+    Returns
+    -------
+    emulator : Emulator
+    history : History
+    coverage : dict
+        What training saw and what it excluded: ``n_total``, ``n_train``,
+        ``n_excluded_backbone``, ``n_excluded_angle``, and ``usable_fraction``.
+        Reported so that "the hybrid scores X" is always accompanied by "on this
+        share of the data".
+    """
+    if rrs_ztt is None:
+        rrs_ztt = _ztt.rrs_ZTT(
+            batch.iops, batch.phase_params, batch.geometry, batch.wave
+        )
+
+    lo_s, hi_s = envelope.theta_s if envelope.theta_s else (-np.inf, np.inf)
+    lo_v, hi_v = envelope.theta_v if envelope.theta_v else (-np.inf, np.inf)
+    in_window = (
+        (batch.theta_s >= lo_s)
+        & (batch.theta_s <= hi_s)
+        & (batch.theta_v >= lo_v)
+        & (batch.theta_v <= hi_v)
+    )
+    usable = (
+        backbone_is_usable(rrs_ztt)
+        if restrict_to_usable_backbone
+        else np.ones(batch.n_sample, dtype=bool)
+    )
+
+    train = splits.train(kind) & in_window & usable
+    test = splits.test(kind) & in_window & usable
+    if not train.any():
+        raise ValueError(
+            "fit_pb24: the training mask is empty after restricting to the "
+            "sanctioned window and a usable backbone"
+        )
+
+    coverage = {
+        "n_total": int(batch.n_sample),
+        "n_train": int(train.sum()),
+        "n_excluded_angle": int((~in_window).sum()),
+        "n_excluded_backbone": int((in_window & ~usable).sum()),
+        "usable_fraction": float((in_window & usable).sum() / batch.n_sample),
+    }
+
+    emulator, history = fit(
+        batch.iops,
+        batch.phase_params,
+        batch.geometry,
+        batch.wave,
+        batch.rrs,
+        train=train,
+        eval_masks={f"{kind}_test": test},
+        config=config,
+        rrs_ztt=rrs_ztt,
+        envelope=envelope,
+    )
+    return emulator, history, coverage
+
+
 def save(emulator: Emulator, path) -> None:
     """Write a trained emulator to a ``.npz``.
 
@@ -1014,6 +1304,16 @@ def save(emulator: Emulator, path) -> None:
     arrays["features"] = np.asarray(FEATURES)
     if emulator.domain is not None:
         arrays["domain"] = np.asarray(emulator.domain)
+    # The envelope goes in the file, not in a constant: two models with different
+    # sanctioned spans have to be able to coexist in one process (M5 task 10).
+    # NaN encodes "None" -- i.e. judge that angle by the trained range -- because
+    # npz has no null and a sentinel angle would be indistinguishable from a real
+    # one.
+    for name in ("theta_s", "theta_v", "dphi"):
+        limits = getattr(emulator.envelope, name)
+        arrays[f"envelope/{name}"] = np.asarray(
+            (np.nan, np.nan) if limits is None else limits, dtype=float
+        )
     cfg = emulator.config
     arrays["config/hidden"] = np.asarray(cfg.hidden, dtype=np.int64)
     for name in (
@@ -1071,12 +1371,26 @@ def load(path) -> Emulator:
             seed=int(data["config/seed"]),
             eval_every=int(data["config/eval_every"]),
         )
+        # A file written before M5 task 10 carries no envelope; it gets the
+        # default, which is what it was evaluated under, so old weights keep
+        # behaving exactly as they did.
+        limits = {}
+        for name in ("theta_s", "theta_v", "dphi"):
+            key = f"envelope/{name}"
+            if key not in data.files:
+                limits = None
+                break
+            pair = np.asarray(data[key], dtype=float)
+            limits[name] = None if np.isnan(pair).any() else (pair[0], pair[1])
+        envelope = DEFAULT_ENVELOPE if limits is None else Envelope(**limits)
+
         return Emulator(
             params=params,
             mean=jnp.asarray(data["mean"]),
             std=jnp.asarray(data["std"]),
             config=config,
             domain=jnp.asarray(data["domain"]) if "domain" in data.files else None,
+            envelope=envelope,
         )
 
 

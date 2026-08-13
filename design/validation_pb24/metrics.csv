@@ -1,0 +1,4 @@
+model,realisation (train),realisation (held out),bp_band (train),bp_band (held out),geometry (train),geometry (held out),non_physical_pct
+standard Gordon,20.9872,20.4075,20.8887,20.8078,20.8725,45.4641,0.0000
+ZTT backbone,41116.2227,7060.8911,25840.0078,64352.2109,36910.7852,20333.8926,22.3185
+"O25 form, refit on PB24",6.3767,6.5270,6.4773,6.0220,6.4130,22.4634,0.0000

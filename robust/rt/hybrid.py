@@ -74,8 +74,11 @@ _LEARNED_MODES = ("emulator", "hybrid")
 #: larger angles (or will warn the user)"* (prompt 4, Q6; chosen in prompt 5, Q7). It
 #: is an option rather than the default because switching it on changes numbers, and a
 #: model whose output depends on a flag nobody set is its own kind of trap. The
-#: threshold is :data:`robust.rt.emulator.SUPPORTED_THETA_S` for the solar zenith and
-#: the trained range for everything else.
+#: The threshold comes from the emulator's own
+#: :class:`~robust.rt.emulator.Envelope` (M5 task 10) — carried with its weights,
+#: not read from a module constant, so two models with different sanctioned spans
+#: can coexist. For the shipped L23 model that is 0-60 degrees in the solar zenith
+#: and the trained range for everything else, which is what M4 measured.
 OUT_OF_DOMAIN_POLICIES = ("warn", "ztt")
 
 
