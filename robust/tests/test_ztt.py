@@ -27,6 +27,7 @@ zenith effect stays where it was measured.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 
 import jax
 import jax.numpy as jnp
@@ -651,3 +652,173 @@ def test_mu_infinity_cannot_be_refit_from_pb24():
             "asymptotic after all, mu_infinity could be refit from it and Q17's "
             "option 3 reopens"
         )
+
+
+# ---------------- the backward-VSF parameterization (M5 task 14) -------------
+# PhaseParams was designed at M1 to be extended without changing forward()'s
+# signature. This is the extension, and these are the three things that have to
+# be true for it to have cost nothing: None reproduces M0-M4 exactly, the fields
+# reach the model, and they are differentiable.
+
+
+def _reference_inputs():
+    """A small concrete batch for the M5 task-14 tests."""
+    iops = simple_iops()
+    phase = simple_params()
+    geometry = Geometry(
+        theta_s=jnp.asarray(30.0), theta_v=jnp.asarray(20.0), dphi=jnp.asarray(90.0)
+    )
+    return iops, phase, geometry, C.canonical_wave()
+
+
+def test_none_fields_reproduce_the_fixed_sullivan_shape_exactly():
+    """**The gate.** The default path is the M0-M4 path, bit for bit."""
+    psi = jnp.linspace(90.0, 180.0, 37)
+    phase = PhaseParams(B_p=jnp.asarray(0.012))
+
+    np.testing.assert_array_equal(
+        np.asarray(Z.P_bb_from_phase(phase, psi)),
+        np.asarray(Z.P_bb_sullivan(psi)),
+    )
+    # and a container with no such fields at all still works
+    np.testing.assert_array_equal(
+        np.asarray(Z.P_bb_from_phase(None, psi)),
+        np.asarray(Z.P_bb_sullivan(psi)),
+    )
+
+
+def test_rrs_ZTT_is_bit_identical_with_the_new_fields_none():
+    """`forward`'s numbers cannot move because a field was added."""
+    iops, phase, geometry, wave = _reference_inputs()
+    extended = PhaseParams(B_p=phase.B_p, beta_tilde_pi=None, backward_slope=None)
+
+    np.testing.assert_array_equal(
+        np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave)),
+        np.asarray(Z.rrs_ZTT(iops, extended, geometry, wave)),
+    )
+
+
+def test_beta_tilde_pi_sets_the_value_at_exact_backscatter():
+    """The parameter means what it says: ``Pbb(180 deg) == beta_tilde_pi``."""
+    for value in (0.10, 0.153, 0.25):
+        phase = PhaseParams(B_p=jnp.asarray(0.012), beta_tilde_pi=jnp.asarray(value))
+        got = float(Z.P_bb_from_phase(phase, jnp.asarray(180.0)))
+
+        assert got == pytest.approx(value, rel=1e-6)
+
+    # Sullivan's own value therefore reproduces the fixed shape everywhere
+    sullivan = float(Z.P_bb_sullivan(jnp.asarray(180.0)))
+    psi = jnp.linspace(90.0, 180.0, 19)
+    matched = PhaseParams(B_p=jnp.asarray(0.012), beta_tilde_pi=jnp.asarray(sullivan))
+    np.testing.assert_allclose(
+        np.asarray(Z.P_bb_from_phase(matched, psi)),
+        np.asarray(Z.P_bb_sullivan(psi)),
+        rtol=1e-6,
+    )
+
+
+def test_the_two_parameters_are_independent():
+    """The tilt pivots at 180 deg, so it cannot move ``beta_tilde_pi``."""
+    phase = PhaseParams(
+        B_p=jnp.asarray(0.012),
+        beta_tilde_pi=jnp.asarray(0.20),
+        backward_slope=jnp.asarray(1.5),
+    )
+
+    assert float(Z.P_bb_from_phase(phase, jnp.asarray(180.0))) == pytest.approx(0.20)
+
+    # and the tilt does change the shape away from the pivot
+    flat = PhaseParams(B_p=jnp.asarray(0.012), beta_tilde_pi=jnp.asarray(0.20))
+    at_120 = float(Z.P_bb_from_phase(phase, jnp.asarray(120.0)))
+    flat_120 = float(Z.P_bb_from_phase(flat, jnp.asarray(120.0)))
+    assert at_120 > flat_120 * 1.05
+
+
+def test_the_new_fields_reach_rrs_ZTT():
+    """A field that changes nothing downstream is a field that is being dropped."""
+    iops, phase, geometry, wave = _reference_inputs()
+    base = np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave))
+
+    for field, value in (("beta_tilde_pi", 0.25), ("backward_slope", 1.0)):
+        moved = Z.rrs_ZTT(
+            iops,
+            dataclasses.replace(phase, **{field: jnp.asarray(value)}),
+            geometry,
+            wave,
+        )
+        assert not np.allclose(base, np.asarray(moved)), field
+
+
+def test_the_new_fields_pass_the_gradient_gate(jax_x64):
+    """**The gate.** Checked through task 6's extended ``gradient_report``.
+
+    Two things at once. The gradient must be correct, and the perturbation must
+    provably *arrive* — before M5 task 6, ``gradient_report``'s closure rebuilt
+    ``PhaseParams(B_p=...)`` and silently discarded exactly these fields, which
+    would have certified the model at the wrong phase function and reported a
+    flawless 0.0 while doing it.
+    """
+    from robust.rt import validation as V
+
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+    n, n_wave = 3, 4
+    iops = IOPs(
+        a=f64(np.full((n, n_wave), 0.08)),
+        bb_w=f64(np.full((n, n_wave), 2e-3)),
+        bb_p=f64(np.full((n, n_wave), 4e-3)),
+    )
+    phase = PhaseParams(
+        B_p=f64(np.full((n, n_wave), 0.012)),
+        beta_tilde_pi=f64(np.full(n, 0.16)),
+        backward_slope=f64(np.full(n, 0.5)),
+    )
+    geometry = Geometry(
+        theta_s=f64(np.full(n, 35.0)),
+        theta_v=f64(np.full(n, 25.0)),
+        dphi=f64(np.full(n, 100.0)),
+    )
+
+    report = V.gradient_report(
+        lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w),
+        iops,
+        phase,
+        geometry,
+        f64(np.linspace(440.0, 600.0, n_wave)),
+        steps={"beta_tilde_pi": 1e-8, "backward_slope": 1e-7, "B_p": 1e-8},
+    )
+
+    assert set(report) == {"beta_tilde_pi", "backward_slope", "B_p"}
+    for name, value in report.items():
+        assert value < V.GRADIENT_TOL, f"{name}: {value}"
+        assert value != 0.0, f"{name} was never perturbed"
+
+
+def test_a_per_sample_backward_parameter_broadcasts_against_wavelength():
+    """**Regression.** ``(n, 1) * (n,)`` broadcasts to ``(n, n)``, silently.
+
+    ``rrs_ZTT`` hands the scattering angle in as ``(n_sample, 1)`` so it spreads
+    across wavelength. A per-sample phase parameter arrives as ``(n_sample,)``,
+    and NumPy broadcasting turns that pair into a square matrix rather than
+    raising — which would have produced a plausibly-shaped answer only when
+    ``n_sample`` happened to equal ``n_wave``.
+    """
+    n, n_wave = 3, 5
+    iops = IOPs(
+        a=jnp.full((n, n_wave), 0.1),
+        bb_w=jnp.full((n, n_wave), 2e-3),
+        bb_p=jnp.full((n, n_wave), 4e-3),
+    )
+    phase = PhaseParams(
+        B_p=jnp.full((n, n_wave), 0.012),
+        beta_tilde_pi=jnp.full(n, 0.16),
+        backward_slope=jnp.full(n, 0.4),
+    )
+    geometry = Geometry(
+        theta_s=jnp.full(n, 30.0),
+        theta_v=jnp.full(n, 20.0),
+        dphi=jnp.full(n, 90.0),
+    )
+
+    out = Z.rrs_ZTT(iops, phase, geometry, jnp.linspace(440.0, 600.0, n_wave))
+
+    assert out.shape == (n, n_wave)

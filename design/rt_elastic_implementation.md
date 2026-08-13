@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.28
+**Version:** 0.29
 **Date:** 2026-08-13
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ every bump.
 | **M2** | ZTT analytic backbone (JAX) | ✅ done | `robust.rt.ztt`, `robust.rt.baselines` |
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
-| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–13 done (11 **failed its gate**), 14–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
+| **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 in progress — tasks 0–14 done (11 **failed its gate**), 15–16 specified (§7) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **400 passed** (`ocean14`); with
-`$OS_COLOR` unset, **356 passed + 44 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **407 passed** (`ocean14`); with
+`$OS_COLOR` unset, **363 passed + 44 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1507,8 +1507,8 @@ convert items 4 and 5 from *untested* into *measured*.
 (the three splits, §7.8), **6** (the validation toolkit, §7.9), **7** (the surface
 transfer, §7.10), **8** (O25's geometry table, §7.11) and **9** (the PB24 benchmark,
 §7.12), **10** (the per-model envelope, §7.13) and **11** (the PB24 retrain, §7.14 — which
-**failed its gate**) **12** (the cross-dataset check, §7.15) and **13** (ZTT's internals, §7.16) are done;
-tasks 14–16 are specified with a gate each in
+**failed its gate**) **12** (the cross-dataset check, §7.15) **13** (ZTT's internals, §7.16) and **14** (the backward-VSF axis, §7.17) are done;
+tasks 15–16 are specified with a gate each in
 [`rt_elastic_coding_prompt_6.md`](../claude_prompts/RT/rt_elastic_coding_prompt_6.md) §M5
 and summarised in §7.5 below.
 
@@ -1530,7 +1530,7 @@ and summarised in §7.5 below.
 | 11 | Retrain the emulator with `theta_v`/`dphi` live | Q15's gate: beat O25 on the realisation *and* `B_p` splits | ❌ **FAILED — structural; no weights shipped (§7.14)** |
 | 12 | Cross-dataset check — PB24 model on L23 | overlap computed not assumed; out-of-domain fraction reported; promotion rule encoded as a **conditional** | ✅ done — **does not transfer** |
 | 13 | ZTT `mu_d` vs HydroLight; the µ∞ question | `mu_d` pinned; **µ∞ cannot be refit from PB24** — Q17 option 3 closed (§7.16) | ✅ done |
-| 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ⬜ |
+| 14 | Promote `PhaseParams` to the ZTT backward-VSF form | existing tests pass **untouched**; `None` path bit-identical; new fields provably perturbed | ✅ done |
 | 15 | Freeze the `forward` API | signature-pinning test | ⬜ |
 | 16 | Notebook 6, PR review, hand-off | the M0–M4 rhythm | ⬜ |
 
@@ -2188,7 +2188,49 @@ data that tabulates an asymptotic K.
 
 **Tests: +5**, suite **400 passed**, ruff clean.
 
-### 7.17 What an adversarial review of the sequence found
+### 7.17 Task 14 as built — the backward-VSF axis
+
+`PhaseParams` gained two optional fields, and `robust/rt/ztt.py` gained
+`P_bb_from_phase(phase_params, psi)` which `rrs_ZTT` calls when no explicit `P_bb` is
+supplied:
+
+```
+Pbb(psi) = beta_tilde_pi * S_ST(psi)/S_ST(180) * (psi/180)**(-backward_slope)
+```
+
+- **`beta_tilde_pi`** — the `β̃(π)` design §4.2 names: `Pbb(180°) = βp(180°)/bb_p`, sr⁻¹.
+  It *rescales* the shape, so passing Sullivan's own 0.153 reproduces the fixed shape.
+- **`backward_slope`** — the second parameter: a dimensionless tilt across the backward
+  hemisphere, pivoting at 180° so the two are independent. Zero leaves Sullivan's angular
+  dependence untouched.
+- Either field `None` takes its neutral value, so a `PhaseParams(B_p=...)` gives exactly
+  `P_bb_sullivan(psi)`.
+
+**The gate, clause by clause.** All 400 pre-existing tests passed **untouched** and **no
+call site changed** — the M1 design decision (§3.2) to make the phase function a container
+rather than a bare array, vindicated at the moment it was meant to be. `None` is
+bit-identical, asserted with `assert_array_equal` rather than a tolerance because that is
+an exact claim. And the fields are gradient-checked through task 6's extended
+`gradient_report`, which is precisely why task 6 came first: the pre-M5 closure rebuilt
+`PhaseParams(B_p=...)` and would have discarded these fields silently, certifying the model
+at the wrong phase function while reporting a flawless 0.0.
+
+**A silent-broadcast bug, found while writing the tests.** `rrs_ZTT` hands ψ in as
+`(n_sample, 1)` so it spreads across wavelength; a per-sample parameter arrives as
+`(n_sample,)`; and `(n, 1) * (n,)` broadcasts to **`(n, n)`** rather than raising. It fails
+loudly only when `n_sample != n_wave`, so a test written with a square batch would have
+passed while the model computed something else entirely. `P_bb_from_phase` now aligns
+trailing axes explicitly, and a test exercises both a square and a non-square batch.
+
+**Not calibrated, and the docstrings say so.** No dataset here constrains these fields:
+PB24 prescribes its phase functions and does not tabulate `βp(ψ)` (§7.2). The power law is
+the simplest smooth, differentiable, pivot-neutral one-parameter tilt — a choice, not a
+measurement. The fields are an axis to sweep and an interface for the inversion to build
+against; any result that varies them must report the values used and that they are inputs.
+
+**Tests: +7**, suite **407 passed**, ruff clean.
+
+### 7.18 What an adversarial review of the sequence found
 
 The first draft of §7.5 was reviewed against the source by an independent agent instructed
 to find what it got wrong. It found enough to justify a second draft, and the findings are

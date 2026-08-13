@@ -348,7 +348,7 @@ samples because the envelope reached exactly as far as the data did).
    `fit_o25` has **no view-angle axis at all**, which would have made the milestone's gate
    a straw man; it scheduled a cross-dataset check that cannot pass by construction; and
    it repeated a claim of mine that was simply false — see the correction under task 7.
-   Two prerequisite tasks were missing entirely. The findings are in §7.17 of the record.
+   Two prerequisite tasks were missing entirely. The findings are in §7.18 of the record.
 
    How it is ordered: **3 → 4 → 5** are prerequisites (make the machinery dataset-agnostic,
    then load, then split), **6** unblocks three later tasks at once, **7 → 8 → 9** builds an
@@ -940,8 +940,39 @@ samples because the envelope reached exactly as far as the data did).
     **Depends on:** 4. **Blocked:** no.
 
 14. **Promote `PhaseParams`** to the ZTT backward-VSF parameterization (design §4.2), as
-    *additional* fields defaulting to `None`. *Unlocks: the design's phase-function
-    parameterization, and the M5 → inversion hand-off.*
+    *additional* fields defaulting to `None`. ✅ **done 2026-08-13.** *Unlocks: the design's
+    phase-function parameterization, and the M5 → inversion hand-off.*
+
+    **What landed.** `PhaseParams` gained `beta_tilde_pi` (the `β̃(π)` the design names —
+    `Pbb(180°)` in sr⁻¹) and `backward_slope` (a dimensionless tilt across the backward
+    hemisphere), both `None` by default; `ztt.P_bb_from_phase` builds `Pbb(ψ)` from them and
+    `rrs_ZTT` uses it when no explicit `P_bb` is passed. **+7 tests, 407 pass**, ruff clean.
+
+    - **The gate's first clause held with nothing to fix:** all 400 pre-existing tests
+      passed untouched, and **no call site changed** — which is the claim M1's design made
+      when it insisted the phase function be a container rather than a bare array. Five
+      years of that decision paying off in one afternoon.
+    - **`None` is bit-identical**, asserted with `assert_array_equal` rather than a
+      tolerance, because "the default path is unchanged" is an exact claim.
+    - **The two parameters are independent by construction** — the tilt pivots at 180°, so
+      `Pbb(180°) == beta_tilde_pi` exactly whatever the slope. Tested at both.
+    - **Gradient-checked through task 6's extended `gradient_report`**, which is the reason
+      task 6 existed: before it, the closure rebuilt `PhaseParams(B_p=...)` and would have
+      silently dropped exactly these fields, certifying the model at the wrong phase
+      function while reporting a flawless 0.0.
+
+    **A silent-broadcast bug caught while writing the tests.** `rrs_ZTT` passes ψ as
+    `(n_sample, 1)`; a per-sample parameter arrives as `(n_sample,)`, and `(n,1) * (n,)`
+    broadcasts to **`(n, n)`** rather than raising. It only fails loudly when
+    `n_sample != n_wave` — so a test that happened to use a square batch would have passed
+    while the model computed nonsense. Fixed by aligning trailing axes explicitly, and
+    pinned by a test that uses both a square and a non-square batch.
+
+    **Stated plainly in the docstrings: this axis is not calibrated.** Nothing in the repo
+    has fitted these fields, because PB24 prescribes its phase functions and does not
+    tabulate `βp(ψ)`. The power-law tilt is the simplest smooth, differentiable,
+    pivot-neutral choice — not a measurement. They are an axis to sweep and an interface to
+    build against, and any result that varies them must say so.
 
     **Gate:** every existing test passes **untouched** — that is the proof the extension
     changed no signature (record §3.2); `forward` with the new fields `None` is
@@ -1243,6 +1274,41 @@ Record work in the Logs section below, format:
 ### <Date> (Short summary)
 
 <Detailed description of the work and what you learned>
+
+### 2026-08-13 (Task 14 — the backward-VSF axis; a design decision pays off; record v0.29)
+
+**What I did.** Promoted `PhaseParams` to the fuller ZTT backward-VSF parameterization:
+`beta_tilde_pi` and `backward_slope`, both optional, consumed by a new
+`ztt.P_bb_from_phase` that `rrs_ZTT` calls when no explicit `P_bb` is given. **+7 tests,
+407 pass**, ruff clean.
+
+**The gate was satisfied by a decision made at M1.** All 400 pre-existing tests passed
+untouched and no call site changed — because `phase_params` was made a container rather
+than a bare array precisely so this day would be cheap. It is the first time on this
+project that an anticipatory design decision has been *tested* rather than merely
+respected, and it cost nothing to collect.
+
+**The bug worth the afternoon.** `rrs_ZTT` passes the scattering angle as `(n_sample, 1)`
+so it broadcasts across wavelength. A per-sample phase parameter arrives as `(n_sample,)`.
+And `(n, 1) * (n,)` does not raise — it broadcasts to `(n, n)`. It fails loudly only when
+`n_sample != n_wave`, so had I written the obvious test with a 4-sample, 4-band batch, it
+would have passed while the model computed a matrix of nonsense. I found it because the
+gradient test used 3 samples and 4 bands by accident. The fix aligns trailing axes
+explicitly; the test now uses both a square and a non-square batch, so the square case can
+never again be the only one exercised.
+
+**What I was careful not to claim.** These fields are *uncalibrated*. Nothing here has
+fitted them — PB24 prescribes its phase functions and does not tabulate `βp(ψ)` — and the
+power-law tilt is the simplest smooth, differentiable, pivot-neutral choice rather than a
+measurement. The docstrings say that in as many words, because the failure mode for an
+uncalibrated parameter is not that someone disbelieves it, it is that six months later
+someone reports a sweep over it as a result.
+
+**What I learned.** A broadcasting bug that only manifests on non-square inputs is the
+same species as a test that cannot fail: both are invisible under the most natural thing
+to write. The habit that caught it was using deliberately mismatched dimensions, and that
+is worth doing on purpose rather than by luck — `n_sample` and `n_wave` should never be
+equal in a test unless the test is *about* them being equal.
 
 ### 2026-08-13 (Task 13 — ZTT's internals; the caveat that cannot be closed; record v0.28)
 
@@ -1783,7 +1849,7 @@ and still described commissioning HydroLight runs as the route — both now fals
 **Then a Fable agent reviewed the sequence against the code and found it wrong in eight
 places** — enough that what shipped is a second draft with **six more tasks** (16, not 10).
 I verified every load-bearing finding myself before rewriting; all of them held. The full
-list is record §7.17, and the pattern behind them is one thing: **the M0–M4 machinery
+list is record §7.18, and the pattern behind them is one thing: **the M0–M4 machinery
 quietly assumes L23 is the only dataset**, and my sequence assumed it was general. The two
 that would have cost the most: the cross-dataset check **could not have passed** (L23 starts
 at 350 nm, an OLCI-trained emulator's domain starts at 400, and one out-of-domain λ flags

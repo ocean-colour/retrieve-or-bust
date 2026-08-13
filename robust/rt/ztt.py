@@ -97,6 +97,8 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     "psi_KLu",
     "beta_w_over_bb_w",
     "P_bb_sullivan",
+    "P_bb_from_phase",
+    "P_BB_PIVOT_DEG",
     "P_BB_ST_ANGLES",
     "P_BB_ST_MEAN",
     "P_BB_ST_COEFFS",
@@ -437,6 +439,90 @@ def P_bb_sullivan(psi_deg: Float[Array, "..."]) -> Float[Array, "..."]:
         ``Pbb(ψ)`` in sr⁻¹, ~0.137 at its minimum near 140° rising to ~0.23 at 90°.
     """
     return jnp.polyval(jnp.asarray(P_BB_ST_COEFFS), jnp.asarray(psi_deg))
+
+
+#: Reference angle the backward-shape tilt pivots about (degrees). 180° is exact
+#: backscatter, where :attr:`~robust.rt.types.PhaseParams.beta_tilde_pi` is
+#: defined, so the tilt leaves that value alone by construction.
+P_BB_PIVOT_DEG = 180.0
+
+
+def P_bb_from_phase(phase_params, psi_deg) -> Float[Array, "..."]:
+    """``Pbb(ψ) = βp(ψ)/bb_p`` from the phase-function container (M5 task 14).
+
+    ZTT takes the particulate backward phase function as a **required model
+    input** (paper §2.9), and M0-M4 always supplied the one fixed shape the paper
+    reports its best results with, :func:`P_bb_sullivan`. Design §4.2 planned a
+    2-3 parameter backward-VSF axis for when data sampled it; this is that axis,
+    built on the two fields :class:`~robust.rt.types.PhaseParams` gained:
+
+    ``Pbb(ψ) = beta_tilde_pi * S_ST(ψ)/S_ST(180°) * (ψ/180)**(-backward_slope)``
+
+    - ``beta_tilde_pi`` **rescales** the shape so that ``Pbb(180°)`` equals it.
+      Sullivan's own value is 0.153 sr^-1, so passing that reproduces the fixed
+      shape exactly.
+    - ``backward_slope`` **tilts** it across the backward hemisphere, pivoting at
+      180° so the two parameters are independent: 0 leaves Sullivan's angular
+      dependence untouched, positive values raise the shape away from
+      backscatter.
+
+    Either field left ``None`` takes its neutral value, so
+    ``P_bb_from_phase(PhaseParams(B_p=...), psi)`` **is** ``P_bb_sullivan(psi)``,
+    bit for bit. That is what keeps every M0-M4 number reproducible.
+
+    Parameters
+    ----------
+    phase_params : robust.rt.types.PhaseParams
+    psi_deg : Array
+        Scattering angle (degrees).
+
+    Returns
+    -------
+    Array
+        ``Pbb(ψ)`` in sr^-1.
+
+    Notes
+    -----
+    **This parameterization is uncalibrated, and the form is a choice.** A power
+    law in ``ψ/180`` is the simplest one-parameter tilt that is smooth,
+    differentiable, and neutral at the pivot; it is not derived from measurements,
+    and no dataset in this repository constrains it -- PB24 prescribes its phase
+    functions and does not tabulate ``βp(ψ)`` (record §7.2). So this is an axis to
+    sweep and an interface to build against, not a fitted model. Any result that
+    varies these fields must say which values it used and that they are inputs.
+    """
+    shape = P_bb_sullivan(psi_deg)
+    if phase_params is None:
+        return shape
+
+    def align(value):
+        """Give a per-sample parameter the trailing axes ``psi`` already has.
+
+        ``rrs_ZTT`` hands this function ``psi`` shaped ``(n_sample, 1)`` so it
+        broadcasts against wavelength. A per-sample parameter arrives as
+        ``(n_sample,)``, and ``(n, 1) * (n,)`` broadcasts to ``(n, n)`` -- not an
+        error, just silently the wrong thing, which is the failure mode worth
+        spending four lines on.
+        """
+        value = jnp.asarray(value)
+        psi = jnp.asarray(psi_deg)
+        if value.ndim and value.ndim < psi.ndim:
+            return value.reshape(value.shape + (1,) * (psi.ndim - value.ndim))
+        return value
+
+    slope = getattr(phase_params, "backward_slope", None)
+    if slope is not None:
+        ratio = jnp.asarray(psi_deg) / P_BB_PIVOT_DEG
+        shape = shape * ratio ** (-align(slope))
+
+    pi_value = getattr(phase_params, "beta_tilde_pi", None)
+    if pi_value is not None:
+        pi_value = align(pi_value)
+        # Renormalise so the caller's beta_tilde_pi is exactly Pbb(180 deg),
+        # whatever the tilt did -- which is what makes the two independent.
+        at_pivot = P_bb_sullivan(jnp.asarray(P_BB_PIVOT_DEG))
+        shape = shape * (jnp.asarray(pi_value) / at_pivot)
+    return shape
 
 
 def backward_phase_over_bb(iops, P_bb, psi_deg) -> Float[Array, "..."]:
@@ -899,7 +985,10 @@ def rrs_ZTT(
     else:
         mu_inf_value = mu_infinity_tt2017(bb_over_a, eta_bb)
 
-    P_bb_value = P_bb_sullivan(psi_b) if P_bb is None else P_bb
+    # The backward VSF: an explicit override wins, else the phase container -- which
+    # falls back to Sullivan's fixed shape when its M5 fields are None, so this is
+    # the M0-M4 expression unless a caller supplies the new parameters.
+    P_bb_value = P_bb_from_phase(phase_params, psi_b) if P_bb is None else P_bb
     numerator = backward_phase_over_bb(iops, P_bb_value, psi_b)
     b_tilde = bb_tilde(iops, phase_params.B_p)
 

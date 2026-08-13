@@ -206,12 +206,13 @@ class IOPs:
 class PhaseParams:
     """Explicit phase-function descriptor.
 
-    **This class is the extension point of the whole API.** Week 1 carries a
-    single scalar, the particulate backscattering ratio ``B_p`` (design §4.2). At
-    M5 the fuller ZTT backward-VSF parameters join it as *additional optional
-    fields defaulting to ``None``* -- which is why the design insists the phase
-    function be a container rather than a bare array. Adding a field changes
-    neither :func:`robust.rt.forward`'s signature nor any existing call site.
+    **This class is the extension point of the whole API, and M5 exercised it.**
+    Week 1 carried a single scalar, the particulate backscattering ratio ``B_p``
+    (design §4.2). M5 task 14 added the fuller ZTT backward-VSF parameters as
+    *additional optional fields defaulting to ``None``* -- which is why the design
+    insisted the phase function be a container rather than a bare array. Adding
+    them changed neither :func:`robust.rt.forward`'s signature nor any existing
+    call site, and every test written before them passed untouched.
 
     Two consequences of the ``None`` default worth knowing. A field left ``None``
     contributes no leaves, so gradients and ``tree_map`` ignore it. But the
@@ -221,6 +222,24 @@ class PhaseParams:
 
     Attributes
     ----------
+    beta_tilde_pi : Array or None
+        **M5 (task 14).** The particulate backward phase function at exact
+        backscatter, ``Pbb(180°) = βp(180°)/bb_p``, in sr^-1 — the ``β̃(π)`` the
+        design names as the first of the fuller ZTT backward-VSF parameters
+        (design §4.2). ``None`` means "use the fixed Sullivan & Twardowski (2009)
+        shape", which is what M0-M4 did, so a ``None`` here reproduces every
+        earlier number exactly.
+    backward_slope : Array or None
+        **M5 (task 14).** The second backward-VSF parameter: a dimensionless tilt
+        of the shape across the backward hemisphere, 0 meaning "Sullivan's shape
+        unchanged". See :func:`robust.rt.ztt.P_bb_from_phase` for the exact form
+        and for what it does and does not claim.
+
+        **Neither field is calibrated.** They are the *axis* the design asked for,
+        plumbed through and gradient-checked; nothing in this repository has
+        fitted them, because PB24 prescribes its phase functions and does not
+        tabulate ``βp(ψ)``. Treat them as inputs to sweep, not as retrieved
+        quantities.
     B_p : Array
         Particulate backscattering ratio ``bb_p / b_p``, dimensionless, typically
         ~0.005-0.03. Realized through a Fournier-Forand phase function. May be a
@@ -229,6 +248,8 @@ class PhaseParams:
     """
 
     B_p: Float[Array, "..."]
+    beta_tilde_pi: Float[Array, "..."] | None = None
+    backward_slope: Float[Array, "..."] | None = None
 
     def validate(self) -> None:
         """Raise ``ValueError`` unless ``B_p`` is a physical ratio.
