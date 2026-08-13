@@ -1142,10 +1142,17 @@ PB24_ENVELOPE = Envelope(theta_s=(0.0, 70.0), theta_v=(0.0, 70.0))
 def backbone_is_usable(rrs_ztt) -> np.ndarray:
     """Per-sample: is the analytic backbone physical across the whole spectrum?
 
-    **Why this exists (M5 task 9, Q17).** ``mu_infinity_tt2017`` is a fit in
-    ``bb/a``; L23 spans ``bb/a`` up to 0.59 and PB24 reaches 3.54, where the fitted
-    polynomial goes negative and flips the sign of the ZTT denominator. The result
-    is a *non-physical* backbone -- ``rrs_ZTT <= 0`` on ~22% of PB24 -- and the
+    **Why this exists (M5 tasks 9 and 13, Q17).** ZTT's ``psi_KLu = 1 + F(psi)``
+    is a quartic fitted for scattering angles ``psi >~ 134`` degrees (see
+    :func:`robust.rt.ztt.F_psi`); it crosses zero at 110.4 and is negative below,
+    which flips the sign of the ZTT denominator. Of the non-physical samples,
+    **71% have psi below that crossing and only 5% have a non-positive mu_inf** --
+    so this is a *scattering-angle* problem, not the ``bb/a`` one an earlier
+    version of this docstring claimed. (``mu_infinity_tt2017`` is separately
+    outside its own fitted range -- it covers ``bb/a`` up to 0.1 and PB24 reaches
+    9.4 over 200 realisations, 20.1 over the release -- but that accounts for a
+    twentieth of the effect.) The result either way is a *non-physical* backbone
+    -- ``rrs_ZTT <= 0`` on ~22% of PB24's window -- and the
     hybrid is ``rrs_ZTT * (1 + delta)`` with ``|delta| <= 0.5``, so **no bounded
     relative correction can turn a negative backbone into a positive
     reflectance**. Those samples are not hard, they are impossible for this
@@ -1190,7 +1197,7 @@ def fit_pb24(
 
     1. **The target is the tabulated ``rrs``**, not ``Rrs`` converted through the
        surface map. PB24 ships both, and the nadir map is wrong off-nadir by a
-       median 45.7% at ``theta_v = 60`` (record §7.10) -- so training through it
+       median 33.6% at ``theta_v = 60`` (record §7.10) -- so training through it
        would fit the emulator to an interface error.
     2. **``theta_v`` and ``dphi`` are live features.** They are already in
        :data:`FEATURES` and were constant in L23, which is exactly why the domain
@@ -1251,6 +1258,18 @@ def fit_pb24(
         raise ValueError(
             "fit_pb24: the training mask is empty after restricting to the "
             "sanctioned window and a usable backbone"
+        )
+    if not test.any():
+        # The geometry split's test side *is* the shell, so intersecting it with
+        # the sanctioned window empties it -- and an empty eval mask records a
+        # curve of NaN, which reads as a number and compares False against any
+        # gate. `make_splits` raises on an empty side for the same reason.
+        raise ValueError(
+            f"fit_pb24: the {kind!r} split's held-out side is empty after "
+            "restricting to the sanctioned window and a usable backbone. For "
+            "'geometry' that is structural -- its test side is the 80/87.75 shell, "
+            "which the window excludes by construction; score it directly rather "
+            "than as an eval curve."
         )
 
     coverage = {

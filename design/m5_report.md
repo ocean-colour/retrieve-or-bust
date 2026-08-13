@@ -102,7 +102,7 @@ Nine pieces of infrastructure, each gated, none of which depends on the hybrid p
 
 | | what landed |
 |---|---|
-| **conventions** | a second wavelength grid (`WaveGrid`, `GRIDS`), `bb_w` extrapolation modes, and a **geometry-aware surface transfer** — Lee's nadir constants are wrong by a median 45.7% at θv = 60°, and the fitted table is **7.2× better** there on held-out data |
+| **conventions** | a second wavelength grid (`WaveGrid`, `GRIDS`), `bb_w` extrapolation modes, and a **geometry-aware surface transfer** — Lee's nadir constants are wrong by a median 33.6% at θv = 60°, and the fitted table is **7.2× better** there on held-out data |
 | **data.pb24** | loader, three splits (realisation / `B_p` band / geometry), per-axis geometry subsampling, `LoadReport` |
 | **baselines** | `O25Table` over the full `(θs, θv, Δφ)` grid — **1.67× better** than the θs-only refit, so the benchmark is no longer one we crippled |
 | **validation** | `rrms` masking (double-`where`, NaN-safe gradients), `group_rrms(expected=)`, `gradient_report` generalised to any field |
@@ -131,7 +131,21 @@ realisations; O25's geometry table is 1.67× better than the zenith-only refit; 
 5. **O25's PB24 numbers are refits**, on its own calibration set, and must never be set
    beside its 0.69% on L23 — that would compare datasets and call it models.
 
-## 6. Three defects an audit found in my own work
+## 6. Two contaminations noted and not fixed
+
+- **The shipped surface transfer overlaps this milestone's held-out sets.** It was fitted on
+  a 400-realisation split under `SPLIT_SEED = 23`; the PB24 benchmark splits 200 and the
+  gate 800, and `make_splits` permutes whatever set it is given — so **"seed 23" does not
+  name one partition**. 31 of the benchmark's 40 held-out realisations were in the
+  transfer's training set. The transfer sits only in O25's scoring path, so the bias
+  favours the rival and every hybrid FAIL is conservative; the residual is ~1.8% median.
+  Unquantified rather than harmless, and it should be fixed by refitting the transfer on
+  each consumer's own train mask.
+- **`B_p` span is quoted at three sample sizes** across the milestone (6.2× from ~50 files,
+  9.7× from 200, 12.4× from 600). Each is honest at its own size; none said so. The
+  dataset-level figure is the largest sample's.
+
+## 7. Three defects an audit found in my own work
 
 Recorded because the pattern matters more than the individual fixes.
 
@@ -149,7 +163,7 @@ And two causal stories asserted before being tested, both wrong: ZTT's collapse 
 observation and feels like part of it.** Both were caught by writing the mechanism down as a
 prediction and testing it.
 
-## 7. Where the reproducible numbers come from
+## 8. Where the reproducible numbers come from
 
 ```bash
 pytest -q                                       # 416 tests; 44 skip without $OS_COLOR

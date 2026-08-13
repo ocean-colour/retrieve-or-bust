@@ -99,7 +99,7 @@ my first reading of the data (see the log entry).
 
    | θv | 0° | 10° | 20° | 30° | 40° | 50° | 60° | 70° | 80° | 87.5° |
    |---|---|---|---|---|---|---|---|---|---|---|
-   | median \|dev\| | 1.8% | 1.9% | 2.6% | 6.2% | 13.0% | 24.7% | **45.7%** | 83.6% | 162% | 275% |
+   | median \|dev\| | 1.8% | 1.9% | 2.6% | 6.2% | 13.0% | 24.7% | **33.6%** | 83.6% | 162% | 275% |
 
    `Rrs/rrs` falls from 0.530 at nadir to 0.160 at θv = 87.5°; restricted to θv, θs ≤ 60°
    the median is a tolerable 3.8–4.9% but the maximum is still 113–124%.
@@ -582,7 +582,7 @@ samples because the envelope reached exactly as far as the data did).
      passes no geometry — verified, not assumed.
 
    `Rrs_to_rrs`/`rrs_to_Rrs` hard-code Lee's nadir `A = 0.52`, `B = 1.7`; PB24 measures a
-   median 45.7% error at θv = 60°, **inside** the Q14 training window (consequence 2). Fit
+   median 33.6% error at θv = 60°, **inside** the Q14 training window (consequence 2). Fit
    the geometry dependence from PB24's own `Rrs`, `rrs` and `Q`: `A(θv)` at minimum,
    testing whether θs and Δφ terms earn their place. Keep the nadir constants as the
    **default** so every M4 number stays reproducible, and decide explicitly whether the fit
@@ -1038,7 +1038,32 @@ samples because the envelope reached exactly as far as the data did).
     - **`rt_elastic_coding_prompt_7.md`** — the M6 hand-off, with the three routes M5's
       measurements leave open and **Q18** (which route; is commissioning HydroLight runs on
       the table) blocking its scoping task.
-    - **PR-review pass** — run by Fable over the whole milestone.
+    - **PR-review pass** — run by Fable over the whole ~9,800-line milestone. **No HIGH
+      findings**, and it verified a long list of the project's measured numbers exactly
+      (`corr(log B_p, log C) = −0.49`, the water-class counts, `P_bb_sullivan(180°)`,
+      `F_psi`'s term cancellation, the bb_w clamp excess, the OLCI grid arithmetic). Six
+      findings fixed, each pinned where it needed a test:
+      - **An empty held-out side became a NaN curve.** `fit_pb24(kind="geometry")`
+        intersects the test mask with the sanctioned window, and the geometry split's test
+        side *is* the shell — so the eval curve was all NaN, which compares False against
+        any gate and reports nothing wrong. Now raises, like `make_splits` does.
+      - **A superseded causal story left in the code.** `backbone_is_usable`'s docstring
+        still blamed µ∞/`bb/a` for the backbone's collapse — the attribution task 13
+        corrected everywhere *except* there. Measured: ψ explains **71%**, µ∞ **5%**. It
+        also carried `bb/a ≤ 3.54` when 200 realisations reach **9.36**.
+      - **`45.7%` was a single-file number quoted as a dataset property.** Over 200
+        realisations the nadir map's median error at θv = 60° is **33.6%**. Corrected in
+        six files; the record's per-file table keeps 45.7% with an explicit note that it is
+        file 0001 alone.
+      - **`B_P_EXPECTED` warned on every legitimate PB24 load**, having been copied from
+        L23 — the exact "trains the user to silence it" failure the project argues against
+        elsewhere. Widened to PB24's measured band.
+      - **`PhaseParams.validate()` ignored the M5 fields**, so a negative `beta_tilde_pi`
+        flowed into a negative `Pbb` and a negative `rrs` unremarked.
+      - **The shipped surface transfer overlaps the held-out sets** it is scored against
+        (31 of 40 realisations) — because `seed 23` names a different partition at each
+        population size. It sits only in O25's path, so it favours the rival and a FAIL is
+        conservative; recorded in the report §6 rather than silently fixed.
 
 ---
 
@@ -1351,6 +1376,15 @@ printing 110.30 against the record's 110.4), the surface-transfer gain (7.3× fr
 rounded table against 7.2× from the unrounded fit), and `Ψ_KLu(44.3)`. That last one was
 **mine, not the notebook's** — the true value is −60.6 and I had written −60.7 into three
 documents. All corrected.
+
+**And then the review found six more, one of which stings.** `backbone_is_usable`'s
+docstring still carried the µ∞ story that task 13 disproved — I corrected that attribution
+in the record, the report, and this doc, and never looked at the function whose *behaviour*
+the attribution was about. A correction that updates the prose and not the code leaves the
+wrong explanation exactly where the next reader will trust it most. The other five: an empty
+eval mask recorded as NaN, a single-file 45.7% quoted as a dataset property in six files, a
+warning that fired on every legitimate load, unvalidated new fields, and a surface transfer
+whose training set overlaps the sets it is scored against.
 
 **What I learned.** A rounding disagreement between a document and its own figure is not
 pedantry — it is the only signal that the two were produced by different paths. Twice now
@@ -2043,7 +2077,7 @@ work sits in the order, I grepped for the users of the nadir map: `baselines.py:
 (Gordon), `baselines.py:302` (`rrs_o25`), `ztt.py:939`, `hybrid.py:270`, and
 `emulator.py:978` — that last one converting L23's `Rrs` into the emulator's *training
 targets*. `fit_o25` also fits in `Rrs` while we score in `rrs`, so the map sits between a
-rival's fit and its score. Off-nadir on PB24 that means a 45.7%-at-60° interface error
+rival's fit and its score. Off-nadir on PB24 that means a 33.6%-at-60° interface error
 would be charged to every model at once, including the benchmark, and none of it would be
 theirs. So the bullet moved from "sequence early" to **"sequence before the benchmark"**,
 with a reason that can be checked rather than a preference. PB24 tabulating `rrs` also lets
@@ -2114,7 +2148,7 @@ NaNs. It **refuted two claims**, both mine:
    training set.
 
 I then re-verified the surface-transfer refutation myself on two files rather than take it
-on trust, and it holds: the deviation is monotone in view angle (1.8% at nadir → 45.7% at
+on trust, and it holds: the deviation is monotone in view angle (1.8% at nadir → 33.6% at
 60° → 275% at 87.5°), so the table in consequence 2 is measured twice, by different code.
 
 The audit also found `rrs` **exactly zero** at some grazing geometries (float32 underflow at

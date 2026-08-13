@@ -145,7 +145,7 @@ table + figures produced and committed.
 realisation (~30×) as well as the geometry — so the *held-out phase-function split* is
 constructible without commissioning HydroLight runs, and commissioning drops to a stretch
 item that answers only the across-VSF-family question. PB24 also showed that the Lee-2002
-`Rrs ↔ rrs` map is nadir-only (45.7% median error at θv = 60°), adding a
+`Rrs ↔ rrs` map is nadir-only (33.6% median error at θv = 60°), adding a
 **geometry-aware surface transfer** task that this sketch did not anticipate.
 
 The task sequence (3–12), with a test gating each, lives in

@@ -1,6 +1,6 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.31
+**Version:** 0.32
 **Date:** 2026-08-13
 **Authors:** JXP and Claude
 
@@ -47,8 +47,8 @@ Gordon on the held-out splits"), never blind absolute targets; absolute rRMS and
 latency are **reported** here, not thresholded. The gradient-correctness check
 (`jax.grad` vs central finite differences) is a hard gate from M2 onward.
 
-**Verification (current).** `pytest -q` → **416 passed** (`ocean14`); with
-`$OS_COLOR` unset, **372 passed + 44 skipped** — which is what CI sees. The loader is
+**Verification (current).** `pytest -q` → **418 passed** (`ocean14`); with
+`$OS_COLOR` unset, **373 passed + 45 skipped** — which is what CI sees. The loader is
 exercised without the dataset against a committed 50-scene fixture.
 `ruff check robust/` and `ruff format --check robust/` → clean. The suite is green both with and without the L23
 reference data on disk (missing data skips, never fails). All five notebooks in
@@ -1671,7 +1671,7 @@ value *and* the log-slope across the seam.
 
 - **`PB24Batch`** carries `rrs` **and** `Rrs` — the reason being §7.3: `L23Batch`
   holds `Rrs` alone and derives `rrs` through the nadir Lee map, which is wrong
-  off-nadir by a median 45.7% at θv = 60°. PB24 tabulates `rrs`, so scoring never
+  off-nadir by a median 33.6% at θv = 60°. PB24 tabulates `rrs`, so scoring never
   touches that map. Also `Q`, `mu_d`/`mu_u`/`mu_tot` by default, the seven K's on
   request (`extras=`), `realisation`, optional `water_class`, and a `LoadReport`.
 - **`RAW_FIELDS` is complete rather than minimal** (31 fields). The fixture is

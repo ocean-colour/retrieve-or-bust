@@ -410,3 +410,21 @@ def test_from_total_bb_default_is_the_old_clamp_exactly():
     differs = np.asarray(clamped.bb_w[0] != extrapolated.bb_w[0])
     assert differs.sum() == 1
     assert differs[-1]  # 753 nm
+
+
+def test_validate_checks_the_m5_phase_fields():
+    """**Regression (M5 review, L5).** They flow into Pbb, so they need checking.
+
+    A negative ``beta_tilde_pi`` produces a negative backward phase function and
+    a negative ``rrs``, with no symptom anywhere — the silent path ``validate()``
+    exists to close for ``B_p``.
+    """
+    base = dict(B_p=jnp.asarray(0.012))
+
+    T.PhaseParams(**base, beta_tilde_pi=jnp.asarray(0.15)).validate()
+    T.PhaseParams(**base, backward_slope=jnp.asarray(-0.5)).validate()  # sign is fine
+
+    with pytest.raises(ValueError, match="beta_tilde_pi"):
+        T.PhaseParams(**base, beta_tilde_pi=jnp.asarray(-0.1)).validate()
+    with pytest.raises(ValueError, match="backward_slope"):
+        T.PhaseParams(**base, backward_slope=jnp.asarray(jnp.nan)).validate()

@@ -266,6 +266,15 @@ class PhaseParams:
         """
         arr = np.asarray(self.B_p, dtype=float)
         conventions.check_iop(arr, "PhaseParams.B_p")
+        # The M5 fields get the same treatment: a negative beta_tilde_pi flows
+        # straight into a negative Pbb and a negative rrs with no symptom, which
+        # is the silent path this method exists to close.
+        if self.beta_tilde_pi is not None:
+            conventions.check_iop(self.beta_tilde_pi, "PhaseParams.beta_tilde_pi")
+        if self.backward_slope is not None:
+            values = np.asarray(self.backward_slope, dtype=float)
+            if not np.all(np.isfinite(values)):
+                raise ValueError("PhaseParams.backward_slope: non-finite value(s)")
         if np.any(arr <= 0.0) or np.any(arr > 1.0):
             raise ValueError(
                 f"PhaseParams.B_p: must lie in (0, 1]; got range "

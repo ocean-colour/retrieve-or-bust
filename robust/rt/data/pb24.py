@@ -131,9 +131,13 @@ ANGLE_WINDOW_MAX = 70.0
 #: Angle-selection modes for :func:`load_batch`.
 ANGLE_MODES = ("window", "shell", "all")
 
-#: The design's nominal range for ``B_p`` (§4.2). Advisory: the loader *warns*
-#: outside it, never clips -- same contract as :mod:`robust.rt.data.l23`.
-B_P_EXPECTED = (0.004, 0.03)
+#: The advisory range for ``B_p`` on **this** dataset. Deliberately not L23's
+#: (0.004, 0.03): PB24 measurably spans 0.0010-0.0358, so L23's band warns on
+#: every legitimate load -- and a warning that always fires teaches the reader to
+#: silence it, which is the argument :data:`robust.rt.emulator.DOMAIN_TOL` makes
+#: about tolerances. Widened to the design's nominal band plus the margin PB24
+#: actually occupies; the loader still *warns* outside it and never clips.
+B_P_EXPECTED = (0.0009, 0.04)
 
 #: Seed for every random split. Arbitrary but fixed forever -- changing it
 #: invalidates every held-out number computed from it.
@@ -306,7 +310,7 @@ class PB24Batch:
 
     The field list deliberately exceeds L23's. ``L23Batch`` carries ``Rrs`` alone
     and derives ``rrs`` through the nadir Lee-2002 map, which PB24 itself shows is
-    wrong off-nadir by a median 45.7% at ``theta_v = 60`` -- so ``rrs`` is carried
+    wrong off-nadir by a median 33.6% at ``theta_v = 60`` -- so ``rrs`` is carried
     **as tabulated**, and scoring never passes through that map.
 
     Attributes
@@ -1074,8 +1078,7 @@ def _warn_if_B_p_unexpected(B_p: np.ndarray) -> None:
         warnings.warn(
             f"B_p leaves the expected range {B_P_EXPECTED}: "
             f"{int(outside.sum())} of {B_p.size} values, observed range "
-            f"[{B_p.min():.5g}, {B_p.max():.5g}]. Reported, not clipped -- "
-            "PB24 spans a wider band than L23, so this is informative, not wrong.",
+            f"[{B_p.min():.5g}, {B_p.max():.5g}]. Reported, not clipped.",
             UserWarning,
             stacklevel=3,
         )

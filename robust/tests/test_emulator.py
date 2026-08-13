@@ -1278,3 +1278,28 @@ def test_a_pb24_trained_emulator_does_not_transfer_to_l23():
     )
     # and it is not a small nudge: the correction runs near its own bound
     assert np.median(np.abs(delta)) > 0.1
+
+
+@needs_pb24
+def test_fit_pb24_refuses_an_empty_held_out_side():
+    """**Regression (M5 review, M1).** An empty eval mask records NaN, not a failure.
+
+    The geometry split's test side *is* the 80/87.75 shell, and `fit_pb24`
+    intersects the test mask with the sanctioned window — which excludes the
+    shell by construction. The result was a held-out curve of NaN: a number that
+    compares False against any gate and reports nothing wrong. `make_splits`
+    raises on an empty side for exactly this reason; so does this now.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=6, angles="all", geometry_stride=(1, 4, 4))
+    splits = P.make_splits(batch, kinds=P.SPLIT_KINDS)
+    config = E.EmulatorConfig(steps=10, seed=23)
+
+    with pytest.raises(ValueError, match="held-out side is empty"):
+        E.fit_pb24(batch, splits, "geometry", config=config)
+
+    # and the splits it *can* serve still work on the same batch
+    emulator, history, _ = E.fit_pb24(batch, splits, "realisation", config=config)
+    curve = np.asarray(history.eval["realisation_test"])
+    assert np.isfinite(curve).all(), "the eval curve must be numbers, not NaN"
