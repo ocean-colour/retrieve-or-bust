@@ -27,9 +27,23 @@ The figure is stored in the paper PDF as an embedded raster image
      (Dutkiewicz et al. 2015, Table 1), i.e. the CDOM concentration the
      Darwin model would need to produce the ag(450) of each Loisel sample.
 
-3. ``plot`` -- regenerates the figure from the CSVs alone, as a check that
-   the extraction is faithful, overlaying the Loisel et al. (2023) points on
-   the digitized Dutkiewicz joint PDF when their CSV is present.
+3. ``raphe`` -- converts the in situ Chl-a/CDOM measurements shared by
+   Raphe Kudela (``$OS_COLOR/Raphe``) to the same axes and writes them to a
+   companion CSV.  Two sources: ``CDOM_TChla.csv`` (789 Pacific/Arctic field
+   samples, 2010-2017) and ``GLORIA_meta_and_lab.csv`` (the GLORIA community
+   dataset of optically complex inland/coastal waters, Lehmann et al. 2023,
+   Sci. Data 10, 100; rows with both Chla and aCDOM440).  Both report
+   aCDOM(440) in m^-1, which is shifted to 450 nm with the Darwin spectral
+   slope, exp(-0.021 * 10), before dividing by ccdom(450).  QC: rows with
+   non-positive Chl or aCDOM are dropped (see the Q&A section of
+   claude_prompts/dutkiewicz_priors.md).
+
+4. ``plot`` -- regenerates the figure from the CSVs alone, as a check that
+   the extraction is faithful, overlaying the Loisel et al. (2023) and
+   Kudela points on the digitized Dutkiewicz joint PDF when their CSVs are
+   present.  If the Kudela data are shown, the axes are extended to hold
+   the full GLORIA dynamic range and the original Fig. 10a panel is drawn
+   as a dashed rectangle.
 
 Pixel calibration (measured from the embedded image; see claude_prompts/
 dutkiewicz_priors.md logs for the derivation):
@@ -44,6 +58,7 @@ Usage (from the repo root, in the ``ocean14`` environment)::
 
     python robust/dutkiewicz2018_fig10.py extract
     python robust/dutkiewicz2018_fig10.py loisel
+    python robust/dutkiewicz2018_fig10.py raphe
     python robust/dutkiewicz2018_fig10.py plot
 """
 
@@ -65,15 +80,22 @@ CSV_PATH = DATA_DIR / 'dutkiewicz2018_fig10a_chl_cdom.csv'
 LUT_PATH = DATA_DIR / 'dutkiewicz2018_fig10_colorbar_lut.csv'
 FIG_PATH = DATA_DIR / 'dutkiewicz2018_fig10a_regenerated.png'
 LOISEL_CSV = DATA_DIR / 'loisel2023_chl_cdom.csv'
+RAPHE_CSV = DATA_DIR / 'raphe_chl_cdom.csv'
 
+# External data roots
+OS_COLOR = (Path(os.environ.get('OS_COLOR', '~/Oceanography/data/Color'))
+            .expanduser())
 # Loisel et al. (2023) synthetic database (netCDF files from Dryad,
 # doi:10.6076/D1630T); the IOPs are identical across the nine RT scenarios.
-LOISEL_NC = (Path(os.environ.get('OS_COLOR', '~/Oceanography/data/Color'))
-             .expanduser() / 'Loisel2023' / 'Hydrolight100.nc')
+LOISEL_NC = OS_COLOR / 'Loisel2023' / 'Hydrolight100.nc'
+# In situ measurements shared by Raphe Kudela (UCSC)
+RAPHE_DIR = OS_COLOR / 'Raphe'
 
 # Conversions to the Dutkiewicz Fig. 10a axes (see module docstring)
 APH_STAR_440 = 0.05582   # m^2 (mg Chl)^-1, Bricaud et al. (1998)
 CCDOM_450 = 0.18         # m^2 (mmol C)^-1, Dutkiewicz et al. (2015) Table 1
+SCDOM = 0.021            # nm^-1 CDOM spectral slope, Dutkiewicz et al. (2015)
+AG440_TO_450 = float(np.exp(-SCDOM * (450 - 440)))   # ~0.81
 
 # ---------------------------------------------------------------------------
 # Pixel calibration of the embedded raster (2047 x 921 px)
@@ -307,6 +329,60 @@ def extract_loisel():
     print(f'  CDOM range {cdom.min():.4g} - {cdom.max():.4g} mmol C m-3')
 
 
+def extract_raphe():
+    """Convert the Kudela in situ measurements to Fig. 10a axes.
+
+    Combines the two files in RAPHE_DIR into RAPHE_CSV with a `source`
+    column ('field' = CDOM_TChla.csv, 'GLORIA' = GLORIA_meta_and_lab.csv).
+    aCDOM(440) is shifted to 450 nm with the Darwin spectral slope before
+    dividing by ccdom(450); rows with non-positive values are dropped.
+    """
+    import pandas as pd
+
+    field = pd.read_csv(RAPHE_DIR / 'CDOM_TChla.csv', encoding='utf-8-sig')
+    field = field.rename(columns={'TChla': 'Chl', 'aCDOM(440)': 'aCDOM440'})
+    field['source'] = 'field'
+
+    gloria = pd.read_csv(RAPHE_DIR / 'GLORIA_meta_and_lab.csv',
+                         usecols=['Chla', 'aCDOM440'], low_memory=False)
+    gloria = gloria.rename(columns={'Chla': 'Chl'}).dropna()
+    gloria['source'] = 'GLORIA'
+
+    df = pd.concat([field[['source', 'Chl', 'aCDOM440']],
+                    gloria[['source', 'Chl', 'aCDOM440']]], ignore_index=True)
+    n0 = len(df)
+    df = df[(df.Chl > 0) & (df.aCDOM440 > 0)]
+    df['CDOM'] = df.aCDOM440 * AG440_TO_450 / CCDOM_450
+
+    DATA_DIR.mkdir(exist_ok=True)
+    header = (
+        '# In situ Chl-a and CDOM shared by Raphe Kudela (UCSC), expressed in\n'
+        '# the units of Dutkiewicz et al. (2018) Fig. 10a.\n'
+        '# source: field  = CDOM_TChla.csv (789 Pacific/Arctic samples, '
+        '2010-2017)\n'
+        '#         GLORIA = GLORIA_meta_and_lab.csv (Lehmann et al. 2023), '
+        'rows with\n'
+        '#                  both Chla and aCDOM440\n'
+        '# Chl in mg m-3 (as reported);\n'
+        f'# CDOM (mmol C m-3) = aCDOM440 * exp(-{SCDOM}*10) / {CCDOM_450}\n'
+        '#   (shift to 450 nm with the Darwin spectral slope, then invert '
+        'ccdom(450))\n'
+        '# QC: rows with non-positive Chl or aCDOM440 dropped.\n'
+        '# Written by robust/dutkiewicz2018_fig10.py.\n'
+        'source,Chl,aCDOM440,CDOM\n')
+    with open(RAPHE_CSV, 'w') as f:
+        f.write(header)
+        for row in df.itertuples(index=False):
+            f.write(f'{row.source},{row.Chl:.6g},{row.aCDOM440:.6g},'
+                    f'{row.CDOM:.6g}\n')
+    print(f'wrote {len(df)} rows to {RAPHE_CSV} '
+          f'({n0 - len(df)} dropped by QC)')
+    for src, sub in df.groupby('source'):
+        print(f'  {src:7s} n={len(sub):4d}  Chl {sub.Chl.min():.4g} - '
+              f'{sub.Chl.max():.4g} mg m-3,  CDOM {sub.CDOM.min():.4g} - '
+              f'{sub.CDOM.max():.4g} mmol C m-3')
+
+
 def plot():
     """Regenerate Fig. 10a from the CSV as a fidelity check."""
     import matplotlib.pyplot as plt
@@ -347,15 +423,57 @@ def plot():
     cb.set_label('Samples per bin')
 
     # Overlay the Loisel et al. (2023) synthetic database, if available
+    any_overlay = False
     if LOISEL_CSV.exists():
         loisel = pd.read_csv(LOISEL_CSV, comment='#')
         ax.scatter(loisel['CDOM'], loisel['Chl'], s=4, marker='o',
                    facecolors='none', edgecolors='royalblue', linewidths=0.5,
-                   alpha=0.6, label='Loisel et al. (2023), n=3320')
-        ax.legend(loc='upper left', framealpha=0.9)
+                   alpha=0.6, label=f'Loisel et al. (2023), n={len(loisel)}')
+        any_overlay = True
     else:
         print(f'{LOISEL_CSV} not found; run the "loisel" command to '
               'create it -- plotting without the overlay')
+
+    # Overlay the Kudela in situ data, if available; these extend far beyond
+    # the Fig. 10a panel, so widen the axes and mark the original panel.
+    if RAPHE_CSV.exists():
+        raphe = pd.read_csv(RAPHE_CSV, comment='#')
+        field = raphe[raphe.source == 'field']
+        gloria = raphe[raphe.source == 'GLORIA']
+        ax.scatter(gloria['CDOM'], gloria['Chl'], s=5, marker='s',
+                   facecolors='none', edgecolors='mediumorchid',
+                   linewidths=0.5, alpha=0.5,
+                   label=f'Kudela: GLORIA (inland/coastal), n={len(gloria)}')
+        ax.scatter(field['CDOM'], field['Chl'], s=10, marker='^',
+                   color='forestgreen', alpha=0.7,
+                   label=f'Kudela: field (Pacific/Arctic), n={len(field)}')
+
+        lo = min(10.0 ** X_LOG_RANGE[0], raphe.CDOM.min() / 1.3)
+        hi = max(10.0 ** X_LOG_RANGE[1], raphe.CDOM.max() * 1.3)
+        ax.set_xlim(lo, hi)
+        lo = min(10.0 ** Y_LOG_RANGE[0], raphe.Chl.min() / 1.3)
+        hi = max(10.0 ** Y_LOG_RANGE[1], raphe.Chl.max() * 1.3)
+        ax.set_ylim(lo, hi)
+        ax.add_patch(plt.Rectangle(
+            (10.0 ** X_LOG_RANGE[0], 10.0 ** Y_LOG_RANGE[0]),
+            10.0 ** X_LOG_RANGE[1] - 10.0 ** X_LOG_RANGE[0],
+            10.0 ** Y_LOG_RANGE[1] - 10.0 ** Y_LOG_RANGE[0],
+            fill=False, edgecolor='0.4', linestyle='--', linewidth=1))
+
+        inpanel = ((raphe.CDOM >= 10.0 ** X_LOG_RANGE[0])
+                   & (raphe.CDOM <= 10.0 ** X_LOG_RANGE[1])
+                   & (raphe.Chl >= 10.0 ** Y_LOG_RANGE[0])
+                   & (raphe.Chl <= 10.0 ** Y_LOG_RANGE[1]))
+        for src, sub in raphe.groupby('source'):
+            print(f'{src}: {inpanel[sub.index].sum()}/{len(sub)} points '
+                  'inside the original Fig. 10a panel (dashed)')
+        any_overlay = True
+    else:
+        print(f'{RAPHE_CSV} not found; run the "raphe" command to '
+              'create it -- plotting without the overlay')
+
+    if any_overlay:
+        ax.legend(loc='upper left', framealpha=0.9, fontsize=8)
     fig.tight_layout()
     fig.savefig(FIG_PATH, dpi=200)
     print(f'saved {FIG_PATH}')
@@ -363,14 +481,18 @@ def plot():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('command', choices=['extract', 'loisel', 'plot'],
+    parser.add_argument('command',
+                        choices=['extract', 'loisel', 'raphe', 'plot'],
                         help='extract: PDF -> CSV;  loisel: netCDF -> CSV;  '
+                             'raphe: in situ CSVs -> CSV;  '
                              'plot: CSVs -> figure')
     args = parser.parse_args()
     if args.command == 'extract':
         extract()
     elif args.command == 'loisel':
         extract_loisel()
+    elif args.command == 'raphe':
+        extract_raphe()
     else:
         plot()
 
