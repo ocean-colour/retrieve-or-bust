@@ -25,6 +25,8 @@ See the following:
 
 4. I have answered your questions in the Q&A section.  Please proceed to add the data from Raphe Kudela to your figure and update the Python script accordingly.  Show his points in a different color from the Dutkiewicz points and Loisel+2023 points.  Log your work.  Use Fable if you can.
 
+5. I have updated the answers.  I don't think they affect any of your work, but double check.  Log your work.  Use Fable if you can.
+
 ## Q&A
 
 Questions from Claude (2026-08-14) about the two files in `$OS_COLOR/Raphe`,
@@ -36,13 +38,13 @@ the Pacific (California coast, western Pacific, tropics), and a few early-2013
 points near Lake Tahoe. Which cruises/programs are these, and are all samples
 surface/near-surface?
 
-**A1.** I don't know. But we won't worry about it for now.
+**A1.** Yes, all are near-surface samples.
 
 **Q2 (units & methods).** Can you confirm TChla is total chlorophyll-a in
 mg m^-3 (HPLC or fluorometric?) and aCDOM(440) is the CDOM absorption
 coefficient at 440 nm in m^-1?
 
-**A2.**  I will ask, but let's assume so for now.
+**A2.**  yes TChla is HPLC
 
 **Q3 (repeated values).** Only 242 unique (TChla, aCDOM) pairs occur among
 the 789 rows — the same lab pair repeats at up to 10 nearby positions/times.
@@ -51,13 +53,13 @@ records (e.g. satellite match-up replicates)? For building a prior, should we
 deduplicate to the unique samples or keep all rows (which implicitly weights
 by station occupancy)?
 
-**A3.** Let me ask.
+**A3.** They are distinct samples, just happen to be near each other
 
 **Q4 (column conventions).** Is SDY the sequential (decimal) day of year in
 UTC? And just to confirm the header order: StnLon then StnLat (the values are
 consistent with that, but the reversed convention is common enough to check).
 
-**A4.** Let me ask.
+**A4.** Yes
 
 **Q5 (GLORIA file).** `GLORIA_meta_and_lab.csv` looks like the published
 community GLORIA dataset (Lehmann et al. 2023, Sci. Data) — 7,572 rows from
@@ -104,6 +106,33 @@ The "Logs" section will record Claude's work.  Please use the following format:
 ...
 
 ## Logs
+
+### 2026-08-15 (Double-checked the updated Q&A answers against the analysis)
+
+Executed prompt 5 with Claude Fable 5. Went through the updated answers
+one by one against what the prompt-4 implementation actually did:
+
+- **A1 (near-surface)** — informational; nothing in the pipeline depends
+  on sample depth for this file. No change.
+- **A2 (TChla is HPLC, mg m^-3)** — confirms the unit assumption already
+  used. No change to values.
+- **A3 (repeated pairs are distinct samples)** — the consequential one.
+  The analysis kept all 789 rows precisely because deduplication was
+  undecided; the answer confirms keeping them all is correct, and my
+  earlier match-up-replicate interpretation was wrong — they are genuinely
+  distinct nearby samples whose lab values coincide (values are rounded to
+  3 decimals, so nearby samples can quantize identically). The pending
+  caveat is now closed with no data change.
+- **A4 (SDY decimal day-of-year UTC; Lon/Lat order)** — confirms the
+  interpretation; these columns aren't used in the figure anyway.
+- **A5–A8** — unchanged from prompt 4 and already implemented as answered.
+
+**Conclusion: no changes to the data, conversion, QC, or figure were
+needed.** The only edit: the `raphe` subcommand's CSV header now records
+the confirmed metadata (distinct near-surface samples, HPLC Chl-a) so the
+provenance travels with `robust/data/raphe_chl_cdom.csv`. Regenerated the
+CSV and verified the data rows are byte-identical to the prompt-4 version
+(only header comments differ).
 
 ### 2026-08-14 (Added the Kudela in situ data to the Fig. 10a comparison)
 

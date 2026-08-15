@@ -1,6 +1,8 @@
 # In situ Chl-a and CDOM shared by Raphe Kudela (UCSC), expressed in
 # the units of Dutkiewicz et al. (2018) Fig. 10a.
-# source: field  = CDOM_TChla.csv (789 Pacific/Arctic samples, 2010-2017)
+# source: field  = CDOM_TChla.csv (789 Pacific/Arctic samples, 2010-2017;
+#                  distinct near-surface samples, Chl-a by HPLC --
+#                  R. Kudela via Q&A in claude_prompts/dutkiewicz_priors.md)
 #         GLORIA = GLORIA_meta_and_lab.csv (Lehmann et al. 2023), rows with
 #                  both Chla and aCDOM440
 # Chl in mg m-3 (as reported);
