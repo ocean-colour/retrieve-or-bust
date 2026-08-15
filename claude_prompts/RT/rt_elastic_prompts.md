@@ -59,6 +59,12 @@ If you need to run Python use the `ocean14` conda environment.
 
 5. The coding plan looks great!  Please generate a series of prompt docs to execute the coding plan.  Name them `claude_prompts/RT/rt_elastic_coding_prompt_1.md`, `claude_prompts/RT/rt_elastic_coding_prompt_2.md`, etc.  Model them after the ones in the PAB repository (in that `claude_prompts` folder). Use Fable if you can.  Log your work.
 
+### Report
+
+1. We have worked through all of the prompt docs.  Please write a report summarizing the work we have done.  Name it `report/rt_elastic_model.md`.  Please ask me a set of questions in Q&A/Report before writing the document.  Use Fable if you can.  Log your work.
+
+2. I have answered your questions in the Q&A section below.  Please review them.  Then proceed to write the report.  Use Fable if you can.  Log your work.
+
 ## Comments
 
 ### Robert's
@@ -74,6 +80,72 @@ Rrs(model) = Rrs(ZTT) + deltaRrs(simulator)
 where ZTT supplies the physically interpretable backbone and a small emulator learns the remaining multiple-scattering and phase-function effects. This preserves physical scaling and geometry while avoiding the unrestricted behavior of a wholly black-box model.
 
 ## Q&A
+
+### Report
+
+#### Round 1 (2026-08-15)
+
+The prototype is complete: M0–M4 delivered `robust/rt/` (ZTT backbone in JAX,
+residual MLP emulator, hybrid `forward()`, O25/Gordon comparisons, the validation
+protocol), 279 tests + CI, five executed notebooks, and the headline table —
+hybrid **0.30%** rRMS on held-out scenes vs O25-refit **0.69%**, ZTT 5.93%, Gordon
+7.21%; unseen-60° reported (seed-dependent 4.7–12.2%) rather than gated. Before
+writing `report/rt_elastic_model.md`, five questions:
+
+**RQ1 — Audience & register.** Who is this report for, and at what length?
+  (a) Science-facing progress report for you + advisors (e.g. share with Robert
+      Frouin): results-led, the architecture and validation story, light on code
+      mechanics; ~4–6 pages. [Claude's lean]
+  (b) Project-record capstone: the full arc (synthesis → design → coding plan →
+      M0–M4) with per-milestone narrative, for future contributors; ~10+ pages.
+  (c) Seed of a publication: methods/results structured like a paper draft.
+>A. For the moment, it is for the Team.  But, it will then evolve into a "publication".  I will not submit to a refereed journal, but I will share it with the world.  So (a) and (c)
+
+**RQ2 — Relationship to the existing docs, and a name collision.** The effort
+already has `context/RT/rt_elastic_model.md` (literature synthesis),
+`design/rt_elastic_model.md` (design), `design/rt_elastic_model_coding_plan.md`,
+`design/prototype_summary.md` (the reviewer-facing M0–M4 summary), and
+`design/rt_elastic_implementation.md` (the current-state record). The new file
+would be the **third** named `rt_elastic_model.md`. Should the report:
+  (a) Be the top-level synthesis of the whole effort — what we set out to do, what
+      was built, what the numbers say, what's next — linking to those docs rather
+      than duplicating them; keep the requested name. [lean]
+  (b) Absorb/supersede `design/prototype_summary.md` as the single summary (and we
+      retire that file).
+  (c) Take a distinct name (e.g. `report/rt_elastic_prototype.md`) to avoid the
+      collision.
+>A. Let's use the name `report/report_rt_elastic_model.md`.
+
+**RQ3 — Figures.** The Setup-report prompt required Python-generated figures saved
+beside the doc; this prompt doesn't mention them. Should I:
+  (a) Generate report-specific figures with a script saved in `report/` (per-λ
+      five-model ladder, the unseen-60° seed-spread plot, and a hybrid architecture
+      /dataflow schematic), regenerated from `design/validation/*.csv`. [lean]
+  (b) Reuse the committed `design/validation/*.png` and notebook figures by
+      reference only.
+  (c) No figures.
+
+>A. (a), but draw from (b)
+
+**RQ4 — Headline framing & a roadmap section.** `prototype_summary.md` leads
+caveats-forward ("what it may not claim": 2.3× over O25 not 24×, O25's 0.69% is
+its best case, geometry extrapolation unresolved, phase-function generalisation
+untested on L23's narrow B_p range). Should the report:
+  (a) Keep that caveats-forward stance and close with a recommended-priorities
+      section for M5 (HydroLight runs with the phase function varied, PB24
+      geometry, Eq. (8) µ∞ coefficients, promoting P_bb into `PhaseParams`). [lean]
+  (b) Conventional results-then-limitations structure, no forward-looking
+      recommendations (strictly a summary of work done).
+
+>A. (a)
+
+**RQ5 — Open threads.** A few items are formally unfinished: the ZTT Eq. (8) µ∞
+coefficients (TT2017 stand-in; you emailed the authors — any reply?), the M3
+task-5 hand-off edit, and prompt doc 6 (M5) is deliberately a placeholder. Treat
+the prototype as complete per the amended M4 gate and list these as open items in
+the report [lean], or close any of them first?
+
+>A.  Write the report now, but have a Section on open items. I'll then deal with them.
 
 ### Design
 
@@ -723,3 +795,79 @@ prototype done (CQ6 held-out splits; acceptance gate; a PR section like PAB's);
 (HydroLight PF/BRDF, PB24, ZTT backward-VSF params, freeze API).
 
 Next: on approval, execute `rt_elastic_coding_prompt_1.md` (M0).
+
+### 2026-08-15 (Posed Round-1 Report Q&A before writing report/rt_elastic_model.md)
+
+Executed the 1st Report prompt: surveyed the completed work, then posed five
+questions (RQ1–RQ5 in Q&A/Report) rather than writing the report yet.
+
+**State surveyed.** `design/rt_elastic_implementation.md` (v0.16, read in full),
+`design/prototype_summary.md`, and `design/validation/` (metrics + figures).
+The Week-1 prototype is complete per the amended M4 gate: `robust/rt/` holds the
+ZTT backbone (TT2017 µ∞ stand-in), the 417-parameter residual MLP emulator, the
+hybrid `forward()`, Gordon and O25-refit comparisons, and the §6 validation
+protocol; 279 tests pass (256+23 skips without `$OS_COLOR` = CI), ruff clean,
+five executed notebooks. Headline (rRMS in `rrs`, held-out scenes): hybrid-MLP
+**0.30%** vs O25-refit 0.69%, hybrid-linear 2.54%, ZTT 5.93%, Gordon 7.21%;
+unseen-60° is reported not gated (hybrid seed-dependent 4.7–12.2% vs O25's
+deterministic 4.63%). The `report/` directory does not exist yet.
+
+**Why these questions.** RQ1 audience/length and RQ4 framing decide whether the
+report inherits `prototype_summary.md`'s caveats-forward stance and adds an M5
+recommendations section. RQ2 flags a real collision — `report/rt_elastic_model.md`
+would be the third file with that name (after `context/RT/` and `design/`) — and
+asks whether the report links to or supersedes `prototype_summary.md`. RQ3 asks
+whether to generate fresh figures with a script in `report/` (the Setup-report
+convention) or reuse the committed validation artefacts. RQ5 lists the formally
+unfinished threads (Eq. (8) µ∞ coefficients, M3 task-5 hand-off edit, the M5
+placeholder prompt) and asks whether any should close before the report calls
+the prototype done.
+
+Next: await RQ1–RQ5, then write `report/rt_elastic_model.md`.
+
+### 2026-08-15 (Wrote report/report_rt_elastic_model.md with three script-generated figures)
+
+Executed the 2nd Report prompt. Reviewed the RQ answers — RQ1 = (a)+(c), a team
+report that will evolve into a public (non-refereed) write-up; RQ2 = name it
+`report/report_rt_elastic_model.md`; RQ3 = (a) script-generated figures in
+`report/`, drawing from the committed validation artefacts; RQ4 = (a)
+caveats-forward with an M5 recommended-priorities section; RQ5 = write now, with
+an Open Items section for JXP to dispatch — and wrote the report.
+
+**Figures — new script `report/make_report_figures.py`** (ocean14), three PNGs
+beside the report:
+- `fig_architecture.png` — the hybrid dataflow: inputs → ZTT backbone (unfitted
+  physics, TT2017 µ∞ stand-in) and the 7-feature → MLP(16,16) → δ path, combined
+  as `rrs = rrs_ZTT(1+δ)` → the air–water interface; annotated with the gradient
+  gate and the DomainWarning/fallback behaviour.
+- `fig_rrms_ladder.png` — the per-λ five-model ladder on held-out scenes, read
+  from `design/validation/rrms_per_wavelength.csv` (the "MLP + fallback" column
+  dropped as a bitwise duplicate on L23). Log axis; every series direct-labelled.
+- `fig_unseen_zenith.png` — the unseen-60° dot-and-range comparison; the five MLP
+  seed values (transcribed from `design/validation/metrics.md`, provenance noted
+  in the script) as open circles with the median filled; analytic models as
+  deterministic dots.
+  The five-color palette (Okabe–Ito subset, one color per model across all
+  figures) was validated for CVD safety in stacking order: worst adjacent
+  protan/deutan ΔE 11.4, normal-vision floor 18.4; the two sub-3:1-contrast hues
+  carry direct labels. Figures were rendered and visually checked; one layout
+  pass fixed box-overflow in the schematic, a label collision at the ladder's
+  right edge, and a truncated title.
+
+**Report `report/report_rt_elastic_model.md`** (~7 pp). Structure per the RQ
+answers: executive summary (0.30% held-out rRMS, the honest 2.3×-over-O25 margin
+stated in the same breath); §1 motivation (rrs ≠ f(u), the phase-function axis,
+Robert's architecture); §2 the model (backbone, emulator, guard rails); §3 data +
+protocol (scene/zenith splits, rrs-space rRMS, the fairness-to-O25 refit); §4
+results (headline table, the three figures, speed, gradients, 279 tests); §5
+may-claim/may-not-claim (six items, carried from `prototype_summary.md`); §6 Open
+Items for JXP (Eq. (8) coefficients, geometry extrapolation as an M5 design
+decision, M3 task-5 closable as overtaken, prompt 6 placeholder, merge/archival
+calls); §7 M5 priorities in leverage order (vary the phase function in the
+reference data first, then retrieval-impact MAPE — the decisive metric — then
+geometry data, PhaseParams promotion, Eq. (8)); §8 reproducibility commands; §9
+document map; references. Links to the sibling docs are relative
+(`../design/...`, `../context/RT/...`) so they resolve from `report/`.
+
+Next: JXP reviews the report and dispatches §6's open items; prompt doc 6 (M5)
+gets detailed from §7.
