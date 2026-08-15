@@ -1,4 +1,4 @@
-""" Generate the figures for report/report_rt_elastic_model.md.
+""" Generate the figures for reports/report_rt_elastic_model.md.
 
 Data sources (RQ3: draw from the committed validation artefacts):
 
@@ -20,7 +20,7 @@ Figures written beside this script:
 
 Run with the ``ocean14`` conda environment from anywhere:
 
-    python report/make_report_figures.py
+    python reports/make_report_figures.py
 """
 
 import csv

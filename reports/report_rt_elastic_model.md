@@ -276,7 +276,7 @@ actually taught us:
 pytest -q                              # 279 tests; 23 skip without the data
 python design/py/train_emulator.py    # ~1 min; bit-identical committed weights
 python design/py/run_validation.py    # ~8 min; regenerates design/validation/
-python report/make_report_figures.py  # the three figures in this report
+python reports/make_report_figures.py # the three figures in this report
 ```
 
 Every number in this report traces to `design/validation/metrics.{md,csv}` or to
