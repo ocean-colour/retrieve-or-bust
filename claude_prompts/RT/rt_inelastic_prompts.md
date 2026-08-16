@@ -35,6 +35,7 @@ If you need to run Python use the `ocean14` conda environment.
 
 3. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Now proceed to write the report.  Be sure to include figures.  Generate them with Python and save the script(s) to the `context/RT/` folder. Use Fable if you can.  Log your work. 
 
+4. I decided to move the report into the `context/RT/` folder.  Please update it so the figures render properly.  Use Fable if you can.  Log your work.
 
 ### Edits
 
@@ -407,3 +408,16 @@ use BING defaults μ_d = 0.9, μ_f = 0.5 and the L23 solar spectrum.
 
 **Next:** JXP review of the report; then the Edits round (Robert Frouin
 comments) and/or the Design prompts.
+
+### 2026-08-16 (Moved the report into context/RT/ and fixed figure links)
+
+Executed Setup prompt 4 (model: Fable). Moved
+`context/rt_inelastic_bing_summary.md` → `context/RT/rt_inelastic_bing_summary.md`
+(plain `mv`; no git commands per repo policy — the move will show as an
+untracked-file rename to be staged by JXP). Updated all relative links for the
+new location: the four figure embeds and the links to
+`make_rt_inelastic_figures.py` and `rt_inelastic_metrics.csv` dropped their
+`RT/` prefix (all six files are now siblings in `context/RT/`). Full repo
+paths in prose (e.g. the reproduction command
+`python context/RT/make_rt_inelastic_figures.py`) were left as-is since they
+are location-independent. Verified no stale `](RT/...)` links remain.
