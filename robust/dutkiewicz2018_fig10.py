@@ -475,6 +475,11 @@ def plot():
         print(f'{RAPHE_CSV} not found; run the "raphe" command to '
               'create it -- plotting without the overlay')
 
+    # Add 1:1 line
+    ax.plot([10.0 ** X_LOG_RANGE[0], 10.0 ** X_LOG_RANGE[1]],
+            [10.0 ** Y_LOG_RANGE[0], 10.0 ** Y_LOG_RANGE[1]],
+            color='0.4', linestyle='--', linewidth=1)
+
     if any_overlay:
         ax.legend(loc='upper left', framealpha=0.9, fontsize=8)
     fig.tight_layout()
