@@ -46,6 +46,74 @@ Read the papers in the `context/papers/Biomass` folder.
 21. Perform the 1st Task under "GO-SHIP"
 22. Perform the 2nd Task under "GO-SHIP"
 
+23. Perform the 1st Task under "Bits and pieces"
+24. Perform the 2nd Task under "Bits and pieces"
+
+## Bits and pieces
+
+1. We need a name for this project.  A catchy acronym.  See if you can use UNRAVEL.  Go for it.  Use Fable if you can.  Log your work.
+
+2. Now consider the case where we use "Unravel" as is, i.e. without being an acronym, but then generate a project name that is:  "Unravel -- what we are doing blah blah".  Can you recommend something for the "what we are doing" part?  Use Fable if you can.  Log your work.
+
+**Answer (2026-08-15).** One structural observation first: because *unravel* is a verb,
+the strongest subtitles are the ones that complete it — "Unravel — X" then reads as an
+imperative mission statement, *"Unravel X."* That is a trick an acronym could never do,
+and I would exploit it rather than bolt on a gerund ("disentangling…", "untangling…"),
+which just restates the verb we already have.
+
+**Recommendation:**
+
+> **Unravel — the ocean's living carbon**
+
+Four words; reads as a sentence ("Unravel the ocean's living carbon"); names the
+headline deliverable (Cphyto + POC = the *living* carbon) and leaves method and
+uncertainty to the prose, where they belong. It also pairs naturally with the standing
+tagline: *Unravel — the ocean's living carbon. Unravelling the ocean's carbon
+uncertainty.*
+
+Runners-up, in order, each buying a different emphasis:
+  (a) **Unravel — weighing the ocean's living carbon from space.** "Weighing" is the
+      concrete verb for a biomass census and lands instantly with a non-optics panel;
+      "from space" declares the satellite lane. My pick if you want method in the name.
+  (b) **Unravel — the ocean's carbon, with uncertainty you can trust.** Leads with
+      VICC's own obsession; "honest uncertainty" is already our house phrase, and this
+      is its name-sized form.
+  (c) **Unravel — from ocean color to carbon accounting.** The value-chain form:
+      declares input and output, and "accounting" speaks budget language to the panel.
+
+Avoid: subtitles that synonym-echo the verb ("Unravel — disentangling…") and anything
+with "expert system"/method jargon — the SQ3/Round-6 decisions already retired those.
+
+**Answer (2026-08-15).** UNRAVEL works, and not just as a backronym — the verb is the
+proposal: *unravelling* is disentangling threads, and disentangling is what we do at
+every level (the aph/adg/bbp retrieval degeneracy; biological from physical carbon;
+trend from variability in the 24-year record). Recommended expansion:
+
+> **UNRAVEL — UNified Retrieval and Assimilation for Verifiable Estimates of ocean
+> Living carbon**
+
+Each word is load-bearing against the EOI as drafted: **UNified Retrieval** = one
+physically consistent inversion across MODIS + PACE (the 27→43 yr cross-mission-
+discontinuity argument, WP on harmonisation/AC); **Assimilation** = the ECCO-Darwin
+coupling (iterated priors, adjoint stretch goal); **Verifiable Estimates** = calibrated
+per-pixel uncertainty and the three factor-2 targets (and it resonates with the
+carbon-MRV audience); **ocean Living carbon** = the Cphyto + POC headline. Tagline for
+slides: *"Unravelling the ocean's carbon uncertainty."*
+
+Two alternates if the lead reads too infrastructure-flavored:
+  (a) **UNcertainty Reduction And Verification of ocean Ecosystem carbon over the
+      muLti-mission record** — EXPORTS-style scattered letters; leads with VICC's own
+      keyword (uncertainty) and encodes the long-record/detectability story.
+  (b) **UNified Retrievals And Variability Estimation of the ocean's living-carbon
+      Ledger** — "carbon ledger" speaks the budget/accounting language of the panel.
+
+Collision check (web, 2026-08-15): no existing ocean/climate/carbon *research program*
+named UNRAVEL. The one neighbor is **"Unravel Carbon,"** a corporate carbon-accounting
+SaaS company — different styling and sphere, but worth knowing it exists since our
+topic is carbon; the acronym form "UNRAVEL" plus the expansion keeps us clearly apart.
+(An unrelated UNRAVEL consortium exists in dementia research.)
+
+
 ## GO-SHIP
 
 1. Here is the main web page for the GO-SHIP program: https://www.go-ship.org/.  Please explore it and answer the following questions:
@@ -1897,3 +1965,56 @@ from memory; scripted citation-integrity check passes — [1]–[19] all cited a
 defined, no orphans (one false positive from a year starting a line in ref 7).
 
 Next: JXP reviews the expanded `reports/go_ship_summary.md`.
+
+### 2026-08-15 (Bits-and-pieces prompt 1: project name — UNRAVEL)
+
+Executed the 1st "Bits and pieces" task: a project name using UNRAVEL. Answer written under
+the task in this file.
+
+**Recommendation:** **UNRAVEL — UNified Retrieval and Assimilation for Verifiable Estimates
+of ocean Living carbon**, with the slide tagline "Unravelling the ocean's carbon
+uncertainty." Chosen so every word maps to a pillar of the EOI as drafted: UNified Retrieval
+(one physically consistent inversion across MODIS + PACE — the 27→43 yr discontinuity
+argument), Assimilation (ECCO-Darwin coupling), Verifiable Estimates (calibrated per-pixel
+UQ + the factor-2 targets, with MRV resonance), ocean Living carbon (the Cphyto + POC
+headline). The verb itself is the argument — unravelling = disentangling the retrieval
+degeneracy, biology from physics, trend from variability — so the name survives even for
+readers who never see the expansion.
+
+Two alternates recorded with the answer: an uncertainty-led EXPORTS-style scattered-letter
+expansion, and a "carbon ledger" variant that speaks budget language.
+
+**Collision check performed** (web search): no existing ocean/climate/carbon research
+program named UNRAVEL. Nearest neighbor is "Unravel Carbon," a corporate carbon-accounting
+SaaS company — flagged in the answer since our topic is carbon, judged non-blocking
+(different styling, different sphere). An UNRAVEL consortium exists in dementia research,
+irrelevant.
+
+Next: JXP picks the expansion (or the lead stands); the name can then propagate to the EOI
+draft, figure titles, and eventually the repo/product naming.
+
+### 2026-08-15 (Bits-and-pieces prompt 2: "Unravel" as a plain word — the subtitle)
+
+Executed the 2nd "Bits and pieces" task: with "Unravel" used as-is (no acronym), recommend
+the "what we are doing" half of "Unravel — …". Answer written under the task in this file.
+
+**The structural point, which drives the recommendation:** *unravel* is a verb, so the best
+subtitles are its grammatical object — "Unravel — X" then reads as the imperative sentence
+"Unravel X," a move unavailable to any acronym. Gerund subtitles ("disentangling…") merely
+restate the verb and were advised against.
+
+**Recommendation:** **"Unravel — the ocean's living carbon."** Four words, reads as a
+mission statement, names the Cphyto + POC headline ("living carbon"), leaves method and
+uncertainty to prose. Three runners-up recorded with distinct emphases: (a) "weighing the
+ocean's living carbon from space" (concrete census verb + satellite lane), (b) "the ocean's
+carbon, with uncertainty you can trust" (VICC's keyword first), (c) "from ocean color to
+carbon accounting" (value-chain form, budget language). Also flagged what to avoid:
+verb-echo subtitles and retired jargon ("expert system").
+
+No new research needed; the collision check from prompt 23 (Unravel Carbon, corporate SaaS)
+carries over unchanged to the plain-word form — if anything the plain "Unravel" sits closer
+to that company's name than the all-caps acronym did, worth one glance before it goes on a
+public-facing page.
+
+Next: JXP picks acronym vs plain-word form and a subtitle; then the name propagates to the
+EOI draft and slides.
