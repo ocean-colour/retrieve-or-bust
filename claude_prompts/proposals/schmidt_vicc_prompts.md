@@ -51,12 +51,15 @@ Read the papers in the `context/papers/Biomass` folder.
 
 25. Perform the 1st Task under "EOI continues"
 26. Perform the 2nd Task under "EOI continues"
+27. Perform the 3rd Task under "EOI continues"
 
 ## EOI continues
 
 1. Robert and Herve have provided comments on the EOI.  These are recorded as separate docs in `Oceanography/python/retrieve-or-bust/proposals/Schmidt_Sciences/comments`.  Please read them and prepare to edit the EOI doc accordingly (do not do so yet).  The PDFs that Herve refers to are located in `Oceanography/python/retrieve-or-bust/proposals/Schmidt_Sciences/context`.  The EOI doc is named "VICC EOI" and is on my Google Drive under the `Oceanography/Proposals/2026/Schmidt Sciences` folder.  Use Fable if you can.  Log your work.  Ask me a series of questions in the Q&A section below before editing the EOI doc.
 
 2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Then, let's resolve the write issue for the Google doc.  Use Fable if you can.  Log your work.
+
+3. Ok, proceed to edit the EOI doc.  Use Fable if you can.  Log your work.
 
 ### Q&A
 
@@ -182,6 +185,47 @@ subtitle synonym-echoes the verb (the Bits-and-pieces Round argued against that
 pattern) and that a decision here affects the outline header only, nothing else.
 
 CQ7: If you tell me how to gain access, I will provide it.  An option is to use `rclone`.  
+
+#### Round 7 resolution — answers reviewed; the write issue is solved (2026-08-19)
+
+**Decisions now locked:** **CQ1** adopt Robert's five text blocks nearly verbatim (light
+voice/blind-review editing, no attribution); **CQ2(a)** the stated WP is the full
+constellation (SeaWiFS→MODIS/MERIS/VIIRS/OLCI/SGLI→PACE OCI) with MODIS+PACE as the
+priority spine; **CQ3** strict anonymity in the body — Robert's first-person statement
+goes to the team form, an anonymized version to the body, name-bearing citations to the
+separate reference PDF; **CQ4(a)** Hervé's ideas enter as a *leveraged, co-funded* float
+validation layer (ideas only — no text reproduced, no citation of the confidential note,
+the PDF stays out of circulation; VICC funds analysis and OSSE-based fleet design, not
+floats); **CQ6** the RQ4 factor-2 trio + n\* detectability return as the objectives'
+measurable success criteria.
+
+**CQ5 "Do not touch Section III" — interpreted strictly.** §III passes through the edit
+byte-for-byte, including its unfinished ending and the D-LITE/B-GOSE question; Matt's and
+Dustin's §III margin comments are left for the team. I will still fold Matt's
+more-than-optics point into **§II** only to the extent Robert's adopted §II text already
+carries it (floats measuring "downwelling irradiance and other biogeochemical
+quantities"); nothing beyond that without word.
+
+**CQ7 — resolved, and no action is needed from you.** Your machine already has an rclone
+remote `GDrive:` with full `drive` scope, and it reaches the folder. Verified end-to-end
+today, on scratch files only (created under `GDrive:tmp_claude_wtest/`, then purged; the
+EOI doc was only ever *read*):
+  1. plain-file upload + delete round-trip in the Schmidt Sciences folder — OK;
+  2. HTML upload with `--drive-import-formats html --drive-export-formats html`
+     converts to a **native Google Doc** — OK;
+  3. re-upload under the same name **updates the same document in place** (file ID
+     `10k-hof…` unchanged across v1→v2, content verified) — OK;
+  4. the current "VICC EOI" exports cleanly to HTML (120 KB, content verified).
+
+**Editing pipeline for the next prompt:** draft in markdown under version control →
+render to HTML → `rclone copyto … --drive-import-formats html` to update "VICC EOI" in
+place. Two caveats to decide at edit time, neither blocking: (i) an in-place update
+replaces the full content, so the six open margin comments lose their text anchors
+(they remain in the comments pane; our edit addresses them anyway — but if the team
+wants them resolved by hand first, say so); (ii) before the first in-place write I will
+make a timestamped backup copy of the doc in the same folder (Drive version history is
+also preserved). Alternative on request: write to a new "VICC EOI v2" doc and leave the
+original untouched.
 
 ## Bits and pieces
 
@@ -2206,3 +2250,139 @@ read-only Drive access — full revised text as a paste-ready local doc with TOC
 plus a light flag that the working subtitle synonym-echoes the verb (CQ7).
 
 Next: JXP answers CQ1–CQ7; then (prompt 26, presumably) I produce the revised EOI text.
+
+### 2026-08-19 (EOI continues prompt 2: CQ answers reviewed; Google-doc write access solved via existing rclone remote)
+
+Prompt 26 (2nd Task under "EOI continues"): review the CQ1–CQ7 answers and resolve the
+write issue for the "VICC EOI" Google doc. Model: Fable. The EOI doc itself remains
+untouched — all write testing was done on scratch files that were deleted afterwards.
+
+**Answers digested and locked** (recorded in full in the Round-7 resolution note above):
+adopt Robert's five text blocks (CQ1); full-constellation Rrs WP with MODIS+PACE spine
+(CQ2a); strict body anonymity (CQ3); Hervé's sub-fleet as leveraged/co-funded, ideas-only
+(CQ4a); **§III passes through byte-for-byte** per "Do not touch Section III" (CQ5) — the
+D-LITE/B-GOSE margin thread stays with the team; the factor-2 trio + n* detectability
+return as objectives success criteria (CQ6).
+
+**The write issue dissolved on inspection (CQ7).** JXP offered to set up access via
+rclone — it turned out the machine already has a `GDrive:` rclone remote with full
+`drive` scope that reaches `Oceanography/Proposals/2026/Schmidt Sciences`. Rather than
+request anything, I verified the pipeline end-to-end on scratch files:
+- Upload + delete round-trip of a plain text file in the target folder: OK.
+- First HTML-import attempt failed with "can't convert .html to a document with a
+  different export filetype (.docx)" — rclone requires the import extension to match the
+  session's export format. Fix: pass BOTH `--drive-import-formats html` and
+  `--drive-export-formats html`.
+- With matching flags: HTML upload → native Google Doc; same-name re-upload → **in-place
+  update with the file ID preserved** (verified identical across two uploads, content
+  round-trip confirmed via `rclone cat`); scratch folder purged.
+- The real "VICC EOI" exports cleanly to HTML (120 KB) — saved to scratchpad as the
+  base for the coming edit.
+
+**Plan of record for the edit** (next prompt): markdown master under
+`proposals/Schmidt_Sciences/` → HTML → `rclone copyto` in place, preceded by a
+timestamped backup copy in the same Drive folder; documented caveat that a full-content
+update orphans the six open margin comments (they remain listed, anchors lost), with the
+"VICC EOI v2" side-doc offered as the non-destructive alternative.
+
+Next: on JXP's word, produce the revised EOI (Robert's blocks + our-lane opening +
+objectives with the factor-2 trio + anonymization pass + TOC/outline), §III untouched.
+
+### 2026-08-19 (EOI continues prompt 3: edited the "VICC EOI" Google doc in place, per the locked Round-7 decisions)
+
+Prompt 27 (3rd Task under "EOI continues"): proceed to edit the EOI doc. Model: Fable.
+**The live doc was updated in place — same file ID, so the team's link is unchanged** —
+after a full safety chain: fresh export → surgical edit → round-trip fidelity test on a
+scratch doc → native backup copy → upload → verification.
+
+**Safety chain, in order.**
+1. Fresh HTML export of "VICC EOI" (doc had drifted trivially since the prompt-25 read;
+   content re-checked against the margin comments before editing).
+2. Surgical HTML edit preserving Google's own markup (classes, image, footnote):
+   §III passed through untouched; comment anchors stripped everywhere (mechanical
+   necessity of the import pipeline — the threads live on in the backup).
+3. Round-trip test: uploaded the edited HTML to a scratch Google Doc, re-exported, and
+   proved text fidelity (edited == imported, §III text char-identical to the original
+   modulo my checker's footnote artifact), image survival (1/1), footnote survival.
+   Scratch doc purged.
+4. Native backup via Drive copy: "VICC EOI — backup 2026-08-19 (pre-Claude-edit)" in the
+   same folder — preserves the six margin comment threads verbatim.
+5. In-place upload (`rclone copyto … --drive-import-formats html`); one transient
+   permission-classifier block on the first attempt, succeeded on retry as the error
+   itself suggested.
+6. Verification on the live doc via the Drive connector: file ID unchanged
+   (1QISTR1NZ…), §III verbatim, all new content present, footnote intact as a linked
+   bookmark. (A final rclone re-export for an image count was blocked by the
+   permission classifier; image survival rests on the identical-bytes round-trip test
+   in step 3, which showed 1/1.)
+
+**What changed in the doc, per the locked decisions.**
+- **Title block**: a bracketed one-line outline scaffold (I–VII), marked remove-before-
+  submission — Robert's TOC/complete-outline ask without costing page space later.
+- **§I**: two new paragraphs — the our-lane paragraph (bold-led "This proposal
+  deliberately targets the biological component…", carrying DQ9's scoping-precision
+  candour, Robert's #1 objective sentence, and the explicit not-the-budget disclaimer)
+  and "Success is measurable." with the RQ4 factor-2 trio + n\* (32%→16%; 3.5×→<1.8×;
+  >30 yr→~20 yr) framed per TQ1 (PACE-era gains transferred to the heritage record).
+  Margin-comment fixes: "too young"/"sole purview" → "record remains far shorter than
+  the multi-decadal baseline… that long baseline exists only in the satellite
+  ocean-color record" (Mazloff); factor-3 scoped to "optically-constrained biological"
+  quantities with the DIC concession folded in as sharpening the problem (Dutkiewicz);
+  {NEED ONE SENTENCE} filled with the common-ground definition (forward-modeling each
+  observation in its own measured quantity through observation operators and
+  sensor-specific error models). Typos: toolss, "yet to any estimate", Wardell→Werdell.
+- **§II**: "[mention Lidar somewhere?]" and "[true??]" resolved by adopting Robert's #2
+  paragraph (gliders + CALIOP/CALIGOLA lidar); "Our team will xxxx" replaced by
+  Robert's #3 unified-framework paragraph; "related"→"relate".
+- **§III**: byte-for-byte untouched (CQ5), including the empty "Biogeochemical Model
+  Emulation and Optimization" stub; D-LITE/B-GOSE margin thread left to the team (in
+  the backup).
+- **New §IV "A climate-quality observational foundation, anchored in situ"**, four
+  subsections: anonymized Robert #6 (the SeaWiFS→…→PACE OCI Rrs record, per CQ2a/CQ3 —
+  no names in the body; his named statement stays out of the doc for the team form);
+  Robert #5 verbatim (multi-mission Cphyto via sensor-specific observation operators);
+  the Hervé-ideas paragraph written in my own words per CQ4a (distributed
+  fiducial-grade float validation layer, co-funded, overpass-coordinated, per-profile
+  uncertainty budgets, funds analysis + OSSE design "— not the float hardware —"; his
+  confidential note neither quoted nor cited); Robert #4 verbatim (targeted field
+  observations, "rather than a new global survey").
+- **§V–VII outline stubs** (team/partnerships, timeline/budget, portfolio/openness/AI),
+  each with a bracketed note encoding the standing constraints (blind-review rule,
+  indirect ≤10%, COCO2/InMOS/SUBSEA/CLARiTy differentiation, AI disclosure).
+
+**Known side effect, as agreed in Round 7:** the in-place update orphaned the six open
+margin comments on the live doc; they are preserved intact on the backup copy.
+
+**Repo artifact:** the exact uploaded HTML archived at
+`proposals/Schmidt_Sciences/eoi_edit_2026-08-19.html` (JXP handles git).
+
+Next: JXP + team review the revised doc; §III's ending, the figure(s), and §V–VII
+content remain team-owned. The [XX]/[Bisson+20XX] citation placeholders and the
+reference PDF are natural next prompts.
+
+### 2026-08-19 (Added Robert's work package to the "Work Packages" Google Sheet, in place)
+
+Ad-hoc request (not a numbered prompt): add Robert's WP to the "Work Packages" sheet on
+Drive — edit, do not replace; use Opus. Since a running session cannot switch its own
+model (this one is Fable), the edit itself was delegated to an **Opus subagent** via the
+Agent tool with a precise brief; Fable did the recon and the independent verification.
+
+**What was added** — five rows (years 1–5), appended after the last data row, matching
+the sheet's existing column conventions (numeric Year, numeric Cost with `#,##0` format,
+slash-separated FTE string, row-10 cell styles copied):
+  Frouin | Climate-quality multi-mission Rrs record (radiometry + atm. correction) |
+  1–5 | Frouin + Tan + Liu | 0.08/0.33/0.25 | 220,000
+FTE encodes Robert's stated effort (Frouin 1 mo/yr, Tan 4 mo/yr, Liu 3 mo/yr).
+
+**One assumption JXP should check:** Robert quoted "about $200K/year **without IDC**"
+(incl. the $5K/yr storage/cloud); the sheet column is "Cost (**with overhead**)", so the
+rows carry 200K × 1.10 = **220,000**, using the RFP's ≤10% indirect cap. Adjust if the
+actual rate differs.
+
+**Edit-not-replace verified twice** (subagent + independent connector read): file ID
+unchanged (18-o6lDbBZ…), all 10 pre-existing rows (header + 9 data) value-identical
+after the Drive round-trip, no new file created. Benign round-trip notes from the
+subagent: single tab; ~988 trailing formatting-only rows; two contentless Google-export
+stub parts (empty drawing/person XML) dropped on save; no comments, charts, merges, or
+validations existed, so nothing of substance was lost. Scratch xlsx files retained in
+the session scratchpad.
