@@ -45,7 +45,7 @@ If you need to run Python use the `ocean14` conda environment.
 
 ### Design
 
-1. Ok, let's generate a plan together for how to proceed.  We are going to write a design document for this elastic RT effort.  We will name it `design/rt_elastic_model.md`.  Please ask me a set of questions in Q&A/Design before writing the document.  Use Fable if you can.  Log your work.
+1. Ok, let's generate a plan together for how to proceed.  We are going to write a design document for this elastic RT effort.  We will name it `design/rt_inelastic_model.md`.  Please ask me a set of questions in Q&A/Design before writing the document.  Use Fable if you can.  Log your work.
 
 2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Ask another round of questions if needed.  Use Fable if you can.  Log your work.
 
@@ -64,6 +64,119 @@ If you need to run Python use the `ocean14` conda environment.
 ## Comments
 
 ## Q&A
+
+### Design
+
+Questions from Claude (2026-08-19) before writing `design/rt_inelastic_model.md`.
+Context I'm designing against: the elastic design (`design/rt_elastic_model.md`)
+pinned `forward(iops, phase_params, geometry, wave) → Rrs` as a JAX hybrid
+`Rrs_ZTT + ΔRrs` (held-out rRMS 0.30 %); the inelastic report
+(`context/RT/rt_inelastic_bing_summary.md`) quantified the truth signals
+(Raman: 5–20 % of Rrs; fluorescence: ~35 % at 685 nm) and the now-fixed BING
+physics gives, with true Ed, Raman increment errors of +1 %/−4 % at zenith
+30°/60° (−39 % at 0°) and fluorescence amplitude ratios 1.00/0.95/0.86.
+Each question carries my recommendation; push back where you disagree.
+
+**DQ1 (Architecture).** Decision time on the §5 trade-space. My
+recommendation: **(c) physics + bounded learned correction**, mirroring the
+proven elastic architecture — the (fixed) BING-style analytic terms become
+the inelastic backbone, and a small residual network (trained on X2−X1 and
+X4−X2) absorbs exactly the errors we measured and cannot fix analytically
+(the high-sun two-flow failure, the trophic/zenith fluorescence trends). The
+numbers above say the physics alone [option (a)] misses the gate at zenith 0°,
+and a pure emulator [option (b)] would bake in φ_C = 0.02 and forfeit the
+physiology handle. Agree to lock (c)? And should Raman and fluorescence get
+*separate* correction heads (my lean: yes — different inputs, different
+failure modes) or one shared network?
+
+**DQ1-answer:**
+
+**DQ2 (Scope).** v1 covers Raman + Chl-a fluorescence, matching the available
+truth. CDOM fluorescence: no truth exists in hand (absent from L23 and BING).
+I recommend the design doc specify its *interface hooks* (a third inelastic
+term slot) plus the HydroLight runs that would be needed to build it, but
+declare implementation out of scope for v1. Agree, or do you want CDOM
+fluorescence designed-in now (which puts new HydroLight runs on the critical
+path)?
+
+**DQ2-answer:**
+
+**DQ3 (Interface).** Two unavoidable extensions to the pinned `forward()`
+contract, and one design choice:
+(i) fluorescence needs **a_ph(λ)** specifically — the `IOPs` pytree grows an
+`a_ph` field (elastic path ignores it);
+(ii) both processes need IOPs at **excitation wavelengths** — internal
+(evaluate the model's IOP spectra on the shifted grid), no API change;
+(iii) new inelastic parameters — I propose an optional `inelastic` pytree
+(φ_C now; CDOM-fl slot later) with `inelastic=None` → **bit-identical
+elastic-only output** (the elastic gate stays valid). Emission enters as
+`Rrs = (Rrs_ZTT + ΔRrs) × f_Raman + Rrs_fl`, i.e. Raman multiplicative on the
+elastic hybrid (the self-normalizing form BING validated), fluorescence
+additive. OK?
+
+**DQ3-answer:**
+
+**DQ4 (φ_C semantics).** The forward model exposes φ_C as a differentiable
+input (default 0.02), so the future inversion can retrieve it or prior-load
+it. But the learned correction is necessarily trained at the truth's fixed
+φ_C = 0.02. My proposal: structure the fluorescence term so the correction
+multiplies the *φ_C-linear* physics kernel — then training at 0.02
+generalizes to nearby φ_C exactly to the extent the RT is φ_C-linear (it is,
+to first order; the (1−B·rrs) nonlinearity is ~10⁻³). Also: single-Gaussian
+emission (what L23/HydroLight used — validatable) with the 730 nm PS I
+shoulder as a switchable extension that L23 cannot validate. Agree on both?
+
+**DQ4-answer:**
+
+**DQ5 (Ed input).** The Raman/fluorescence terms need the solar spectral
+shape Ed(λ)/Ed(λ′) — first-order important per the report. Under L23's fixed
+atmosphere Ed is a deterministic function of solar zenith, so I propose:
+ship the three L23 Ed(0⁺) spectra as package data, interpolate in zenith,
+and accept an optional user-supplied Ed override in `geometry` for real-sky
+use later. (No coupling to an atmosphere model in v1.) OK?
+
+**DQ5-answer:**
+
+**DQ6 (Acceptance gate).** Mirroring the elastic protocol (held-out-by-scene,
+rrs-space rRMS), I propose gates on *both* levels:
+- **total Rrs against the X4 runs** (the realistic all-processes-on case):
+  held-out rRMS ≤ **0.5 %** at all three zeniths (elastic-only was 0.30 %;
+  the inelastic deltas add budget);
+- **per-process deltas**: Raman increment (X2/X1) median |error| ≤ 5 % at
+  every zenith incl. 0°; fluorescence 685 nm peak (X4−X2) median |error|
+  ≤ 5 %;
+- **gradients**: finite-difference checks pass for all inputs including φ_C;
+- **speed**: full-batch forward ≤ 2× the elastic hybrid's runtime.
+Are these the right bars — in particular is 0.5 % total acceptable, or do
+you want to hold the 0.30 % elastic standard end-to-end?
+
+**DQ6-answer:**
+
+**DQ7 (Validation data & holdout).** Train/validate on L23 X1/X2/X4 at
+zeniths 0/30/60°, held out **by scene** (same splits as the elastic effort so
+results compose). Two known coverage gaps to accept or address: (i) only
+three zeniths — the elastic effort already flagged geometry extrapolation as
+unresolved; the inelastic corrections inherit it (document, don't solve, in
+v1); (ii) Raman emission below 400 nm needs excitation IOPs below the 350 nm
+L23 edge — I propose the v1 model officially supports λ ≥ 400 nm and
+extrapolates below with a documented caveat. And: should the design doc
+include a *wishlist of new HydroLight runs* (denser zeniths, varied φ_C,
+CDOM fluorescence, varied atmospheres) as a §"beyond v1" so you can plan
+compute?
+
+**DQ7-answer:**
+
+**DQ8 (Prototype cadence and logistics).** Mirror the elastic effort:
+a ~1-week prototype with milestones (M0 scaffold/API extension → M1 Ed +
+excitation-grid infrastructure → M2 analytic terms in JAX, validated against
+fixed-BING → M3 correction training on X-differences → M4 validation +
+report), code in `robust/rt/` under the same conventions/CI with committed
+test fixtures, followed by the coding plan + numbered prompt docs as before.
+Anything you'd change about that cadence — e.g. a different time budget, or
+folding this into the existing elastic modules rather than a new
+`robust/rt/inelastic.py`?
+
+**DQ8-answer:**
 
 ### BING fixes
 
@@ -597,3 +710,46 @@ window; figure construction is still exercised). Verified with no
 MPLBACKEND override: the formerly hanging LM test + all of
 `test_plotting.py` → 20 passed in 3.9 s; the two MCMC plot tests →
 2 passed in 62 s. Logged on the BING side in `prompts/inelastic_fixes.md`.
+
+### 2026-08-19 (Posed Design Q&A round 1 for design/rt_inelastic_model.md)
+
+Executed Design prompt 1 (model: Fable). No document written yet — posed
+eight design questions (DQ1–DQ8) in Q&A/Design, each with a recommendation,
+after re-reading the elastic design (`design/rt_elastic_model.md`) to align
+with its pinned contracts (the `forward(iops, phase_params, geometry, wave)`
+API, JAX hybrid architecture, held-out-by-scene validation protocol, DQ-style
+decision record).
+
+The questions and my recommendations:
+
+- **DQ1 architecture:** lock option (c) — analytic inelastic backbone
+  (the fixed BING physics) + bounded learned corrections trained on the
+  L23 X-differences; separate correction heads for Raman and fluorescence.
+  Rationale: post-fix physics alone still fails at zenith 0° (−39 % Raman
+  red-band increment error), while a pure emulator would bake in φ_C = 0.02.
+- **DQ2 scope:** Raman + Chl fluorescence in v1; CDOM fluorescence gets
+  interface hooks + a specified HydroLight-run wishlist but no v1
+  implementation (no truth data exist).
+- **DQ3 interface:** `IOPs` grows an `a_ph` field; new optional `inelastic`
+  pytree (φ_C), `None` → bit-identical elastic output; composition
+  `Rrs = (Rrs_ZTT + ΔRrs) × f_Raman + Rrs_fl` (multiplicative Raman —
+  the self-normalizing form — additive fluorescence).
+- **DQ4 φ_C semantics:** φ_C differentiable input, default 0.02; correction
+  multiplies the φ_C-linear kernel so training at 0.02 generalizes;
+  single-Gaussian emission (L23-validatable), PS I shoulder as untestable
+  extension.
+- **DQ5 Ed:** ship the three L23 Ed(0⁺) spectra as package data,
+  zenith-interpolated, user-overridable; no atmosphere model in v1.
+- **DQ6 acceptance gate:** held-out total-Rrs (X4) rRMS ≤ 0.5 % at all
+  zeniths; per-process delta median |error| ≤ 5 % (incl. zenith 0°);
+  gradient checks incl. dRrs/dφ_C; ≤ 2× elastic-hybrid runtime. Asked
+  whether 0.5 % total is the right bar or the 0.30 % elastic standard
+  should hold end-to-end.
+- **DQ7 validation data:** same by-scene splits as the elastic effort;
+  officially support λ ≥ 400 nm (Raman excitation below the 350 nm L23
+  edge), document the 3-zenith geometry-extrapolation caveat.
+- **DQ8 cadence:** ~1-week prototype, M0–M4 milestones, `robust/rt/`
+  conventions/CI, then coding plan + numbered prompt docs as for elastic.
+
+**Next:** await JXP's answers (Design prompt 2), then react / second round,
+then write `design/rt_inelastic_model.md`.
