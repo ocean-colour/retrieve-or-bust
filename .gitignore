@@ -11,6 +11,7 @@ context/papers/Biomass/
 context/RT/*.pdf
 
 # PDFs
+context/*/*.pdf
 proposals/Schmidt_Sciences/*.pdf
 
 # Distribution / packaging

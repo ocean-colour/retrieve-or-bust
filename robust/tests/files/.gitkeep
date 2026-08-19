@@ -1,0 +1,5 @@
+# Fixtures directory for the retrieve-or-bust test suite (BING layout).
+#
+# Empty for now. M1 caches a small L23 batch here so the data-dependent tests do
+# not re-read the ~17 MB netCDFs. This placeholder exists only because git does
+# not track empty directories; delete it once real fixtures land.
