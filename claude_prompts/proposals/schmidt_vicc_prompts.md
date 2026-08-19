@@ -49,6 +49,140 @@ Read the papers in the `context/papers/Biomass` folder.
 23. Perform the 1st Task under "Bits and pieces"
 24. Perform the 2nd Task under "Bits and pieces"
 
+25. Perform the 1st Task under "EOI continues"
+26. Perform the 2nd Task under "EOI continues"
+
+## EOI continues
+
+1. Robert and Herve have provided comments on the EOI.  These are recorded as separate docs in `Oceanography/python/retrieve-or-bust/proposals/Schmidt_Sciences/comments`.  Please read them and prepare to edit the EOI doc accordingly (do not do so yet).  The PDFs that Herve refers to are located in `Oceanography/python/retrieve-or-bust/proposals/Schmidt_Sciences/context`.  The EOI doc is named "VICC EOI" and is on my Google Drive under the `Oceanography/Proposals/2026/Schmidt Sciences` folder.  Use Fable if you can.  Log your work.  Ask me a series of questions in the Q&A section below before editing the EOI doc.
+
+2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Then, let's resolve the write issue for the Google doc.  Use Fable if you can.  Log your work.
+
+### Q&A
+
+#### Round 7 — Robert's and Hervé's comments (2026-08-19)
+
+I read all of it: Robert's six numbered comments (2026-08-18), Hervé's cover note
+(2026-08-16) plus the two PDFs it refers to — his **confidential** concept note
+(FRM-grade hyperspectral BGC-Argo sub-fleet for distributed ocean-colour validation:
+hyperspectral Ed/Lu + bbp + FChla floats under Argo governance; REFINE prototype
+flown; CNES already funding payload calibration; explicitly *not* to be circulated
+within the consortium) and his NASEM BGC-Argo talk (innovation-layer-over-core
+framing; 44-float UVP pilot; float transmissometers as ~1000 m export-flux proxies;
+prototype float-Rrs validation vs Sentinel-3, N=519 spectra; "targeted sub-fleets"
+as the scaling model; OSSEs to design them) — and the current **VICC EOI** Google
+doc, including the six open margin comments (Mazloff ×4, Carroll, Dutkiewicz). The
+doc as it stands runs through §III and stops at an empty "Biogeochemical Model
+Emulation and Optimization" heading, with placeholders ("Our team will xxxx",
+{NEED ONE SENTENCE}) — consistent with Robert's "quite incomplete."
+
+One overall observation before the questions: **four independent comments converge
+on the same fix.** Robert #1 (state the objective; do not imply we close the carbon
+budget), Mazloff ("clearly after the bio component … should be explained and
+justified in the first couple of paragraphs so as not to enrage reviewers"; "the
+interior is needed. This is triggering."), and Dutkiewicz ("is this true of DIC? I
+think we know that better than factor 3") are all the same demand: an early,
+explicit our-lane paragraph that (i) claims the biological carbon stocks/fluxes,
+(ii) scopes the factor-3 indictment to *optically-constrained biological*
+quantities (DIC is indeed known far better), and (iii) says plainly what we do not
+claim. We already have this move approved — DQ9's two "scoping precision"
+sentences — so I intend to write that paragraph first and hang Robert's objective
+sentence off it. The questions below are where your call is genuinely needed.
+
+**CQ1 — Adopt Robert's supplied text blocks nearly verbatim?** Comments #1–#5 are
+not really comments — they are drafted paragraphs (objectives sentence; §II
+rewrite adding gliders + CALIOP/CALIGOLA lidar; §II closing "unified framework"
+paragraph; a targeted-field-program paragraph; a multi-mission phytoplankton-carbon
+retrieval paragraph with sensor-specific observation operators). They are good, and
+they slot into exactly the holes the draft has. My lean: adopt all five with light
+editing for voice and blind-review hygiene, and credit nothing (it is a proposal,
+not a paper). Confirm, or do you want any of the five reworked rather than adopted?
+
+CQ1: Yes, I confirm
+
+**CQ2 — Robert's #6 changes the reprocessing scope: SeaWiFS through MODIS, MERIS,
+VIIRS, OLCI, SGLI, and PACE OCI.** SQ1 settled "MODIS + PACE, SeaWiFS as
+consistency check" precisely to bound compute. Robert's climate-quality Rrs record
+is the full constellation — scientifically stronger (more overlap periods for the
+discontinuity corrections that our detectability argument needs), but it is a
+different-sized machine. Do we (a) adopt the full multi-mission list as the stated
+WP, with MODIS+PACE as the priority spine, or (b) hold the SQ1 scope in the EOI and
+leave the constellation ambition to the full proposal? My lean: (a) — his text, his
+WP, and the EOI need not carry compute detail.
+
+CQ2: (a)
+
+**CQ3 — Blind-review handling of Robert's role statement.** His #6 paragraph is
+first-person and names him and SIO; the RFP returns proposals containing
+identifying information without evaluation. I will put the statement (as supplied)
+in the separate team/names form and write an anonymized version for the body ("a
+radiometry and atmospheric-correction group will lead …"). Same treatment for the
+body's existing "[Snyder; Prochaska]" and "[Prochaska & Frouin 2025]" citations —
+they can stay as third-person references in the separate reference PDF, per RQ3(a).
+Confirm this is still the standing rule for this draft, i.e. the body stays
+name-free even though the current text carries names in citation brackets?
+
+CQ3: I confirm.  We must maintain anonymity in the body of the EOI.
+
+**CQ4 — How much of Hervé's concept note can the EOI use, and does hardware enter
+scope?** Two coupled halves. (i) *Confidentiality*: the note is not to circulate
+within the consortium, but Schmidt has already seen it, and Hervé explicitly
+invites us to draw on it. I propose using its *ideas* (a distributed FRM-grade
+float validation layer; satellite-overpass-timed surfacing; per-profile uncertainty
+budgets) without reproducing its text or citing it, and without circulating the PDF.
+OK? (ii) *Scope*: a hyperspectral-radiometer float sub-fleet is the missing
+radiometric-validation layer our TQ1 "PACE as calibration anchor" story needs, and
+it directly attacks the float–satellite bbp offset [Bisson+2020] that the draft
+already names. But DQ4(a) fixed a ~$10M computational/synthesis scope, and floats
+are hardware. Options: (a) name the sub-fleet as a *leveraged, co-funded* capability
+(CNES/REFINE/BGC-Argo governance; we fund analysis + OSSE-based fleet design, not
+the floats); (b) budget a small pilot (a few FRM floats) inside VICC; (c) keep it
+out of the EOI. My lean: (a) — it also matches Robert's #4 "targeted field
+observations … rather than a new global survey" paragraph and Hervé's own
+"co-funding between BGC-Argo and space agencies" slide. Which?
+
+CQ4: (a)
+
+**CQ5 — Section III governance: D-LITE vs B-GOSE, and who owns the modeling
+text.** The draft's centerpiece is D-LITE (a lightened, adjointable Darwin inside
+ECCO) with hyperspectral radiances assimilated through Darwin's own RT. Dustin's
+margin comment suggests it "could also build off of Matt's B-GOSE set-up," and
+Matt's comments push for more interior carbon and more-than-optics (Argo
+T/S/O₂/NO₃/pH → pCO₂/DIC inferences). Questions: (a) is D-LITE the agreed
+centerpiece, with B-GOSE named as the complementary interior/physical estimate —
+or is that still being negotiated among Dustin/Matt/Stephanie? (b) Do you want me
+to fold Matt's more-than-optics point into §II (BGC-Argo constrains the carbon
+system, not just optics) and add the interior explicitly to the assimilated-data
+list (GLODAP/SOCAT are already named)? I need (a) answered to write §III's ending;
+I will do (b) unless told otherwise.
+
+CQ5: Do not touch Section III
+
+**CQ6 — Do the three factor-2 headline numbers and the n\* detectability argument
+survive the rewrite?** The current draft's quantitative promise is only the
+factor-3 indictment (Figure 1). The settled RQ4 trio (per-pixel Cphyto 32%→16%;
+conversion-driven stock spread 3.5×→<1.8×; trend-detection time 31.5→~20 yr) and
+the TQ1 PACE-era→heritage transfer framing are absent — yet Robert's #5 and #6 are
+precisely the machinery that delivers the second and third numbers, and VICC asks
+for named uncertainty reductions. My lean: reinstate the trio in the objectives
+section (Robert's #1 slot) as the measurable success criteria. Confirm, or has the
+team deliberately moved away from promised numbers?
+
+CQ6:  I confirm.
+
+**CQ7 — Delivery mechanics for the edit (when you give the word).** My Drive
+access here is read-only — I can read "VICC EOI" (and its comments) but cannot
+write to it. When we proceed I will produce the full revised text as a document
+(markdown in `proposals/Schmidt_Sciences/`, formatted for direct paste, edits
+marked if you want a diff view) including the table of contents / complete outline
+Robert asks for, with bracketed placeholders where content is still team-owned
+(budget, §III ending, figures). Also confirm the working title stays "Unravel:
+untangling ocean color with data-constrained models" — noting only that the
+subtitle synonym-echoes the verb (the Bits-and-pieces Round argued against that
+pattern) and that a decision here affects the outline header only, nothing else.
+
+CQ7: If you tell me how to gain access, I will provide it.  An option is to use `rclone`.  
+
 ## Bits and pieces
 
 1. We need a name for this project.  A catchy acronym.  See if you can use UNRAVEL.  Go for it.  Use Fable if you can.  Log your work.
@@ -2018,3 +2152,57 @@ public-facing page.
 
 Next: JXP picks acronym vs plain-word form and a subtitle; then the name propagates to the
 EOI draft and slides.
+### 2026-08-19 (EOI continues prompt 1: read Robert's + Hervé's comments and the EOI doc; posed Round-7 CQ1–CQ7 — no edits made)
+
+Prompt 25 (1st Task under "EOI continues"): read the collaborator comments, the PDFs Hervé
+references, and the "VICC EOI" Google doc; prepare to edit but do NOT edit; ask questions in
+the Q&A section. Model: Fable. **Nothing was edited** — not the EOI doc (my Drive access is
+read-only anyway) and not any local proposal file; the only writes are the Q&A round and
+this log entry.
+
+**What was read.**
+- `comments/robert_2026aug18.txt`: six numbered comments, five of which are drafted
+  paragraphs, not notes — (1) objectives statement + the do-not-claim-budget-closure scope
+  rule; (2) §II rewrite adding gliders and CALIOP/CALIGOLA lidar; (3) §II closing
+  "unified framework" paragraph; (4) targeted-field-program paragraph ("rather than a new
+  global survey"); (5) multi-mission Cphyto retrieval via common Bayesian inversion +
+  sensor-specific observation operators (PACE degraded to heritage bands); (6) his own WP
+  statement — a climate-quality Rrs record spanning SeaWiFS/MODIS/MERIS/VIIRS/OLCI/SGLI/PACE
+  — plus budget (~$200K/yr + IDC: RF 1 mo, J. Tan 4 mo, S. Liu 3 mo, $5K/yr cloud).
+- `comments/herve_2026aug16.txt` + the two context PDFs: his **confidential** concept note
+  (Claustre/Vellucci/Mangin — FRM-grade hyperspectral Ed/Lu + bbp + FChla BGC-Argo sub-fleet
+  for distributed ocean-colour validation; REFINE prototype deployed; CNES funding payload
+  calibration; overpass-timed surfacing protocols; MRV/BBNJ co-benefits; expressly not for
+  consortium circulation) and his 20-slide NASEM talk (core-vs-innovation-layer governance;
+  44-float UVP pilot; float transmissometers as ~1000 m export proxies across 13 regions;
+  N=519 float Rrs spectra validated against Sentinel-3A/B at |Δ|≈23%; targeted sub-fleets +
+  OSSE-guided design as the scaling model).
+- The **VICC EOI** Google doc (read with comments): now titled "Unravel: untangling ocean
+  color with data-constrained models"; runs I → III and stops at an empty "Biogeochemical
+  Model Emulation and Optimization" heading; §III centerpiece is **D-LITE** (a lightened,
+  adjointable Darwin inside ECCO via MITgcm/Tapenade, hyperspectral radiance assimilation
+  through Darwin's own RT, regional California Current ↔ global two-scale design). Six open
+  margin comments: Mazloff ×4 (justify the bio-carbon focus in the opening paragraphs;
+  "the interior is needed. This is triggering."; don't call BGC-Argo "too young"; Argo
+  constrains pCO₂/DIC via T/S/O₂/NO₃/pH, "more than optics"), Carroll (consider building
+  off Matt's B-GOSE), Dutkiewicz (DIC is known better than factor 3).
+
+**The synthesis that shaped the questions:** four independent comments (Robert #1, Mazloff
+×2, Dutkiewicz) converge on one fix — an early our-lane paragraph claiming the biological
+carbon stocks/fluxes, scoping the factor-3 indictment to optically-constrained biological
+quantities, and disclaiming budget closure. That is DQ9's already-approved "scoping
+precision" move, so it needs no new permission; the CQs cover only what does.
+
+**Round-7 questions posed (CQ1–CQ7):** adopt Robert's five text blocks nearly verbatim?
+(CQ1); his full-constellation Rrs record vs the SQ1 MODIS+PACE compute bound (CQ2);
+blind-review handling — his named first-person statement to the team form, anonymized in
+the body, name-bearing citations to the separate reference PDF per RQ3(a) (CQ3); how much
+of Hervé's confidential note is usable and whether float hardware enters scope — lean:
+ideas-not-text, sub-fleet as leveraged/co-funded capability, no VICC-funded floats (CQ4);
+§III governance — D-LITE vs B-GOSE, and folding Matt's more-than-optics + interior points
+into §II (CQ5); do the RQ4 factor-2 trio and the n* detectability argument get reinstated
+as the objectives' success criteria (CQ6); delivery mechanics for the eventual edit given
+read-only Drive access — full revised text as a paste-ready local doc with TOC/outline —
+plus a light flag that the working subtitle synonym-echoes the verb (CQ7).
+
+Next: JXP answers CQ1–CQ7; then (prompt 26, presumably) I produce the revised EOI text.
