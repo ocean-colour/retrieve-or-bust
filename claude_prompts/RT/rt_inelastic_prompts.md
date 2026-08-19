@@ -37,9 +37,11 @@ If you need to run Python use the `ocean14` conda environment.
 
 4. I decided to move the report into the `context/RT/` folder.  Please update it so the figures render properly.  Use Fable if you can.  Log your work.
 
-### Edits
+### BING
 
-1. I've pasted in comments from Robert Frouin on the RT.  Please review them and revise the report accordingly.  Use Fable if you can.  Log your work.
+1. You have identified a few errors in the BING implementation of inelastic RT.  We are going to fix them.  Please ask me a set of questions in Q&A/BING fixes before fixing them.  Use Fable if you can.  Log your work.
+
+2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Then proceed to fix the errors.  Use Fable if you can.  Log your work.
 
 ### Design
 
@@ -62,6 +64,76 @@ If you need to run Python use the `ocean14` conda environment.
 ## Comments
 
 ## Q&A
+
+### BING fixes
+
+Questions from Claude (2026-08-18), before fixing the errors identified in
+`context/RT/rt_inelastic_bing_summary.md`. One new result first: I tested the
+π hypothesis for the fluorescence normalization directly — dividing the
+two-flow irradiance reflectance R_F by π (isotropic emission: L_u = E_u/π)
+before the rrs→Rrs conversion moves the median model/truth ratio at 685 nm
+from **3.18 / 3.00 / 2.73** to **1.01 / 0.96 / 0.87** (zenith 0°/30°/60°).
+The hypothesis is confirmed; the fix is a one-line normalization change, and
+the residual ±13 % zenith trend is the separate two-flow geometry limitation.
+
+**B1 (Scope of the fixes).** I propose fixing in BING:
+(i) **Fluorescence normalization** — apply the 1/π factor in
+`calc_Rrs_fluorescence` (with the derivation documented in the docstring);
+(ii) **Raman flat-Ed default** — plumb a true Ed(λ′)/Ed(λ) ratio into the
+production Raman path (`calc_raman_correction_factor` already accepts
+`Ed_ratio`; it's the model wiring in `evaluate.calc_Rrs_from_models` that
+never supplies it);
+(iii) minor: pass per-λ_em Ed to the fluorescence term instead of the scalar
+`Ed_em` (the function already broadcasts an array).
+NOT proposed for BING: the fixed-μ two-flow geometry limits (the −25…−45 %
+high-sun red Raman error and the residual trophic/zenith fluorescence trends)
+— these are formulation-level and belong to the retrieve-or-bust redesign.
+Agree with this split, or do you want any of the formulation items attempted
+in BING too?
+
+**B1-answer:** Agree with this split.
+
+**B2 (Backward compatibility).** The π fix shrinks every fluorescence-enabled
+Rrs_fl by ×3.14 — existing fits that used `include_Chl_fl` (e.g. biomass-paper
+runs) would retrieve different posteriors, and any effective-φ_C
+interpretation shifts by ~π. Options: (a) clean break — fix the code, update
+the pinned regression tests, add a prominent note in the docs/changelog (my
+recommendation); (b) keep old behavior behind a `rt_dict` legacy flag.
+Related: the *additive* Raman path `raman.calc_Rrs_with_raman` (unused in
+production) has the same normalization flaw — fix it consistently, or
+deprecate/remove it?
+
+**B2-answer:** (a)
+
+**B3 (Ed source for the Raman ratio).** Where should Ed come from for (ii)?
+My proposal: store `Ed_ratio` on the model objects at setup time alongside the
+existing Raman precomputation (`init_raman()`), sourced the same way the
+fluorescence path gets `Ed_ex` (user-supplied or `correct_atmosphere`), with
+the current flat-Ed behavior as the documented fallback when no Ed is given.
+Should the true-Ed path be the default when Ed is available, and should
+`include_Raman` runs warn when falling back to flat Ed?
+
+**B3-answer:** Yes, the true-Ed path should be the default when Ed is available.  And `include_Raman` runs should warn when falling back to flat Ed.
+
+**B4 (Validation tests).** Should I add L23-anchored regression tests to BING
+— e.g. a small committed fixture (a few X1/X2/X4 scenes) asserting the fixed
+fluorescence term matches X4−X2 to ~±15 % at 685 nm and the true-Ed Raman
+factor tracks X2/X1 in the green-red at zeniths 30–60°? Or keep BING's tests
+self-referential (pinned to its own outputs) and leave L23 validation to
+retrieve-or-bust?
+
+**B4-answer:** Yes, add L23-anchored regression tests to BING.
+
+**B5 (Workflow and logging).** The edits happen in the BING repo
+(`~/Oceanography/python/bing`). You run all git commands — should I work on
+the current checkout as-is and leave staging/branching to you, or do you want
+to create a branch first? For logging: a new `bing/prompts/inelastic_fixes.md`
+in BING style, appended entries to the existing `chl_fl.md`/`raman.md` logs,
+or log only here? Finally: after the fixes land, should I re-run
+`context/RT/make_rt_inelastic_figures.py` and update the report so it
+documents the *fixed* state (with the pre-fix numbers kept as history)?
+
+**B5-answer:** I have already branched.  I will handle all of the git commands.
 
 ### Setup
 
@@ -421,3 +493,107 @@ new location: the four figure embeds and the links to
 paths in prose (e.g. the reproduction command
 `python context/RT/make_rt_inelastic_figures.py`) were left as-is since they
 are location-independent. Verified no stale `](RT/...)` links remain.
+
+### 2026-08-18 (Confirmed the π normalization hypothesis; posed BING-fixes Q&A round 1)
+
+Executed BING prompt 1 (model: Fable). No code changed yet — per the prompt,
+posed five questions (B1–B5) in Q&A/BING fixes covering scope, backward
+compatibility, Ed plumbing, validation tests, and workflow.
+
+**New result obtained while preparing the questions:** the report's §4.2
+hypothesis for the fluorescence ×2.5–3 amplitude error is now *empirically
+confirmed*. Test (scratchpad script, ocean14): recompute the L23 comparison
+with the two-flow irradiance reflectance R_F divided by π (isotropic emission:
+L_u = E_u/π) before BING's A·rrs/(1−B·rrs) conversion. The median model/truth
+ratio at 685 nm moves from 3.18/3.00/2.73 to **1.01/0.96/0.87** at solar
+zenith 0°/30°/60°. Conclusion: `calc_Rrs_fluorescence` treats an irradiance
+reflectance as if it were rrs (L_u/E_d); the fix is a 1/π normalization, and
+the remaining ±13 % zenith trend is the separate fixed-μ two-flow geometry
+limitation flagged in the report (not proposed for fixing in BING).
+
+**Proposed fix scope (pending answers):** (i) the 1/π fluorescence
+normalization; (ii) supplying a true Ed(λ′)/Ed(λ) ratio to the production
+Raman path (the report showed flat-Ed is the dominant Raman error:
++58–66 % increment error at 490 nm); (iii) per-λ_em Ed for the fluorescence
+term. Formulation-level limits (high-sun red Raman, trophic fluorescence
+growth) deliberately left to the retrieve-or-bust redesign.
+
+**Next:** await answers B1–B5, then implement the fixes in the BING repo.
+
+### 2026-08-18 (Implemented the BING inelastic fixes on branch `inelastic-fixes`; all tests pass; production validated against L23)
+
+Executed BING prompt 2 (model: Fable). Reviewed B1–B5 answers (agreed split;
+clean break; true-Ed default with fallback warning; L23-anchored tests; JXP
+handles all git on the already-created `inelastic-fixes` branch) and
+implemented the fixes in the BING repo. Full details in BING's
+`prompts/inelastic_fixes.md`; summary:
+
+**Code changes (BING repo, branch `inelastic-fixes`):**
+
+- `bing/rt/rrs.py::calc_Rrs_fluorescence` — the 1/π fix: the two-flow
+  irradiance reflectance R_F = E_u/E_d is now converted to rrs via
+  L_u = E_u/π (isotropic emission) before the A·rrs/(1−B·rrs) step;
+  derivation + L23 validation numbers in the docstring.
+- `bing/rt/raman.py::calc_Rrs_with_raman` (additive path, unused in
+  production) — same 1/π conversion for consistency.
+- `bing/rt/rrs.py::calc_Rrs` — new `Ed_ratio` kwarg forwarded to the Raman
+  correction factor.
+- `bing/models/anw.py` — new `aNWModel.set_raman_Ed(wave_Ed, Ed)` storing
+  `Ed_ratio_raman` (the Ed grid must extend ~50 nm blueward of the model
+  grid); `init_Chl_fluorescence` now defaults `Ed_em` to the full Ed vector
+  (per-λ_em normalization; legacy scalar still accepted).
+- `bing/evaluate.py::calc_Rrs_from_models` — uses `Ed_ratio_raman` when set;
+  emits a RuntimeWarning and falls back to flat Ed when not.
+- `bing/fitting/l23.py` — wires `set_raman_Ed` from `correct_atmosphere`
+  when `include_Raman` and passes the ratio to the synthetic-observation
+  Rrs, keeping mock data and MCMC forward model consistent; vector Ed_em.
+- Docs: `chlorophyll_fluorescence.rst` (formula rewritten with the E_u→L_u
+  step + validation note), `radiative_transfer.rst` (set_raman_Ed note),
+  `changelog.rst` (prominent breaking-change entry: pre-fix
+  `include_Chl_fl` results overestimated Rrs_fl ~3×, effective φ_C ~π×
+  smaller than nominal). New BING-side log `prompts/inelastic_fixes.md`.
+
+**Tests:** new `bing/tests/test_l23_inelastic.py` with committed 69 kB
+fixture (40 L23 scenes, zenith 30°; generator in `tests/files/`): pins the
+fluorescence term to ±15 % of X4−X2 truth at 685 nm, the true-Ed Raman
+factor to ±15 % median increment error (550–700 nm), and true-Ed strictly
+better than flat-Ed at 490 nm. Updated the pinned reference in
+`test_chl_fl.py`. Suite results: 53 (l23_inelastic+chl_fl+raman) + 10
+(evaluate) + 26 passed/2 skipped (l23_fitting, matching the pre-change
+tally) + 13 (inference+chisq_fit) = **102 passed, 2 skipped**.
+
+**Production validation vs full L23 (3320 scenes/zenith):** fluorescence
+median model/truth at 685 nm = **1.00/0.95/0.86** (zenith 0°/30°/60°; was
+3.18/3.00/2.73); true-Ed Raman median increment error 550–700 nm =
+**+1.2 %/−4.3 %** at 30°/60° (−39 % at 0° — the two-flow high-sun
+limitation, deliberately left to the retrieve-or-bust redesign).
+
+**Report updated:** added a dated update box at the top of §4 of
+`context/RT/rt_inelastic_bing_summary.md` (fixes confirmed + post-fix
+numbers; pre-fix figures retained as the motivating record) and a matching
+note in the header of `context/RT/make_rt_inelastic_figures.py`.
+
+**Two operational notes:** (1) `test_l23_fitting.py` blocks forever in
+headless runs at `plt.show()` (Tk mainloop) in the Raman/Chl LM tests —
+pre-existing; run with `MPLBACKEND=Agg` (documented in the BING log).
+(2) `conda run` buffers all output until exit; use the env python directly
+for long test runs.
+
+**Next:** JXP reviews/commits the BING branch. Report and prompt doc are
+current; the formulation-level items remain for the Design phase.
+
+### 2026-08-19 (Fixed the test_l23_fitting.py GUI block in BING)
+
+Per JXP's request, fixed the headless hang found during the BING-fixes
+validation (model: Fable). Root cause: three tests in
+`bing/tests/test_l23_fitting.py` called `plotting.show_fits(..., show=True)`
+→ `plt.show()`, which blocks forever in a Tk mainloop when a DISPLAY is
+reachable but nobody closes the window. Two-layer fix in the BING repo
+(branch `inelastic-fixes`): (1) `bing/tests/conftest.py` forces the Agg
+backend for the whole suite before pyplot is imported, making `plt.show()`
+a no-op and hang-proofing all current and future plotting tests; (2) the
+three tests now pass `show=False` (a unit test shouldn't request a GUI
+window; figure construction is still exercised). Verified with no
+MPLBACKEND override: the formerly hanging LM test + all of
+`test_plotting.py` → 20 passed in 3.9 s; the two MCMC plot tests →
+2 passed in 62 s. Logged on the BING side in `prompts/inelastic_fixes.md`.

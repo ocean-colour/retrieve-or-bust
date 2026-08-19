@@ -153,6 +153,22 @@ fitting path.
 
 ## 4. Critical assessment against L23 truth
 
+> **Update (2026-08-18).** The two fixable errors identified below were
+> confirmed and fixed in the BING repository (branch `inelastic-fixes`; see
+> `bing/prompts/inelastic_fixes.md` there). (i) The fluorescence ×2.5–3
+> amplitude error is exactly the suspected normalization: inserting the
+> isotropic-emission conversion L_u = E_u/π moves the median model/truth
+> ratio at 685 nm from 3.18/3.00/2.73 to **1.00/0.95/0.86** (zenith
+> 0°/30°/60°). (ii) The production Raman path now uses the true
+> Ed(λ′)/Ed(λ) ratio when available (`set_raman_Ed`), warning on the
+> flat-Ed fallback; the median increment error over 550–700 nm is
+> **+1 %/−4 %** at zenith 30°/60° (−39 % at 0° — the two-flow high-sun
+> limitation, unchanged by design). L23-anchored regression tests were
+> added to BING. The figures and numbers *below* document the pre-fix
+> state and are retained as the record that motivated the fixes; the
+> formulation-level limits (§4.1 items 2, §4.2 items 3–5, §4.3) remain
+> open for the retrieve-or-bust design.
+
 Method: feed L23's own input IOPs (identical across X scenarios by
 construction) through BING's production functions and compare with the
 scenario differences, per wavelength, zenith, and scene. For Raman the truth

@@ -31,6 +31,14 @@ Outputs (written next to this script, context/RT/):
 - rt_inelastic_metrics.csv       : summary numbers quoted in the report
 
 Run with:  conda run -n ocean14 python make_rt_inelastic_figures.py
+
+NOTE (2026-08-18): the committed figures document the PRE-FIX BING of
+2026-08-16 and motivated the fixes since applied in the BING repo (branch
+`inelastic-fixes`): a 1/pi normalization in calc_Rrs_fluorescence and a
+true-Ed option for the Raman correction. Re-running this script against
+fixed BING will therefore show the fluorescence model near truth
+(median model/truth at 685 nm ~1.00/0.95/0.86 at zenith 0/30/60 deg)
+rather than the ~3x overestimate shown in the committed figures.
 """
 
 import os
