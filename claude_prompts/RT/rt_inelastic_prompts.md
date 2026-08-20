@@ -49,11 +49,13 @@ If you need to run Python use the `ocean14` conda environment.
 
 2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Ask another round of questions if needed.  Use Fable if you can.  Log your work.
 
-3. The design document looks great!  Please generate a separate coding plan with a staged implementation plan including milestones.  Name it `design/rt_elastic_model_coding_plan.md`.  Please ask me a set of questions in Q&A/Coding before writing the document.  Use Fable if you can.  Log your work.
+3. Please proceed to write the design document.  Use Fable if you can.  Log your work.
 
-4. I have answered your questions in the Q&A section below.  Please review them and proceed to write the coding plan.  Use Fable if you can.  Log your work.
+4. The design document looks great!  We will now generate a separate coding plan with a staged implementation plan including milestones.  Name it `design/rt_inelastic_model_coding_plan.md`.  Please ask me a set of questions in Q&A/Coding before writing the document.  Use Fable if you can.  Log your work.
 
-5. The coding plan looks great!  Please generate a series of prompt docs to execute the coding plan.  Name them `claude_prompts/RT/rt_elastic_coding_prompt_1.md`, `claude_prompts/RT/rt_elastic_coding_prompt_2.md`, etc.  Model them after the ones in the PAB repository (in that `claude_prompts` folder). Use Fable if you can.  Log your work.
+5. I have answered your questions in the Q&A section below.  Please review them and proceed to write the coding plan.  Use Fable if you can.  Log your work.
+
+6. The coding plan looks great!  Please generate a series of prompt docs to execute the coding plan.  Name them `claude_prompts/RT/rt_inelastic_coding_prompt_1.md`, `claude_prompts/RT/rt_inelastic_coding_prompt_2.md`, etc.  Model them after the ones for the elastic RT effort. Use Fable if you can.  Log your work.
 
 ### Report
 
@@ -89,7 +91,7 @@ physiology handle. Agree to lock (c)? And should Raman and fluorescence get
 *separate* correction heads (my lean: yes — different inputs, different
 failure modes) or one shared network?
 
-**DQ1-answer:**
+**DQ1-answer:**  Yes, lock (c).  And I agree with you on the separate correction heads.
 
 **DQ2 (Scope).** v1 covers Raman + Chl-a fluorescence, matching the available
 truth. CDOM fluorescence: no truth exists in hand (absent from L23 and BING).
@@ -99,7 +101,7 @@ declare implementation out of scope for v1. Agree, or do you want CDOM
 fluorescence designed-in now (which puts new HydroLight runs on the critical
 path)?
 
-**DQ2-answer:**
+**DQ2-answer:** Yes, I agree.
 
 **DQ3 (Interface).** Two unavoidable extensions to the pinned `forward()`
 contract, and one design choice:
@@ -114,7 +116,7 @@ elastic-only output** (the elastic gate stays valid). Emission enters as
 elastic hybrid (the self-normalizing form BING validated), fluorescence
 additive. OK?
 
-**DQ3-answer:**
+**DQ3-answer:** Yes, ok.
 
 **DQ4 (φ_C semantics).** The forward model exposes φ_C as a differentiable
 input (default 0.02), so the future inversion can retrieve it or prior-load
@@ -126,7 +128,7 @@ to first order; the (1−B·rrs) nonlinearity is ~10⁻³). Also: single-Gaussia
 emission (what L23/HydroLight used — validatable) with the 730 nm PS I
 shoulder as a switchable extension that L23 cannot validate. Agree on both?
 
-**DQ4-answer:**
+**DQ4-answer:** Yes, agree on both.
 
 **DQ5 (Ed input).** The Raman/fluorescence terms need the solar spectral
 shape Ed(λ)/Ed(λ′) — first-order important per the report. Under L23's fixed
@@ -135,7 +137,7 @@ ship the three L23 Ed(0⁺) spectra as package data, interpolate in zenith,
 and accept an optional user-supplied Ed override in `geometry` for real-sky
 use later. (No coupling to an atmosphere model in v1.) OK?
 
-**DQ5-answer:**
+**DQ5-answer:** Yes, ok.  I do worry that the community uses a poor model of the Sun right now, but we will deal with that later.  Do note this in the design document.
 
 **DQ6 (Acceptance gate).** Mirroring the elastic protocol (held-out-by-scene,
 rrs-space rRMS), I propose gates on *both* levels:
@@ -150,7 +152,7 @@ rrs-space rRMS), I propose gates on *both* levels:
 Are these the right bars — in particular is 0.5 % total acceptable, or do
 you want to hold the 0.30 % elastic standard end-to-end?
 
-**DQ6-answer:**
+**DQ6-answer:** Yes, these are the right bars.  We'll see how it goes.
 
 **DQ7 (Validation data & holdout).** Train/validate on L23 X1/X2/X4 at
 zeniths 0/30/60°, held out **by scene** (same splits as the elastic effort so
@@ -164,7 +166,7 @@ include a *wishlist of new HydroLight runs* (denser zeniths, varied φ_C,
 CDOM fluorescence, varied atmospheres) as a §"beyond v1" so you can plan
 compute?
 
-**DQ7-answer:**
+**DQ7-answer:** I agree with your ideas for v1.  And, yes, do create a wishlist of new HydroLight runs.
 
 **DQ8 (Prototype cadence and logistics).** Mirror the elastic effort:
 a ~1-week prototype with milestones (M0 scaffold/API extension → M1 Ed +
@@ -176,7 +178,15 @@ Anything you'd change about that cadence — e.g. a different time budget, or
 folding this into the existing elastic modules rather than a new
 `robust/rt/inelastic.py`?
 
-**DQ8-answer:**
+**DQ8-answer:**  This looks good.  
+
+---
+
+Reaction from Claude (2026-08-20): all eight answers are affirmative and
+mutually consistent — no second round needed. The two additions are
+incorporated: the solar-model concern is recorded in the design doc (§4.2
+caveat + §9 risk + wishlist item 5), and the HydroLight run wishlist is §8
+(six prioritized run families). `design/rt_inelastic_model.md` is written.
 
 ### BING fixes
 
@@ -753,3 +763,72 @@ The questions and my recommendations:
 
 **Next:** await JXP's answers (Design prompt 2), then react / second round,
 then write `design/rt_inelastic_model.md`.
+
+### 2026-08-20 (Design answers reviewed; wrote design/rt_inelastic_model.md)
+
+Executed Design prompt 2 (model: Fable). All eight DQ answers were
+affirmative — architecture (c) locked with separate correction heads, CDOM
+fluorescence hooks-only, interface/φ_C/Ed/gates/data/cadence as proposed —
+plus two additions: record the solar-model quality concern, and create the
+HydroLight run wishlist. No second Q&A round was needed, so I proceeded to
+write **`design/rt_inelastic_model.md`** (the step Design prompt 3 assumes
+complete). Structure mirrors the elastic design doc:
+
+- §1 goals/non-goals (reproduce the all-processes-on X4 ocean; keep
+  differentiability incl. ∂Rrs/∂φ_C; `inelastic=None` → bit-identical
+  elastic output).
+- §2 architecture: `Rrs_total = (Rrs_ZTT + ΔRrs) × f_R + Rrs_fl` —
+  multiplicative Raman (the self-normalizing form), additive fluorescence,
+  two bounded tanh-scaled correction heads that decay to the analytic
+  physics.
+- §3 interface: `IOPs.a_ph`, optional `Inelastic` pytree (φ_C default 0.02,
+  `cdom_fl` and `emission_shape` slots), `Geometry.Ed` override; official
+  support λ ≥ 400 nm.
+- §4 components: L23 truth channels (X2/X1, X4−X2, X4) on the elastic
+  by-scene splits; Ed module from the three L23 Ed(0⁺) spectra with the
+  DQ5 solar-model caveat recorded; JAX ports of the *fixed* BING analytic
+  terms with their measured residual errors quoted as the correction
+  targets; δ_R rescales the Raman increment, δ_F multiplies the φ_C-linear
+  kernel (trained at 0.02, generalizes by linearity); cross-check pins the
+  JAX ports to fixed-BING at rtol ≤ 1e-6.
+- §5 modules under `robust/rt/` (inelastic.py, inelastic_corr.py, Ed data,
+  committed weights + extended CI fixture modeled on BING's).
+- §6 the DQ6 gate verbatim (total ≤ 0.5 %; per-process deltas ≤ 5 % incl.
+  zenith 0°; elastic hash-regression; gradients incl. φ_C; ≤ 2× runtime)
+  plus ungated diagnostics (trophic deciles, φ_C-linearity check).
+- §7 the M0–M4 one-week prototype table.
+- §8 beyond-v1: CDOM-fl landing zone + the six-item HydroLight wishlist
+  (denser zeniths; varied φ_C; CDOM-fl on/off pairs; off-nadir views;
+  alternative solar spectra — the DQ5 concern made testable; sub-350 nm).
+- §9 risks (geometry extrapolation, φ_C-linearity untested against varied-φ
+  truth, trophic-tail sparsity, solar-spectrum quality, Raman–fluorescence
+  coupling folded into δ_F).
+
+**Next:** JXP review of the design doc, then Design prompt 3 (the coding
+plan — note its filename in the prompt list still reads
+`rt_elastic_model_coding_plan.md`; presumably it should be
+`rt_inelastic_model_coding_plan.md`).
+
+### 2026-08-20 (Design prompt 3: design document finalized)
+
+Executed Design prompt 3 (model: Fable). The document
+`design/rt_inelastic_model.md` was drafted under prompt 2 (when the Q&A
+closed with no second round needed); this prompt served as its finalization
+pass. Re-read the full document fresh against the eight locked DQ decisions —
+all are represented (architecture (c) with separate bounded heads; CDOM-fl
+hooks only; interface extensions with the `inelastic=None` bit-identical
+guarantee; φ_C-linear kernel + single-Gaussian emission; L23 Ed package data
+with the DQ5 solar-model caveat; the DQ6 gate verbatim; elastic by-scene
+splits with λ ≥ 400 nm support; M0–M4 cadence; six-item HydroLight wishlist).
+Two defects found and fixed: replaced the confusing "×0.5⁻¹" notation in §2
+with the plain statement that the fluorescence amplitude ratio drifts to
+~×2–3 at the eutrophic tail, and rewrote the Raman excitation-grid formula in
+§3 in proper wavenumber form (λ′ such that 1/λ′ = 1/λ + 3400 cm⁻¹).
+
+Note for the next step: the coding-plan filename inside the design doc (§7)
+reads `design/rt_inelastic_model_coding_plan.md`, while Design prompt 4 in
+this doc still says `design/rt_elastic_model_coding_plan.md` — flagged for
+JXP to reconcile before invoking that prompt (recommendation: use the
+`inelastic` name; the elastic coding plan already occupies the other).
+
+**Next:** JXP review, then Design prompt 4 (coding-plan Q&A).
