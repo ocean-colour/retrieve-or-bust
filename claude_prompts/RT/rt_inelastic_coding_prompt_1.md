@@ -135,3 +135,41 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-20 (M0 task 1 — implementation record created)
+
+Created `design/rt_inelastic_implementation.md` (v0.1), seeded with
+M0-in-progress. Model: Fable 5.
+
+Structure mirrors the elastic record (`rt_elastic_implementation.md`):
+the same front matter (version/date/status/companions block, versioning
+convention, the pointer to prompt Logs for chronology), a "Status at a
+glance" table — here M0–M4 from the coding plan, with the planned package
+surface per milestone — and per-milestone sections. M0's section is fully
+scaffolded (task-status table for this prompt doc's five tasks, plus
+Modules / Environment / Tests / Results / Notebook subsections carrying the
+*planned* content from the coding plan as placeholders to be replaced by
+actuals); M1–M4 get goal-only stub sections to be expanded when each opens.
+A "Module index" section is stubbed at the end, mirroring the elastic
+record's §9.
+
+Choices worth noting:
+
+- The record states up front the two things that differ from the elastic
+  effort and are easy to get wrong later: **this machine (tank server), not
+  the laptop** — `ocean14` here has no `jax` as of today, and the elastic
+  record's §2.3 install table describes the *laptop* env — and the
+  **absolute** (≤ 5 %) per-process gates vs the elastic effort's
+  relative-only philosophy (DQ6/CQ3 decisions), including the bing
+  `skipif`-on-CI behavior.
+- The elastic hash-regression ("bit-identical by construction, not by
+  arithmetic") is written into §1 as a recurring gate banner, since it
+  guards every milestone from M0 on.
+- Task 1 marked ✅ in the M0 task table; tasks 2–5 ⬜. The "Verification
+  (current)" line is an explicit placeholder — no pytest run is claimed,
+  since nothing was built yet.
+
+Read before writing: this prompt doc, the coding plan (Ground rules, layout,
+M0–M4 gates), the inelastic design header, and the elastic record (front
+matter, §1, §2 in full; section skeleton of §3–§10) to mirror faithfully.
+No code, environment, or git state was touched.
