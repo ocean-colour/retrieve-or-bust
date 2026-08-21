@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.4
+**Version:** 0.5
 **Date:** 2026-08-21
 **Authors:** JXP and Claude
 
@@ -28,7 +28,7 @@ the Date on every bump.
 
 | M | Goal | Status | Package surface |
 |---|------|--------|-----------------|
-| **M0** | Environment (this machine) & API extension | 🟡 in progress | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
+| **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ⬜ not started | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ⬜ not started | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
 | **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
@@ -90,7 +90,7 @@ environment checks green.
 | 2 | Install the JAX stack into `ocean14` on this machine; verify purely additive; record versions | ✅ done |
 | 3 | Extend the API (`types.py`: `IOPs.a_ph`, `Inelastic`, `Geometry.Ed`; `hybrid.forward(..., inelastic=None)`); pass the gate incl. the pinned elastic hash | ✅ done |
 | 4 | `notebooks/RT/rt_inelastic_coding_1.ipynb` — the M0 explainer, executed | ✅ done |
-| 5 | Update `rt_inelastic_coding_prompt_2.md` with the actual M0 outcome | ⬜ not started |
+| 5 | Update `rt_inelastic_coding_prompt_2.md` with the actual M0 outcome | ✅ done |
 
 ### 2.2 Modules extended
 

@@ -347,3 +347,48 @@ colors): fig 1's histogram carries the 40 %-vs-0 asymmetry; fig 2 uses the
 single-hue zenith sequence with a legend instead of direct labels — the
 three medians sit within ~5 % and direct labels overprinted in the first
 render (caught visually, fixed before committing outputs).
+
+### 2026-08-21 (M0 task 5 — prompt 2 updated with reality; M0 complete)
+
+Filled `rt_inelastic_coding_prompt_2.md`'s "Status entering M1" and adjusted
+its tasks where reality disagreed with the plan; record bumped to v0.5 with
+M0 marked ✅ done in the status table. Model: Fable 5. Q&A re-checked: no new
+entries beyond the answered Q1/Q2.
+
+The status section now hands M1 everything M0 established: the verified
+environment (versions, 309-green suite, `$OS_COLOR` set here), the pinned
+API surface (keyword-only `inelastic=None`; instance raises until M2 — M1
+must not change that), the armed hash-regression, the `bing`
+`inelastic-fixes` editable checkout with its raman helpers, the X2/X4
+netCDFs verified on disk, and the `ocean14` kernelspec/nbconvert recipe for
+the M1 notebook. The working-agreements block now names branch
+`inelastic-rt` (JXP's Q2 decision) and carries the do-not-install-
+requirements-wholesale warning (Q1).
+
+Three factual corrections to the M1 tasks, each verified before editing:
+
+- **The Raman cross-check number was wrong.** The task said "λ′(488) ≈
+  583.6 nm"; the exact 3400 cm⁻¹ wavenumber form gives **585.076 nm**
+  (1e7/488 − 3400 = 17091.8 cm⁻¹), confirmed by running
+  `bing.rt.raman.excitation_to_emission_wavelength(488)` → 585.0758. Even
+  bing's docstring example ("583.0 # approximately") is off. The task now
+  pins both directions (488 exc → 585.08 em; 488 em ← 418.55 exc) and says
+  to test the computed value, not a prose approximation.
+- **The sibling-fixture size bound was arithmetically impossible.** 18
+  float32 arrays of 50×81 weigh ~292 kB raw; the elastic fixture's 15
+  arrays already weigh 213 kB. The ≲ 200 kB gate became ≲ 300 kB, with the
+  arithmetic shown.
+- **`needs_l23` guards only the elastic X=1 files.** M1's raw-netCDF
+  cross-checks over X2/X4 would *fail*, not skip, on a machine with partial
+  data. Added to both the status section and task 3's gate: a separate
+  marker (e.g. `needs_l23_inelastic`) over the six inelastic files.
+
+Also pinned the BING reference to its real path
+(`.../bing/bing/tests/files/gen_l23_inelastic_fixture.py`, present on the
+checkout with its committed fixture) so M1 doesn't hunt for it.
+
+**M0 is complete**: implementation record seeded and maintained (v0.5), JAX
+stack installed and verified on this machine, API extended with the elastic
+path pinned bit-identical (309 tests green, ruff clean), notebook executed
+and committed, and the M1 prompt updated. The milestone sits on branch
+`inelastic-rt` as an uncommitted working tree for JXP's review and commit.
