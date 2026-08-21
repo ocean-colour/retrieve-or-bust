@@ -147,6 +147,7 @@ def rrs_forward(
     wave: Float[Array, " wave"] | None = None,
     mode: str = "hybrid",
     *,
+    inelastic=None,
     emulator=None,
     check_domain: bool = True,
     on_out_of_domain: str = "warn",
@@ -157,6 +158,7 @@ def rrs_forward(
     ----------
     iops : robust.rt.types.IOPs
         Absorption and the water/particle backscattering split, on ``wave``.
+        The optional ``a_ph`` field is ignored on the elastic path.
     phase_params : robust.rt.types.PhaseParams
         Explicit phase-function descriptor (week 1: ``B_p = bb_p / b_p``).
     geometry : robust.rt.types.Geometry
@@ -171,6 +173,15 @@ def rrs_forward(
         - ``'emulator'`` — the learned correction ``Δrrs`` **alone**, which is a
           term and not a model; see the module docstring.
         - ``'hybrid'`` — ``rrs_ZTT + Δrrs``, the M3 deliverable.
+    inelastic : robust.rt.types.Inelastic, optional
+        Configuration of the inelastic processes (Raman scattering, chlorophyll
+        fluorescence — inelastic design §3). ``None`` (the default) is the
+        elastic model, **bit-identical by construction** to the pre-extension
+        hybrid: the ``None`` branch returns down the pre-existing code route
+        before any inelastic arithmetic exists, rather than adding terms that
+        happen to be zero. A test pins the fixture output hash. Passing an
+        instance raises ``NotImplementedError`` until the physics lands
+        (inelastic coding plan, M2).
     emulator : robust.rt.emulator.Emulator, optional
         Defaults to the packaged weights
         (:func:`robust.rt.emulator.load_default`). Ignored for ``mode='ztt'``, which
@@ -207,6 +218,14 @@ def rrs_forward(
             f"forward: on_out_of_domain must be one of {OUT_OF_DOMAIN_POLICIES}; "
             f"got {on_out_of_domain!r}"
         )
+    if inelastic is not None:
+        # M2 composes the Raman factor and the fluorescence term here (inelastic
+        # design §2). Until then the only valid value is None — the elastic route
+        # below, which this early exit leaves untouched.
+        raise NotImplementedError(
+            "inelastic processes (Raman, fluorescence) land at M2 of the "
+            "inelastic coding plan; only inelastic=None is available"
+        )
 
     rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
     if mode == "ztt":
@@ -232,6 +251,7 @@ def forward(
     wave: Float[Array, " wave"] | None = None,
     mode: str = "hybrid",
     *,
+    inelastic=None,
     emulator=None,
     check_domain: bool = True,
     on_out_of_domain: str = "warn",
@@ -243,8 +263,12 @@ def forward(
 
     Parameters
     ----------
-    iops, phase_params, geometry, wave, mode, emulator, check_domain, on_out_of_domain
-        As :func:`rrs_forward`.
+    iops, phase_params, geometry, wave, mode, inelastic, emulator, check_domain, \
+on_out_of_domain
+        As :func:`rrs_forward`. In particular ``inelastic=None`` (the default)
+        is the elastic model, bit-identical by construction to the
+        pre-extension output; an instance raises ``NotImplementedError``
+        until M2.
 
     Returns
     -------
@@ -274,6 +298,7 @@ def forward(
             geometry,
             wave,
             mode,
+            inelastic=inelastic,
             emulator=emulator,
             check_domain=check_domain,
             on_out_of_domain=on_out_of_domain,

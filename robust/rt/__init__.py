@@ -11,7 +11,11 @@ where ``Rrs_ZTT`` is the Twardowski & Tonizzo (2018) analytic backbone — with 
 *explicit* phase-function dependence — and ``ΔRrs`` is a small learned residual
 (multiple scattering and phase-function effects the backbone misses).
 
-Elastic only: no Raman, no fluorescence.
+Elastic physics only so far — but the *interface* now carries the inelastic
+extension (design ``design/rt_inelastic_model.md``, M0): ``forward(...,
+inelastic=None)`` with the :class:`~robust.rt.types.Inelastic` configuration
+pytree. ``inelastic=None`` is bit-identical to the elastic hybrid by
+construction; passing an instance raises until M2 lands Raman + fluorescence.
 
 Design    : ``design/rt_elastic_model.md``
 Plan      : ``design/rt_elastic_model_coding_plan.md``
@@ -46,7 +50,7 @@ the bodies land.
 
 from . import baselines, conventions, data, emulator, hybrid, types, validation, ztt
 from .hybrid import forward
-from .types import Geometry, IOPs, PhaseParams
+from .types import Geometry, Inelastic, IOPs, PhaseParams
 
 # Grouped by role, and ordered as the pipeline runs (conventions -> data ->
 # backbone -> emulator -> hybrid -> validation), not alphabetically: the order is
@@ -67,4 +71,5 @@ __all__ = [  # noqa: RUF022
     "IOPs",
     "PhaseParams",
     "Geometry",
+    "Inelastic",
 ]
