@@ -185,3 +185,54 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-21 (M1 task 1 — Ed module: generator, packaged spectra, ed.py, 19 tests)
+
+The Ed module is done end to end; record bumped to v0.6 (§3.1–3.4). Model:
+Fable 5. Q&A checked in prompt 1 first (per the invoking instruction): Q1/Q2
+remain the only entries, both answered — nothing new to address. (This
+prompt's own Q&A is empty.) Note: the instruction said "6th prompt" of prompt
+doc 1, which has only five — read as the next step in sequence, i.e. this
+doc's prompt 1, after confirming M0 was committed (git log clean).
+
+What landed:
+
+- `design/py/gen_inelastic_fixture.py` (part 1): Ed(0⁺) from the X=2 files.
+  Scene-independence measured **4.9e-5 / 4.7e-5 / 4.7e-5** relative at
+  0°/30°/60° — a factor ~20 inside the 1e-3 gate; also asserted identical
+  across X=1/2/4 per zenith (the sky must not depend on the IOP scenario),
+  float64 mean → float32 storage, atomic write with verify-before-replace
+  (the write_fixture/PR-#11 discipline) including a rows-in-order check.
+- `robust/rt/data/ed_l23.npz` (2 kB): Ed(440) = 1.5435/1.3010/0.6467
+  W m⁻² nm⁻¹ at 0/30/60°. Found and fixed a real packaging gap: `setup.py`
+  `package_data` did not cover `rt/data/*.npz`, so a pip-installed robust
+  would have lacked the table (the repo is used via sys.path here, so
+  nothing failed yet — it would have on an installed deployment).
+- `robust/rt/ed.py`: `Ed(theta_s, wave, override=None)` + the
+  `ratio(λ′, λ)` helper. Decisions recorded in §3.2: clamp (never
+  extrapolate, never raise-under-jit) at both the zenith and wavelength
+  edges — the bb_w precedent; hand-rolled batched clamped-linear
+  interpolation (jnp.interp is 1-D only), differentiable in the spectrum
+  values — the property task 2 needs, obtained here for free; table cached
+  as NumPy so x64 callers aren't dtype-trapped; override replaces the sky
+  *entirely* (theta_s ignored — one sky is one sky) and `ratio` exists so
+  λ′ and λ can never mix skies; DQ5 solar-model caveat as the docstring
+  centerpiece.
+- `robust/tests/test_ed.py` (19 tests) + the `needs_l23_inelastic` marker in
+  conftest (closing the gap this prompt's status section flagged). Only the
+  golden netCDF comparison needs the inelastic data; everything else — the
+  table properties, both interpolations, clamps, override, ratio, jit/vmap,
+  both gradient checks (float64 fixture, dtypes pinned) — runs in CI off the
+  committed 2 kB file. Includes a units sanity bound (peak Ed(0°) must be
+  O(1) W m⁻² nm⁻¹) so a mW/µm-type slip can't hide behind shape tests, and a
+  ratio-is-not-flat assertion tied to the assessment's +60 %/−50 % flat-Ed
+  error.
+
+Full suite: **328 passed** (279 elastic + 30 M0 + 19 new) — the elastic hash
+pins stay green; ruff check + format clean.
+
+Learned: L23's Ed is even more scene-independent than the plan assumed
+(5e-5 vs the 1e-3 gate — pure float32 storage noise), and it is bitwise
+shared across the X scenarios, which the generator now enforces as an assert
+so a future release that varies the sky per scenario stops the pipeline
+instead of shipping an average of different suns.

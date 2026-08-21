@@ -29,6 +29,9 @@ types
     ``IOPs`` / ``PhaseParams`` / ``Geometry`` pytrees.
 data.l23
     Loisel+2023 (L23) elastic reference batches, via ``ocpy``.
+ed
+    ``Ed(theta_s, lambda)`` from packaged L23 spectra + the ``Geometry.Ed``
+    override — consumed by the inelastic terms only (M1).
 ztt
     ``Rrs_ZTT`` — the analytic backbone.
 emulator
@@ -48,7 +51,17 @@ signatures are already those of the design, so nothing downstream has to change 
 the bodies land.
 """
 
-from . import baselines, conventions, data, emulator, hybrid, types, validation, ztt
+from . import (
+    baselines,
+    conventions,
+    data,
+    ed,
+    emulator,
+    hybrid,
+    types,
+    validation,
+    ztt,
+)
 from .hybrid import forward
 from .types import Geometry, Inelastic, IOPs, PhaseParams
 
@@ -60,6 +73,7 @@ __all__ = [  # noqa: RUF022
     "conventions",
     "types",
     "data",
+    "ed",
     "ztt",
     "emulator",
     "hybrid",
