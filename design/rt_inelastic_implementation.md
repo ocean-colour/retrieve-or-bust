@@ -1,7 +1,7 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.6
-**Date:** 2026-08-21
+**Version:** 0.7
+**Date:** 2026-08-22
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -91,6 +91,7 @@ environment checks green.
 | 3 | Extend the API (`types.py`: `IOPs.a_ph`, `Inelastic`, `Geometry.Ed`; `hybrid.forward(..., inelastic=None)`); pass the gate incl. the pinned elastic hash | ✅ done |
 | 4 | `notebooks/RT/rt_inelastic_coding_1.ipynb` — the M0 explainer, executed | ✅ done |
 | 5 | Update `rt_inelastic_coding_prompt_2.md` with the actual M0 outcome | ✅ done |
+| 6 | Review PR #14 (added by JXP after M0 closed; Cursor pre-review verified) | ✅ done — see §2.7 |
 
 ### 2.2 Modules extended
 
@@ -333,6 +334,55 @@ zenith (single-hue sequence, legend + stated ordering — the three curves sit
 within ~5 %, so per-curve direct labels would overprint), with the 550–700 nm
 Raman gain region and the 685 nm fluorescence line marked as *where M2 will
 touch it*, and the 400–750 nm official-support caveat in the caption text.
+
+### 2.7 The review pass (task 6) — PR #14
+
+Reviewed 2026-08-22 (multi-angle sweep, every finding adversarially verified
+against the live code; Cursor's Bugbot pre-review checked finding by finding).
+Nine confirmed findings, ranked; none blocks the merge, three should be fixed
+before M1 task 3 consumes the new fields:
+
+1. **`ed.Ed()` truncates spectra on integer wavelength grids** — the values
+   are cast to `wave.dtype`, so `Ed(30, np.arange(400, 705, 5))` returns all
+   1.0s and `ratio()` goes inf/NaN, silently. *Reproduced.*
+2. **`l23.select()` silently strips `a_ph`/`Ed`** (and `wind`) — it rebuilds
+   `IOPs` field-by-field and geometry via `Geometry.nadir`. Latent until an
+   inelastic batch is subset through the Splits masks, then physics vanishes
+   with no error. Fix: `tree_map` the pytrees. *Reproduced; found by three
+   independent angles.*
+3. **`IOPs.from_total_bb` leaves `a_ph` unbroadcast** while broadcasting
+   `bb_w` — breaks the constructor's own uniform-batch-shape contract.
+   *Reproduced.*
+4. **Cursor #1 confirmed**: `make_rt_inelastic_figures.py` resolves L23 via
+   `$OS_COLOR_DATA` + hard-coded tank path; project standard is `$OS_COLOR`
+   (the elastic sibling checks both).
+5. **Cursor #2 confirmed**: `write_metrics` reuses the Raman error columns
+   with different meanings on `ChlFl` rows (single/double Gaussian vs
+   flat-Ed/true-Ed) — the committed CSV mixes quantities under one header.
+6. `ed.py`'s zenith interpolation hard-codes the 30° stride instead of
+   reusing `_interp_wave`'s searchsorted — silent wrong numbers if M5 adds a
+   non-uniform anchor.
+7. `tiny_args()` duplicated verbatim into `test_inelastic_types.py`
+   (belongs in `conftest.py`).
+8. `ed.load_table()`'s hand-rolled `_TABLE` cache vs the package's
+   `@functools.cache` idiom.
+9. `robust/rt/__init__.py`'s Status paragraph still calls
+   `ztt`/`emulator`/`hybrid` stubs (staleness predates the PR; two-line fix).
+
+Cleared explicitly: `setup.py` packaging (empirical build check — all three
+`.npz` ship), `.gitignore` (no tracked file shadowed), CI dependency
+coverage, split leak-freedom, and the `Md_plus` in-water cosine (the review
+re-derived it and confirmed the code, not the docstring formula, is right).
+
+**Out-of-scope finds worth JXP's eye** (elastic-era code, PR #13's scope, not
+this diff): `ztt.bb_tilde` crashes on the per-sample scalar `B_p` that
+`PhaseParams` documents and the emulator supports (verified crash);
+`on_out_of_domain='ztt'` is a silent no-op for a domain-less emulator;
+`emulator.out_of_domain` can pair `worst` with the wrong side's `excess`;
+`write_fixture` keeps only the last zenith's wavelength grid unchecked; the
+committed `.claude/settings.json` carries an allowlist rule ending in
+`python -c ' *` (auto-approves arbitrary inline Python) plus several dead
+machine-specific paths.
 
 ---
 

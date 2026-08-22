@@ -69,6 +69,8 @@ is declared in `requirements.txt` already.
 5. Read this doc. Execute the 5th task — modifying the next prompt doc,
    `rt_inelastic_coding_prompt_2.md`, given what we have done here. Use Fable
    if you can. Log your work.
+6. Read this doc. Execute the 6th task — reviewing the pull request. Use Fable
+   if you can. Log your work.
 
 ## M0
 
@@ -119,6 +121,9 @@ is declared in `requirements.txt` already.
    `rt_inelastic_coding_prompt_2.md`, given what M0 actually established
    (fill its "Status entering M1" section; adjust tasks if reality
    disagreed with the plan). Log your work.
+
+6. **Pull request.**  I have craeted a pull request and had Cursor write a review.
+   Please review the pull request. Use Fable if you can. Log your work.
 
 ### Q&A
 
@@ -392,3 +397,50 @@ stack installed and verified on this machine, API extended with the elastic
 path pinned bit-identical (309 tests green, ruff clean), notebook executed
 and committed, and the M1 prompt updated. The milestone sits on branch
 `inelastic-rt` as an uncommitted working tree for JXP's review and commit.
+
+### 2026-08-22 (M0 task 6 — PR #14 reviewed; Cursor's findings verified; 9 confirmed findings)
+
+Reviewed PR #14 ("Inelastic rt: M0", `inelastic-rt` → `RT`, 28 files) with a
+multi-angle review sweep (8 finder agents: line-by-line ×2, cross-file
+tracer, removed-behavior audit, reuse, simplification, efficiency,
+altitude/conventions), then adversarially verified every candidate against
+the live code — the three headline bugs were *reproduced*, not just argued.
+Cursor's Bugbot pre-review was checked finding by finding. Full ranked list
+in the implementation record §2.7 (v0.7); highlights:
+
+- **Both Cursor findings are real** and were confirmed by inspection: the
+  figure script's `$OS_COLOR_DATA`-only L23 lookup (project standard is
+  `$OS_COLOR`; the elastic sibling checks both), and `write_metrics` reusing
+  the Raman error columns with different meanings on ChlFl rows in the
+  committed CSV.
+- **Three confirmed bugs in the new M0/M1 code, all reproduced live**:
+  (1) `ed.Ed()` casts spectra to `wave.dtype` — an integer wavelength grid
+  truncates Ed to 0/1 and `ratio()` goes inf/NaN silently; (2) `l23.select()`
+  rebuilds containers field-by-field and strips the brand-new `a_ph`/`Ed`
+  (three angles found this independently — latent until M1 task 3 subsets an
+  inelastic batch); (3) `from_total_bb` broadcasts `bb_w` but not `a_ph`,
+  breaking its own uniform-batch-shape contract. None affects the elastic
+  hash (verified conceptually: all sit off the elastic path), none blocks
+  merge, but 1–3 should be fixed before M1 task 3.
+- Four smaller confirmed items: the `/30` zenith-stride hard-code in `ed.py`
+  (reuse `_interp_wave`'s searchsorted), `tiny_args()` duplicated into the
+  new test module, the hand-rolled `_TABLE` cache vs `@functools.cache`, and
+  the stale "still stubs" Status paragraph in `robust/rt/__init__.py`.
+- **Cleared**: setup.py packaging (empirical build — all three `.npz` ship),
+  `.gitignore` shadowing, CI dep coverage, split leak-freedom, and the ZTT
+  in-water-cosine transcription (re-derived; code right, docstring formula
+  loose).
+- **Out-of-scope finds handed to JXP** (elastic-era code = PR #13's diff):
+  `ztt.bb_tilde` crashes on the per-sample scalar `B_p` that `PhaseParams`
+  documents (verified crash — contract mismatch with the emulator layer);
+  `on_out_of_domain='ztt'` silently no-ops for domain-less emulators;
+  `out_of_domain`'s worst/excess side mismatch; `write_fixture`'s unchecked
+  cross-zenith wavelength grid; and `.claude/settings.json`'s committed
+  allowlist rule ending in `python -c ' *` (auto-approves arbitrary inline
+  Python — worth removing) plus dead machine-specific path rules.
+
+No fixes were applied (the task asked for review; `--fix` not requested) and
+nothing was posted to GitHub — findings live here, in §2.7, and in the
+session report for JXP to triage. Suggested triage: fix findings 1–3 +
+Cursor's two in one commit on this branch; fold 6–9 in opportunistically;
+schedule the elastic-era items for PR #13.
