@@ -220,6 +220,45 @@ def test_select_rejects_a_bad_mask(bad):
         L.select(synthetic_batch(n_scene=10), bad)
 
 
+def test_select_preserves_optional_fields():
+    """Subsetting keeps a_ph, wind, and the Ed override — nothing silently drops.
+
+    Regression for PR #14 review finding 2: select() rebuilt the containers
+    field-by-field (geometry via Geometry.nadir), stripping IOPs.a_ph,
+    Geometry.wind, and Geometry.Ed. Per-sample fields must be subset; Ed is
+    one sky for the whole batch and must be carried through *whole*, not
+    indexed by the sample mask.
+    """
+    import dataclasses
+
+    batch = synthetic_batch(n_scene=6)
+    ed_override = (jnp.asarray(np.linspace(350.0, 750.0, 5)), jnp.full(5, 1.2))
+    batch = dataclasses.replace(
+        batch,
+        iops=dataclasses.replace(batch.iops, a_ph=batch.iops.a * 0.3),
+        geometry=dataclasses.replace(
+            batch.geometry, wind=jnp.full(batch.n_sample, 5.0), Ed=ed_override
+        ),
+    )
+    mask = np.zeros(batch.n_sample, dtype=bool)
+    mask[[0, 5, 11]] = True
+
+    picked = L.select(batch, mask)
+
+    assert picked.iops.a_ph is not None
+    assert picked.iops.a_ph.shape == (3, N)
+    np.testing.assert_array_equal(
+        np.asarray(picked.iops.a_ph), np.asarray(batch.iops.a_ph)[mask]
+    )
+    assert picked.geometry.wind is not None
+    assert picked.geometry.wind.shape == (3,)
+    # Ed survives untouched: same arrays, same (unindexed) length.
+    np.testing.assert_array_equal(
+        np.asarray(picked.geometry.Ed[1]), np.asarray(ed_override[1])
+    )
+    picked.validate()
+
+
 # ------------------------------------------------------------ B_p reporting --
 
 

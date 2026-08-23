@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.8
+**Version:** 0.9
 **Date:** 2026-08-23
 **Authors:** JXP and Claude
 
@@ -340,8 +340,9 @@ touch it*, and the 400–750 nm official-support caveat in the caption text.
 
 Reviewed 2026-08-22 (multi-angle sweep, every finding adversarially verified
 against the live code; Cursor's Bugbot pre-review checked finding by finding).
-Nine confirmed findings, ranked; none blocks the merge, three should be fixed
-before M1 task 3 consumes the new fields:
+Nine confirmed findings, ranked. **Status 2026-08-23: findings 1–3 and 6–9
+are fixed** (the M1 cleanup pass, §3.2.1); findings 4–5 (the `context/RT`
+assessment scripts) remain open until that material is next touched:
 
 1. **`ed.Ed()` truncates spectra on integer wavelength grids** — the values
    are cast to `wave.dtype`, so `Ed(30, np.arange(400, 705, 5))` returns all
@@ -480,6 +481,48 @@ silently lacked the table.
   inherits L23's solar spectrum deliberately (consistency with the truth data
   over absolute solar accuracy); the override is the seam for TSIS-era or PACE
   skies later.
+
+### 3.2.1 The PR #14 review debt cleared (2026-08-23)
+
+The robust/-side findings of §2.7 are fixed; the elastic hash pins stayed
+green throughout (none of the touched code sits on the elastic route):
+
+- **`ed.py` dtype rule (finding 1) — promote, never truncate.** All inputs
+  are coerced to one common floating dtype via `jnp.result_type`; integer
+  wavelength grids select float nodes (regression test:
+  `test_integer_wavelength_grid_returns_float_irradiances`). The first fix
+  attempt — casting everything to `wave.dtype` — *failed the module's own
+  gradient gate in full-suite order*: a device conversion cached before
+  `jax_enable_x64` is toggled stays float32, so `canonical_wave()` can
+  return float32 under x64 mid-session, and truncating `theta_s` to it
+  silently degraded the float64 FD comparison to float32 (rel err 4e-3 vs
+  the 1e-6 gate). Promotion keeps a float64 `theta_s` in float64 regardless
+  of `wave`'s dtype. Recorded because M1 task 2's excitation-grid
+  interpolation will meet the identical trap.
+- **`ed.py` zenith interpolation (finding 6)**: now the same clamped
+  `searchsorted` rule as the wavelength axis, via a shared
+  `_interp_weights` helper — no stride assumption; any strictly increasing
+  anchor set works.
+- **`ed.load_table` (finding 8)**: `@functools.cache`, the package idiom.
+- **`types.from_total_bb` (finding 3)**: `a_ph` is broadcast like `bb_w`
+  (regression test: `test_iops_from_total_bb_broadcasts_a_ph_like_bb_w`).
+- **`l23.select()` (finding 2)**: `IOPs`/`PhaseParams` are subset leaf-wise
+  with `tree_map` (every present and future field survives); `Geometry` is
+  rebuilt per-sample-field-by-field **deliberately, not by tree_map** — its
+  `Ed` override is one sky for the whole batch (two 1-D spectral arrays),
+  so indexing it by the sample mask would corrupt it. `wind` is subset,
+  `Ed` carried whole (regression test:
+  `test_select_preserves_optional_fields`).
+- **`tiny_args()` (finding 7)**: one copy, in `conftest.py`; both test
+  modules import it.
+- **`robust/rt/__init__.py` (finding 9)**: the Status paragraph now states
+  the elastic prototype is complete and the inelastic types/`ed` have
+  landed, physics at M2.
+
+`pytest -q` → **331 passed** (328 + 3 regression tests); `CI=true`
+simulation: strict tier skips, closeness tier green; ruff clean. Open from
+§2.7: findings 4–5 (`context/RT` figure script + CSV), deferred to the next
+touch of the assessment material.
 
 ### 3.3 Tests (task 1)
 

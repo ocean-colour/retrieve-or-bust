@@ -145,6 +145,33 @@ def l23_batch():
     return l23.load_batch()
 
 
+def tiny_args():
+    """Minimal synthetic :func:`robust.rt.forward` inputs (2 wavelengths).
+
+    A plain function, not a fixture, so tests can call it several times and
+    mutate copies freely. Lives here because two modules were maintaining
+    byte-identical private copies (PR #14 review) — when these inputs must
+    change, there is now exactly one place.
+    """
+    import jax.numpy as jnp
+
+    from robust.rt import conventions
+    from robust.rt.types import Geometry, IOPs, PhaseParams
+
+    wave = jnp.asarray([440.0, 550.0])
+    iops = IOPs(
+        a=jnp.asarray([0.15, 0.12]),
+        bb_w=conventions.bb_w(wave),
+        bb_p=jnp.asarray([0.003, 0.003]),
+    )
+    return (
+        iops,
+        PhaseParams(B_p=jnp.asarray(0.0126)),
+        Geometry.nadir(jnp.asarray(30.0)),
+        wave,
+    )
+
+
 @pytest.fixture
 def jax_x64():
     """Enable JAX float64 for one test, restoring the prior setting after.

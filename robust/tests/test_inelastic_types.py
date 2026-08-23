@@ -85,20 +85,7 @@ PRE_CHANGE_SHA256_RRS_BELOW = (
 )
 
 
-def tiny_args():
-    """Minimal synthetic inputs for tests that never score accuracy."""
-    wave = jnp.asarray([440.0, 550.0])
-    iops = T.IOPs(
-        a=jnp.asarray([0.15, 0.12]),
-        bb_w=C.bb_w(wave),
-        bb_p=jnp.asarray([0.003, 0.003]),
-    )
-    return (
-        iops,
-        T.PhaseParams(B_p=jnp.asarray(0.0126)),
-        T.Geometry.nadir(jnp.asarray(30.0)),
-        wave,
-    )
+from robust.tests.conftest import tiny_args  # noqa: E402 - shared helper
 
 
 def sha256_of(array) -> str:
@@ -339,6 +326,26 @@ def test_iops_from_total_bb_passes_a_ph_through():
     iops = T.IOPs.from_total_bb(a, bb, a_ph=a_ph)
     np.testing.assert_array_equal(np.asarray(iops.a_ph), np.asarray(a_ph))
     assert T.IOPs.from_total_bb(a, bb).a_ph is None
+
+
+def test_iops_from_total_bb_broadcasts_a_ph_like_bb_w():
+    """A shared (n_wave,) a_ph is broadcast to the batch shape, as bb_w is.
+
+    Regression for PR #14 review finding 3: a_ph was passed through
+    unbroadcast, so the constructor's own uniform-batch-shape guarantee (the
+    reason plain ``vmap(f, in_axes=0)`` works) broke the moment a shared
+    spectrum was supplied.
+    """
+    shape = (5, N)
+    iops = T.IOPs.from_total_bb(
+        jnp.full(shape, 0.15),
+        jnp.broadcast_to(C.bb_w(), shape) + 0.003,
+        a_ph=jnp.full(N, 0.05),
+    )
+    assert iops.a_ph.shape == shape
+    iops.validate()
+    per_scene = jax.vmap(lambda i: i.a_ph.mean())(iops)
+    assert per_scene.shape == (5,)
 
 
 def test_iops_validate_rejects_bad_a_ph():

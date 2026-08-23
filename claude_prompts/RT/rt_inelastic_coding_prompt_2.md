@@ -90,27 +90,14 @@ Read before coding:
   six files above) so a machine with partial data skips cleanly instead of
   failing. *(Closed by task 1, 2026-08-21: the marker exists.)*
 
-**Review debt from PR #14 (2026-08-22 — record §2.7).** Task 1 is done but
-its review found fixes that must land **before task 3 consumes the new
-fields**; fold them into whichever task touches the file next, or a small
-cleanup pass first:
-
-- `ed.Ed()` casts spectra to `wave.dtype` — an integer wavelength grid
-  truncates Ed to 0/1 and `ratio()` goes inf/NaN (reproduced). Cast only the
-  wavelength axes.
-- `l23.select()` rebuilds `IOPs`/`Geometry` field-by-field and **silently
-  strips `a_ph`/`Ed`/`wind`** (reproduced) — task 3's subsetting would lose
-  the fluorescence source term. Switch to `tree_map`-based subsetting.
-- `IOPs.from_total_bb` broadcasts `bb_w` but not `a_ph` (reproduced) —
-  broadcast both, per its own docstring contract.
-- Minor, same files: `ed.py`'s `/30` zenith-stride → reuse the searchsorted
-  interpolation; `_TABLE` cache → `@functools.cache`; `tiny_args()` →
-  `conftest.py`; stale "still stubs" Status paragraph in
-  `robust/rt/__init__.py`.
-- Assessment material (also in this PR): the figure script's
-  `$OS_COLOR_DATA`-only lookup and the `write_metrics` ChlFl column
-  mislabels (both Cursor findings, verified) — fix + regenerate the CSV when
-  next touching `context/RT`.
+**Review debt from PR #14 (2026-08-22 — record §2.7).** *Cleared on the
+robust/ side 2026-08-23 (cleanup pass, record §3.2.1): the three reproduced
+bugs (`ed.Ed()` dtype truncation, `select()` stripping `a_ph`/`Ed`/`wind`,
+`from_total_bb` not broadcasting `a_ph`) and the four minor items are fixed,
+each with a regression test — 331 passed, hash pins green.* Still open, for
+the next touch of `context/RT`: the figure script's `$OS_COLOR_DATA`-only
+lookup and the `write_metrics` ChlFl column mislabels (both Cursor findings,
+verified) — fix + regenerate the CSV.
 
 ## Prompts
 
@@ -270,3 +257,42 @@ not broadcasting `a_ph`) must land before task 3 consumes the new fields,
 plus the four minor items and the two verified Cursor findings in
 `context/RT`. Also marked the needs_l23_inelastic gap as closed by task 1.
 Details: implementation record §2.7. Model: Fable 5.
+
+### 2026-08-23 (M1 task 1 revisited — PR #14 review debt cleared, 331 green)
+
+JXP fired "the 1st prompt" of this doc; task 1's Ed module was already built
+(2026-08-21), so this pass executed what the Status section said must happen
+before task 3: clearing the robust/-side review debt in task 1's own
+deliverables and their neighbors. Record §3.2.1 (v0.9). Model: Fable 5.
+Q&A checked: still empty here; prompt 1's Q1/Q2 unchanged.
+
+Fixed, each with a regression test:
+
+- `ed.py` dtype handling — **promote to a common floating dtype
+  (`jnp.result_type`), never truncate**. Integer wavelength grids now select
+  float nodes (finding 1). The instructive part: my first fix (cast
+  everything to `wave.dtype`) *failed the module's own gradient gate in
+  full-suite order* — a device conversion cached before `jax_enable_x64` is
+  toggled stays float32, so `canonical_wave()` can return float32 under x64
+  mid-session, and truncating `theta_s` to it degraded the float64 FD check
+  to float32 (rel err 4e-3 vs the 1e-6 gate). Promotion is the correct rule,
+  and M1 task 2's excitation-grid interpolation will meet the identical
+  trap — recorded in §3.2.1 for exactly that moment.
+- `ed.py` zenith interpolation: shared clamped-`searchsorted`
+  (`_interp_weights`) — the `/30` stride assumption is gone (finding 6);
+  `load_table` is `@functools.cache` (finding 8).
+- `types.from_total_bb`: `a_ph` broadcast like `bb_w` (finding 3).
+- `l23.select()`: `tree_map` subsetting for `IOPs`/`PhaseParams`; `Geometry`
+  handled deliberately per-field because its `Ed` override is one sky (1-D
+  spectral arrays) that must be carried *whole*, not indexed by the sample
+  mask — a subtlety the review's own suggested fix (blanket tree_map) would
+  have gotten wrong (finding 2).
+- `tiny_args()` unified into `conftest.py` (finding 7); `robust/rt/__init__`
+  Status paragraph updated (finding 9).
+
+Gate: **331 passed** (328 + 3 new regression tests: int-grid Ed, a_ph
+broadcast, select-preserves-optional-fields); strict hash tier green locally
+(nothing here touches the elastic route); `CI=true` simulation green with
+the strict tier skipped; ruff check/format clean. Still open from the
+review: the two `context/RT` items (findings 4–5), deferred to the next
+touch of the assessment material. Task 2 (excitation grid) starts clean.

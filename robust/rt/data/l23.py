@@ -50,6 +50,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
@@ -582,14 +583,28 @@ def select(batch: L23Batch, mask: np.ndarray) -> L23Batch:
         )
 
     keep = jnp.asarray(np.flatnonzero(mask))
+    # Subset the pytrees leaf-wise rather than rebuilding field-by-field: a
+    # hand-enumerated rebuild silently dropped IOPs.a_ph and rebuilt geometry
+    # via Geometry.nadir, discarding theta_v/dphi/wind (PR #14 review, record
+    # §2.7 finding 2 — the same defect class gradient_report's docstring
+    # records). tree_map subsets every present leaf, including fields added
+    # later, with no per-field code here.
+    take = lambda leaf: leaf[keep]  # noqa: E731 - one-expression tree_map arg
+    geometry = batch.geometry
     return L23Batch(
-        iops=IOPs(
-            a=batch.iops.a[keep],
-            bb_w=batch.iops.bb_w[keep],
-            bb_p=batch.iops.bb_p[keep],
+        iops=jax.tree_util.tree_map(take, batch.iops),
+        phase_params=jax.tree_util.tree_map(take, batch.phase_params),
+        # Geometry is NOT blanket tree_map'd: its Ed override is one sky for
+        # the whole batch — a pair of 1-D spectral arrays, not per-sample
+        # leaves — so indexing it by `keep` would corrupt it. Per-sample
+        # fields are subset; Ed is carried through whole.
+        geometry=Geometry(
+            theta_s=geometry.theta_s[keep],
+            theta_v=geometry.theta_v[keep],
+            dphi=geometry.dphi[keep],
+            wind=None if geometry.wind is None else geometry.wind[keep],
+            Ed=geometry.Ed,
         ),
-        phase_params=PhaseParams(B_p=batch.phase_params.B_p[keep]),
-        geometry=Geometry.nadir(batch.geometry.theta_s[keep]),
         Rrs=batch.Rrs[keep],
         wave=batch.wave,
         scene=batch.scene[mask],

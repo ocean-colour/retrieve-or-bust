@@ -163,7 +163,9 @@ class IOPs:
         bb_w = conventions.bb_w(conventions.canonical_wave() if wave is None else wave)
         bb_w = jnp.broadcast_to(bb_w, a.shape)
         if a_ph is not None:
-            a_ph = jnp.asarray(a_ph)
+            # Broadcast like bb_w, for the same reason: every leaf shares the
+            # batch shape, so plain vmap(f, in_axes=0) works (PR #14 review).
+            a_ph = jnp.broadcast_to(jnp.asarray(a_ph), a.shape)
         return cls(a=a, bb_w=bb_w, bb_p=bb - bb_w, a_ph=a_ph)
 
     def validate(self, wave: Float[Array, " wave"] | None = None) -> None:
