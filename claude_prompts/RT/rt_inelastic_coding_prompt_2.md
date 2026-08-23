@@ -88,7 +88,29 @@ Read before coding:
   the *elastic* X=1 files (`L23_ELASTIC_FILES`). Tests reading the raw X2/X4
   netCDFs need their own guard (e.g. a `needs_l23_inelastic` marker over the
   six files above) so a machine with partial data skips cleanly instead of
-  failing.
+  failing. *(Closed by task 1, 2026-08-21: the marker exists.)*
+
+**Review debt from PR #14 (2026-08-22 — record §2.7).** Task 1 is done but
+its review found fixes that must land **before task 3 consumes the new
+fields**; fold them into whichever task touches the file next, or a small
+cleanup pass first:
+
+- `ed.Ed()` casts spectra to `wave.dtype` — an integer wavelength grid
+  truncates Ed to 0/1 and `ratio()` goes inf/NaN (reproduced). Cast only the
+  wavelength axes.
+- `l23.select()` rebuilds `IOPs`/`Geometry` field-by-field and **silently
+  strips `a_ph`/`Ed`/`wind`** (reproduced) — task 3's subsetting would lose
+  the fluorescence source term. Switch to `tree_map`-based subsetting.
+- `IOPs.from_total_bb` broadcasts `bb_w` but not `a_ph` (reproduced) —
+  broadcast both, per its own docstring contract.
+- Minor, same files: `ed.py`'s `/30` zenith-stride → reuse the searchsorted
+  interpolation; `_TABLE` cache → `@functools.cache`; `tiny_args()` →
+  `conftest.py`; stale "still stubs" Status paragraph in
+  `robust/rt/__init__.py`.
+- Assessment material (also in this PR): the figure script's
+  `$OS_COLOR_DATA`-only lookup and the `write_metrics` ChlFl column
+  mislabels (both Cursor findings, verified) — fix + regenerate the CSV when
+  next touching `context/RT`.
 
 ## Prompts
 
@@ -236,3 +258,15 @@ Learned: L23's Ed is even more scene-independent than the plan assumed
 shared across the X scenarios, which the generator now enforces as an assert
 so a future release that varies the sky per scenario stops the pipeline
 instead of shipping an average of different suns.
+
+### 2026-08-22 (Status section updated with PR #14 review debt)
+
+Answering JXP's check "did you update the next prompt doc": the M0 task-5
+update (2026-08-21) predated the PR #14 review, so this doc did not yet know
+about the review findings that sit in M1's path. Added a "Review debt from
+PR #14" block to the Status section: the three reproduced bugs (`ed.Ed()`
+integer-grid truncation; `select()` stripping `a_ph`/`Ed`; `from_total_bb`
+not broadcasting `a_ph`) must land before task 3 consumes the new fields,
+plus the four minor items and the two verified Cursor findings in
+`context/RT`. Also marked the needs_l23_inelastic gap as closed by task 1.
+Details: implementation record §2.7. Model: Fable 5.
