@@ -125,6 +125,9 @@ is declared in `requirements.txt` already.
 6. **Pull request.**  I have craeted a pull request and had Cursor write a review.
    Please review the pull request. Use Fable if you can. Log your work.
 
+7. **More pull request.**  There are 2 tests failing in the PR.  Please investigate
+   and fix if you can.  Use Fable if you can. Log your work.
+
 ### Q&A
 
 **Q1 (Claude, 2026-08-20, task 2).** The full `pip install --dry-run -r
@@ -444,3 +447,45 @@ nothing was posted to GitHub — findings live here, in §2.7, and in the
 session report for JXP to triage. Suggested triage: fix findings 1–3 +
 Cursor's two in one commit on this branch; fold 6–9 in opportunistically;
 schedule the elastic-era items for PR #13.
+
+### 2026-08-23 (M0 task 7 — the two CI failures diagnosed and fixed: Q2's caveat, two-tier gate)
+
+The two failing PR tests were the two elastic hash-regressions, failing for
+precisely the reason predicted in Q2: platform-anchored bits (CI computed
+e6488bf0…/3cf02bc9… vs the tank pins aaa06161…/d1114640…). Record §2.8
+(v0.8) has the full write-up. Model: Fable 5. Q&A checked: no new answers.
+
+The diagnosis that settled the fix: **within one CI run, one matrix job
+reproduced the tank bits and the other did not**, and which Python version
+failed flipped between the push and PR runs — so the divergence is
+per-runner (GitHub's fleet is heterogeneous; XLA's CPU codegen differs by
+microarchitecture). That kills the platform-keyed-pin option outright: there
+is no stable CI platform to key a hash on.
+
+Fix, per the option JXP pre-approved in Q2 (bing-xcheck precedent), with
+**nothing re-pinned**:
+
+- Strict tier: `test_elastic_hash_regression_strict` — the two SHA-256 pins
+  plus element-wise equality against the committed reference, `skipif $CI`,
+  mandatory-green on dev machines (green here).
+- Closeness tier: `test_elastic_regression_close_everywhere` — runs on all
+  platforms against a new committed fixture
+  `robust/tests/files/elastic_reference_outputs.npz` (88 kB, written by
+  `write_elastic_reference()` in the generator with the usual atomic
+  verify-before-replace). The test first asserts the reference's own bytes
+  hash to the strict pins — the reference cannot drift from the pin — then
+  `allclose` at rtol 5e-7 (~4 ULP; observed CI spread is 1–2 ULP; a real
+  restructure like the notebook-1 §4 conversion round trip fails broadly).
+
+Verified: 328 passed locally with the strict tier enforced; `CI=true`
+simulation skips the strict test with an explanatory reason and passes the
+closeness tier; ruff check/format clean. CI goes green once JXP pushes
+(test_inelastic_types.py, gen_inelastic_fixture.py, the new fixture, record,
+this log).
+
+Learned: GitHub's runner heterogeneity means float32 bit-identity across CI
+jobs isn't merely "not guaranteed" — it observably varies job-to-job within
+one workflow run. Any future bit-exact gate in this repo should be born
+two-tier: strict where pinned, ULP-closeness everywhere else, with the
+committed reference arrays hashed against the pin so the two tiers can never
+diverge silently.

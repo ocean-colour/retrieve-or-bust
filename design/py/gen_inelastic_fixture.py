@@ -136,9 +136,60 @@ def write_ed(path: Path = ED_PATH) -> None:
         tmp.unlink(missing_ok=True)
 
 
+#: Destination of the elastic reference outputs (the hash-regression's
+#: everywhere-runnable form; robust/tests/test_inelastic_types.py reads it).
+ELASTIC_REF_PATH = REPO / "robust" / "tests" / "files" / "elastic_reference_outputs.npz"
+
+
+def write_elastic_reference(path: Path = ELASTIC_REF_PATH) -> None:
+    """Write the elastic `forward`/`rrs_forward` outputs on the CI fixture.
+
+    The M0 hash-regression pins SHA-256 of these arrays, but bit-identity is
+    anchored to the machine that computed them (prompt 1, Q&A Q2) — GitHub's
+    heterogeneous runner fleet reproduces the bits on some runners and not
+    others. Committing the arrays themselves lets every platform run a tight
+    *closeness* regression while the strict bitwise gate stays scoped to
+    non-CI machines. Regenerate only if the elastic model itself is
+    deliberately changed — which the inelastic effort must never do.
+    """
+    from robust.rt import hybrid
+    from robust.rt.data import l23
+
+    batch = l23.load_batch(
+        reader=l23.npz_reader(REPO / "robust" / "tests" / "files" / "l23_small.npz")
+    )
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    arrays = {
+        "Rrs": np.asarray(hybrid.forward(*args, check_domain=False)),
+        "rrs": np.asarray(hybrid.rrs_forward(*args, check_domain=False)),
+    }
+
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        check = np.load(tmp)
+        assert set(check.files) == {"Rrs", "rrs"}
+        for key in ("Rrs", "rrs"):
+            assert check[key].dtype == np.float32
+            assert check[key].shape == arrays[key].shape
+            assert np.array_equal(check[key], arrays[key])
+        check.close()
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+        print(f"Wrote {path} ({path.stat().st_size / 1024:.0f} kB)")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def main() -> None:
     print("Part 1: Ed(0+) spectra (X=2 files)")
     write_ed()
+    print("Elastic reference outputs (hash-regression companion)")
+    write_elastic_reference()
     # Part 2 (the sibling CI fixture) is added by M1 task 3.
 
 

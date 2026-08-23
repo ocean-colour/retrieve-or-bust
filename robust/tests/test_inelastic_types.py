@@ -12,6 +12,18 @@ Three concerns, in order of importance:
   it guards every later milestone: M2's composition must route around the
   elastic path, never through arithmetic on it.
 
+  **The gate has two tiers** (M0 task 7; prompt 1 Q&A Q2). Bit-identity is
+  anchored to the machine that pinned it: GitHub's heterogeneous runner fleet
+  reproduced the tank bits on some runners and not others *within one CI run*,
+  so the strict bitwise tests skip under CI (the M2 bing-xcheck precedent) and
+  are mandatory-green on dev machines. CI instead runs a *closeness*
+  regression against the committed pre-change outputs
+  (``files/elastic_reference_outputs.npz``, whose bytes hash to the pins
+  below) at ULP-scale tolerance — tight enough to catch any real change to
+  the elastic route, loose enough to admit cross-platform float32 noise.
+  Do not "fix" a strict-tier failure by re-pinning to a new hash without
+  understanding what changed: the pin is the guard, not the target.
+
 - **The new pytree**: :class:`robust.rt.types.Inelastic` — defaults,
   flatten/unflatten, which fields are leaves vs static, and that ``jit`` /
   ``vmap`` / ``grad`` traverse it. ``phi_C`` must be a *leaf* (differentiable —
@@ -30,6 +42,8 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import os
+import pathlib
 
 import jax
 import jax.numpy as jnp
@@ -41,6 +55,20 @@ from robust.rt import hybrid as H
 from robust.rt import types as T
 
 N = C.N_WAVE
+
+#: The committed pre-change outputs (see the module docstring); regenerate with
+#: ``design/py/gen_inelastic_fixture.py`` only on a deliberate elastic change.
+ELASTIC_REFERENCE = (
+    pathlib.Path(__file__).parent / "files" / "elastic_reference_outputs.npz"
+)
+
+#: Bit-identity is machine-anchored; on CI's heterogeneous runners the strict
+#: tier skips and the closeness tier below carries the regression (Q&A Q2).
+strict_bits_are_local = pytest.mark.skipif(
+    os.environ.get("CI", "") != "",
+    reason="bitwise hash pin is anchored to the dev machine; CI runners "
+    "reproduce it only sometimes — the closeness regression runs instead",
+)
 
 #: SHA-256 of ``np.asarray(out).tobytes()`` for ``forward``/``rrs_forward`` on
 #: the 50-scene fixture (150 samples x 81 bands, float32), computed on the
@@ -81,37 +109,56 @@ def sha256_of(array) -> str:
 # ------------------------------------------------- elastic hash-regression ----
 
 
-def test_elastic_hash_regression_Rrs(l23_small_batch):
-    """``forward(..., inelastic=None)`` is bit-identical to the pre-change hybrid.
+def elastic_outputs(batch):
+    """The two regression quantities, computed exactly as the pins were.
 
     ``check_domain=False`` because the full fixture includes the 60-deg samples
-    the emulator warns about, and the pre-change pin was computed the same way.
+    the emulator warns about, and the pre-change pins were computed the same
+    way.
     """
-    batch = l23_small_batch
-    out = H.forward(
-        batch.iops,
-        batch.phase_params,
-        batch.geometry,
-        batch.wave,
-        inelastic=None,
-        check_domain=False,
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    return (
+        H.forward(*args, inelastic=None, check_domain=False),
+        H.rrs_forward(*args, inelastic=None, check_domain=False),
     )
-    assert np.asarray(out).dtype == np.float32
-    assert sha256_of(out) == PRE_CHANGE_SHA256_RRS_ABOVE
 
 
-def test_elastic_hash_regression_rrs(l23_small_batch):
-    """Same pin below the surface — the scored quantity (design §6)."""
-    batch = l23_small_batch
-    out = H.rrs_forward(
-        batch.iops,
-        batch.phase_params,
-        batch.geometry,
-        batch.wave,
-        inelastic=None,
-        check_domain=False,
-    )
-    assert sha256_of(out) == PRE_CHANGE_SHA256_RRS_BELOW
+@strict_bits_are_local
+def test_elastic_hash_regression_strict(l23_small_batch):
+    """``forward(..., inelastic=None)`` is bit-identical to the pre-change hybrid.
+
+    Strict tier: the SHA-256 pins *and* element-wise equality with the
+    committed reference (same content — the arrays' bytes hash to the pins;
+    the array comparison is here so a failure names positions, not just
+    digests). Skips under CI; mandatory-green on dev machines.
+    """
+    Rrs, rrs = elastic_outputs(l23_small_batch)
+    assert np.asarray(Rrs).dtype == np.float32
+    assert sha256_of(Rrs) == PRE_CHANGE_SHA256_RRS_ABOVE
+    assert sha256_of(rrs) == PRE_CHANGE_SHA256_RRS_BELOW
+
+    reference = np.load(ELASTIC_REFERENCE)
+    np.testing.assert_array_equal(np.asarray(Rrs), reference["Rrs"])
+    np.testing.assert_array_equal(np.asarray(rrs), reference["rrs"])
+
+
+def test_elastic_regression_close_everywhere(l23_small_batch):
+    """Closeness tier: the elastic route matches the committed pre-change
+    outputs to ULP scale, on every platform.
+
+    The committed arrays are the pinned bytes (their SHA-256 *is* the strict
+    pin), so this is the same guard at the tolerance cross-platform float32
+    allows: rtol 5e-7 is ~4 ULP — CI's observed runner-to-runner spread is
+    1-2 ULP, while any genuine restructuring of the elastic route (e.g. an
+    extra pass through the ``rrs <-> Rrs`` conversion, notebook 1 §4) shows
+    up at this tolerance as a broad, not marginal, failure.
+    """
+    Rrs, rrs = elastic_outputs(l23_small_batch)
+    reference = np.load(ELASTIC_REFERENCE)
+    assert sha256_of(reference["Rrs"]) == PRE_CHANGE_SHA256_RRS_ABOVE
+    assert sha256_of(reference["rrs"]) == PRE_CHANGE_SHA256_RRS_BELOW
+    np.testing.assert_allclose(np.asarray(Rrs), reference["Rrs"], rtol=5e-7, atol=0.0)
+    np.testing.assert_allclose(np.asarray(rrs), reference["rrs"], rtol=5e-7, atol=0.0)
 
 
 def test_inelastic_none_is_the_default(l23_small_batch):
