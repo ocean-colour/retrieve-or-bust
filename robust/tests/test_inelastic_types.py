@@ -158,15 +158,19 @@ def test_inelastic_none_is_the_default(l23_small_batch):
 
 
 def test_inelastic_instance_raises_until_m2():
-    """An actual Inelastic raises NotImplementedError naming the milestone.
+    """A configuration asking for unimplemented physics raises, loudly.
 
     The elastic M0 convention: a caller gets a loud error, never a
-    plausible-looking array with no inelastic physics in it.
+    plausible-looking array with missing physics. Updated deliberately at M2
+    task 1 (as the M1 hand-off required): Raman now composes
+    (``test_inelastic.py`` covers it), so the guard has narrowed to
+    fluorescence — which the *default* ``Inelastic()`` requests, keeping this
+    exact call a guaranteed error until M2 task 2 lands the kernel.
     """
     args = tiny_args()
-    with pytest.raises(NotImplementedError, match="M2"):
+    with pytest.raises(NotImplementedError, match="M2 task 2"):
         H.forward(*args, inelastic=T.Inelastic())
-    with pytest.raises(NotImplementedError, match="M2"):
+    with pytest.raises(NotImplementedError, match="M2 task 2"):
         H.rrs_forward(*args, inelastic=T.Inelastic())
 
 

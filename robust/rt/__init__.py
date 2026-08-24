@@ -32,6 +32,9 @@ data.l23
 ed
     ``Ed(theta_s, lambda)`` from packaged L23 spectra + the ``Geometry.Ed``
     override — consumed by the inelastic terms only (M1).
+inelastic
+    The analytic inelastic terms: ``raman_factor`` (M2 task 1);
+    ``fluorescence_kernel`` arrives at M2 task 2.
 ztt
     ``Rrs_ZTT`` — the analytic backbone.
 emulator
@@ -58,6 +61,7 @@ from . import (
     ed,
     emulator,
     hybrid,
+    inelastic,
     types,
     validation,
     ztt,
@@ -74,6 +78,7 @@ __all__ = [  # noqa: RUF022
     "types",
     "data",
     "ed",
+    "inelastic",
     "ztt",
     "emulator",
     "hybrid",

@@ -187,6 +187,14 @@ What M2 can rely on, and what it must not break:
 
 ### Q&A
 
+**Q1 (Claude, 2026-08-24, task 1).** Housekeeping, not physics: your staging
+area contains a new file **`rob/__init__.py`** (empty, in a stray `rob/`
+directory at the repo root) — staged (`git status` shows `A`) but not created
+by any prompt work. It looks like an accidental `mkdir rob` + add (perhaps a
+truncated `robust`?). Please unstage/remove it (or tell me its purpose) so it
+doesn't ride along into the next commit. Everything else in this task raised
+no questions.
+
 ## Next
 
 → `rt_inelastic_coding_prompt_4.md` (M3: correction heads).
@@ -200,3 +208,37 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-24 (M2 task 1 — raman_factor ported, composed, characterized; 368 green)
+
+The analytic Raman factor is in and wired; record §4.1–4.2 (v0.14). Model:
+Fable 5. Q&A: doc 2's is empty; prompt 6 of doc 2 was read as this doc's
+prompt 1 (doc 2 has only five prompts — same convention as the M0→M1
+handoff). **One new Q&A above (Q1): a stray staged `rob/__init__.py` in your
+index — please unstage.**
+
+- `robust/rt/inelastic.py::raman_factor`: S&P98 Eqs. 5/11/18/23 term-for-term
+  from fixed BING; `raman_bb = ½·2.6e-4·(488/λ′)^5.5` (HydroLight constant
+  per the M1 correction; analytic ½ where bing integrates to 0.5±2e-7);
+  excitation IOPs via `conventions.interp_spectrum`; **true Ed ratio** via
+  `ed.ratio(..., override=geometry.Ed)` — the M1 seam works end to end
+  (tested: a flat-sky override moves the red factor the documented
+  direction).
+- Wiring: `_apply_inelastic` composes in Rrs space per design §2;
+  `inelastic=None` returns the same object (hash pins green throughout);
+  all-off is bitwise elastic; fluorescence (the default!) still raises
+  naming "M2 task 2"; `mode='emulator'` refuses composition (ValueError) —
+  a term, not a model. The M0 guard test needed only a docstring update.
+- **Port quality, measured**: max rel vs live bing **1.6e-7** (gate: 1e-6).
+  Characterization vs fixture truth (median increment error, 550–700 nm):
+  **+1.6 % / −4.0 % / −38.6 %** at 30/60/0° — the assessment's +1/−4/−39
+  table reproduced on our own fixture, retiring the M1 band-transfer
+  concern. Pinned as bands; the 0° failure is δ_R's target, not a bug.
+- 13 tests (constants/xcheck spot/physicality/bands/seam/jax/wiring); suite
+  **368 passed** warning-free (two tests first requested jnp.float64 outside
+  the x64 fixture and were silently truncated — the dtype lesson's fourth
+  appearance; reference arithmetic moved to NumPy); ruff clean.
+
+Task 2 (fluorescence kernel) starts with the composition seam already in
+place — `_apply_inelastic` grows one `+ φ_C·K_fl` line before the
+down-conversion.

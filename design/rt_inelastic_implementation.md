@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.13
+**Version:** 0.14
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ the Date on every bump.
 |---|------|--------|-----------------|
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
-| **M2** | Analytic terms in JAX | ⬜ not started | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
+| **M2** | Analytic terms in JAX | 🟡 in progress (task 1 of 5 done) | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
 | **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
@@ -63,7 +63,9 @@ reported, never gated. The `bing` cross-check tests (M2) import the *fixed*
 BING (branch `inelastic-fixes`) live and `skipif` when it is unavailable, so
 GitHub CI stays green while local runs enforce the pin (CQ3a).
 
-**Verification (current).** `pytest -q` from the repo root → **355 passed**
+**Verification (current).** `pytest -q` from the repo root → **368 passed**
+(355 as of M1 + 13 M2 `test_inelastic.py`); details below superseded only in
+count:
 (`ocean14`, this machine, 2026-08-24, `$OS_COLOR` set): 279 elastic unmodified
 + 31 M0/hash-gate (two-tier since task 7, §2.8) + 45 M1 (`test_ed.py` 20,
 Raman-grid additions in `test_conventions.py` 9, `test_l23_inelastic_data.py`
@@ -721,7 +723,65 @@ fixed-BING physics ported to differentiable JAX — composed into
 `hybrid.forward` per design §2; cross-checked live against fixed BING at
 rtol ≤ 1e-6 (CQ3a) and characterized against the assessment's error table.
 
-*Not started.*
+### 4.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Raman factor (`inelastic.py::raman_factor` + `forward` wiring) | ✅ done |
+| 2 | Fluorescence kernel | ⬜ not started |
+| 3 | Cross-check + characterization + gradient gate | ⬜ not started (Raman-side spot versions landed with task 1) |
+| 4 | `notebooks/RT/rt_inelastic_coding_3.ipynb` | ⬜ not started |
+| 5 | Update `rt_inelastic_coding_prompt_4.md` | ⬜ not started |
+
+### 4.2 Raman factor (task 1)
+
+**New module `robust/rt/inelastic.py`** — the S&P98 two-flow assembly, term
+for term the fixed BING's `calc_raman_correction_factor` (Eqs. 5, 11, 18,
+23; both second-order terms; Raman-Raman neglected per S&P98 §4.A):
+`raman_bb(λ′) = ½ · 2.6e-4 · (488/λ′)^5.5` (the HydroLight constant —
+`B_RAMAN_488_HYDROLIGHT`, per the M1 task-5 attribution correction; the
+analytic ½ backward fraction where bing integrates numerically to
+0.5 ± 2e-7), excitation IOPs via `conventions.interp_spectrum` on
+`raman_excitation(wave)`, the **true Ed ratio** via `ed.ratio` with
+`geometry.Ed` passed as the override (the M1 seam, exercised end to end),
+assembled as `f_phys = (R_E + R_R + R_RE + R_ER)/R_E`. Pure JAX; batched;
+`jit`/`vmap`-safe; differentiable in every input.
+
+**Wiring (`hybrid.py`)** — the composition happens in a private
+`_apply_inelastic`, in `Rrs` space per the design law
+(`Rrs_total = elastic × f_R`), with `rrs_forward` converting up, composing,
+and converting back so `forward = rrs_to_Rrs(rrs_forward(...))` still holds
+(exact algebraically; ~1 ULP in float — measured in notebook 1 §4). Key
+properties, all tested: the `inelastic=None` branch returns the *same
+object* untouched (hash pins stayed green throughout); `Inelastic(raman=
+False, fluorescence=False)` is bitwise elastic; `fluorescence=True` — the
+*default* — still raises `NotImplementedError` naming M2 task 2, so the M0
+guard test needed only a docstring update and a narrower match;
+`mode='emulator'` + inelastic raises `ValueError` (a term, not a model —
+the composition applies to model outputs only).
+
+**Measured at port time** (spot cross-check vs live bing on fixture rows,
+all three zeniths): max relative difference **1.6e-7** — an order under the
+M2 rtol 1e-6 gate. Characterization vs the fixture truth (median increment
+error, 550–700 nm): **+1.6 % (30°), −4.0 % (60°), −38.6 % (0°)** —
+reproducing the assessment's full-release table (+1/−4/−39) on our own
+50-scene fixture almost exactly, which retires the M1 concern that the
+bands might not transfer. Pinned as bands (−45..−32 / −5..+8 / −11..+2 %):
+the 0° failure is *expected* (δ_R's job at M3), so the test asserts the
+band, not zero.
+
+**Tests** (`test_inelastic.py`, 13): constants-equal-bing, `raman_bb` vs
+bing (rtol 5e-7 — bing's own quadrature noise), the spot cross-check,
+physicality (f ≥ 1, red > blue), the characterization bands, the Ed-override
+seam (a flat sky moves the red factor the documented direction),
+`jit`/`vmap`/finite-gradients, and the five wiring properties above. The
+bing-dependent tests `importorskip` (CI-safe); formal exhaustive xcheck is
+task 3.
+
+**Results.** `pytest -q` → **368 passed**, warning-free (two tests initially
+requested `jnp.float64` outside the x64 fixture and were *silently truncated*
+— the recurring dtype lesson, fixed by keeping reference arithmetic in
+NumPy); elastic hash pins green; ruff clean.
 
 ---
 
