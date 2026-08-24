@@ -185,12 +185,78 @@ def write_elastic_reference(path: Path = ELASTIC_REF_PATH) -> None:
         tmp.unlink(missing_ok=True)
 
 
+#: Destination of the sibling CI fixture (CQ4; M1 task 3).
+INELASTIC_FIXTURE_PATH = (
+    REPO / "robust" / "tests" / "files" / "l23_inelastic_fixture.npz"
+)
+
+#: Scenes in the sibling fixture -- the elastic fixture's own 50 (its
+#: ``write_fixture`` takes the *first* ``n_scene`` scenes; CQ4 requires the
+#: same indices, and the loader's cross-fixture equality check enforces it).
+N_SCENE_FIXTURE = 50
+
+
+def write_inelastic_fixture(path: Path = INELASTIC_FIXTURE_PATH) -> None:
+    """Part 2: the sibling CI fixture (coding plan CQ4).
+
+    The elastic fixture's 50 scene indices x {a, aph, bb, Rrs1, Rrs2, Rrs4}
+    at all three zeniths, float32, and nothing else (Ed ships in the package
+    data; ``bbnw``/``bnw`` stay in the elastic fixture, whose bytes this
+    script never touches). The a/bb/Rrs1 copies exist so
+    ``l23.inelastic_npz_reader`` can *prove* the two fixtures describe the
+    same water rather than assuming it.
+
+    Verified before replacing anything: loaded back through the real
+    ``load_inelastic_batch`` via the real fixture reader, validated, and
+    sample-counted (the write_fixture / PR #11 discipline).
+    """
+    from robust.rt.data import l23
+
+    arrays: dict[str, np.ndarray] = {
+        "zeniths": np.asarray(ZENITHS),
+        "n_scene": np.asarray(N_SCENE_FIXTURE),
+    }
+    for zenith in ZENITHS:
+        raw = l23._read_inelastic_file(zenith)  # noqa: SLF001 - the loader's own reader
+        arrays["wave"] = raw["wave"].astype(np.float32)
+        for field in ("a", "aph", "bb", "Rrs1", "Rrs2", "Rrs4"):
+            arrays[f"{field}_{zenith}"] = raw[field][:N_SCENE_FIXTURE].astype(
+                np.float32
+            )
+
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        batch = l23.load_inelastic_batch(
+            reader=l23.inelastic_npz_reader(
+                tmp, REPO / "robust" / "tests" / "files" / "l23_small.npz"
+            )
+        )
+        batch.validate()
+        expected = len(ZENITHS) * N_SCENE_FIXTURE
+        if batch.n_sample != expected:
+            raise ValueError(
+                f"write_inelastic_fixture: snapshot loads {batch.n_sample} "
+                f"samples, expected {expected}; {path} left untouched"
+            )
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+        print(f"Wrote {path} ({path.stat().st_size / 1024:.0f} kB)")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def main() -> None:
     print("Part 1: Ed(0+) spectra (X=2 files)")
     write_ed()
     print("Elastic reference outputs (hash-regression companion)")
     write_elastic_reference()
-    # Part 2 (the sibling CI fixture) is added by M1 task 3.
+    print("Part 2: sibling CI fixture (X1/X2/X4 channels + aph)")
+    write_inelastic_fixture()
 
 
 if __name__ == "__main__":

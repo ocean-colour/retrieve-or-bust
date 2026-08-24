@@ -296,3 +296,120 @@ broadcast, select-preserves-optional-fields); strict hash tier green locally
 the strict tier skipped; ruff check/format clean. Still open from the
 review: the two `context/RT` items (findings 4–5), deferred to the next
 touch of the assessment material. Task 2 (excitation grid) starts clean.
+
+### 2026-08-23 (M1 task 2 — Raman excitation grid in conventions.py, 340 green)
+
+The excitation-grid infrastructure is done; record §3.2.2 (v0.10). Model:
+Fable 5. Q&A checked: still empty; prompt 1's Q1/Q2 unchanged.
+
+What landed in `conventions.py` (new "Raman excitation grid" section,
+re-exported via the existing module import):
+
+- `RAMAN_SHIFT = 3400.0` cm⁻¹ + `RAMAN_WAVE_MIN_OFFICIAL = 400.0` nm;
+  `raman_excitation` (λ′(λ), the wavenumber form — the design §3 map) and
+  its exact inverse `raman_emission`, pure/jit-able/differentiable, with an
+  optional `shift=` for parity with bing.
+- `interp_spectrum` — the package's one clamped-linear, batched,
+  values-differentiable spectrum interpolation. **Promoted from `ed.py`
+  rather than written a second time** (reuse-don't-reinvent, and the review
+  had just dinged ed.py for private duplication); `ed.py` now aliases the
+  conventions helpers. The §3.2.1 promotion rule (never truncate dtypes) is
+  in it from birth.
+- The λ ≥ 400 nm official support is *documented and derived, not enforced*:
+  a test asserts the rationale itself (`raman_excitation(400) = 352.11 nm`,
+  inside the L23 grid), so a grid change that invalidates the bound fails
+  loudly; below 400 the maps run and interpolation clamps (design's
+  "caveat, not a gate").
+
+Gate: 9 new tests in `test_conventions.py` — pinned 418.553/585.076 values
+and the exact wavenumber form; full-grid inverse round trip at 1e-14; bing
+cross-check (`WAVENUMBER_SHIFT_CENTER` equality + both maps at rtol 1e-12,
+importorskip on CI); support-bound rationale; interp vs `numpy.interp`,
+batching + clamping, integer-promotion, jit, grad-wrt-wavelength, and the
+task's headline property — **grad w.r.t. the spectrum values vs per-node
+central differences** (float64 fixture, atol 1e-9, plus the Σ∂ = n_targets
+unit-weight identity). Full suite **340 passed**, hash pins green, ruff
+clean.
+
+Learned (again, and this time wrote it into the test's docstring): the
+exact-form pin at rtol 1e-12 failed its very first run because the default
+regime is float32 — the elastic record's "a tight tolerance in float32 tests
+the dtype, not the code" lesson now has a third instance in this effort.
+Fixed by running the pinned comparisons under the `jax_x64` fixture with
+dtypes on the arrays.
+
+### 2026-08-24 (M1 task 3 — X2/X4 pipeline, truth channels, sibling fixture; 355 green)
+
+The inelastic data pipeline is done end to end; record §3.2.3 (v0.11).
+Model: Fable 5. Q&A checked: still empty; nothing pending from prompt 1.
+
+Measured before coding, and now load-bearing in the loader: the IOPs *and*
+`aph` are **bit-identical across X=1/2/4 at every zenith** (bing's generator
+only assumed rtol 1e-4). The default reader therefore reads them once from
+X=1 and *asserts* equality against X=2/X=4 — a future release that varies
+inputs across scenarios stops the loader rather than silently mixing water.
+Also measured: Raman factor X2/X1 ∈ [1.0076, 2.51] (never below 1), and the
+685 nm fluorescence delta strictly positive in every sample — both now
+physicality tests.
+
+What landed (details in §3.2.3):
+
+- `l23.py`: `L23InelasticBatch` (elastic layout, `a_ph` required by
+  `validate()`, truth channels as properties pinned bitwise to their
+  definitions), `load_inelastic_batch` with the elastic reader seam,
+  `select_inelastic` sharing the §3.2.1 subset helpers, `PHI_C_L23 = 0.02`
+  (why `Inelastic.phi_C` defaults to 0.02: the X4 truth *is* that yield).
+  `make_splits` needed no change — it reads only scene/zenith labels, and
+  split equality with the elastic splits is proved mask-for-mask at fixture
+  scale (CI) and on the full 9960-sample release (data-gated), not assumed
+  from the shared seed.
+- Generator part 2: `write_inelastic_fixture()` → 249 kB sibling (inside
+  the corrected ≲300 kB bound), atomic verify-before-replace through the
+  real loader. The sibling deliberately duplicates a/bb/Rrs1 so
+  `inelastic_npz_reader(sibling, elastic)` can *prove* the two fixtures
+  describe the same 50 scenes; a corrupted-sibling test pins the rejection.
+- CQ4's "do not touch the elastic fixture's bytes" is now a **test**: the
+  elastic fixture file's SHA-256 is pinned in `test_l23_inelastic_data.py`.
+- 15 new tests; raw-netCDF halves under `needs_l23_inelastic` (verified to
+  skip cleanly with `$OS_COLOR` unset: 13 passed + 2 skipped).
+
+Gate: **355 passed** (340 + 15), elastic hash pins green, ruff clean.
+Branch state for JXP: M1 tasks 1–3 + the review-debt cleanup sit
+uncommitted on `inelastic-rt` atop your "prompt 1" commit. Next: task 4,
+the M1 notebook.
+
+### 2026-08-24 (M1 task 4 — notebook 2 built, executed, committed with outputs)
+
+`notebooks/RT/rt_inelastic_coding_2.ipynb`: 11 cells, executed end to end,
+three figures, zero errors; record §3.2.4 (v0.12). Model: Fable 5. Q&A
+checked: still empty — and no new questions from me this task.
+
+Content per the brief — Ed spectra + the ratio, truth channels across
+trophic states, split reuse, linking to the assessment figures instead of
+re-deriving them — with everything running from committed files only
+(packaged ed_l23.npz + both CI fixtures; no $OS_COLOR dependency, verified
+by construction since the loaders are fixture-fed).
+
+Numbers the notebook surfaced worth keeping:
+
+- The Raman pump ratio Ed(λ′)/Ed(λ) spans **0.44 (at 445 nm) to 1.59 (at
+  720 nm) — ×3.6** across the official band, and is nearly
+  zenith-independent (shape ≉ f(θ_s); amplitude cancels in the ratio).
+  That is the concrete footing under the assessment's +60 %/−50 % flat-Ed
+  error, now visible in one figure.
+- The trophic ordering of the Raman factor *inverts* naive intuition and
+  the figure teaches it: the clearest water has the LARGEST factor (weakest
+  elastic red signal), 1.36 max on the fixture, 2.5 on the full release.
+- Fluorescence delta at 685 nm: order 1e-5–1e-4 sr⁻¹ at φ_C = 0.02,
+  growing with a_ph(440) across the three picked scenes.
+
+One honesty catch before committing outputs (logged in §3.2.4): the
+truth-channel panel first claimed "up to more than 2×" — the full-release
+bound, not the plotted fixture's (1.36). Retitled and re-executed; a figure
+must not borrow numbers its own data doesn't show. Also one legibility fix
+(ratio-figure legend off the curves) caught by visual inspection of the
+rendered PNGs before committing.
+
+Suite unchanged by this task (no package code touched): 355 passed as of
+task 3; notebook verified error-free with 3 figures. Next: task 5 — update
+`rt_inelastic_coding_prompt_3.md` with what M1 actually established.

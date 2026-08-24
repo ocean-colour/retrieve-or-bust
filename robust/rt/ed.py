@@ -85,44 +85,12 @@ def load_table() -> tuple[np.ndarray, np.ndarray]:
         return (data["wave"].astype(np.float64), data["Ed"].astype(np.float64))
 
 
-def _as_float(x) -> Array:
-    """``jnp.asarray``, with integer input coerced to the default float dtype."""
-    x = jnp.asarray(x)
-    if not jnp.issubdtype(x.dtype, jnp.floating):
-        x = x.astype(jnp.asarray(0.0).dtype)
-    return x
-
-
-def _interp_weights(
-    x: Float[Array, "*any"], grid: Float[Array, " grid"]
-) -> tuple[Array, Float[Array, "*any"]]:
-    """Clamped-linear interpolation weights on a strictly increasing grid.
-
-    Returns ``(idx, w)`` such that the interpolant is
-    ``y[..., idx-1] * (1-w) + y[..., idx] * w``. Clipping the weight is what
-    clamps beyond the grid ends — no extrapolation, no boundary ``raise``
-    that could not run under ``jit``. Shared by the wavelength and the
-    zenith interpolations so neither carries a private stride assumption.
-    """
-    idx = jnp.clip(jnp.searchsorted(grid, x, side="left"), 1, grid.shape[0] - 1)
-    w = jnp.clip((x - grid[idx - 1]) / (grid[idx] - grid[idx - 1]), 0.0, 1.0)
-    return idx, w
-
-
-def _interp_wave(
-    wave: Float[Array, " wave"],
-    grid: Float[Array, " grid"],
-    spectra: Float[Array, "*batch grid"],
-) -> Float[Array, "*batch wave"]:
-    """Linear interpolation along the last axis, clamped at the grid ends.
-
-    ``jnp.interp`` handles only 1-D inputs, so the weights are built once from
-    ``wave``/``grid`` and applied by gathering — batched, ``jit``-safe, and
-    differentiable in both ``wave`` and the spectrum values (the property M1's
-    excitation-grid work needs; here it comes for free).
-    """
-    idx, w = _interp_weights(wave, grid)
-    return spectra[..., idx - 1] * (1.0 - w) + spectra[..., idx] * w
+# The interpolation machinery was born here at M1 task 1 and promoted to
+# conventions at task 2, where the Raman excitation grid shares it; these
+# aliases keep this module readable and the arithmetic single-sourced.
+_as_float = conventions._as_float
+_interp_weights = conventions._interp_weights
+_interp_wave = conventions.interp_spectrum
 
 
 def Ed(
