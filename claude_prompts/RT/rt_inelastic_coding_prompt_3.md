@@ -342,3 +342,33 @@ the −39 % @ 0° Raman gap, the 685 nm amplitude/drift, ∂Rrs/∂φ_C = K_fl �
 already computed and test-pinned; lift them from `test_inelastic.py` and the
 record §4.2–4.4 rather than re-deriving. Kernelspec `ocean14`, execute via
 the `os_313` env's `jupyter nbconvert --execute`, commit with outputs.
+
+### 2026-08-24 (M2 task 4 — notebook 3 built and executed; suite still 390)
+
+`notebooks/RT/rt_inelastic_coding_3.ipynb` — executed with outputs (398 kB),
+record §4.5 (v0.17). Model: Fable 5. Q&A: **still no answers — Q1 and its
+follow-up (the committed `rob/` directory) remain open**; task 4 raised no
+new questions. (Prompt arrived as "execute the 3rd prompt" with task 3 done
+and committed in `af87f24` — read as task 4 per the standing convention.)
+
+- Built programmatically (`nbformat`, os_313), house style of notebooks 1–2,
+  `ocean14` kernelspec, executed via the os_313 `jupyter nbconvert
+  --execute`; fixture-fed (no `$OS_COLOR` needed), figures verified by eye.
+- Five sections, all numbers lifted from the pinned tests, none re-derived:
+  the composition law verified in one line on the fixture (residual 6.3e-9
+  of max Rrs — the float32 round trip) with the ratio-vs-additive physics
+  argument; median `f_phys − 1` vs truth per zenith with the −38.6 % @ 0°
+  gap visible and the full error table printed; `φ_C·K_fl` on top of the
+  `X4−X2` truth for three trophic states plus the 685 nm model/truth
+  scatter vs `a_ph(440)` showing the 0.99/0.94/0.85 drift; `∂Rrs/∂φ_C` by
+  `jax.jacrev` through the full composed forward overplotted with `K_fl`
+  (affine identity, 1.9e-7 in float32); and the M3 hand-off (the three
+  numbers the heads must beat).
+- Suite untouched by the task and still **390 passed**; ruff clean; hash
+  pins green. Commit (with outputs) is JXP's.
+
+Task 5 (the prompt-4 hand-off) closes M2: `rt_inelastic_coding_prompt_4.md`
+should be rewritten from what M2 actually established — the record
+§4.1–4.5 status block, the fixture-measured error table as M3's targets,
+the θ_s-anchor kink caveat for anyone differentiating there, and the open
+Q1 housekeeping.

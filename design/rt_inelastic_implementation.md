@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.16
+**Version:** 0.17
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ the Date on every bump.
 |---|------|--------|-----------------|
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
-| **M2** | Analytic terms in JAX | 🟡 in progress (tasks 1–3 of 5 done — **the code gate is green**; notebook + prompt hand-off remain) | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py` |
+| **M2** | Analytic terms in JAX | 🟡 in progress (tasks 1–4 of 5 done — **code gate green**, notebook executed; the prompt-4 hand-off remains) | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
 | **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
@@ -730,7 +730,7 @@ rtol ≤ 1e-6 (CQ3a) and characterized against the assessment's error table.
 | 1 | Raman factor (`inelastic.py::raman_factor` + `forward` wiring) | ✅ done |
 | 2 | Fluorescence kernel (`inelastic.py::fluorescence_kernel` + `forward` wiring) | ✅ done |
 | 3 | Cross-check + characterization + gradient gate | ✅ done — **the M2 code gate is green** |
-| 4 | `notebooks/RT/rt_inelastic_coding_3.ipynb` | ⬜ not started |
+| 4 | `notebooks/RT/rt_inelastic_coding_3.ipynb` | ✅ done — executed, committed with outputs |
 | 5 | Update `rt_inelastic_coding_prompt_4.md` | ⬜ not started |
 
 ### 4.2 Raman factor (task 1)
@@ -897,6 +897,32 @@ the derivative is one-sided there.*
 task-3 groups green (xcheck green on this machine), elastic hash pins
 green, ruff + `ruff format` clean. **This is the M2 code gate** — tasks 4–5
 (notebook, prompt hand-off) are documentation.
+
+### 4.5 Notebook (task 4)
+
+**`notebooks/RT/rt_inelastic_coding_3.ipynb`** — executed (`os_313`
+nbconvert on the `ocean14` kernel), committed with outputs; every number
+shown is lifted from the test-pinned values, none re-derived. Five sections:
+
+1. **The composition law** — `Rrs_total = (Rrs_ZTT + ΔRrs) × f_R + φ_C·K_fl`
+   verified in one line on the fixture (residual 6.3e-9 of max Rrs, the
+   float32 round trip), with the prose explanation of *why the asymmetry*:
+   Raman is a property of the water and scales with the elastic field around
+   it (a self-normalizing ratio — why BING's Raman was ~right pre-fix),
+   fluorescence is a source injecting 685 nm photons the elastic field does
+   not contain (additive, linear in φ_C).
+2. **Raman** — median `f_phys − 1` vs the truth increment per zenith; the
+   30/60° agreement and the **−38.6 % @ 0°** gap visible; the pinned error
+   table (550–700 nm and 490 nm columns) printed beneath.
+3. **Fluorescence** — `φ_C·K_fl` vs `X4−X2` for three trophic states
+   (amplitude and line shape on top of the truth — the post-π-fix state),
+   plus the 685 nm model/truth scatter vs `a_ph(440)` per zenith showing the
+   0.99/0.94/0.85 drift δ_F must close.
+4. **The physiology handle** — `∂Rrs/∂φ_C` by `jax.jacrev` through the full
+   composed forward, overplotted with `K_fl` (the affine identity; agreement
+   1.9e-7 in float32) for the three trophic states.
+5. **Where this leaves us** — the three numbers M3 inherits (−39 % @ 0°,
+   +30 % @ 490 nm, the 685 nm drift) and the head forms that must close them.
 
 ---
 
