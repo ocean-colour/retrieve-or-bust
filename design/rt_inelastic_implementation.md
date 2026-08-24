@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.17
+**Version:** 0.19
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -30,8 +30,8 @@ the Date on every bump.
 |---|------|--------|-----------------|
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
-| **M2** | Analytic terms in JAX | 🟡 in progress (tasks 1–4 of 5 done — **code gate green**, notebook executed; the prompt-4 hand-off remains) | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
-| **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
+| **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
+| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (task 1 of 5 done) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -731,7 +731,7 @@ rtol ≤ 1e-6 (CQ3a) and characterized against the assessment's error table.
 | 2 | Fluorescence kernel (`inelastic.py::fluorescence_kernel` + `forward` wiring) | ✅ done |
 | 3 | Cross-check + characterization + gradient gate | ✅ done — **the M2 code gate is green** |
 | 4 | `notebooks/RT/rt_inelastic_coding_3.ipynb` | ✅ done — executed, committed with outputs |
-| 5 | Update `rt_inelastic_coding_prompt_4.md` | ⬜ not started |
+| 5 | Update `rt_inelastic_coding_prompt_4.md` | ✅ done — **M2 complete**; Status-entering-M3 written from §§4.2–4.5 |
 
 ### 4.2 Raman factor (task 1)
 
@@ -933,7 +933,78 @@ shown is lifted from the test-pinned values, none re-derived. Five sections:
 trained on the X2/X1 and X4−X2 truth channels; committed weights; per-process
 delta gates ≤ 5 % on held-out scenes at every zenith including 0°.
 
-*Not started.*
+### 5.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Head machinery (`inelastic_corr.py` + `forward` wiring) | ✅ done |
+| 2 | Training (`design/py/train_inelastic_corr.py`, committed weights) | ⬜ not started |
+| 3 | Held-out gates (`test_inelastic_corr.py` extension) | ⬜ not started (machinery tests landed with task 1) |
+| 4 | `notebooks/RT/rt_inelastic_coding_4.ipynb` | ⬜ not started |
+| 5 | Update `rt_inelastic_coding_prompt_5.md` | ⬜ not started |
+
+### 5.2 Head machinery (task 1)
+
+**New module `robust/rt/inelastic_corr.py`** — the design §4.5 forms as
+code, machinery reused from the elastic emulator rather than re-derived
+(`emulator._network`/`_delta` duck-typed on `config.hidden`/`delta_max`;
+same zero-initialised output layer, so a fresh head is δ ≡ 0 — **exactly
+the analytic model** — and training starts from the physics):
+
+- `HeadConfig(kind, hidden=(16,), delta_max, …)` — static, hashable;
+  default (16,) is 129 parameters, the low end of the §4.5 budget.
+  Per-kind `delta_max` defaults from the measured errors: **1.0 for δ_R**
+  (closing −39 % at 0° needs +0.64) and **0.5 for δ_F** (needs ~+0.18).
+- `CorrectionHead` (registered pytree: params/mean/std leaves, config
+  static) with `.delta(iops, geometry, wave)`; `CorrectionHeads(raman, fl)`
+  with `None` = that term stays analytic *by omission of the arithmetic*.
+- Features per design §4.5, standardized per head; the four IOP-like
+  columns as **log10** (they span decades — the elastic `log10(u)`
+  precedent, floored at 1e-10 so a zero IOP cannot poison the net):
+  δ_R `(log10 a, log10 b_b, log10 a(λ′), log10 b_b(λ′), cos θ_s, λ)` with
+  the excitation values via `conventions.raman_excitation` +
+  `interp_spectrum` by name; δ_F `(log10 a_ph(440), log10 a, log10 b_b,
+  log10 a(490), cos θ_s, λ_em)` — **no φ_C column** (§4.4).
+- `save_head`/`load_head` in the `emulator.save` format (feature names
+  stored; **mismatch = refusal**, the plausible-nonsense rule);
+  `init_head`; `corrected_raman_factor(δ_R, f_phys)` written once so the
+  wiring and the future training objective share it.
+- `load_default()` (cached): the packaged
+  `files/{raman,fl}_corr_l23.npz` once task 2 commits them; **absent
+  files degrade to analytic-only behind a single
+  `MissingCorrectionWarning`** — a warning, not `emulator.load_default`'s
+  error, because the analytic backbone is a legitimate model (the M2 gate
+  itself), but silence would hide missing physics.
+
+**Wiring (`hybrid.py`)** — `forward`/`rrs_forward` gain
+`corrections=None`: `None` → packaged heads (the corrected model is *the*
+model once weights exist — design §2's `f_R` includes δ_R by definition);
+`False` → analytic-only, explicit and silent; an explicit
+`CorrectionHeads` → used as given. Resolution happens **only when an
+inelastic process is on**, so the elastic path never imports the ML stack
+or warns. `_apply_inelastic` applies
+`f_R = 1 + (f_phys − 1)(1 + δ_R)` and `× (1 + δ_F)` on the kernel.
+**Deliberate consequence for the M2 pins:** every `forward` call in
+`test_inelastic.py` now passes `corrections=False` (13 sites + a module
+docstring note) — that module pins the *analytic* terms and must keep
+doing so bit-for-bit after trained weights land and become the default.
+*(Decision recorded as prompt 4 Q&A Q1 for JXP to veto: default-on vs
+opt-in.)*
+
+**Tests** (`test_inelastic_corr.py`, 18): the §4.5 feature lists (incl.
+no-φ_C), shapes/finiteness, the a_ph requirement, δ ≡ 0 on fresh heads,
+the tanh bound under noise parameters, the increment form's two
+identities, zero-heads == analytic through `forward`, each head moves
+only its own band (the fl head inert away from 685), **φ_C-linearity with
+a live randomized δ_F head**, gradients w.r.t. head parameters (what
+task 2 trains on) and w.r.t. inputs incl. `a_ph`, `jit` agreement,
+save/load round trip, feature-mismatch refusal, the one-warning fallback
+(`corrections=None == corrections=False` numerically; skipped once real
+weights exist), and elastic-path-never-warns.
+
+**Results.** `pytest -q` → **408 passed**; elastic hash pins green; ruff +
+format clean. No training yet — the module is machinery whose every
+train-independent property is pinned; task 2 gives it weights.
 
 ---
 

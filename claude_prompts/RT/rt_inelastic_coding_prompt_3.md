@@ -194,6 +194,7 @@ by any prompt work. It looks like an accidental `mkdir rob` + add (perhaps a
 truncated `robust`?). Please unstage/remove it (or tell me its purpose) so it
 doesn't ride along into the next commit. Everything else in this task raised
 no questions.
+>A. This is fine. ignore it
 
 *Follow-up (Claude, 2026-08-24, task 2).* No answer was recorded, and commit
 `2c1c259` meanwhile brought `rob/` in — the empty `__init__.py` **plus**
@@ -205,6 +206,7 @@ questions (the one open design point — how `K_fl` stays φ_C-linear while the
 surface transfer is nonlinear — is answered by design §4.4 itself: the kernel
 is defined at the truth's φ_C = 0.02, `K_fl = Rrs_fl(0.02)/0.02`; logged
 below and in the record §4.3).
+>A. Ignore this too
 
 ## Next
 
@@ -372,3 +374,37 @@ should be rewritten from what M2 actually established — the record
 §4.1–4.5 status block, the fixture-measured error table as M3's targets,
 the θ_s-anchor kink caveat for anyone differentiating there, and the open
 Q1 housekeeping.
+
+### 2026-08-24 (M2 task 5 — prompt 4 rewritten from what M2 established; M2 COMPLETE)
+
+`rt_inelastic_coding_prompt_4.md` updated; record v0.18 (M2 ✅ in the
+status table). Model: Fable 5. Q&A: **still no answers — Q1/follow-up (the
+committed `rob/` directory) remains the one open item**; task 5 raised no
+new questions. (Prompt arrived as "execute the 4th prompt" with task 4 done
+and committed in `c329cd1` — read as task 5 per the standing convention.)
+
+What changed in prompt 4, and why:
+
+- **Working agreements corrected**: branch is `inelastic-rt` (prompt 1 Q&A
+  Q2), not the coding plan's `rt-inelastic-prototype` the draft carried;
+  added the two-tier hash-gate wording and the no-wholesale-pip rule.
+- **"Status entering M3" written** (the draft's empty block): M2 complete
+  at 390 green; the two terms' API and the `PHI_C_REF` mechanics δ_F must
+  preserve; the composition lines in `_apply_inelastic` that
+  `1 + (f_phys−1)(1+δ_R)` and `×(1+δ_F)` slot into; the fixture-measured
+  target table (−38.6 % @ 0° / +30 % @ 490 nm / 0.99→0.85 @ 685 nm); the
+  θ_s-anchor kink caveat; the sentinel rule (a failing sentinel means fix
+  the bing checkout, not the ports); split reuse via `select_inelastic`;
+  the open Q1; notebook tooling incl. the nbformat build convention.
+- **Task text sharpened from M2 facts**: task 1 names the M1 helpers for
+  the λ′ features and points the wiring at `_apply_inelastic`; task 2
+  requires the full release + `select_inelastic` splits and repeats the
+  recompute-thresholds lesson; task 3 adds a gradient check through the
+  corrected path (θ_s off the Ed anchors) and makes "the whole M2 gate
+  stays green untouched" explicit; task 4 carries the notebook build/exec
+  tooling.
+
+**M2 is closed**: analytic Raman + fluorescence ported, composed, pinned
+live to fixed BING at ≤ 1e-6, characterized against L23 with every band
+fixture-measured and test-pinned, differentiable end to end (incl. a_ph,
+φ_C), notebook shipped. → `rt_inelastic_coding_prompt_4.md` (M3).

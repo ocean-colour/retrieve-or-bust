@@ -22,6 +22,11 @@ cross-check module arrives with task 3; spot versions of it start here):
   ``phi_C * K_fl`` (linear in ``phi_C`` by construction) — the ``None`` and
   all-off routes stay bitwise elastic, fluorescence without ``a_ph`` is a
   loud ``ValueError``, and ``mode='emulator'`` refuses the composition.
+
+Every ``forward`` call here passes ``corrections=False`` (deliberate, M3
+task 1): this module pins the **analytic** terms, and must keep doing so
+bit-for-bit after the trained δ heads land and become the default path.
+The corrected path has its own module, ``test_inelastic_corr.py``.
 """
 
 from __future__ import annotations
@@ -258,7 +263,9 @@ def test_forward_composes_raman_in_Rrs_space(l23_small_inelastic_batch):
     batch = l23_small_inelastic_batch
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
 
-    composed = np.asarray(H.forward(*args, inelastic=RAMAN_ONLY, check_domain=False))
+    composed = np.asarray(
+        H.forward(*args, inelastic=RAMAN_ONLY, corrections=False, check_domain=False)
+    )
     elastic = np.asarray(H.forward(*args, check_domain=False))
     factor = np.asarray(I.raman_factor(batch.iops, batch.geometry, batch.wave))
 
@@ -273,7 +280,9 @@ def test_forward_all_processes_off_is_bitwise_elastic(l23_small_inelastic_batch)
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
     off = Inelastic(raman=False, fluorescence=False)
     a = np.asarray(H.forward(*args, check_domain=False))
-    b = np.asarray(H.forward(*args, inelastic=off, check_domain=False))
+    b = np.asarray(
+        H.forward(*args, inelastic=off, corrections=False, check_domain=False)
+    )
     np.testing.assert_array_equal(a, b)
 
 
@@ -294,6 +303,7 @@ def test_fluorescence_without_aph_is_a_loud_error(l23_small_inelastic_batch):
             batch.geometry,
             batch.wave,
             inelastic=Inelastic(),
+            corrections=False,
             check_domain=False,
         )
     with pytest.raises(ValueError, match="a_ph"):
@@ -305,7 +315,13 @@ def test_emulator_mode_refuses_inelastic(l23_small_inelastic_batch):
     batch = l23_small_inelastic_batch
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
     with pytest.raises(ValueError, match="emulator"):
-        H.rrs_forward(*args, "emulator", inelastic=RAMAN_ONLY, check_domain=False)
+        H.rrs_forward(
+            *args,
+            "emulator",
+            inelastic=RAMAN_ONLY,
+            corrections=False,
+            check_domain=False,
+        )
 
 
 def test_composed_forward_gradient_finite(l23_small_inelastic_batch):
@@ -322,6 +338,7 @@ def test_composed_forward_gradient_finite(l23_small_inelastic_batch):
             row_geom,
             batch.wave,
             inelastic=RAMAN_ONLY,
+            corrections=False,
             check_domain=False,
         ).sum()
     )(row_iops)
@@ -537,8 +554,12 @@ def test_forward_composes_fluorescence_additively(l23_small_inelastic_batch):
     batch = l23_small_inelastic_batch
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
 
-    full = np.asarray(H.forward(*args, inelastic=Inelastic(), check_domain=False))
-    raman = np.asarray(H.forward(*args, inelastic=RAMAN_ONLY, check_domain=False))
+    full = np.asarray(
+        H.forward(*args, inelastic=Inelastic(), corrections=False, check_domain=False)
+    )
+    raman = np.asarray(
+        H.forward(*args, inelastic=RAMAN_ONLY, corrections=False, check_domain=False)
+    )
     ours, _ = kernel_and_truth(batch)
 
     np.testing.assert_allclose(full, raman + ours, rtol=5e-6, atol=1e-10)
@@ -549,10 +570,15 @@ def test_forward_passes_emission_shape_through(l23_small_inelastic_batch):
     """Inelastic.emission_shape reaches the kernel — visible at 730 nm."""
     batch = l23_small_inelastic_batch
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
-    single = np.asarray(H.forward(*args, inelastic=Inelastic(), check_domain=False))
+    single = np.asarray(
+        H.forward(*args, inelastic=Inelastic(), corrections=False, check_domain=False)
+    )
     double = np.asarray(
         H.forward(
-            *args, inelastic=Inelastic(emission_shape="double"), check_domain=False
+            *args,
+            inelastic=Inelastic(emission_shape="double"),
+            corrections=False,
+            check_domain=False,
         )
     )
     i730 = int(np.abs(np.asarray(batch.wave) - I.LAMBDA_FL_SECONDARY).argmin())
@@ -568,10 +594,14 @@ def test_phi_C_is_a_linear_handle(l23_small_inelastic_batch):
     """
     batch = l23_small_inelastic_batch
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
-    raman = np.asarray(H.forward(*args, inelastic=RAMAN_ONLY, check_domain=False))
+    raman = np.asarray(
+        H.forward(*args, inelastic=RAMAN_ONLY, corrections=False, check_domain=False)
+    )
 
     def full(phi):
-        return H.forward(*args, inelastic=Inelastic(phi_C=phi), check_domain=False)
+        return H.forward(
+            *args, inelastic=Inelastic(phi_C=phi), corrections=False, check_domain=False
+        )
 
     delta_1x = np.asarray(full(jnp.asarray(0.02))) - raman
     delta_2x = np.asarray(full(jnp.asarray(0.04))) - raman
@@ -599,6 +629,7 @@ def test_composed_forward_gradient_finite_incl_aph(l23_small_inelastic_batch):
             row_geom,
             batch.wave,
             inelastic=Inelastic(),
+            corrections=False,
             check_domain=False,
         ).sum()
     )(row_iops)
@@ -679,6 +710,7 @@ def test_gradient_matches_finite_differences_composed(
                 wave,
                 "hybrid",
                 inelastic=Inelastic(phi_C=phi0 + offsets["phi_C"]),
+                corrections=False,
                 check_domain=False,
             )
         )
