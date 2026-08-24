@@ -299,3 +299,46 @@ Task 3 (formal xcheck + error table + FD gradients) starts with both terms
 composed and spot-checked; the sentinel (bing-predates-fixes) and the x64
 rtol ≤ 1e-6 pins are its first moves, and the characterization bands above
 are the fixture-measured numbers it should build on.
+
+### 2026-08-24 (M2 task 3 — xcheck + error table + gradient gate; the M2 code gate is green; 390)
+
+Cross-check, characterization, gradients all pinned; record §4.4 (v0.16).
+Model: Fable 5. Q&A: **no answers found — Q1 and its follow-up (the
+committed `rob/` directory) still await your one-word call**; task 3 raised
+no new questions. (Prompt arrived as "execute the 2nd prompt" with task 2
+already done and committed in `1e18082` — read as task 3 per the standing
+offset convention.)
+
+- **`robust/tests/test_inelastic_bing_xcheck.py`** (new): sentinel first —
+  BING's fluorescence on a trivial scene vs the post-fix formula spelled out
+  by hand in the test (double-entry, independent of our port; ratio 1.0
+  exactly; a pre-fix checkout lands at ~π and the message says "predates
+  inelastic-fixes"); then the pins, **all 150 fixture samples**, float64
+  (`batch64` rebuild under `jax_x64`), rtol ≤ 1e-6 with `atol=0`:
+  **measured worst 4.1e-16 (Raman), 1.1e-13 (fluorescence, tails
+  included)** — 7–10 decades of headroom. Module `importorskip`s bing + a
+  `hasattr` guard, so CI skips while this machine enforces.
+- **Error table completed**: the 490 nm Raman row measured on the fixture —
+  **−3.0 / +29.7 / +30.4 %** at 0/30/60° (the assessment's "+30 % at
+  490 nm, 30–60°"; 0° unquoted there) — pinned as bands next to the
+  550–700 nm and 685 nm rows from tasks 1–2. No material difference from
+  the assessment's table to log.
+- **Gradient gate**: autodiff vs central FD (float64, per-variable steps)
+  through the **full composed forward** (ZTT + packaged emulator, × f_phys,
+  + φ_C·K_fl) for `a, bb_p, a_ph, φ_C, θ_s`; agreement 1.5e-10–3.8e-8.
+  **One discovery worth knowing**: packaged `Ed` is piecewise-linear in θ_s
+  with anchors at 0/30/60°, so the θ_s-derivative has a *kink at each
+  anchor* — autodiff is one-sided there and central FD averages, disagreeing
+  at the 7th digit at 30° sharp (the elastic gate never saw this; its path
+  ignores Ed). The gate evaluates at 35° (smooth segment) and documents the
+  knot. Inversions differentiating at exactly 0/30/60° inherit a one-sided
+  derivative — worth a line in any future θ_s-retrieval writeup.
+- Suite **390 passed** (`-W error` clean; 355 M1 + 32 `test_inelastic.py` +
+  3 xcheck); elastic hash pins green; ruff + format clean. **The M2 code
+  gate (task 3's "Gate" line) is met.**
+
+Task 4 (the notebook) is pure presentation now: every number it must show —
+the −39 % @ 0° Raman gap, the 685 nm amplitude/drift, ∂Rrs/∂φ_C = K_fl — is
+already computed and test-pinned; lift them from `test_inelastic.py` and the
+record §4.2–4.4 rather than re-deriving. Kernelspec `ocean14`, execute via
+the `os_313` env's `jupyter nbconvert --execute`, commit with outputs.

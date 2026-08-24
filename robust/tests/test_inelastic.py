@@ -38,7 +38,7 @@ from robust.rt import ed as E
 from robust.rt import hybrid as H
 from robust.rt import inelastic as I
 from robust.rt.data.l23 import PHI_C_L23
-from robust.rt.types import Inelastic
+from robust.rt.types import Geometry, Inelastic, IOPs, PhaseParams
 
 #: The Raman-only configuration the task-1 wiring tests use.
 RAMAN_ONLY = Inelastic(fluorescence=False)
@@ -50,6 +50,15 @@ BAND = (550.0, 700.0)
 #: at task 1 (+1.6 / -4.0 / -38.6 %): generous enough for float noise, tight
 #: enough that a broken term or a flat-Ed regression leaves them.
 INCREMENT_ERROR_BANDS = {0.0: (-0.45, -0.32), 30.0: (-0.05, 0.08), 60.0: (-0.11, 0.02)}
+
+#: The 490 nm row of the assessment's Raman table ("+30 % at 490 nm,
+#: 30-60 deg"), measured on THIS fixture at task 3: +29.7 % / +30.4 % at
+#: 30/60 deg and -3.0 % at 0 deg (the assessment did not quote 0 deg here).
+INCREMENT_ERROR_BANDS_490 = {
+    0.0: (-0.10, 0.04),
+    30.0: (0.23, 0.36),
+    60.0: (0.24, 0.37),
+}
 
 #: Median 685 nm model/truth bands for ``phi_C * K_fl`` vs the X4-X2 truth,
 #: measured on THIS fixture at task 2 (0.991 / 0.937 / 0.853 at 0/30/60 deg —
@@ -162,6 +171,24 @@ def test_characterization_bands(l23_small_inelastic_batch):
             np.median((ours[rows][:, band] - 1.0) / (truth[rows][:, band] - 1.0)) - 1.0
         )
         assert lo < err < hi, f"zenith {zenith}: median increment error {err:.3f}"
+
+
+def test_characterization_band_490(l23_small_inelastic_batch):
+    """The blue-side row of the assessment's error table, pinned per zenith.
+
+    Median of (f_phys - 1)/(truth - 1) - 1 at 490 nm: **+29.7 % / +30.4 %**
+    at 30/60 deg on this fixture — the assessment's "+30 % at 490 nm
+    (30-60 deg)" — and -3.0 % at 0 deg (unquoted there). With the 550-700 nm
+    bands this completes the M2 error table; the structured blue residual is
+    delta_R's other target (M3).
+    """
+    batch = l23_small_inelastic_batch
+    ours, truth = factor_and_truth(batch)
+    i490 = int(np.abs(np.asarray(batch.wave) - 490.0).argmin())
+    for zenith, (lo, hi) in INCREMENT_ERROR_BANDS_490.items():
+        rows = batch.zenith == zenith
+        err = np.median((ours[rows, i490] - 1.0) / (truth[rows, i490] - 1.0)) - 1.0
+        assert lo < err < hi, f"zenith {zenith}: 490 nm increment error {err:.3f}"
 
 
 def test_ed_override_changes_the_factor(l23_small_inelastic_batch):
@@ -481,9 +508,7 @@ def test_double_emission_adds_the_730_shoulder(l23_small_inelastic_batch):
 def test_kernel_jit_and_vmap(l23_small_inelastic_batch):
     """Compiled and mapped evaluation agree with eager."""
     batch = l23_small_inelastic_batch
-    eager = np.asarray(
-        I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave)
-    )
+    eager = np.asarray(I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))
     jitted = np.asarray(
         jax.jit(I.fluorescence_kernel, static_argnames="emission_shape")(
             batch.iops, batch.geometry, batch.wave
@@ -546,23 +571,17 @@ def test_phi_C_is_a_linear_handle(l23_small_inelastic_batch):
     raman = np.asarray(H.forward(*args, inelastic=RAMAN_ONLY, check_domain=False))
 
     def full(phi):
-        return H.forward(
-            *args, inelastic=Inelastic(phi_C=phi), check_domain=False
-        )
+        return H.forward(*args, inelastic=Inelastic(phi_C=phi), check_domain=False)
 
     delta_1x = np.asarray(full(jnp.asarray(0.02))) - raman
     delta_2x = np.asarray(full(jnp.asarray(0.04))) - raman
     i685 = index_685(batch)
-    np.testing.assert_allclose(
-        delta_2x[:, i685], 2.0 * delta_1x[:, i685], rtol=1e-4
-    )
+    np.testing.assert_allclose(delta_2x[:, i685], 2.0 * delta_1x[:, i685], rtol=1e-4)
 
-    grad = np.asarray(
-        jax.grad(lambda phi: full(phi)[:, i685].sum())(jnp.asarray(0.02))
-    )
-    k_685 = np.asarray(
-        I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave)
-    )[:, i685].sum()
+    grad = np.asarray(jax.grad(lambda phi: full(phi)[:, i685].sum())(jnp.asarray(0.02)))
+    k_685 = np.asarray(I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))[
+        :, i685
+    ].sum()
     np.testing.assert_allclose(grad, k_685, rtol=1e-4)
 
 
@@ -587,3 +606,88 @@ def test_composed_forward_gradient_finite_incl_aph(l23_small_inelastic_batch):
         assert np.all(np.isfinite(np.asarray(leaf)))
     # a_ph only *adds* photons at the emission peak: positive sensitivity.
     assert float(np.asarray(grad.a_ph)[0, index_685(batch)]) > 0.0
+
+
+# --------------------------------------------------- the gradient gate (task 3) ----
+
+
+@pytest.mark.parametrize(
+    ("name", "step"),
+    [
+        ("a", 1e-6),
+        ("bb_p", 1e-9),
+        ("a_ph", 1e-8),
+        ("phi_C", 1e-6),
+        ("theta_s", 1e-3),
+    ],
+)
+def test_gradient_matches_finite_differences_composed(
+    jax_x64, l23_small_inelastic_batch, name, step
+):
+    """**The M2 gradient gate.** autodiff == central FD through the full model.
+
+    The complete composed forward — ZTT + packaged emulator, x f_phys,
+    + phi_C * K_fl — differentiated w.r.t. each input the future inversion
+    will need, ``phi_C`` and ``a_ph`` now among them (design §4.6). Same
+    protocol as the elastic gate in ``test_hybrid.py``: float64 with the
+    dtype pinned on the arrays, per-variable steps (theta_s is O(30) and
+    wants h ~ 1e-3; the IOP-likes want 1e-6..1e-9, all far below the fixture
+    minima so no perturbed input goes negative), the FD asserted finite
+    before it is compared. ``check_domain=False`` for the same reason as the
+    elastic gate — perturbed inputs leaving the trained range is the check
+    working, not the property under test.
+
+    **Evaluated at theta_s = 35 deg, not 30** — a real difference from the
+    elastic gate. The inelastic terms consume ``ed.Ed``, which is
+    piecewise-*linear* in theta_s with anchors at exactly 0/30/60 deg: at an
+    anchor the theta-derivative has a kink (model structure, not a bug), so
+    autodiff takes one side while a central difference straddling the knot
+    averages both — they disagreed at the 7th digit at 30 deg sharp. Inside
+    a segment the function is smooth; measured agreement there: a 2.5e-9,
+    bb_p 1.5e-10, a_ph 3.8e-8, phi_C 3.9e-9, theta_s 1.7e-8 relative.
+    """
+    batch = l23_small_inelastic_batch
+    dtype = jnp.float64
+    rows = np.where(batch.zenith == 30.0)[0][:3]
+
+    a0 = jnp.asarray(np.asarray(batch.iops.a)[rows], dtype=dtype)
+    bb_w0 = jnp.asarray(np.asarray(batch.iops.bb_w)[rows], dtype=dtype)
+    bb_p0 = jnp.asarray(np.asarray(batch.iops.bb_p)[rows], dtype=dtype)
+    a_ph0 = jnp.asarray(np.asarray(batch.iops.a_ph)[rows], dtype=dtype)
+    B_p0 = jnp.asarray(np.asarray(batch.phase_params.B_p)[rows], dtype=dtype)
+    # +5 deg off the 30-deg scenes: inside the smooth 30-60 Ed segment
+    # (see the docstring), still far from both anchors at step 1e-3.
+    theta0 = jnp.asarray(np.asarray(batch.geometry.theta_s)[rows] + 5.0, dtype=dtype)
+    wave = jnp.asarray(np.asarray(batch.wave), dtype=dtype)
+    phi0 = jnp.asarray(PHI_C_L23, dtype=dtype)
+
+    def scalar(shift):
+        """Mean composed Rrs with one variable shifted by the scalar ``shift``."""
+        offsets = dict.fromkeys(("a", "bb_p", "a_ph", "phi_C", "theta_s"), 0.0)
+        offsets[name] = shift
+        iops = IOPs(
+            a=a0 + offsets["a"],
+            bb_w=bb_w0,
+            bb_p=bb_p0 + offsets["bb_p"],
+            a_ph=a_ph0 + offsets["a_ph"],
+        )
+        return jnp.mean(
+            H.forward(
+                iops,
+                PhaseParams(B_p=B_p0),
+                Geometry.nadir(theta0 + offsets["theta_s"]),
+                wave,
+                "hybrid",
+                inelastic=Inelastic(phi_C=phi0 + offsets["phi_C"]),
+                check_domain=False,
+            )
+        )
+
+    analytic = float(jax.grad(scalar)(jnp.asarray(0.0, dtype=dtype)))
+    h = jnp.asarray(step, dtype=dtype)
+    numeric = float((scalar(h) - scalar(-h)) / (2.0 * h))
+
+    assert np.isfinite(numeric), f"d/d{name}: step {step:g} left the domain"
+    assert analytic == pytest.approx(numeric, rel=1e-6), (
+        f"d/d{name}: autodiff {analytic:.10e} vs finite difference {numeric:.10e}"
+    )

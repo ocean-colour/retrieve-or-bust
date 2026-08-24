@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.15
+**Version:** 0.16
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ the Date on every bump.
 |---|------|--------|-----------------|
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
-| **M2** | Analytic terms in JAX | 🟡 in progress (tasks 1–2 of 5 done) | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
+| **M2** | Analytic terms in JAX | 🟡 in progress (tasks 1–3 of 5 done — **the code gate is green**; notebook + prompt hand-off remain) | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py` |
 | **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
@@ -63,9 +63,9 @@ reported, never gated. The `bing` cross-check tests (M2) import the *fixed*
 BING (branch `inelastic-fixes`) live and `skipif` when it is unavailable, so
 GitHub CI stays green while local runs enforce the pin (CQ3a).
 
-**Verification (current).** `pytest -q` from the repo root → **381 passed**
-(355 as of M1 + 26 M2 `test_inelastic.py`, 13 per task); details below
-superseded only in count:
+**Verification (current).** `pytest -q` from the repo root → **390 passed**
+(355 as of M1 + 32 M2 `test_inelastic.py` + 3 `test_inelastic_bing_xcheck.py`);
+details below superseded only in count:
 (`ocean14`, this machine, 2026-08-24, `$OS_COLOR` set): 279 elastic unmodified
 + 31 M0/hash-gate (two-tier since task 7, §2.8) + 45 M1 (`test_ed.py` 20,
 Raman-grid additions in `test_conventions.py` 9, `test_l23_inelastic_data.py`
@@ -729,7 +729,7 @@ rtol ≤ 1e-6 (CQ3a) and characterized against the assessment's error table.
 |---|------|--------|
 | 1 | Raman factor (`inelastic.py::raman_factor` + `forward` wiring) | ✅ done |
 | 2 | Fluorescence kernel (`inelastic.py::fluorescence_kernel` + `forward` wiring) | ✅ done |
-| 3 | Cross-check + characterization + gradient gate | ⬜ not started (Raman-side spot versions landed with task 1) |
+| 3 | Cross-check + characterization + gradient gate | ✅ done — **the M2 code gate is green** |
 | 4 | `notebooks/RT/rt_inelastic_coding_3.ipynb` | ⬜ not started |
 | 5 | Update `rt_inelastic_coding_prompt_4.md` | ⬜ not started |
 
@@ -850,6 +850,54 @@ and finite composed gradients including `a_ph` (positive at the peak).
 **Results.** `pytest -q` → **381 passed**, warning-free (also under
 `-W error`); elastic hash pins green; ruff clean.
 
+### 4.4 Cross-check, characterization, gradients (task 3) — the M2 code gate
+
+**`robust/tests/test_inelastic_bing_xcheck.py`** (new, 3 tests; module-level
+`importorskip` on `bing` plus a `hasattr` guard for the fixed functions — CI
+skips, this machine enforces):
+
+- **Sentinel first** (`test_sentinel_bing_carries_the_pi_fix`): BING's
+  fluorescence on a trivial flat-IOP scene vs the post-fix formula written
+  out *by hand in the test* (double-entry, independent of
+  `robust.rt.inelastic`) — measured ratio 1.0 to float64 precision; a
+  pre-fix checkout lands at ~3.14 and the assertion message says "predates
+  inelastic-fixes". This is the insurance CQ3a asked for: without it, a
+  rolled-back checkout could make the pins *agree with the wrong physics*.
+- **The pins**: `raman_factor` vs `calc_raman_correction_factor` and
+  `φ_C·K_fl` vs `calc_Rrs_fluorescence` on **every** fixture sample
+  (150 = 50 scenes × 3 zeniths), both sides fed byte-identical excitation
+  nodes/IOPs/Ed, in float64 (a `batch64` fixture rebuilds the float32
+  session batch under `jax_x64`). Gate rtol ≤ 1e-6, `atol=0`; **measured
+  worst: Raman 4.1e-16, fluorescence 1.1e-13** (all 81 wavelengths, Gaussian
+  tails included) — 7–10 decades of headroom. Float32 would sit at ~3e-6
+  (trapezoid accumulation), which is why the gate runs x64.
+
+**Error table completed** (`test_inelastic.py`): the 490 nm Raman row —
+median increment error **−3.0 % / +29.7 % / +30.4 %** at 0/30/60° on the
+fixture, matching the assessment's "+30 % at 490 nm (30–60°)" (0° was
+unquoted there); pinned as bands alongside the task-1 550–700 nm rows and
+the task-2 685 nm fluorescence ratios. The full M2 error table is now
+fixture-measured and test-pinned.
+
+**The gradient gate** (`test_gradient_matches_finite_differences_composed`,
+5-way parametrized): `jax.grad` vs central finite differences (float64,
+per-variable steps) through the **full composed forward** — ZTT + packaged
+emulator, × f_phys, + φ_C·K_fl — for `a, bb_p, a_ph, φ_C, θ_s`. Measured
+agreement 1.5e-10 – 3.8e-8 relative. **One real discovery:** the packaged
+`Ed` is piecewise-*linear* in θ_s with anchors at exactly 0/30/60°, so at an
+anchor the θ_s-derivative has a kink — autodiff takes one side, a central
+difference straddling the knot averages both, and they disagree at the 7th
+digit at 30° sharp. Model structure, not a bug (the elastic gate never saw
+it because the elastic path ignores Ed); the gate therefore evaluates at
+θ_s = 35°, inside a smooth segment, and the test docstring documents the
+knot. *Anyone differentiating w.r.t. θ_s at exactly 0/30/60° should know
+the derivative is one-sided there.*
+
+**Results.** `pytest -q` → **390 passed** (`-W error` clean): the three
+task-3 groups green (xcheck green on this machine), elastic hash pins
+green, ruff + `ruff format` clean. **This is the M2 code gate** — tasks 4–5
+(notebook, prompt hand-off) are documentation.
+
 ---
 
 ## 5. M3 — Correction heads δ_R and δ_F
@@ -884,7 +932,8 @@ unchanged — see `rt_elastic_implementation.md` §9):
 | `robust.rt.types` | `IOPs.a_ph` (optional), `Inelastic`, `EMISSION_SHAPES`, `Geometry.Ed` (optional) | M0 |
 | `robust.rt.hybrid` | `forward(..., inelastic=None)`, `rrs_forward(..., inelastic=None)` — `None` = elastic route; an instance composes `× f_R` and/or `+ φ_C·K_fl` in `Rrs` space (`_apply_inelastic`) | M0 (guard) → M2 (composition) |
 | `robust.rt.inelastic` | `raman_factor`, `raman_bb`, `fluorescence_kernel`, `emission_line`, `fl_excitation_grid`, HydroLight-consistent constants (`B_RAMAN_488`, `MU_*`, `PHI_C_REF`, emission-line and excitation-band constants) | M2 |
-| `robust/tests/test_inelastic.py` | the M2 task 1–2 gate: bing spot cross-checks, characterization bands, wiring, gradients | M2 |
+| `robust/tests/test_inelastic.py` | the M2 task 1–3 gate: bing spot cross-checks, the full characterization-band table (550–700 nm, 490 nm, 685 nm), wiring, the FD gradient gate incl. `a_ph`/`φ_C` | M2 |
+| `robust/tests/test_inelastic_bing_xcheck.py` | the live fixed-BING pin (CQ3a): sentinel + rtol ≤ 1e-6 on all fixture samples, float64; CI skips | M2 |
 | `robust.rt` | re-exports `Inelastic`; `ed` submodule | M0/M1 |
 | `robust.rt.ed` | `Ed(θ_s, λ)` + `ratio(λ′/λ)` from packaged L23 spectra; `Geometry.Ed` override; `ZENITH_ANCHORS`, `load_table` | M1 |
 | `robust.rt.conventions` | `RAMAN_SHIFT`, `RAMAN_WAVE_MIN_OFFICIAL`, `raman_excitation`/`raman_emission`, `interp_spectrum` | M1 |
