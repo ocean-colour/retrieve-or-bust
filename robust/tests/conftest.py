@@ -53,6 +53,13 @@ FILES = pathlib.Path(__file__).parent / "files"
 #: ``l23.write_fixture(path, n_scene=50)``.
 L23_SMALL_FIXTURE = FILES / "l23_small.npz"
 
+#: The inelastic **sibling** fixture (coding plan CQ4): the same 50 scenes and
+#: zeniths, adding ``aph`` and the X=2/X=4 ``Rrs`` channels (plus ``a``/``bb``/
+#: ``Rrs1`` copies the reader uses to prove the two files describe the same
+#: water). The elastic fixture's bytes are untouched -- a test pins its hash.
+#: Regenerate with ``design/py/gen_inelastic_fixture.py``.
+L23_INELASTIC_FIXTURE = FILES / "l23_inelastic_fixture.npz"
+
 
 def l23_available():
     """Whether the L23 elastic dataset is on disk.
@@ -143,6 +150,56 @@ def l23_batch():
     from robust.rt.data import l23
 
     return l23.load_batch()
+
+
+@pytest.fixture(scope="session")
+def l23_small_inelastic_batch():
+    """A 50-scene inelastic batch, loaded through the real loader from fixtures.
+
+    Needs no ``$OS_COLOR``: the sibling fixture supplies ``aph`` and the
+    X=2/X=4 channels, the elastic fixture supplies ``bbnw``/``bnw``, and
+    :func:`robust.rt.data.l23.load_inelastic_batch` genuinely runs.
+
+    Returns
+    -------
+    robust.rt.data.l23.L23InelasticBatch
+    """
+    for fixture in (L23_INELASTIC_FIXTURE, L23_SMALL_FIXTURE):
+        if not fixture.is_file():
+            pytest.skip(f"cached L23 fixture missing: {fixture}")
+
+    from robust.rt.data import l23
+
+    return l23.load_inelastic_batch(
+        reader=l23.inelastic_npz_reader(L23_INELASTIC_FIXTURE, L23_SMALL_FIXTURE)
+    )
+
+
+def tiny_args():
+    """Minimal synthetic :func:`robust.rt.forward` inputs (2 wavelengths).
+
+    A plain function, not a fixture, so tests can call it several times and
+    mutate copies freely. Lives here because two modules were maintaining
+    byte-identical private copies (PR #14 review) — when these inputs must
+    change, there is now exactly one place.
+    """
+    import jax.numpy as jnp
+
+    from robust.rt import conventions
+    from robust.rt.types import Geometry, IOPs, PhaseParams
+
+    wave = jnp.asarray([440.0, 550.0])
+    iops = IOPs(
+        a=jnp.asarray([0.15, 0.12]),
+        bb_w=conventions.bb_w(wave),
+        bb_p=jnp.asarray([0.003, 0.003]),
+    )
+    return (
+        iops,
+        PhaseParams(B_p=jnp.asarray(0.0126)),
+        Geometry.nadir(jnp.asarray(30.0)),
+        wave,
+    )
 
 
 @pytest.fixture

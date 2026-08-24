@@ -9,6 +9,10 @@ figure, so results stay comparable:
 - the canonical wavelength grid (L23's 350-750 nm, 81 bands at 5 nm);
 - pure-water backscattering ``bb_w(lambda)``, kept separate from ``bb_p``
   because the water/particle split is load-bearing for the physics (design 3);
+- the Raman excitation grid (inelastic design §3): the 3400 cm^-1 water Raman
+  shift, the wavenumber-form maps between emission and excitation wavelengths,
+  and the one clamped-linear spectrum interpolation the package uses to put
+  IOPs (and Ed) onto off-grid wavelengths, differentiable in the values;
 - boundary validators, so a wrong grid or a negative IOP fails where it enters
   rather than as a puzzling number three milestones later.
 
@@ -44,6 +48,12 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     # Pure water
     "BB_W_L23",
     "bb_w",
+    # Raman excitation grid (inelastic M1)
+    "RAMAN_SHIFT",
+    "RAMAN_WAVE_MIN_OFFICIAL",
+    "raman_excitation",
+    "raman_emission",
+    "interp_spectrum",
     # Validators
     "check_wave",
     "check_iop",
@@ -203,6 +213,148 @@ def bb_w(wave: Float[Array, "..."] | None = None) -> Float[Array, "..."]:
     if wave is None:
         return jnp.asarray(BB_W_L23)
     return jnp.interp(jnp.asarray(wave), jnp.asarray(WAVE), jnp.asarray(BB_W_L23))
+
+
+# -------------------------------------------------- Raman excitation grid ----
+#: Wavenumber shift of water Raman scattering, cm^-1 (Ge et al. 1993; the value
+#: BING fixes as ``bing.rt.raman.WAVENUMBER_SHIFT_CENTER``, asserted equal by a
+#: test). The physical band is ~3100-3700 cm^-1 wide; v1 uses the single-shift
+#: center per the design's single-Gaussian emission choice (§4.4).
+RAMAN_SHIFT = 3400.0
+
+#: Official lower edge of the inelastic model's wavelength support, nm
+#: (inelastic design §3). The Raman excitation for a 400 nm emission is
+#: ``raman_excitation(400.) = 352.11 nm`` -- just inside the L23 grid
+#: (:data:`WAVE_MIN` = 350). Below 400 nm the maps and interpolation still
+#: *run* (no error, by design), but the excitation wavelengths leave the grid
+#: and :func:`interp_spectrum` clamps to the 350 nm end value -- constant
+#: extrapolation, a documented caveat rather than a gate.
+RAMAN_WAVE_MIN_OFFICIAL = 400.0
+
+
+def raman_excitation(
+    wave: Float[Array, "..."], shift: float = RAMAN_SHIFT
+) -> Float[Array, "..."]:
+    """Excitation wavelength ``lambda'`` feeding Raman emission at ``wave``.
+
+    The wavenumber form: ``1/lambda' = 1/lambda + shift`` (excitation photons
+    are bluer than the emission by the water Raman shift). This is *the*
+    excitation-grid map of the design (§3): the forward model interpolates the
+    supplied IOP spectra onto ``raman_excitation(wave)``.
+
+    Pure, ``jit``-able, differentiable. See :data:`RAMAN_WAVE_MIN_OFFICIAL`
+    for the support caveat below 400 nm.
+
+    Parameters
+    ----------
+    wave : Array
+        Emission wavelengths (nm).
+    shift : float, optional
+        Wavenumber shift (cm^-1); default :data:`RAMAN_SHIFT`.
+
+    Returns
+    -------
+    Array
+        Excitation wavelengths (nm), same shape; e.g. 418.55 nm for 488 nm.
+    """
+    wave = jnp.asarray(wave)
+    return 1.0 / (1.0 / wave + shift * 1e-7)
+
+
+def raman_emission(
+    wave_ex: Float[Array, "..."], shift: float = RAMAN_SHIFT
+) -> Float[Array, "..."]:
+    """Emission wavelength produced by Raman scattering of ``wave_ex``.
+
+    The exact inverse of :func:`raman_excitation`:
+    ``1/lambda = 1/lambda' - shift``. Matches
+    ``bing.rt.raman.excitation_to_emission_wavelength`` (asserted by a test);
+    e.g. 488 nm excitation emits at 585.08 nm.
+
+    Parameters
+    ----------
+    wave_ex : Array
+        Excitation wavelengths (nm).
+    shift : float, optional
+        Wavenumber shift (cm^-1); default :data:`RAMAN_SHIFT`.
+
+    Returns
+    -------
+    Array
+        Emission wavelengths (nm), same shape.
+    """
+    wave_ex = jnp.asarray(wave_ex)
+    return 1.0 / (1.0 / wave_ex - shift * 1e-7)
+
+
+def _as_float(x) -> Array:
+    """``jnp.asarray``, with integer input coerced to the default float dtype."""
+    x = jnp.asarray(x)
+    if not jnp.issubdtype(x.dtype, jnp.floating):
+        x = x.astype(jnp.asarray(0.0).dtype)
+    return x
+
+
+def _interp_weights(
+    x: Float[Array, "*any"], grid: Float[Array, " grid"]
+) -> tuple[Array, Float[Array, "*any"]]:
+    """Clamped-linear interpolation weights on a strictly increasing grid.
+
+    Returns ``(idx, w)`` such that the interpolant is
+    ``y[..., idx-1] * (1-w) + y[..., idx] * w``. Clipping the weight is what
+    clamps beyond the grid ends -- no extrapolation, no boundary ``raise``
+    that could not run under ``jit``. Shared by :func:`interp_spectrum` and
+    :mod:`robust.rt.ed`'s zenith interpolation, so neither carries a private
+    stride assumption.
+    """
+    idx = jnp.clip(jnp.searchsorted(grid, x, side="left"), 1, grid.shape[0] - 1)
+    w = jnp.clip((x - grid[idx - 1]) / (grid[idx] - grid[idx - 1]), 0.0, 1.0)
+    return idx, w
+
+
+def interp_spectrum(
+    wave_new: Float[Array, " wave_new"],
+    grid: Float[Array, " grid"],
+    spectra: Float[Array, "*batch grid"],
+) -> Float[Array, "*batch wave_new"]:
+    """Linear interpolation of (batched) spectra onto new wavelengths.
+
+    The package's one interpolation rule (promoted here from
+    :mod:`robust.rt.ed` at M1 task 2, so the Raman excitation grid and Ed use
+    the same arithmetic): linear between grid points, **clamped** to the end
+    values outside the grid (constant extrapolation -- the ``bb_w``
+    precedent, and the documented sub-400 nm caveat of
+    :data:`RAMAN_WAVE_MIN_OFFICIAL`).
+
+    ``jnp.interp`` handles only 1-D inputs, so the weights are built once from
+    ``wave_new``/``grid`` and applied by gathering -- batched, ``jit``-safe,
+    and **differentiable in the spectrum values** (the property the Raman term
+    needs: gradients flow through the excitation-grid IOPs back to the IOP
+    inputs) as well as in ``wave_new``. All inputs are promoted to one common
+    floating dtype -- integer wavelengths select float nodes, they never
+    truncate the values (the PR #14 lesson, record §3.2.1).
+
+    Parameters
+    ----------
+    wave_new : Array
+        Wavelengths to evaluate at (nm), e.g. ``raman_excitation(wave)``.
+    grid : Array
+        Strictly increasing wavelengths (nm) the spectra are sampled on.
+    spectra : Array
+        Values on ``grid``, shape ``(..., n_grid)``.
+
+    Returns
+    -------
+    Array
+        Shape ``(..., n_wave_new)``.
+    """
+    wave_new = _as_float(wave_new)
+    grid = _as_float(grid)
+    spectra = _as_float(spectra)
+    dtype = jnp.result_type(wave_new.dtype, grid.dtype, spectra.dtype)
+    idx, w = _interp_weights(wave_new.astype(dtype), grid.astype(dtype))
+    spectra = spectra.astype(dtype)
+    return spectra[..., idx - 1] * (1.0 - w) + spectra[..., idx] * w
 
 
 # ------------------------------------------------------------------ validators

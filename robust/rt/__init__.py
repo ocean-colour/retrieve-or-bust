@@ -32,6 +32,9 @@ data.l23
 ed
     ``Ed(theta_s, lambda)`` from packaged L23 spectra + the ``Geometry.Ed``
     override — consumed by the inelastic terms only (M1).
+inelastic
+    The analytic inelastic terms: ``raman_factor`` (M2 task 1);
+    ``fluorescence_kernel`` arrives at M2 task 2.
 ztt
     ``Rrs_ZTT`` — the analytic backbone.
 emulator
@@ -43,12 +46,12 @@ validation
 baselines
     Comparison models the hybrid must beat -- standard Gordon (M2), PR05/O25 (M4).
 
-**Status.** ``conventions``, ``types``, and ``data.l23`` are implemented (M1);
-``baselines`` (standard Gordon) and ``validation.rrms`` landed with M2. Still
-documented stubs whose callables raise :class:`NotImplementedError`: ``ztt`` (M2),
-``emulator`` and ``hybrid`` (M3), and the rest of ``validation`` (M4). The
-signatures are already those of the design, so nothing downstream has to change as
-the bodies land.
+**Status.** The elastic Week-1 prototype is **complete** — every submodule
+above is implemented and `forward()` is the working hybrid (elastic record
+§6). On the inelastic side, the *types* (M0: ``Inelastic``, ``IOPs.a_ph``,
+``Geometry.Ed``) and the ``ed`` module (M1) have landed; the inelastic
+*physics* arrives at M2, and until then ``forward(..., inelastic=<instance>)``
+raises :class:`NotImplementedError`.
 """
 
 from . import (
@@ -58,6 +61,7 @@ from . import (
     ed,
     emulator,
     hybrid,
+    inelastic,
     types,
     validation,
     ztt,
@@ -74,6 +78,7 @@ __all__ = [  # noqa: RUF022
     "types",
     "data",
     "ed",
+    "inelastic",
     "ztt",
     "emulator",
     "hybrid",

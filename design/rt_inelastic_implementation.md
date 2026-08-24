@@ -1,7 +1,7 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.8
-**Date:** 2026-08-23
+**Version:** 0.14
+**Date:** 2026-08-24
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -29,16 +29,17 @@ the Date on every bump.
 | M | Goal | Status | Package surface |
 |---|------|--------|-----------------|
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
-| **M1** | Ed module, excitation grid, X2/X4 data | 🟡 in progress (task 1 of 5) | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
-| **M2** | Analytic terms in JAX | ⬜ not started | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
+| **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
+| **M2** | Analytic terms in JAX | 🟡 in progress (task 1 of 5 done) | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
 | **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
-**Branch.** All milestone work lands on **`rt-inelastic-prototype`**; each
-milestone is a reviewable commit/PR for JXP (Claude runs no state-changing
-git — see `CLAUDE.md`).
+**Branch.** All milestone work lands on **`inelastic-rt`** (JXP kept the
+existing branch over the coding plan's `rt-inelastic-prototype` name —
+prompt 1 Q&A Q2); each milestone is a reviewable commit/PR for JXP (Claude
+runs no state-changing git — see `CLAUDE.md`). M0 is PR #14.
 
 **Machine & environment.** Unlike the elastic effort (laptop), this effort
 runs on **this machine (tank server)**, in the `ocean14` conda env, CPU-only
@@ -62,10 +63,16 @@ reported, never gated. The `bing` cross-check tests (M2) import the *fixed*
 BING (branch `inelastic-fixes`) live and `skipif` when it is unavailable, so
 GitHub CI stays green while local runs enforce the pin (CQ3a).
 
-**Verification (current).** `pytest -q` from the repo root → **328 passed**
-(`ocean14`, this machine, 2026-08-21, `$OS_COLOR` set): 279 elastic unmodified
-+ 30 M0 (incl. the two pinned elastic hash-regressions) + 19 M1 `test_ed.py`.
-`ruff check` and `ruff format --check` clean.
+**Verification (current).** `pytest -q` from the repo root → **368 passed**
+(355 as of M1 + 13 M2 `test_inelastic.py`); details below superseded only in
+count:
+(`ocean14`, this machine, 2026-08-24, `$OS_COLOR` set): 279 elastic unmodified
++ 31 M0/hash-gate (two-tier since task 7, §2.8) + 45 M1 (`test_ed.py` 20,
+Raman-grid additions in `test_conventions.py` 9, `test_l23_inelastic_data.py`
+15, plus the review-debt regression test in `test_l23.py`). `ruff check` and
+`ruff format --check` clean. With `CI=true` simulated: strict hash tier
+skips, closeness tier green; with `$OS_COLOR` unset the raw-netCDF tests
+skip and the fixture-fed loaders still run.
 
 ---
 
@@ -340,8 +347,9 @@ touch it*, and the 400–750 nm official-support caveat in the caption text.
 
 Reviewed 2026-08-22 (multi-angle sweep, every finding adversarially verified
 against the live code; Cursor's Bugbot pre-review checked finding by finding).
-Nine confirmed findings, ranked; none blocks the merge, three should be fixed
-before M1 task 3 consumes the new fields:
+Nine confirmed findings, ranked. **Status 2026-08-23: findings 1–3 and 6–9
+are fixed** (the M1 cleanup pass, §3.2.1); findings 4–5 (the `context/RT`
+assessment scripts) remain open until that material is next touched:
 
 1. **`ed.Ed()` truncates spectra on integer wavelength grids** — the values
    are cast to `wave.dtype`, so `Ed(30, np.arange(400, 705, 5))` returns all
@@ -433,10 +441,10 @@ the elastic fixture; the elastic fixture's bytes untouched — CQ4).
 | # | Task | Status |
 |---|------|--------|
 | 1 | Ed module: `design/py/gen_inelastic_fixture.py` (part 1) + `robust/rt/data/ed_l23.npz` + `robust/rt/ed.py` + `test_ed.py` | ✅ done |
-| 2 | Excitation-grid infrastructure in `conventions.py` | ⬜ not started |
-| 3 | X2/X4 data + truth channels + sibling CI fixture | ⬜ not started |
-| 4 | `notebooks/RT/rt_inelastic_coding_2.ipynb` | ⬜ not started |
-| 5 | Update `rt_inelastic_coding_prompt_3.md` | ⬜ not started |
+| 2 | Excitation-grid infrastructure in `conventions.py` | ✅ done |
+| 3 | X2/X4 data + truth channels + sibling CI fixture | ✅ done |
+| 4 | `notebooks/RT/rt_inelastic_coding_2.ipynb` | ✅ done |
+| 5 | Update `rt_inelastic_coding_prompt_3.md` with the actual M1 outcome | ✅ done — **M1 complete** |
 
 ### 3.2 Modules added (task 1)
 
@@ -480,6 +488,190 @@ silently lacked the table.
   inherits L23's solar spectrum deliberately (consistency with the truth data
   over absolute solar accuracy); the override is the seam for TSIS-era or PACE
   skies later.
+
+### 3.2.1 The PR #14 review debt cleared (2026-08-23)
+
+The robust/-side findings of §2.7 are fixed; the elastic hash pins stayed
+green throughout (none of the touched code sits on the elastic route):
+
+- **`ed.py` dtype rule (finding 1) — promote, never truncate.** All inputs
+  are coerced to one common floating dtype via `jnp.result_type`; integer
+  wavelength grids select float nodes (regression test:
+  `test_integer_wavelength_grid_returns_float_irradiances`). The first fix
+  attempt — casting everything to `wave.dtype` — *failed the module's own
+  gradient gate in full-suite order*: a device conversion cached before
+  `jax_enable_x64` is toggled stays float32, so `canonical_wave()` can
+  return float32 under x64 mid-session, and truncating `theta_s` to it
+  silently degraded the float64 FD comparison to float32 (rel err 4e-3 vs
+  the 1e-6 gate). Promotion keeps a float64 `theta_s` in float64 regardless
+  of `wave`'s dtype. Recorded because M1 task 2's excitation-grid
+  interpolation will meet the identical trap.
+- **`ed.py` zenith interpolation (finding 6)**: now the same clamped
+  `searchsorted` rule as the wavelength axis, via a shared
+  `_interp_weights` helper — no stride assumption; any strictly increasing
+  anchor set works.
+- **`ed.load_table` (finding 8)**: `@functools.cache`, the package idiom.
+- **`types.from_total_bb` (finding 3)**: `a_ph` is broadcast like `bb_w`
+  (regression test: `test_iops_from_total_bb_broadcasts_a_ph_like_bb_w`).
+- **`l23.select()` (finding 2)**: `IOPs`/`PhaseParams` are subset leaf-wise
+  with `tree_map` (every present and future field survives); `Geometry` is
+  rebuilt per-sample-field-by-field **deliberately, not by tree_map** — its
+  `Ed` override is one sky for the whole batch (two 1-D spectral arrays),
+  so indexing it by the sample mask would corrupt it. `wind` is subset,
+  `Ed` carried whole (regression test:
+  `test_select_preserves_optional_fields`).
+- **`tiny_args()` (finding 7)**: one copy, in `conftest.py`; both test
+  modules import it.
+- **`robust/rt/__init__.py` (finding 9)**: the Status paragraph now states
+  the elastic prototype is complete and the inelastic types/`ed` have
+  landed, physics at M2.
+
+`pytest -q` → **331 passed** (328 + 3 regression tests); `CI=true`
+simulation: strict tier skips, closeness tier green; ruff clean. Open from
+§2.7: findings 4–5 (`context/RT` figure script + CSV), deferred to the next
+touch of the assessment material.
+
+### 3.2.2 Excitation-grid infrastructure (task 2)
+
+**`robust/rt/conventions.py`** gains a "Raman excitation grid" section:
+
+- `RAMAN_SHIFT = 3400.0` cm⁻¹ (Ge et al. 1993; equals
+  `bing.rt.raman.WAVENUMBER_SHIFT_CENTER`, asserted by a test) and
+  `RAMAN_WAVE_MIN_OFFICIAL = 400.0` nm.
+- `raman_excitation(wave, shift=RAMAN_SHIFT)` — **the** excitation map λ′(λ)
+  in wavenumber form (`1/λ′ = 1/λ + shift`) — and its exact inverse
+  `raman_emission`. Pure, `jit`-able, differentiable. Pinned values:
+  488 nm emission ← 418.553 nm excitation; 488 nm excitation → 585.076 nm
+  emission (the corrected numbers from M0 task 5, cross-checked at rtol
+  1e-12 against bing's pair).
+- `interp_spectrum(wave_new, grid, spectra)` — **the package's one
+  interpolation rule**, *promoted from `ed.py`* rather than written twice:
+  clamped linear (constant extrapolation beyond the grid — the `bb_w`
+  precedent and the documented sub-400 nm caveat), batched via
+  weight-gathering (`jnp.interp` is 1-D only), differentiable in the
+  spectrum values (the property the Raman term needs: gradients flow through
+  excitation-grid IOPs back to the IOP inputs) and in `wave_new`, with the
+  §3.2.1 promotion rule applied from birth (all inputs to one common
+  floating dtype — integers select nodes, never truncate values). `ed.py`
+  now aliases these helpers instead of owning copies.
+
+**Key decision — support is documented and *derived*, not enforced by
+error.** The official λ ≥ 400 nm bound exists because
+`raman_excitation(400) = 352.11 nm`, just inside the L23 grid
+(`WAVE_MIN = 350`); below 400 nm the maps still run and `interp_spectrum`
+clamps — a caveat, not a gate (design §3). A test asserts the 352.11-inside-
+the-grid *rationale* itself, so a future grid change that silently invalidates
+the bound fails loudly.
+
+**Tests** (`test_conventions.py`, +9): the pinned values and exact wavenumber
+form (float64 via the fixture — the exact-form comparison at rtol 1e-12
+*failed in float32 on its first run*, the elastic record's §2 dtype-tolerance
+lesson met yet again, now noted in the test's own docstring); exact inverse
+round-trip over the full grid at 1e-14; the bing cross-check
+(`importorskip`); the support-bound rationale; `interp_spectrum` vs
+`numpy.interp`, batched + clamped, integer-input promotion, `jit`, `grad`
+w.r.t. the wavelengths, and **`grad` w.r.t. the spectrum values vs per-node
+central differences** (atol 1e-9, plus the unit-total-weight identity
+`Σ∂ = n_targets`).
+
+**Results.** `pytest -q` → **340 passed** (331 + 9); elastic hash pins green;
+`ruff check` + `format` clean.
+
+### 3.2.3 X2/X4 data + sibling fixture (task 3)
+
+**`robust/rt/data/l23.py`** gains the inelastic pipeline, mirroring the
+elastic layout decision for decision:
+
+- Constants: `INELASTIC_XS = (2, 4)`; `PHI_C_L23 = 0.02` — the quantum yield
+  HydroLight used for X=4, i.e. the truth channel `Rrs_X4 − Rrs_X2` is
+  fluorescence *at exactly this yield*, which is why `Inelastic.phi_C`
+  defaults to it.
+- `L23InelasticBatch`: the elastic container's sibling — same flat
+  zenith-major sample axis, same host-side `scene` labels, not a pytree —
+  with `iops.a_ph` set and three reference channels (`Rrs_x1/x2/x4`). Truth
+  channels are *properties* (`truth_raman_factor = Rrs_X2/Rrs_X1`,
+  `truth_fluorescence = Rrs_X4 − Rrs_X2`), asserted bitwise-equal to their
+  definitions by a test so property and prose cannot drift. `validate()`
+  additionally **requires `a_ph`** — an inelastic batch without the
+  fluorescence source term is a loader bug, not a configuration.
+- `load_inelastic_batch(zeniths, scenes=, validate=, reader=)` with the
+  elastic reader seam. **One read spans all three scenarios**: the IOPs and
+  `aph` are *bit-identical* across X=1/2/4 at every zenith (measured
+  2026-08-24), so the default reader reads them once from X=1 and **asserts**
+  equality against X=2/X=4 — a future release that varies them stops the
+  loader instead of silently mixing scenarios.
+- `select_inelastic` shares `_take_tree`/`_take_geometry` with the elastic
+  `select` (factored out of the §3.2.1 fix), so the subset-leaf-wise /
+  carry-Ed-whole lessons are applied once.
+- `make_splits` needed **no change**: it reads only `scene`/`zenith`, which
+  is what "reuse the elastic splits verbatim" means mechanically. Proved,
+  not assumed: mask-for-mask equality tests at fixture scale (CI) and on the
+  full 9960-sample release (data-gated).
+
+**The sibling CI fixture** (`robust/tests/files/l23_inelastic_fixture.npz`,
+**249 kB** — inside the corrected ≲300 kB bound; the plan's original 200 kB
+was arithmetically impossible): the elastic fixture's 50 scenes ×
+{a, aph, bb, Rrs1, Rrs2, Rrs4} × 3 zeniths, float32, written by
+`write_inelastic_fixture()` (generator part 2, atomic verify-before-replace
+through the *real* loader). Deliberate redundancy: the `a`/`bb`/`Rrs1`
+copies exist so `inelastic_npz_reader(sibling, elastic)` can **prove** the
+two fixtures describe the same water — any mismatch raises (tested with a
+corrupted sibling). `bbnw`/`bnw` stay in the elastic fixture, whose bytes
+are untouched — now enforced by a **SHA-256 pin of the elastic fixture
+file** in the test module, turning CQ4's sentence into a failing test.
+
+**Tests** (`test_l23_inelastic_data.py`, 15): fixture presence/size and the
+CQ4 byte pin; the real loader running from the two committed files alone
+(no `$OS_COLOR`); the corrupted-sibling rejection; truth-channel identity
+(bitwise); golden absolute pins (`Rrs2(440, scene 0, 0°) = 9.2462e-3`,
+`Rrs4(685) = 1.2273e-4`, `aph(440) = 3.711e-3`) as change-detectors the
+netCDF cross-check cannot provide; physicality (Raman factor ≥ 1 everywhere
+— measured min 1.0076 — and growing toward the red; fluorescence delta > 0
+at 685 nm in every sample, with 685 the median spectral argmax); **split
+equality with the elastic splits** (fixture scale + full release);
+sample-ordering bitwise identity (`Rrs_x1` *is* the elastic `Rrs`);
+subsetting incl. `a_ph`; the `a_ph`-required validation. Raw-netCDF halves
+carry `needs_l23_inelastic` and skip cleanly when the data is absent
+(verified with `$OS_COLOR` unset: 13 passed, 2 skipped).
+
+**Results.** `pytest -q` → **355 passed**; elastic hash pins green; ruff
+clean. Branch state for JXP: all M1 work (tasks 1–3 + the review-debt
+cleanup) sits uncommitted on `inelastic-rt` on top of your "prompt 1"
+commit.
+
+### 3.2.4 Notebook (task 4)
+
+`notebooks/RT/rt_inelastic_coding_2.ipynb` — the M1 explainer (11 cells,
+executed, three figures; kernel `ocean14`). Organised around what M1
+*decided*, linking to the assessment
+(`context/RT/rt_inelastic_bing_summary.md` + its committed figures) rather
+than re-deriving it, and running from **committed files only** (packaged
+`ed_l23.npz` + the two CI fixtures — no `$OS_COLOR` anywhere in it).
+
+- **Figure 1** — the packaged sky: the three `Ed(0⁺)` spectra with the
+  scene-independence and scenario-identity assertions stated, and the DQ5
+  solar-model caveat with the `Geometry.Ed` seam.
+- **Figure 2** — the ratio the Raman term actually consumes:
+  `Ed(λ′)/Ed(λ)` over the official band for all three zeniths against the
+  flat-Ed line. Measured on the packaged data: **0.44 at 445 nm to 1.59 at
+  720 nm — a ×3.6 swing**, nearly zenith-independent (the sky's shape
+  barely changes with sun angle; its amplitude cancels in the ratio). This
+  is the quantitative footing of the assessment's +60 %/−50 % flat-Ed
+  error.
+- **Figure 3** — the truth channels for three fixture scenes spanning the
+  trophic range (picked by `a_ph(440)`): the Raman factor is *largest for
+  the clearest water* (weakest elastic red signal — the oligotrophic curve
+  sits on top), reaching 1.36 on the fixture and 2.5 on the full release;
+  the 685 nm fluorescence delta grows with biomass (order 10⁻⁵–10⁻⁴ sr⁻¹
+  at φ_C = 0.02).
+- **Split reuse** demonstrated live: mask-for-mask equality printed from
+  the real loaders, plus the bitwise `Rrs_x1 == elastic Rrs` identity.
+
+One honesty catch made before committing outputs: the truth-channel panel
+originally titled the Raman factor "up to more than 2×" — true of the full
+release but not of the 50 fixture scenes actually plotted (max 1.36). The
+committed version distinguishes the two explicitly; a figure must not
+borrow numbers its own data doesn't show.
 
 ### 3.3 Tests (task 1)
 
@@ -531,7 +723,65 @@ fixed-BING physics ported to differentiable JAX — composed into
 `hybrid.forward` per design §2; cross-checked live against fixed BING at
 rtol ≤ 1e-6 (CQ3a) and characterized against the assessment's error table.
 
-*Not started.*
+### 4.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Raman factor (`inelastic.py::raman_factor` + `forward` wiring) | ✅ done |
+| 2 | Fluorescence kernel | ⬜ not started |
+| 3 | Cross-check + characterization + gradient gate | ⬜ not started (Raman-side spot versions landed with task 1) |
+| 4 | `notebooks/RT/rt_inelastic_coding_3.ipynb` | ⬜ not started |
+| 5 | Update `rt_inelastic_coding_prompt_4.md` | ⬜ not started |
+
+### 4.2 Raman factor (task 1)
+
+**New module `robust/rt/inelastic.py`** — the S&P98 two-flow assembly, term
+for term the fixed BING's `calc_raman_correction_factor` (Eqs. 5, 11, 18,
+23; both second-order terms; Raman-Raman neglected per S&P98 §4.A):
+`raman_bb(λ′) = ½ · 2.6e-4 · (488/λ′)^5.5` (the HydroLight constant —
+`B_RAMAN_488_HYDROLIGHT`, per the M1 task-5 attribution correction; the
+analytic ½ backward fraction where bing integrates numerically to
+0.5 ± 2e-7), excitation IOPs via `conventions.interp_spectrum` on
+`raman_excitation(wave)`, the **true Ed ratio** via `ed.ratio` with
+`geometry.Ed` passed as the override (the M1 seam, exercised end to end),
+assembled as `f_phys = (R_E + R_R + R_RE + R_ER)/R_E`. Pure JAX; batched;
+`jit`/`vmap`-safe; differentiable in every input.
+
+**Wiring (`hybrid.py`)** — the composition happens in a private
+`_apply_inelastic`, in `Rrs` space per the design law
+(`Rrs_total = elastic × f_R`), with `rrs_forward` converting up, composing,
+and converting back so `forward = rrs_to_Rrs(rrs_forward(...))` still holds
+(exact algebraically; ~1 ULP in float — measured in notebook 1 §4). Key
+properties, all tested: the `inelastic=None` branch returns the *same
+object* untouched (hash pins stayed green throughout); `Inelastic(raman=
+False, fluorescence=False)` is bitwise elastic; `fluorescence=True` — the
+*default* — still raises `NotImplementedError` naming M2 task 2, so the M0
+guard test needed only a docstring update and a narrower match;
+`mode='emulator'` + inelastic raises `ValueError` (a term, not a model —
+the composition applies to model outputs only).
+
+**Measured at port time** (spot cross-check vs live bing on fixture rows,
+all three zeniths): max relative difference **1.6e-7** — an order under the
+M2 rtol 1e-6 gate. Characterization vs the fixture truth (median increment
+error, 550–700 nm): **+1.6 % (30°), −4.0 % (60°), −38.6 % (0°)** —
+reproducing the assessment's full-release table (+1/−4/−39) on our own
+50-scene fixture almost exactly, which retires the M1 concern that the
+bands might not transfer. Pinned as bands (−45..−32 / −5..+8 / −11..+2 %):
+the 0° failure is *expected* (δ_R's job at M3), so the test asserts the
+band, not zero.
+
+**Tests** (`test_inelastic.py`, 13): constants-equal-bing, `raman_bb` vs
+bing (rtol 5e-7 — bing's own quadrature noise), the spot cross-check,
+physicality (f ≥ 1, red > blue), the characterization bands, the Ed-override
+seam (a flat sky moves the red factor the documented direction),
+`jit`/`vmap`/finite-gradients, and the five wiring properties above. The
+bing-dependent tests `importorskip` (CI-safe); formal exhaustive xcheck is
+task 3.
+
+**Results.** `pytest -q` → **368 passed**, warning-free (two tests initially
+requested `jnp.float64` outside the x64 fixture and were *silently truncated*
+— the recurring dtype lesson, fixed by keeping reference arithmetic in
+NumPy); elastic hash pins green; ruff clean.
 
 ---
 
@@ -568,8 +818,12 @@ unchanged — see `rt_elastic_implementation.md` §9):
 | `robust.rt.hybrid` | `forward(..., inelastic=None)`, `rrs_forward(..., inelastic=None)` — `None` = elastic route; instance raises until M2 | M0 |
 | `robust.rt` | re-exports `Inelastic`; `ed` submodule | M0/M1 |
 | `robust.rt.ed` | `Ed(θ_s, λ)` + `ratio(λ′/λ)` from packaged L23 spectra; `Geometry.Ed` override; `ZENITH_ANCHORS`, `load_table` | M1 |
+| `robust.rt.conventions` | `RAMAN_SHIFT`, `RAMAN_WAVE_MIN_OFFICIAL`, `raman_excitation`/`raman_emission`, `interp_spectrum` | M1 |
 | `robust/rt/data/ed_l23.npz` | the three packaged `Ed(0⁺)` spectra (2 kB) | M1 |
 | `design/py/gen_inelastic_fixture.py` | part 1: Ed extraction w/ scene-independence + cross-scenario asserts | M1 |
 | `robust/tests/test_inelastic_types.py` | the M0 gate, incl. the pinned elastic hash-regression | M0 |
 | `robust/tests/test_ed.py` | the M1 task-1 gate | M1 |
+| `robust.rt.data.l23` | `L23InelasticBatch`, `load_inelastic_batch`, `select_inelastic`, `inelastic_npz_reader`, `INELASTIC_XS`, `PHI_C_L23` | M1 |
+| `robust/tests/files/l23_inelastic_fixture.npz` | the sibling CI fixture (CQ4, 249 kB) | M1 |
+| `robust/tests/test_l23_inelastic_data.py` | the M1 task-3 gate, incl. the CQ4 byte pin and split-equality proofs | M1 |
 | `robust/tests/conftest.py` | `L23_INELASTIC_FILES`, `needs_l23_inelastic` | M1 |

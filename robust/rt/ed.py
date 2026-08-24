@@ -33,6 +33,8 @@ interpolated onto the requested wavelengths with the same clamped linear rule.
 
 from __future__ import annotations
 
+import functools
+
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
@@ -46,21 +48,21 @@ __all__ = [  # noqa: RUF022  - pipeline order
     "ratio",
 ]
 
-#: Solar zeniths of the packaged spectra, degrees. Uniformly spaced — the
-#: interpolation below relies on the 30-degree stride.
+#: Solar zeniths of the packaged spectra, degrees. Any strictly increasing
+#: anchor set works — the interpolation below is searchsorted-based, not
+#: stride-based (PR #14 review, record §2.7 finding 6).
 ZENITH_ANCHORS = (0.0, 30.0, 60.0)
 
-#: Lazy cache of the packaged table; see :func:`load_table`.
-_TABLE: tuple[np.ndarray, np.ndarray] | None = None
 
-
+@functools.cache
 def load_table() -> tuple[np.ndarray, np.ndarray]:
     """The packaged spectra as NumPy: ``(wave (81,), Ed (3, 81))``.
 
-    Loaded lazily on first use and cached — importing :mod:`robust.rt` must not
-    cost a file read — and returned as **NumPy, not JAX**, for the same reason
-    ``conventions.WAVE`` is: a device array built here would fix its dtype
-    before a caller can enable float64.
+    Loaded lazily on first use and cached (``functools.cache``, the package's
+    idiom — see ``emulator.load_default``) — importing :mod:`robust.rt` must
+    not cost a file read — and returned as **NumPy, not JAX**, for the same
+    reason ``conventions.WAVE`` is: a device array built here would fix its
+    dtype before a caller can enable float64.
 
     Raises
     ------
@@ -68,42 +70,27 @@ def load_table() -> tuple[np.ndarray, np.ndarray]:
         If the packaged file's zenith rows are not :data:`ZENITH_ANCHORS` —
         the file and this module version each other.
     """
-    global _TABLE
-    if _TABLE is None:
-        from importlib import resources
+    from importlib import resources
 
-        path = resources.files("robust.rt.data").joinpath("ed_l23.npz")
-        with resources.as_file(path) as file:
-            data = np.load(file)
-            zeniths = tuple(float(z) for z in data["zeniths"])
-            if zeniths != ZENITH_ANCHORS:
-                raise ValueError(
-                    f"ed_l23.npz holds zeniths {zeniths}, expected "
-                    f"{ZENITH_ANCHORS}; regenerate with "
-                    "design/py/gen_inelastic_fixture.py"
-                )
-            _TABLE = (data["wave"].astype(np.float64), data["Ed"].astype(np.float64))
-    return _TABLE
+    path = resources.files("robust.rt.data").joinpath("ed_l23.npz")
+    with resources.as_file(path) as file:
+        data = np.load(file)
+        zeniths = tuple(float(z) for z in data["zeniths"])
+        if zeniths != ZENITH_ANCHORS:
+            raise ValueError(
+                f"ed_l23.npz holds zeniths {zeniths}, expected "
+                f"{ZENITH_ANCHORS}; regenerate with "
+                "design/py/gen_inelastic_fixture.py"
+            )
+        return (data["wave"].astype(np.float64), data["Ed"].astype(np.float64))
 
 
-def _interp_wave(
-    wave: Float[Array, " wave"],
-    grid: Float[Array, " grid"],
-    spectra: Float[Array, "*batch grid"],
-) -> Float[Array, "*batch wave"]:
-    """Linear interpolation along the last axis, clamped at the grid ends.
-
-    ``jnp.interp`` handles only 1-D inputs, so the weights are built once from
-    ``wave``/``grid`` and applied by gathering — batched, ``jit``-safe, and
-    differentiable in both ``wave`` and the spectrum values (the property M1's
-    excitation-grid work needs; here it comes for free).
-    """
-    idx = jnp.clip(jnp.searchsorted(grid, wave, side="left"), 1, grid.shape[0] - 1)
-    x0 = grid[idx - 1]
-    x1 = grid[idx]
-    # Clipping the weight is what clamps beyond the grid ends.
-    w = jnp.clip((wave - x0) / (x1 - x0), 0.0, 1.0)
-    return spectra[..., idx - 1] * (1.0 - w) + spectra[..., idx] * w
+# The interpolation machinery was born here at M1 task 1 and promoted to
+# conventions at task 2, where the Raman excitation grid shares it; these
+# aliases keep this module readable and the arithmetic single-sourced.
+_as_float = conventions._as_float
+_interp_weights = conventions._interp_weights
+_interp_wave = conventions.interp_spectrum
 
 
 def Ed(
@@ -133,23 +120,35 @@ def Ed(
         ``Ed``, shape ``(*batch, n_wave)``; differentiable in ``theta_s`` and
         in the override values, and safe under ``jit``/``vmap``.
     """
-    wave = conventions.canonical_wave() if wave is None else jnp.asarray(wave)
+    # Dtype rule (PR #14 review, record §2.7 finding 1): every input is
+    # PROMOTED to one common floating dtype, never truncated. An integer
+    # wavelength grid (a natural way to spell 400..700 nm) selects float
+    # interpolation nodes rather than collapsing the irradiances to 0/1, and a
+    # float64 theta_s keeps float64 arithmetic even when `wave` arrives
+    # float32 — which it can mid-session, since a device conversion cached
+    # before `jax_enable_x64` was toggled stays float32 (the jax_x64-fixture
+    # situation; the gradient tests rely on this promotion).
+    wave = _as_float(conventions.canonical_wave() if wave is None else wave)
 
     if override is not None:
-        wave_ed, ed = (jnp.asarray(part, dtype=wave.dtype) for part in override)
-        return _interp_wave(wave, wave_ed, ed)
+        wave_ed, ed = (_as_float(part) for part in override)
+        dtype = jnp.result_type(wave.dtype, wave_ed.dtype, ed.dtype)
+        return _interp_wave(wave.astype(dtype), wave_ed.astype(dtype), ed.astype(dtype))
 
+    theta = _as_float(theta_s)
+    dtype = jnp.result_type(wave.dtype, theta.dtype)
     grid_np, table_np = load_table()
-    grid = jnp.asarray(grid_np, dtype=wave.dtype)
-    table = jnp.asarray(table_np, dtype=wave.dtype)
+    grid = jnp.asarray(grid_np, dtype=dtype)
+    table = jnp.asarray(table_np, dtype=dtype)
 
-    # Fractional position between anchors: 30-degree stride, clamped outside.
-    t = jnp.clip(jnp.asarray(theta_s), ZENITH_ANCHORS[0], ZENITH_ANCHORS[-1]) / 30.0
-    low = jnp.clip(jnp.floor(t), 0, len(ZENITH_ANCHORS) - 2).astype(int)
-    frac = (t - low)[..., None]
-    spectrum = table[low] * (1.0 - frac) + table[low + 1] * frac
+    # Linear in theta_s between the anchors, clamped outside — the same
+    # searchsorted rule as the wavelength axis, so a future non-uniform anchor
+    # set (M5) needs no code change here.
+    anchors = jnp.asarray(ZENITH_ANCHORS, dtype=dtype)
+    idx, w = _interp_weights(theta.astype(dtype), anchors)
+    spectrum = table[idx - 1] * (1.0 - w[..., None]) + table[idx] * w[..., None]
 
-    return _interp_wave(wave, grid, spectrum)
+    return _interp_wave(wave.astype(dtype), grid, spectrum)
 
 
 def ratio(

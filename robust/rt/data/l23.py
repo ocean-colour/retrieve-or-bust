@@ -50,6 +50,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
@@ -78,6 +79,14 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "RAW_FIELDS",
     "write_fixture",
     "npz_reader",
+    # Inelastic scenarios (inelastic coding plan, M1)
+    "INELASTIC_XS",
+    "PHI_C_L23",
+    "INELASTIC_RAW_FIELDS",
+    "L23InelasticBatch",
+    "load_inelastic_batch",
+    "select_inelastic",
+    "inelastic_npz_reader",
 ]
 
 #: L23 scenario index for the **elastic** set (no Raman, no fluorescence).
@@ -583,14 +592,390 @@ def select(batch: L23Batch, mask: np.ndarray) -> L23Batch:
 
     keep = jnp.asarray(np.flatnonzero(mask))
     return L23Batch(
-        iops=IOPs(
-            a=batch.iops.a[keep],
-            bb_w=batch.iops.bb_w[keep],
-            bb_p=batch.iops.bb_p[keep],
-        ),
-        phase_params=PhaseParams(B_p=batch.phase_params.B_p[keep]),
-        geometry=Geometry.nadir(batch.geometry.theta_s[keep]),
+        iops=_take_tree(batch.iops, keep),
+        phase_params=_take_tree(batch.phase_params, keep),
+        geometry=_take_geometry(batch.geometry, keep),
         Rrs=batch.Rrs[keep],
+        wave=batch.wave,
+        scene=batch.scene[mask],
+    )
+
+
+def _take_tree(tree, keep):
+    """Subset a per-sample pytree leaf-wise.
+
+    ``tree_map`` rather than a field-by-field rebuild: a hand-enumerated
+    rebuild silently dropped ``IOPs.a_ph`` (PR #14 review, record §2.7
+    finding 2 — the defect class ``gradient_report``'s docstring records).
+    Every present leaf is subset, including fields added later, with no
+    per-field code here.
+    """
+    return jax.tree_util.tree_map(lambda leaf: leaf[keep], tree)
+
+
+def _take_geometry(geometry: Geometry, keep) -> Geometry:
+    """Subset a Geometry's per-sample fields, carrying the Ed override whole.
+
+    Deliberately NOT a blanket ``tree_map``: the ``Ed`` override is one sky
+    for the whole batch — a pair of 1-D *spectral* arrays, not per-sample
+    leaves — so indexing it by ``keep`` would corrupt it.
+    """
+    return Geometry(
+        theta_s=geometry.theta_s[keep],
+        theta_v=geometry.theta_v[keep],
+        dphi=geometry.dphi[keep],
+        wind=None if geometry.wind is None else geometry.wind[keep],
+        Ed=geometry.Ed,
+    )
+
+
+# ------------------------------------------------------ inelastic scenarios --
+#: The two inelastic L23 scenarios: X=2 adds Raman scattering to the elastic
+#: X=1, X=4 adds Raman *and* chlorophyll-a fluorescence.
+INELASTIC_XS = (2, 4)
+
+#: The chlorophyll fluorescence quantum yield HydroLight used for the X=4
+#: runs. The truth channel ``Rrs_X4 - Rrs_X2`` is therefore fluorescence at
+#: exactly this yield -- the reason ``Inelastic.phi_C`` defaults to it.
+PHI_C_L23 = 0.02
+
+#: The per-zenith fields an inelastic ``reader`` must supply. One read spans
+#: all three scenarios (the IOPs and ``aph`` are bit-identical across X --
+#: verified 2026-08-24 and asserted by the default reader), so unlike the
+#: elastic :data:`RAW_FIELDS` contract the reader takes only ``zenith``.
+INELASTIC_RAW_FIELDS = (
+    "wave",
+    "a",
+    "bb",
+    "bbnw",
+    "bnw",
+    "aph",
+    "Rrs1",
+    "Rrs2",
+    "Rrs4",
+)
+
+
+@dataclass(frozen=True)
+class L23InelasticBatch:
+    """A stacked L23 inelastic batch: inputs, per-scenario ``Rrs``, labels.
+
+    The inelastic sibling of :class:`L23Batch` (same layout decisions: one
+    flat zenith-major sample axis, host-side ``scene`` labels, deliberately
+    not a pytree). Differences: :attr:`iops` carries ``a_ph`` (the
+    fluorescence source term), and the reference is three channels rather
+    than one -- the paired scenarios whose differences are exact truth for
+    the inelastic terms.
+
+    :func:`make_splits` accepts this container unchanged (it reads only
+    ``scene`` and ``zenith``), which is what "reuse the elastic splits
+    verbatim" means mechanically: identical scene labels + identical seed =
+    identical masks, and a test proves it rather than trusting this
+    docstring.
+
+    Attributes
+    ----------
+    iops : IOPs
+        With ``a_ph`` set; identical across the X scenarios (asserted at
+        read time).
+    phase_params : PhaseParams
+        ``B_p`` spectrum, as elastic.
+    geometry : Geometry
+        Per-sample solar zenith; nadir view.
+    Rrs_x1, Rrs_x2, Rrs_x4 : Array
+        The elastic, +Raman, and +Raman+fluorescence references (sr^-1),
+        shape ``(n_sample, n_wave)`` each.
+    wave : Array
+        Wavelengths (nm).
+    scene : numpy.ndarray
+        IOP-scenario labels, as elastic.
+    """
+
+    iops: IOPs
+    phase_params: PhaseParams
+    geometry: Geometry
+    Rrs_x1: Float[Array, "sample wave"]
+    Rrs_x2: Float[Array, "sample wave"]
+    Rrs_x4: Float[Array, "sample wave"]
+    wave: Float[Array, " wave"]
+    scene: np.ndarray
+
+    @property
+    def n_sample(self) -> int:
+        """Number of samples (scenes x zeniths)."""
+        return int(self.Rrs_x1.shape[0])
+
+    @property
+    def n_wave(self) -> int:
+        """Number of wavelength bands."""
+        return int(self.Rrs_x1.shape[-1])
+
+    @property
+    def zenith(self) -> np.ndarray:
+        """Per-sample solar zenith in degrees, as NumPy."""
+        return np.asarray(self.geometry.theta_s)
+
+    @property
+    def truth_raman_factor(self) -> Float[Array, "sample wave"]:
+        """The Raman-correction truth channel ``Rrs_X2 / Rrs_X1`` (design §4.1).
+
+        What the analytic ``f_phys`` (M2) and the corrected ``f_R`` (M3) are
+        scored against. Measured range in L23: 1.0076-2.51 -- Raman only ever
+        adds photons, so a value below 1 signals a data or indexing error.
+        """
+        return self.Rrs_x2 / self.Rrs_x1
+
+    @property
+    def truth_fluorescence(self) -> Float[Array, "sample wave"]:
+        """The additive fluorescence truth ``Rrs_X4 - Rrs_X2`` at phi_C = 0.02.
+
+        Strictly positive at the 685 nm peak in every L23 sample.
+        """
+        return self.Rrs_x4 - self.Rrs_x2
+
+    def validate(self) -> None:
+        """Raise ``ValueError`` unless the batch is self-consistent and physical.
+
+        Boundary check; not for use under ``jit``. Includes ``a_ph`` presence:
+        an inelastic batch without the fluorescence source term is a loader
+        bug, not a configuration.
+        """
+        conventions.check_wave(self.wave)
+        if self.iops.a_ph is None:
+            raise ValueError(
+                "L23InelasticBatch: iops.a_ph is None -- the inelastic loader "
+                "must supply the fluorescence source term"
+            )
+        self.iops.validate(wave=self.wave)
+        self.phase_params.validate()
+        self.geometry.validate()
+        for name, channel in (
+            ("Rrs_x1", self.Rrs_x1),
+            ("Rrs_x2", self.Rrs_x2),
+            ("Rrs_x4", self.Rrs_x4),
+        ):
+            conventions.check_rrs(channel, name=name, subsurface=False)
+            if channel.shape != self.iops.a.shape:
+                raise ValueError(
+                    f"L23InelasticBatch: {name} {channel.shape} does not match "
+                    f"IOPs.a {self.iops.a.shape}"
+                )
+        if self.scene.shape != (self.n_sample,):
+            raise ValueError(
+                f"L23InelasticBatch: scene {self.scene.shape} does not label "
+                f"{self.n_sample} samples"
+            )
+
+
+def _read_inelastic_file(zenith: int) -> dict[str, np.ndarray]:
+    """Read one zenith of all three scenarios -- the default inelastic reader.
+
+    The IOPs and ``aph`` are **bit-identical** across X=1/2/4 (the same water,
+    three radiative-transfer configurations); read once from X=1 and asserted
+    against the others, so a future release that varies them stops the loader
+    instead of silently mixing scenarios.
+    """
+    from ocpy.hydrolight import loisel23
+
+    datasets = {x: loisel23.load_ds(x, zenith) for x in (1, *INELASTIC_XS)}
+    ds1 = datasets[1]
+    out = {
+        "wave": np.asarray(ds1.Lambda.data, dtype=float),
+        "a": np.asarray(ds1.a.data, dtype=float),
+        "bb": np.asarray(ds1.bb.data, dtype=float),
+        "bbnw": np.asarray(ds1.bbnw.data, dtype=float),
+        "bnw": np.asarray(ds1.bnw.data, dtype=float),
+        "aph": np.asarray(ds1.aph.data, dtype=float),
+    }
+    for x, ds in datasets.items():
+        for key in ("a", "bb", "aph"):
+            if not np.array_equal(np.asarray(ds[key].data, dtype=float), out[key]):
+                raise ValueError(
+                    f"L23 inelastic read: {key} differs between X=1 and X={x} "
+                    f"at Y={zenith} -- scenarios no longer share their inputs"
+                )
+        out[f"Rrs{x}"] = np.asarray(ds.Rrs.data, dtype=float)
+    return out
+
+
+def inelastic_npz_reader(path, elastic_path):
+    """An inelastic ``reader`` backed by the sibling + elastic fixtures.
+
+    The sibling fixture (CQ4) deliberately stores only what the elastic
+    fixture lacks -- ``aph`` and the X=2/X=4 ``Rrs`` -- plus ``a``/``bb``/
+    ``Rrs1`` copies used here to *prove* the two files describe the same 50
+    scenes (a mismatch raises rather than silently pairing different water).
+    ``bbnw``/``bnw`` come from the elastic fixture.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        The sibling fixture (``l23_inelastic_fixture.npz``).
+    elastic_path : str or pathlib.Path
+        The elastic fixture (``l23_small.npz``), same scenes and zeniths.
+
+    Returns
+    -------
+    callable
+        ``(zenith) -> dict`` of :data:`INELASTIC_RAW_FIELDS`.
+    """
+    sibling = np.load(path)
+    elastic_read = npz_reader(elastic_path)
+    available = tuple(int(z) for z in sibling["zeniths"])
+
+    def read(zenith: int) -> dict[str, np.ndarray]:
+        if int(zenith) not in available:
+            raise ValueError(
+                f"inelastic_npz_reader: fixture holds zeniths {available}, "
+                f"was asked for {zenith}"
+            )
+        elastic = elastic_read(ELASTIC_X, zenith)
+        out = {
+            "wave": np.asarray(sibling["wave"], dtype=float),
+            "bbnw": elastic["bbnw"],
+            "bnw": elastic["bnw"],
+        }
+        for field, elastic_key in (("a", "a"), ("bb", "bb"), ("Rrs1", "Rrs")):
+            ours = np.asarray(sibling[f"{field}_{int(zenith)}"], dtype=float)
+            if not np.array_equal(ours, elastic[elastic_key]):
+                raise ValueError(
+                    f"inelastic_npz_reader: {field} at Y={zenith} disagrees "
+                    "with the elastic fixture -- the two fixtures do not "
+                    "describe the same scenes"
+                )
+            out[field] = ours
+        for field in ("aph", "Rrs2", "Rrs4"):
+            out[field] = np.asarray(sibling[f"{field}_{int(zenith)}"], dtype=float)
+        return out
+
+    return read
+
+
+def load_inelastic_batch(
+    zeniths: tuple[int, ...] = ZENITHS,
+    *,
+    scenes: np.ndarray | slice | None = None,
+    validate: bool = True,
+    reader=None,
+) -> L23InelasticBatch:
+    """Load the paired X=1/2/4 scenarios as one stacked inelastic batch.
+
+    The inelastic sibling of :func:`load_batch`, sharing its layout exactly
+    (zenith-major flat sample axis, same scene labels) so the **elastic
+    splits apply verbatim**: ``make_splits`` on this batch equals
+    ``make_splits`` on the elastic batch, seed for seed.
+
+    Parameters
+    ----------
+    zeniths, scenes, validate
+        As :func:`load_batch`.
+    reader : callable, optional
+        ``(zenith) -> dict`` of :data:`INELASTIC_RAW_FIELDS`. Defaults to
+        reading the six netCDFs; :func:`inelastic_npz_reader` feeds the same
+        loader from the committed fixtures -- CI included.
+
+    Returns
+    -------
+    L23InelasticBatch
+    """
+    if not zeniths:
+        raise ValueError("load_inelastic_batch: `zeniths` must name at least one angle")
+
+    read = _read_inelastic_file if reader is None else reader
+    wave_ref: np.ndarray | None = None
+    parts: dict[str, list[np.ndarray]] = {
+        key: [] for key in ("a", "bb_w", "bb_p", "a_ph", "B_p", "Rrs1", "Rrs2", "Rrs4")
+    }
+    theta_parts, scene_parts = [], []
+
+    for zenith in zeniths:
+        raw = read(zenith)
+
+        if wave_ref is None:
+            wave_ref = raw["wave"]
+            conventions.check_wave(wave_ref, name=f"L23 Lambda (Y={zenith})")
+        elif not np.array_equal(raw["wave"], wave_ref):
+            raise ValueError(
+                f"load_inelastic_batch: Y={zenith} has a different wavelength "
+                f"grid than Y={zeniths[0]}"
+            )
+
+        index = slice(None) if scenes is None else scenes
+        a = raw["a"][index]
+        bbnw = raw["bbnw"][index]
+
+        parts["a"].append(a)
+        parts["bb_w"].append(raw["bb"][index] - bbnw)
+        parts["bb_p"].append(bbnw)
+        parts["a_ph"].append(raw["aph"][index])
+        parts["B_p"].append(bbnw / raw["bnw"][index])
+        for x in (1, *INELASTIC_XS):
+            parts[f"Rrs{x}"].append(raw[f"Rrs{x}"][index])
+        theta_parts.append(np.full(a.shape[0], float(zenith)))
+        scene_parts.append(np.arange(raw["a"].shape[0])[index])
+
+    B_p = np.concatenate(parts["B_p"])
+    _warn_if_B_p_unexpected(B_p)
+
+    batch = L23InelasticBatch(
+        iops=IOPs(
+            a=jnp.asarray(np.concatenate(parts["a"])),
+            bb_w=jnp.asarray(np.concatenate(parts["bb_w"])),
+            bb_p=jnp.asarray(np.concatenate(parts["bb_p"])),
+            a_ph=jnp.asarray(np.concatenate(parts["a_ph"])),
+        ),
+        phase_params=PhaseParams(B_p=jnp.asarray(B_p)),
+        geometry=Geometry.nadir(jnp.asarray(np.concatenate(theta_parts))),
+        Rrs_x1=jnp.asarray(np.concatenate(parts["Rrs1"])),
+        Rrs_x2=jnp.asarray(np.concatenate(parts["Rrs2"])),
+        Rrs_x4=jnp.asarray(np.concatenate(parts["Rrs4"])),
+        wave=jnp.asarray(wave_ref),
+        scene=np.concatenate(scene_parts),
+    )
+
+    if validate:
+        batch.validate()
+    return batch
+
+
+def select_inelastic(batch: L23InelasticBatch, mask: np.ndarray) -> L23InelasticBatch:
+    """Subset an inelastic batch along its sample axis.
+
+    The inelastic sibling of :func:`select`, sharing its helpers -- so the
+    PR #14 lesson (subset leaf-wise; carry the Ed override whole) is applied
+    once, not maintained twice.
+
+    Parameters
+    ----------
+    batch : L23InelasticBatch
+        The batch to subset.
+    mask : numpy.ndarray
+        Boolean mask of length ``batch.n_sample``.
+
+    Returns
+    -------
+    L23InelasticBatch
+
+    Raises
+    ------
+    ValueError
+        If ``mask`` is not a boolean array of the right length.
+    """
+    mask = np.asarray(mask)
+    if mask.dtype != bool or mask.shape != (batch.n_sample,):
+        raise ValueError(
+            f"select_inelastic: expected a boolean mask of shape "
+            f"({batch.n_sample},); got dtype {mask.dtype}, shape {mask.shape}"
+        )
+
+    keep = jnp.asarray(np.flatnonzero(mask))
+    return L23InelasticBatch(
+        iops=_take_tree(batch.iops, keep),
+        phase_params=_take_tree(batch.phase_params, keep),
+        geometry=_take_geometry(batch.geometry, keep),
+        Rrs_x1=batch.Rrs_x1[keep],
+        Rrs_x2=batch.Rrs_x2[keep],
+        Rrs_x4=batch.Rrs_x4[keep],
         wave=batch.wave,
         scene=batch.scene[mask],
     )

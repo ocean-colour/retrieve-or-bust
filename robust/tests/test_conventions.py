@@ -293,3 +293,151 @@ def test_check_rrs_rejects_negative_and_nonfinite():
         C.check_rrs(np.array([-1e-6]))
     with pytest.raises(ValueError, match="non-finite"):
         C.check_rrs(np.array([np.nan]))
+
+
+# ------------------------------------------------- Raman excitation grid ----
+# M1 task 2 (inelastic coding plan): the shift constant, the wavenumber-form
+# maps, and the shared clamped-linear spectrum interpolation.
+
+
+def test_raman_maps_pin_the_computed_values(jax_x64):
+    """488 nm emission is excited at 418.55 nm; 488 nm excitation emits at
+    585.08 nm.
+
+    The pinned numbers are the exact wavenumber arithmetic (1e7/488 = 20491.8
+    cm^-1, +/- 3400), not a prose approximation -- the M0 task-5 correction:
+    the plan originally said 583.6 nm, and even bing's docstring example
+    (583.0) is off. The exact-form comparison is float64 (fixture, dtype
+    pinned on the array): in float32 it would test the dtype, not the map
+    (elastic record §2 -- met again on the first run of this very test).
+    """
+    lam = jnp.asarray(488.0, dtype=jnp.float64)
+    assert float(C.raman_excitation(lam)) == pytest.approx(418.5533, abs=5e-4)
+    assert float(C.raman_emission(lam)) == pytest.approx(585.0758, abs=5e-4)
+    # The exact form, not just the rounded pin.
+    assert float(C.raman_excitation(lam)) == pytest.approx(
+        1.0 / (1.0 / 488.0 + 3400e-7), rel=1e-12
+    )
+
+
+def test_raman_maps_are_exact_inverses(jax_x64):
+    """emission(excitation(lambda)) round-trips to float64 precision."""
+    wave = jnp.asarray(C.WAVE, dtype=jnp.float64)
+    back = C.raman_emission(C.raman_excitation(wave))
+    np.testing.assert_allclose(np.asarray(back), np.asarray(wave), rtol=1e-14)
+
+
+def test_raman_maps_match_bing(jax_x64):
+    """The shift constant and both maps agree with fixed BING (CQ3a spirit).
+
+    Float64 on our side: bing computes in NumPy float64, so a float32
+    comparison at 1e-12 would fail on dtype alone.
+    """
+    raman = pytest.importorskip("bing.rt.raman")
+    assert C.RAMAN_SHIFT == raman.WAVENUMBER_SHIFT_CENTER
+    lam = jnp.asarray(488.0, dtype=jnp.float64)
+    np.testing.assert_allclose(
+        float(C.raman_emission(lam)),
+        raman.excitation_to_emission_wavelength(488.0),
+        rtol=1e-12,
+    )
+    np.testing.assert_allclose(
+        float(C.raman_excitation(lam)),
+        raman.emission_to_excitation_wavelength(488.0),
+        rtol=1e-12,
+    )
+
+
+def test_official_support_bound_is_inside_the_grid():
+    """The excitation for a 400 nm emission sits just inside the L23 grid.
+
+    This is the *reason* the official support starts at 400 nm (design §3):
+    352.11 nm >= WAVE_MIN = 350. Below 400 the excitation leaves the grid and
+    interp_spectrum clamps -- documented, not raised; asserted here so a grid
+    change that breaks the rationale is caught.
+    """
+    edge = float(C.raman_excitation(C.RAMAN_WAVE_MIN_OFFICIAL))
+    assert C.WAVE_MIN <= edge < C.WAVE_MIN + 5.0
+    assert edge == pytest.approx(352.1127, abs=5e-4)
+
+
+def test_interp_spectrum_matches_numpy_interp():
+    """On- and off-grid wavelengths agree with numpy.interp, 1-D case."""
+    rng = np.random.default_rng(7)
+    spectrum = rng.uniform(0.5, 2.0, C.N_WAVE)
+    targets = np.asarray([352.11, 418.55, 500.0, 585.08, 731.9])
+    ours = np.asarray(
+        C.interp_spectrum(
+            jnp.asarray(targets), jnp.asarray(C.WAVE), jnp.asarray(spectrum)
+        )
+    )
+    np.testing.assert_allclose(ours, np.interp(targets, C.WAVE, spectrum), rtol=1e-6)
+
+
+def test_interp_spectrum_is_batched_and_clamps():
+    """A (batch, grid) stack interpolates row-wise; ends clamp, never
+    extrapolate."""
+    spectra = jnp.stack([jnp.full(C.N_WAVE, 1.0), jnp.linspace(1.0, 2.0, C.N_WAVE)])
+    out = np.asarray(
+        C.interp_spectrum(
+            jnp.asarray([300.0, 352.5, 800.0]), jnp.asarray(C.WAVE), spectra
+        )
+    )
+    assert out.shape == (2, 3)
+    assert out[1, 0] == 1.0  # clamped to the 350 nm end value
+    assert out[1, 2] == 2.0  # clamped to the 750 nm end value
+
+
+def test_interp_spectrum_promotes_integer_inputs():
+    """Integer wavelengths select float nodes -- values are never truncated
+    (the PR #14 ed.py lesson, applied here from birth)."""
+    spectrum = jnp.linspace(0.3, 1.8, C.N_WAVE)
+    out = np.asarray(C.interp_spectrum(np.arange(400, 700, 50), C.WAVE, spectrum))
+    assert np.issubdtype(out.dtype, np.floating)
+    ref = np.asarray(
+        C.interp_spectrum(np.arange(400, 700, 50).astype(float), C.WAVE, spectrum)
+    )
+    np.testing.assert_array_equal(out, ref)
+
+
+def test_interp_spectrum_grad_wrt_values_matches_fd(jax_x64):
+    """d(interp)/d(values) from autodiff agrees with central differences.
+
+    THE property the task demands: the Raman term interpolates IOP spectra
+    onto the excitation grid, and gradients must flow through the interpolated
+    values back to the IOP inputs. Float64 via the fixture, dtypes pinned on
+    the arrays (elastic record §2); h scaled to the O(1) values.
+    """
+    grid = jnp.asarray(C.WAVE, dtype=jnp.float64)
+    values = jnp.linspace(0.3, 1.8, C.N_WAVE, dtype=jnp.float64)
+    targets = C.raman_excitation(jnp.asarray([450.0, 550.0, 650.0], dtype=jnp.float64))
+
+    def scalar(v):
+        return C.interp_spectrum(targets, grid, v).sum()
+
+    grad = np.asarray(jax.grad(scalar)(values))
+    h = 1e-6
+    fd = np.zeros_like(grad)
+    for i in range(values.shape[0]):
+        bump = jnp.zeros_like(values).at[i].set(h)
+        fd[i] = (float(scalar(values + bump)) - float(scalar(values - bump))) / (2 * h)
+    np.testing.assert_allclose(grad, fd, atol=1e-9)
+    # Each target draws weight from exactly two nodes, total weight 1 per target.
+    assert grad.sum() == pytest.approx(3.0, rel=1e-9)
+
+
+def test_interp_spectrum_jit_and_grad_wrt_wave():
+    """Compiled evaluation matches eager; the map itself is differentiable."""
+    spectrum = jnp.linspace(0.3, 1.8, C.N_WAVE)
+    targets = jnp.asarray([450.0, 550.0])
+    eager = np.asarray(C.interp_spectrum(targets, C.WAVE, spectrum))
+    jitted = np.asarray(
+        jax.jit(C.interp_spectrum)(targets, jnp.asarray(C.WAVE), spectrum)
+    )
+    np.testing.assert_allclose(jitted, eager, rtol=1e-6)
+    g = jax.grad(
+        lambda lam: C.interp_spectrum(
+            C.raman_excitation(lam)[None], jnp.asarray(C.WAVE), spectrum
+        ).sum()
+    )(jnp.asarray(550.0))
+    assert np.isfinite(float(g))
