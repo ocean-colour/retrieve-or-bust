@@ -98,6 +98,27 @@ def _resolve_emulator(emulator):
     return _emulator.load_default()
 
 
+def _resolve_corrections(corrections):
+    """The heads `_apply_inelastic` should use, or ``None`` for analytic.
+
+    ``None`` (the default) means the packaged trained heads —
+    :func:`robust.rt.inelastic_corr.load_default`, which degrades to
+    analytic-only behind a single ``MissingCorrectionWarning`` while the M3
+    weights do not exist yet. ``False`` is analytic-only, explicit and
+    silent (how the M2 characterization tests pin the analytic terms). An
+    explicit :class:`~robust.rt.inelastic_corr.CorrectionHeads` is used as
+    given. Only called when an inelastic process is actually on, so the
+    elastic path never imports the ML stack (or warns) on its account.
+    """
+    if corrections is False:
+        return None
+    if corrections is None:
+        from . import inelastic_corr
+
+        return inelastic_corr.load_default()
+    return corrections
+
+
 def _is_traced(*trees) -> bool:
     """Whether any leaf of any argument is a JAX tracer.
 
@@ -149,6 +170,7 @@ def rrs_forward(
     mode: str = "hybrid",
     *,
     inelastic=None,
+    corrections=None,
     emulator=None,
     check_domain: bool = True,
     on_out_of_domain: str = "warn",
@@ -183,11 +205,25 @@ def rrs_forward(
         pins the fixture output hash. With ``raman=True`` (M2 task 1) the
         elastic result is multiplied by the analytic
         :func:`robust.rt.inelastic.raman_factor` in ``Rrs`` space (design §2;
-        ``f_R = f_phys`` until M3 adds δ_R). ``fluorescence=True`` — the
-        default — raises ``NotImplementedError`` until M2 task 2 lands the
-        kernel; ask for the Raman-only model with
-        ``Inelastic(fluorescence=False)``. Incompatible with
+        ``f_R = f_phys`` until M3 adds δ_R). With ``fluorescence=True`` —
+        the default (M2 task 2) — the additive ``phi_C *``
+        :func:`robust.rt.inelastic.fluorescence_kernel` term joins in the
+        same space; it **requires** ``iops.a_ph``, the physical source term
+        (``ValueError`` otherwise — use ``Inelastic(fluorescence=False)``
+        for the Raman-only model). Incompatible with
         ``mode='emulator'`` (a term, not a model — ``ValueError``).
+    corrections : optional
+        The learned M3 corrections applied on top of the analytic terms
+        (``f_R = 1 + (f_phys − 1)(1 + δ_R)``; ``× (1 + δ_F)`` on the
+        kernel). ``None`` (default) — the packaged trained heads
+        (:func:`robust.rt.inelastic_corr.load_default`), degrading to
+        analytic-only behind one ``MissingCorrectionWarning`` while the M3
+        weights are untrained/absent. ``False`` — analytic-only, explicit
+        and silent (comparisons; the M2 characterization pins). Or an
+        explicit :class:`~robust.rt.inelastic_corr.CorrectionHeads`.
+        Ignored (never resolved, never warns) when ``inelastic`` is ``None``
+        or all processes are off — the elastic path owes nothing to the ML
+        stack.
     emulator : robust.rt.emulator.Emulator, optional
         Defaults to the packaged weights
         (:func:`robust.rt.emulator.load_default`). Ignored for ``mode='ztt'``, which
@@ -225,14 +261,6 @@ def rrs_forward(
             f"got {on_out_of_domain!r}"
         )
     if inelastic is not None:
-        if inelastic.fluorescence:
-            # M2 task 2 adds phi_C * K_fl; until then a configuration asking
-            # for it must fail loudly, never return an array missing physics.
-            raise NotImplementedError(
-                "chlorophyll fluorescence lands at M2 task 2 of the inelastic "
-                "coding plan; use Inelastic(fluorescence=False) for the "
-                "Raman-only model, or inelastic=None for elastic"
-            )
         if mode == "emulator":
             raise ValueError(
                 "forward: mode='emulator' returns the learned correction term "
@@ -241,10 +269,24 @@ def rrs_forward(
                 "mode='ztt' or mode='hybrid' with inelastic, or "
                 "inelastic=None with mode='emulator'"
             )
+        if inelastic.fluorescence and iops.a_ph is None:
+            # The kernel raises the same requirement; checking here fails
+            # fast — before the emulator loads — where the M0/M1 guard sat.
+            raise ValueError(
+                "forward: Inelastic.fluorescence requires IOPs.a_ph — the "
+                "fluorescence source term is b_F = phi_C * a_ph, and bulk "
+                "absorption cannot stand in for the phytoplankton component. "
+                "Provide a_ph (e.g. IOPs.from_total_bb(..., a_ph=...)) or "
+                "use Inelastic(fluorescence=False)"
+            )
+
+    heads = None
+    if inelastic is not None and (inelastic.raman or inelastic.fluorescence):
+        heads = _resolve_corrections(corrections)
 
     rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
     if mode == "ztt":
-        return _apply_inelastic(rrs_ztt, iops, geometry, wave, inelastic)
+        return _apply_inelastic(rrs_ztt, iops, geometry, wave, inelastic, heads)
 
     emulator = _resolve_emulator(emulator)
     if check_domain:
@@ -258,32 +300,50 @@ def rrs_forward(
 
     if mode == "emulator":
         return delta_rrs
-    return _apply_inelastic(rrs_ztt + delta_rrs, iops, geometry, wave, inelastic)
+    return _apply_inelastic(rrs_ztt + delta_rrs, iops, geometry, wave, inelastic, heads)
 
 
-def _apply_inelastic(rrs, iops, geometry, wave, inelastic):
+def _apply_inelastic(rrs, iops, geometry, wave, inelastic, heads=None):
     """Compose the inelastic processes onto an elastic ``rrs`` (design §2).
 
     The composition law is written in ``Rrs`` space —
     ``Rrs_total = (Rrs_ZTT + ΔRrs) × f_R + Rrs_fl`` — so the elastic ``rrs``
-    is converted up, composed, and converted back. ``forward``'s final
+    is converted up, composed (Raman multiplies, fluorescence adds
+    ``phi_C * K_fl (1 + δ_F)``), and converted back. ``forward``'s final
     ``rrs_to_Rrs`` then undoes the round trip exactly (algebraically; at
-    ULP level in float — which is why the ``inelastic=None`` branch returns
-    the *same object* untouched: the elastic path stays bit-identical by
-    construction, never by cancellation. Notebook 1 §4 measured what that
-    round trip does to bits.)
+    ULP level in float — which is why the ``inelastic=None`` and both-off
+    branches return the *same object* untouched: the elastic path stays
+    bit-identical by construction, never by cancellation. Notebook 1 §4
+    measured what that round trip does to bits.)
 
-    Fluorescence joins here at M2 task 2 (``+ phi_C * K_fl`` before the
-    down-conversion); the caller has already rejected configurations asking
-    for it.
+    ``heads`` (resolved by the caller — :func:`_resolve_corrections`)
+    carries the M3 learned corrections; a ``None`` container or a ``None``
+    field means that term stays purely analytic (``f_R = f_phys``,
+    ``δ_F = 0``) — by *omission* of the correction arithmetic, not by
+    multiplying with a computed zero.
     """
-    if inelastic is None:
+    if inelastic is None or not (inelastic.raman or inelastic.fluorescence):
         return rrs
-    result = rrs
+    result = conventions.rrs_to_Rrs(rrs)
     if inelastic.raman:
         f_r = _inelastic.raman_factor(iops, geometry, wave)
-        result = conventions.Rrs_to_rrs(conventions.rrs_to_Rrs(result) * f_r)
-    return result
+        if heads is not None and heads.raman is not None:
+            from . import inelastic_corr
+
+            f_r = inelastic_corr.corrected_raman_factor(
+                heads.raman.delta(iops, geometry, wave), f_r
+            )
+        result = result * f_r
+    if inelastic.fluorescence:
+        # K_fl raises the clear a_ph-is-required error; phi_C is a leaf
+        # (possibly batched per scene), aligned onto the wavelength axis.
+        k_fl = _inelastic.fluorescence_kernel(
+            iops, geometry, wave, emission_shape=inelastic.emission_shape
+        )
+        if heads is not None and heads.fl is not None:
+            k_fl = k_fl * (1.0 + heads.fl.delta(iops, geometry, wave))
+        result = result + jnp.asarray(inelastic.phi_C)[..., None] * k_fl
+    return conventions.Rrs_to_rrs(result)
 
 
 def forward(
@@ -294,6 +354,7 @@ def forward(
     mode: str = "hybrid",
     *,
     inelastic=None,
+    corrections=None,
     emulator=None,
     check_domain: bool = True,
     on_out_of_domain: str = "warn",
@@ -305,12 +366,12 @@ def forward(
 
     Parameters
     ----------
-    iops, phase_params, geometry, wave, mode, inelastic, emulator, check_domain, \
-on_out_of_domain
+    iops, phase_params, geometry, wave, mode, inelastic, corrections, emulator, \
+check_domain, on_out_of_domain
         As :func:`rrs_forward`. In particular ``inelastic=None`` (the default)
         is the elastic model, bit-identical by construction to the
-        pre-extension output; an instance raises ``NotImplementedError``
-        until M2.
+        pre-extension output; an instance composes the analytic Raman factor
+        and/or the ``phi_C``-linear fluorescence term (M2) onto it.
 
     Returns
     -------
@@ -341,6 +402,7 @@ on_out_of_domain
             wave,
             mode,
             inelastic=inelastic,
+            corrections=corrections,
             emulator=emulator,
             check_domain=check_domain,
             on_out_of_domain=on_out_of_domain,

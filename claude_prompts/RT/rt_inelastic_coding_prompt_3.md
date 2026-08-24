@@ -194,6 +194,19 @@ by any prompt work. It looks like an accidental `mkdir rob` + add (perhaps a
 truncated `robust`?). Please unstage/remove it (or tell me its purpose) so it
 doesn't ride along into the next commit. Everything else in this task raised
 no questions.
+>A. This is fine. ignore it
+
+*Follow-up (Claude, 2026-08-24, task 2).* No answer was recorded, and commit
+`2c1c259` meanwhile brought `rob/` in — the empty `__init__.py` **plus**
+`rob/data/Dutkiewicz2015/optics_phyo_8_1nm.txt` (3631 lines of phytoplankton
+optics). The data file suggests it may be deliberate after all; if so, ignore
+this — if not, it now takes a `git rm` rather than an unstage. Either way a
+one-word answer here closes the question. Task 2 itself raised no new
+questions (the one open design point — how `K_fl` stays φ_C-linear while the
+surface transfer is nonlinear — is answered by design §4.4 itself: the kernel
+is defined at the truth's φ_C = 0.02, `K_fl = Rrs_fl(0.02)/0.02`; logged
+below and in the record §4.3).
+>A. Ignore this too
 
 ## Next
 
@@ -242,3 +255,156 @@ index — please unstage.**
 Task 2 (fluorescence kernel) starts with the composition seam already in
 place — `_apply_inelastic` grows one `+ φ_C·K_fl` line before the
 down-conversion.
+
+### 2026-08-24 (M2 task 2 — fluorescence_kernel ported, composed, characterized; 381 green)
+
+The φ_C-linear fluorescence kernel is in and wired; record §4.3 (v0.15).
+Model: Fable 5. Q&A: no answer to Q1 was found; meanwhile commit `2c1c259`
+*committed* the stray `rob/` (with a Dutkiewicz-2015 optics table, so perhaps
+deliberate) — **follow-up appended under Q1, one word closes it**. No new
+physics questions. (This prompt arrived as "execute the 1st prompt" with
+task 1 already done and logged — read as the next unexecuted one, the same
+offset convention both prior hand-offs used.)
+
+- `robust/rt/inelastic.py::fluorescence_kernel`: fixed BING's
+  `calc_Rrs_fluorescence` per unit yield — `b_bF = ½·φ_C·a_ph(λ′)`, fixed
+  65-node 370–690 nm trapezoid quadrature (`fl_excitation_grid`; fixed so
+  shapes are static under `jit` and bing can be fed identical nodes), λ′/λ
+  quanta→energy, true `Ed(λ′)/Ed(λ_em)` single-sky via the override seam,
+  per-λ_em κ_F, **L_u = E_u/π**, `h_C` via `emission_line` (single default;
+  `'double'` implemented, flagged unvalidatable), surface transfer via
+  `conventions.rrs_to_Rrs` (not re-spelled).
+- **The φ_C-linearity mechanics, made concrete** (design §4.4): the kernel
+  is evaluated at `PHI_C_REF = 0.02` and divided by it, so `φ_C·K_fl` is
+  *exactly* bing at the truth's yield and linear-by-construction elsewhere;
+  the neglected `(1 − B·rrs)` piece is O(10⁻³). `PHI_C_REF == PHI_C_L23`
+  pinned by test.
+- Wiring: `_apply_inelastic` is now the whole §2 law (up-convert once,
+  `× f_R`, `+ φ_C·K_fl` with `phi_C` leaf-aligned, down-convert once);
+  `None`/all-off still return the same object — hash pins green. The
+  task-1 `NotImplementedError` guard retired for the **a_ph requirement**:
+  clear `ValueError` at both `rrs_forward` (fast, pre-emulator — where the
+  old guard sat) and the kernel; the M0 guard test updated deliberately to
+  `test_inelastic_fluorescence_without_aph_raises`.
+- **Port quality, measured**: float32 agreement vs live bing ~3e-6 (65-node
+  trapezoid accumulation); **float64 exact to ~7e-16** — task 3's xcheck
+  pins the 1e-6 gate under x64. Characterization vs fixture truth (median
+  model/truth at 685 nm): **0.991 / 0.937 / 0.853** at 0/30/60° — the
+  assessment's 1.00/0.95/0.86 on our own fixture; pinned as bands
+  (π-regression or flat-Ed fails them instantly); the zenith drift is δ_F's
+  target (M3), not a bug.
+- 13 tests (constants/emission/xcheck spot incl. double/physicality/bands/
+  seam/jax/wiring/linearity/∂Rrs/∂φ_C/gradients incl. a_ph); suite
+  **381 passed** warning-free (also `-W error`); ruff clean.
+
+Task 3 (formal xcheck + error table + FD gradients) starts with both terms
+composed and spot-checked; the sentinel (bing-predates-fixes) and the x64
+rtol ≤ 1e-6 pins are its first moves, and the characterization bands above
+are the fixture-measured numbers it should build on.
+
+### 2026-08-24 (M2 task 3 — xcheck + error table + gradient gate; the M2 code gate is green; 390)
+
+Cross-check, characterization, gradients all pinned; record §4.4 (v0.16).
+Model: Fable 5. Q&A: **no answers found — Q1 and its follow-up (the
+committed `rob/` directory) still await your one-word call**; task 3 raised
+no new questions. (Prompt arrived as "execute the 2nd prompt" with task 2
+already done and committed in `1e18082` — read as task 3 per the standing
+offset convention.)
+
+- **`robust/tests/test_inelastic_bing_xcheck.py`** (new): sentinel first —
+  BING's fluorescence on a trivial scene vs the post-fix formula spelled out
+  by hand in the test (double-entry, independent of our port; ratio 1.0
+  exactly; a pre-fix checkout lands at ~π and the message says "predates
+  inelastic-fixes"); then the pins, **all 150 fixture samples**, float64
+  (`batch64` rebuild under `jax_x64`), rtol ≤ 1e-6 with `atol=0`:
+  **measured worst 4.1e-16 (Raman), 1.1e-13 (fluorescence, tails
+  included)** — 7–10 decades of headroom. Module `importorskip`s bing + a
+  `hasattr` guard, so CI skips while this machine enforces.
+- **Error table completed**: the 490 nm Raman row measured on the fixture —
+  **−3.0 / +29.7 / +30.4 %** at 0/30/60° (the assessment's "+30 % at
+  490 nm, 30–60°"; 0° unquoted there) — pinned as bands next to the
+  550–700 nm and 685 nm rows from tasks 1–2. No material difference from
+  the assessment's table to log.
+- **Gradient gate**: autodiff vs central FD (float64, per-variable steps)
+  through the **full composed forward** (ZTT + packaged emulator, × f_phys,
+  + φ_C·K_fl) for `a, bb_p, a_ph, φ_C, θ_s`; agreement 1.5e-10–3.8e-8.
+  **One discovery worth knowing**: packaged `Ed` is piecewise-linear in θ_s
+  with anchors at 0/30/60°, so the θ_s-derivative has a *kink at each
+  anchor* — autodiff is one-sided there and central FD averages, disagreeing
+  at the 7th digit at 30° sharp (the elastic gate never saw this; its path
+  ignores Ed). The gate evaluates at 35° (smooth segment) and documents the
+  knot. Inversions differentiating at exactly 0/30/60° inherit a one-sided
+  derivative — worth a line in any future θ_s-retrieval writeup.
+- Suite **390 passed** (`-W error` clean; 355 M1 + 32 `test_inelastic.py` +
+  3 xcheck); elastic hash pins green; ruff + format clean. **The M2 code
+  gate (task 3's "Gate" line) is met.**
+
+Task 4 (the notebook) is pure presentation now: every number it must show —
+the −39 % @ 0° Raman gap, the 685 nm amplitude/drift, ∂Rrs/∂φ_C = K_fl — is
+already computed and test-pinned; lift them from `test_inelastic.py` and the
+record §4.2–4.4 rather than re-deriving. Kernelspec `ocean14`, execute via
+the `os_313` env's `jupyter nbconvert --execute`, commit with outputs.
+
+### 2026-08-24 (M2 task 4 — notebook 3 built and executed; suite still 390)
+
+`notebooks/RT/rt_inelastic_coding_3.ipynb` — executed with outputs (398 kB),
+record §4.5 (v0.17). Model: Fable 5. Q&A: **still no answers — Q1 and its
+follow-up (the committed `rob/` directory) remain open**; task 4 raised no
+new questions. (Prompt arrived as "execute the 3rd prompt" with task 3 done
+and committed in `af87f24` — read as task 4 per the standing convention.)
+
+- Built programmatically (`nbformat`, os_313), house style of notebooks 1–2,
+  `ocean14` kernelspec, executed via the os_313 `jupyter nbconvert
+  --execute`; fixture-fed (no `$OS_COLOR` needed), figures verified by eye.
+- Five sections, all numbers lifted from the pinned tests, none re-derived:
+  the composition law verified in one line on the fixture (residual 6.3e-9
+  of max Rrs — the float32 round trip) with the ratio-vs-additive physics
+  argument; median `f_phys − 1` vs truth per zenith with the −38.6 % @ 0°
+  gap visible and the full error table printed; `φ_C·K_fl` on top of the
+  `X4−X2` truth for three trophic states plus the 685 nm model/truth
+  scatter vs `a_ph(440)` showing the 0.99/0.94/0.85 drift; `∂Rrs/∂φ_C` by
+  `jax.jacrev` through the full composed forward overplotted with `K_fl`
+  (affine identity, 1.9e-7 in float32); and the M3 hand-off (the three
+  numbers the heads must beat).
+- Suite untouched by the task and still **390 passed**; ruff clean; hash
+  pins green. Commit (with outputs) is JXP's.
+
+Task 5 (the prompt-4 hand-off) closes M2: `rt_inelastic_coding_prompt_4.md`
+should be rewritten from what M2 actually established — the record
+§4.1–4.5 status block, the fixture-measured error table as M3's targets,
+the θ_s-anchor kink caveat for anyone differentiating there, and the open
+Q1 housekeeping.
+
+### 2026-08-24 (M2 task 5 — prompt 4 rewritten from what M2 established; M2 COMPLETE)
+
+`rt_inelastic_coding_prompt_4.md` updated; record v0.18 (M2 ✅ in the
+status table). Model: Fable 5. Q&A: **still no answers — Q1/follow-up (the
+committed `rob/` directory) remains the one open item**; task 5 raised no
+new questions. (Prompt arrived as "execute the 4th prompt" with task 4 done
+and committed in `c329cd1` — read as task 5 per the standing convention.)
+
+What changed in prompt 4, and why:
+
+- **Working agreements corrected**: branch is `inelastic-rt` (prompt 1 Q&A
+  Q2), not the coding plan's `rt-inelastic-prototype` the draft carried;
+  added the two-tier hash-gate wording and the no-wholesale-pip rule.
+- **"Status entering M3" written** (the draft's empty block): M2 complete
+  at 390 green; the two terms' API and the `PHI_C_REF` mechanics δ_F must
+  preserve; the composition lines in `_apply_inelastic` that
+  `1 + (f_phys−1)(1+δ_R)` and `×(1+δ_F)` slot into; the fixture-measured
+  target table (−38.6 % @ 0° / +30 % @ 490 nm / 0.99→0.85 @ 685 nm); the
+  θ_s-anchor kink caveat; the sentinel rule (a failing sentinel means fix
+  the bing checkout, not the ports); split reuse via `select_inelastic`;
+  the open Q1; notebook tooling incl. the nbformat build convention.
+- **Task text sharpened from M2 facts**: task 1 names the M1 helpers for
+  the λ′ features and points the wiring at `_apply_inelastic`; task 2
+  requires the full release + `select_inelastic` splits and repeats the
+  recompute-thresholds lesson; task 3 adds a gradient check through the
+  corrected path (θ_s off the Ed anchors) and makes "the whole M2 gate
+  stays green untouched" explicit; task 4 carries the notebook build/exec
+  tooling.
+
+**M2 is closed**: analytic Raman + fluorescence ported, composed, pinned
+live to fixed BING at ≤ 1e-6, characterized against L23 with every band
+fixture-measured and test-pinned, differentiable end to end (incl. a_ph,
+φ_C), notebook shipped. → `rt_inelastic_coding_prompt_4.md` (M3).
