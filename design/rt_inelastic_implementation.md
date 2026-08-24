@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.12
+**Version:** 0.13
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -29,7 +29,7 @@ the Date on every bump.
 | M | Goal | Status | Package surface |
 |---|------|--------|-----------------|
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
-| **M1** | Ed module, excitation grid, X2/X4 data | 🟡 in progress (tasks 1–4 of 5 done) | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
+| **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ⬜ not started | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
 | **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
@@ -442,7 +442,7 @@ the elastic fixture; the elastic fixture's bytes untouched — CQ4).
 | 2 | Excitation-grid infrastructure in `conventions.py` | ✅ done |
 | 3 | X2/X4 data + truth channels + sibling CI fixture | ✅ done |
 | 4 | `notebooks/RT/rt_inelastic_coding_2.ipynb` | ✅ done |
-| 5 | Update `rt_inelastic_coding_prompt_3.md` | ⬜ not started |
+| 5 | Update `rt_inelastic_coding_prompt_3.md` with the actual M1 outcome | ✅ done — **M1 complete** |
 
 ### 3.2 Modules added (task 1)
 

@@ -413,3 +413,52 @@ rendered PNGs before committing.
 Suite unchanged by this task (no package code touched): 355 passed as of
 task 3; notebook verified error-free with 3 figures. Next: task 5 — update
 `rt_inelastic_coding_prompt_3.md` with what M1 actually established.
+
+### 2026-08-24 (M1 task 5 — prompt 3 updated with reality; M1 complete)
+
+Filled `rt_inelastic_coding_prompt_3.md`'s "Status entering M2" and adjusted
+its tasks where the plan and reality had diverged; record bumped to v0.13
+with **M1 marked ✅ done**. Model: Fable 5. Q&A checked: empty here; no new
+questions from me.
+
+The status section hands M2: the tested consumables by name (`ed.Ed`/
+`ed.ratio` with the measured 0.44–1.59 ratio span; `conventions.
+raman_excitation`/`interp_spectrum` with a do-not-reimplement note;
+`load_inelastic_batch` + truth-channel properties + the session fixture),
+the measured truths with their pins (X-scenario bit-identity; Raman factor
+≥ 1.0076, fixture max 1.36 vs full-release 2.51; 685 nm delta > 0), the
+two-tier hash gate and the branch/pip warnings, and — the one M2 must
+consciously handle — the M0 `NotImplementedError` guard and its pinned test,
+which task 1/2 must *deliberately* replace while leaving the
+`inelastic=None` route bit-identical.
+
+Three factual corrections to the M2 tasks, each verified against the bing
+checkout before editing:
+
+- **The b_R(488) attribution was wrong.** The task said "Bartlett 1998;
+  b_R(488) = 2.6e-4" — Bartlett is 2.7e-4 (`B_RAMAN_488_BARTLETT`); 2.6e-4
+  is `B_RAMAN_488_HYDROLIGHT`, bing's default and what the L23 truth was
+  generated with, which is exactly why it must be ours. The task now names
+  the constant and the reason.
+- **The characterization bands need recomputing.** The assessment's error
+  table (≈ +1 %/−4 %/−39 %; 1.00/0.95/0.86) was measured on the full
+  release / bing's 40-scene fixture; our 50-scene fixture samples a
+  narrower range. The task now says: compute the medians on the set the
+  test actually uses, band around those, and log any material difference —
+  don't force-fit the assessment's numbers.
+- **Reuse spelled out**: the fluorescence surface transfer is
+  `conventions.rrs_to_Rrs` (already pinned equal to bing's A/B), the Ed
+  ratio must take `geometry.Ed` as override so the seam works end to end,
+  and the excitation-grid interpolation is `conventions.interp_spectrum` —
+  named to preempt a second implementation.
+
+Also refreshed the working agreements (branch `inelastic-rt`, the two-tier
+hash gate, the requirements.txt warning) and verified
+`calc_raman_correction_factor`/`calc_Rrs_fluorescence` exist on the
+`inelastic-fixes` checkout.
+
+**M1 is complete**: Ed module + packaged spectra, excitation grid, X2/X4
+pipeline + sibling fixture (CQ4 byte-pinned), notebook 2 executed, prompt 3
+updated — 355 tests green throughout, elastic path bit-identical, review
+debt cleared on the robust/ side. Ready for JXP's commit and the M2 kickoff
+via prompt doc 3.
