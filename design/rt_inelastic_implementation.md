@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.19
+**Version:** 0.20
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -31,7 +31,7 @@ the Date on every bump.
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
-| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (task 1 of 5 done) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
+| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (tasks 1–2 of 5 done; **trained weights committed, gate targets beaten ~25×**) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -938,8 +938,8 @@ delta gates ≤ 5 % on held-out scenes at every zenith including 0°.
 | # | Task | Status |
 |---|------|--------|
 | 1 | Head machinery (`inelastic_corr.py` + `forward` wiring) | ✅ done |
-| 2 | Training (`design/py/train_inelastic_corr.py`, committed weights) | ⬜ not started |
-| 3 | Held-out gates (`test_inelastic_corr.py` extension) | ⬜ not started (machinery tests landed with task 1) |
+| 2 | Training (`design/py/train_inelastic_corr.py`, committed weights) | ✅ done — held-out worst 0.21 % (Raman) / 0.10 % (fl) vs the 5 % gates |
+| 3 | Held-out gates (`test_inelastic_corr.py` extension) | ⬜ not started (machinery tests landed with task 1; task 2's script reports the numbers the tests must pin) |
 | 4 | `notebooks/RT/rt_inelastic_coding_4.ipynb` | ⬜ not started |
 | 5 | Update `rt_inelastic_coding_prompt_5.md` | ⬜ not started |
 
@@ -1005,6 +1005,57 @@ weights exist), and elastic-path-never-warns.
 **Results.** `pytest -q` → **408 passed**; elastic hash pins green; ruff +
 format clean. No training yet — the module is machinery whose every
 train-independent property is pinned; task 2 gives it weights.
+
+### 5.3 Training (task 2)
+
+**`design/py/train_inelastic_corr.py`** — full L23 release (`$OS_COLOR`,
+9960 samples × 81 λ), the elastic splits verbatim (`make_splits`, 7968
+train / 1992 held-out samples), full-batch Adam (3e-3, 3000 steps, fixed
+seeds), ~60 s per head on CPU. Losses, both **relatively weighted** (the
+BING/elastic lesson) with the elastic size penalty (0.02 · |δ|rms):
+
+- δ_R: RMS of the *relative increment error*
+  `(f_phys−1)(1+δ_R)/(f_truth−1) − 1` over λ ≥ 400 nm (the official band —
+  below it the single-shift machinery clamps). Train fit 24.8 % → **1.69 %**;
+  |δ_R|rms 30.6 %, max |δ_R| 0.905 — inside its 1.0 bound with ~10 %
+  headroom at the extreme (watch if the loss band ever widens).
+- δ_F: RMS over the 655–715 nm emission window of the residual normalized
+  by each scene's **own 685 nm truth** (trophic states weigh equally; the
+  near-zero tails cannot blow up a pointwise relative error). Train fit
+  5.6 % → **0.77 %**; |δ_F|rms 7.1 %, max |δ_F| 0.34 (bound 0.5).
+
+**Committed weights** `robust/rt/files/raman_corr_l23.npz` (4.2 kB) and
+`fl_corr_l23.npz` (4.3 kB) — 129 parameters per head (hidden (16,)), the
+low end of the §4.5 budget; nothing demanded growth. With the files
+present, `forward`'s default is now the corrected model (record §5.2 /
+prompt 4 Q&A Q1) and the task-1 fallback-warning test retires itself
+(`407 passed, 1 skipped`).
+
+**Held-out scenes, all zeniths (the numbers task 3 must pin), analytic →
+corrected, median:**
+
+| metric | 0° | 30° | 60° |
+|---|---|---|---|
+| Raman increment, 550–700 nm | −38.56 → **−0.14 %** | +1.23 → **−0.10 %** | −4.21 → **−0.21 %** |
+| Raman increment, 490 nm | −3.60 → **+1.03 %** | +30.85 → **+0.82 %** | +32.55 → **+0.58 %** |
+| fluorescence 685 nm | +0.27 → **+0.08 %** | −5.20 → **+0.07 %** | −13.71 → **+0.10 %** |
+
+Worst gate metric: Raman **0.21 %**, fluorescence **0.10 %** — the ≤ 5 %
+gates beaten ~25×. The a_ph(440)-decile diagnostic is flat: every decile
+within ±0.6 %, the eutrophic tail (decile 10, up to 0.35 m⁻¹) at +0.00 %.
+(Note the full-release analytic numbers differ from the fixture's — −5.2 %
+vs −6.3 % at 30° fluorescence, +32.6 % vs +30.4 % at 490/60° — the
+recompute lesson again; task 3's held-out pins should use *these*.)
+
+**Zenith-holdout diagnostic (train 0°/30°, test 60° — reported, never
+shipped or gated):** δ_R at the unseen zenith is catastrophic — **−74 %**
+median increment error at 60° (550–700 nm), far *worse* than the −4.2 %
+analytic backbone it corrects; δ_F degrades to −9.2 % (better than the
+analytic −13.7 %, still past the gate). The elastic effort's extrapolation
+finding (CQ6, `Emulator.domain`) in sharper form: **these heads are
+interpolators in cos θ_s and must not be trusted at unseen geometries.**
+The notebook must show this with an honest caption; any future θ_s-varying
+use needs either training coverage or a domain guard like the emulator's.
 
 ---
 

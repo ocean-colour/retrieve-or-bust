@@ -262,3 +262,48 @@ parameter-gradient path already tested; it needs the full L23 release
 commits `robust/rt/files/{raman,fl}_corr_l23.npz` — at which point the
 fallback-warning test steps aside automatically and the corrected model
 becomes the default `forward` (Q1).
+
+### 2026-08-24 (M3 task 2 — heads trained on the full release, weights committed; gates beaten ~25×)
+
+`design/py/train_inelastic_corr.py` + committed weights; record §5.3
+(v0.20). Model: Fable 5. Q&A: **no answers found — Q1 (corrections
+default-on) drew no veto before task 2, so it now stands: with the weight
+files committed, `forward(..., inelastic=...)` is the corrected model by
+default**; prompt 3's Q1 (`rob/`) is still open. No new questions from this
+task. (Prompt arrived as "execute the 1st prompt" with task 1 done and
+committed in `3d3bd30` — read as task 2 per the standing convention.)
+
+- **Training**: full release (9960 × 81, `$OS_COLOR`), elastic splits
+  verbatim, full-batch Adam, fixed seeds, ~60 s/head. Relatively-weighted
+  losses + the elastic size penalty: δ_R on the relative *increment* error
+  (λ ≥ 400 nm), train fit 24.8 → 1.69 %, |δ|rms 30.6 %, max 0.905 (bound
+  1.0 — ~10 % headroom at the extreme); δ_F on the emission window
+  normalized per scene by its own 685 nm truth, train fit 5.6 → 0.77 %,
+  |δ|rms 7.1 %, max 0.34 (bound 0.5). 129 params/head — the budget's low
+  end sufficed.
+- **Held-out scenes (the numbers task 3 must pin)**: Raman increment
+  −38.6→−0.14 / +1.2→−0.10 / −4.2→−0.21 % (550–700, 0/30/60°); 490 nm
+  −3.6→+1.0 / +30.9→+0.8 / +32.6→+0.6 %; fluorescence 685
+  +0.3→+0.08 / −5.2→+0.07 / −13.7→+0.10 %. Worst gate metric 0.21 %
+  (Raman), 0.10 % (fl) vs the 5 % bars. a_ph(440) deciles all within
+  ±0.6 % — no eutrophic tail. *Full-release analytic medians differ from
+  the fixture's (−5.2 vs −6.3 % @30° fl; +32.6 vs +30.4 % @490/60°) — the
+  recompute lesson; pin task 3's held-out bands on these.*
+- **Zenith-holdout diagnostic (reported, not shipped)**: at the unseen 60°,
+  δ_R collapses to **−74 %** median increment error — far worse than the
+  analytic backbone it corrects — and δ_F sits at −9.2 %. The elastic
+  extrapolation caveat in sharper form: the heads are interpolators in
+  cos θ_s; unseen geometries need coverage or a domain guard. Honest
+  caption required in notebook 4.
+- **Weights committed-ready**: `robust/rt/files/{raman,fl}_corr_l23.npz`
+  (4.2/4.3 kB), reload-verified at write time (the refusal rule runs in the
+  script, not at first use). Suite: **407 passed, 1 skipped** — the skip is
+  the task-1 fallback-warning test retiring itself exactly as designed;
+  the M2 analytic pins (all `corrections=False`) green untouched; elastic
+  hash pins green; ruff + format clean.
+
+Task 3 (held-out gates) has its numbers measured and logged above; it needs
+`test_inelastic_corr.py` extended with the committed-weights gate tests
+(≤ 5 % per process per zenith, bounded-output on the *loaded* heads, a
+corrected-path FD gradient check with θ_s off the Ed anchors) — no
+train-at-test-time, and the whole M2 gate stays green untouched.
