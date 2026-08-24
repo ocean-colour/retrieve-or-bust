@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.14
+**Version:** 0.15
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -30,7 +30,7 @@ the Date on every bump.
 |---|------|--------|-----------------|
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
-| **M2** | Analytic terms in JAX | 🟡 in progress (task 1 of 5 done) | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
+| **M2** | Analytic terms in JAX | 🟡 in progress (tasks 1–2 of 5 done) | `robust.rt.inelastic`, composition in `robust.rt.hybrid` |
 | **M3** | Correction heads δ_R, δ_F | ⬜ not started | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
@@ -63,9 +63,9 @@ reported, never gated. The `bing` cross-check tests (M2) import the *fixed*
 BING (branch `inelastic-fixes`) live and `skipif` when it is unavailable, so
 GitHub CI stays green while local runs enforce the pin (CQ3a).
 
-**Verification (current).** `pytest -q` from the repo root → **368 passed**
-(355 as of M1 + 13 M2 `test_inelastic.py`); details below superseded only in
-count:
+**Verification (current).** `pytest -q` from the repo root → **381 passed**
+(355 as of M1 + 26 M2 `test_inelastic.py`, 13 per task); details below
+superseded only in count:
 (`ocean14`, this machine, 2026-08-24, `$OS_COLOR` set): 279 elastic unmodified
 + 31 M0/hash-gate (two-tier since task 7, §2.8) + 45 M1 (`test_ed.py` 20,
 Raman-grid additions in `test_conventions.py` 9, `test_l23_inelastic_data.py`
@@ -728,7 +728,7 @@ rtol ≤ 1e-6 (CQ3a) and characterized against the assessment's error table.
 | # | Task | Status |
 |---|------|--------|
 | 1 | Raman factor (`inelastic.py::raman_factor` + `forward` wiring) | ✅ done |
-| 2 | Fluorescence kernel | ⬜ not started |
+| 2 | Fluorescence kernel (`inelastic.py::fluorescence_kernel` + `forward` wiring) | ✅ done |
 | 3 | Cross-check + characterization + gradient gate | ⬜ not started (Raman-side spot versions landed with task 1) |
 | 4 | `notebooks/RT/rt_inelastic_coding_3.ipynb` | ⬜ not started |
 | 5 | Update `rt_inelastic_coding_prompt_4.md` | ⬜ not started |
@@ -755,10 +755,10 @@ and converting back so `forward = rrs_to_Rrs(rrs_forward(...))` still holds
 properties, all tested: the `inelastic=None` branch returns the *same
 object* untouched (hash pins stayed green throughout); `Inelastic(raman=
 False, fluorescence=False)` is bitwise elastic; `fluorescence=True` — the
-*default* — still raises `NotImplementedError` naming M2 task 2, so the M0
-guard test needed only a docstring update and a narrower match;
-`mode='emulator'` + inelastic raises `ValueError` (a term, not a model —
-the composition applies to model outputs only).
+*default* — raised `NotImplementedError` naming M2 task 2 until the kernel
+landed (§4.3), so the M0 guard test needed only a docstring update and a
+narrower match at task 1; `mode='emulator'` + inelastic raises `ValueError`
+(a term, not a model — the composition applies to model outputs only).
 
 **Measured at port time** (spot cross-check vs live bing on fixture rows,
 all three zeniths): max relative difference **1.6e-7** — an order under the
@@ -782,6 +782,73 @@ task 3.
 requested `jnp.float64` outside the x64 fixture and were *silently truncated*
 — the recurring dtype lesson, fixed by keeping reference arithmetic in
 NumPy); elastic hash pins green; ruff clean.
+
+### 4.3 Fluorescence kernel (task 2)
+
+**`inelastic.py::fluorescence_kernel(iops, geometry, wave,
+emission_shape='single') → K_fl(λ)`** — the fixed BING
+`calc_Rrs_fluorescence` per unit quantum yield, term for term: source
+`b_bF(λ′) = ½·φ_C·a_ph(λ′)` (isotropic emission, half backward — this is
+where `IOPs.a_ph` earns its place); trapezoid excitation integral over a
+**fixed 370–690 nm, 5 nm, 65-node grid** (`fl_excitation_grid` — fixed
+rather than a subset of the caller's `wave`, so shapes stay static under
+`jit`, the quadrature is emission-grid-independent, and the cross-check can
+feed bing the identical nodes; on the canonical grid the nodes coincide
+with grid points, so `interp_spectrum` is lossless there); the `λ′/λ`
+quanta→energy factor; true `Ed(λ′)` normalized by `Ed(λ_em)`, both from one
+sky via `ed.Ed(..., override=geometry.Ed)`; per-λ_em
+`κ_F = (a + b_b)/μ_F` (μ_F = 0.5 — bing's history warns that freezing it at
+685 nm overestimates a 730 nm shoulder ~4×); **L_u = E_u/π** (the ×3 fix);
+emission line `h_C(λ)` (`emission_line` — single Gaussian 685/10.6 default;
+`'double'` adds the 730/21.2 PS I shoulder at 0.75/0.25, implemented,
+documented unvalidatable, off everywhere in v1); surface transfer via
+`conventions.rrs_to_Rrs` (not re-spelled).
+
+**The φ_C-linearity decision (design §4.4, DQ4), made concrete:** the
+kernel is evaluated at an internal reference `PHI_C_REF = 0.02` and divided
+by it — `K_fl = Rrs_fl(0.02)/0.02` — so `φ_C · K_fl` equals fixed BING
+*exactly* at the truth's yield (where the cross-check and all training
+happen) and is φ_C-linear by construction elsewhere; the only neglected
+piece is the `(1 − B·rrs)` surface-transfer nonlinearity, O(10⁻³) at
+fluorescence amplitudes. `PHI_C_REF == PHI_C_L23` is pinned by a test:
+if they diverged, the cross-check and the truth channels would silently
+score different quantities.
+
+**Wiring.** `_apply_inelastic` now implements the full design §2 law in one
+place: up-convert once, `× f_R` if `raman`, `+ φ_C · K_fl` if
+`fluorescence` (with `phi_C` — a leaf, possibly per-scene — aligned onto
+the wavelength axis), down-convert once. `None` and both-off still return
+the *same object* (hash pins green). The task-1 `NotImplementedError` guard
+is retired; in its place, the **a_ph requirement**: `Inelastic.fluorescence`
+with `IOPs.a_ph is None` raises a clear `ValueError` at both entry points —
+a fast pre-check in `rrs_forward` (before the emulator loads, where the old
+guard sat) and in the kernel itself. The M0 guard test became
+`test_inelastic_fluorescence_without_aph_raises`, updated deliberately per
+the M1 hand-off instruction.
+
+**Measured at port time.** Spot cross-check vs live bing (one row per
+zenith, identical excitation grid/IOPs/Ed fed to both, single *and* double
+shapes): float32 agreement ~**3e-6** (the 65-node trapezoid accumulates);
+in float64 the port is exact to **~7e-16** — task 3's xcheck pins the
+rtol ≤ 1e-6 gate under the x64 fixture. Characterization vs the fixture
+truth (median `φ_C·K_fl` / (X4−X2) at 685 nm): **0.991 / 0.937 / 0.853**
+at 0°/30°/60° — the assessment's 1.00/0.95/0.86 reproduced on our 50-scene
+fixture; pinned as bands (0.96–1.03 / 0.90–0.97 / 0.82–0.89), tight enough
+that a π-normalization (×3) or flat-Ed regression fails instantly; the
+zenith drift itself is δ_F's target (M3).
+
+**Tests** (`test_inelastic.py`, +13 → 26): `PHI_C_REF == PHI_C_L23`,
+fluorescence constants equal bing's, emission lines equal bing's (both
+shapes; 'single' integrates to 1; bad shape raises), the spot cross-check,
+physicality (K ≥ 0, peaked at 685), the 685 nm characterization bands, the
+Ed-override seam through the quadrature, the 730 nm shoulder switch,
+`jit`/`vmap`, additive composition (`forward(default) == forward(raman-only)
++ φ_C·K_fl`, strictly positive delta at 685), `emission_shape`
+pass-through, φ_C-linearity + `∂Rrs/∂φ_C == K_fl` (the physiology handle),
+and finite composed gradients including `a_ph` (positive at the peak).
+
+**Results.** `pytest -q` → **381 passed**, warning-free (also under
+`-W error`); elastic hash pins green; ruff clean.
 
 ---
 
@@ -809,13 +876,15 @@ incl. φ_C, speed ≤ 2× elastic; review pass; metrics + figures committed unde
 
 ## 7. Module index (current)
 
-Inelastic surface as of M0 task 3 (the elastic surface is otherwise
+Inelastic surface as of M2 task 2 (the elastic surface is otherwise
 unchanged — see `rt_elastic_implementation.md` §9):
 
 | Module | Inelastic surface | Since |
 |---|---|---|
 | `robust.rt.types` | `IOPs.a_ph` (optional), `Inelastic`, `EMISSION_SHAPES`, `Geometry.Ed` (optional) | M0 |
-| `robust.rt.hybrid` | `forward(..., inelastic=None)`, `rrs_forward(..., inelastic=None)` — `None` = elastic route; instance raises until M2 | M0 |
+| `robust.rt.hybrid` | `forward(..., inelastic=None)`, `rrs_forward(..., inelastic=None)` — `None` = elastic route; an instance composes `× f_R` and/or `+ φ_C·K_fl` in `Rrs` space (`_apply_inelastic`) | M0 (guard) → M2 (composition) |
+| `robust.rt.inelastic` | `raman_factor`, `raman_bb`, `fluorescence_kernel`, `emission_line`, `fl_excitation_grid`, HydroLight-consistent constants (`B_RAMAN_488`, `MU_*`, `PHI_C_REF`, emission-line and excitation-band constants) | M2 |
+| `robust/tests/test_inelastic.py` | the M2 task 1–2 gate: bing spot cross-checks, characterization bands, wiring, gradients | M2 |
 | `robust.rt` | re-exports `Inelastic`; `ed` submodule | M0/M1 |
 | `robust.rt.ed` | `Ed(θ_s, λ)` + `ratio(λ′/λ)` from packaged L23 spectra; `Geometry.Ed` override; `ZENITH_ANCHORS`, `load_table` | M1 |
 | `robust.rt.conventions` | `RAMAN_SHIFT`, `RAMAN_WAVE_MIN_OFFICIAL`, `raman_excitation`/`raman_emission`, `interp_spectrum` | M1 |

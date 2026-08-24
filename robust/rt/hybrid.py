@@ -183,10 +183,12 @@ def rrs_forward(
         pins the fixture output hash. With ``raman=True`` (M2 task 1) the
         elastic result is multiplied by the analytic
         :func:`robust.rt.inelastic.raman_factor` in ``Rrs`` space (design §2;
-        ``f_R = f_phys`` until M3 adds δ_R). ``fluorescence=True`` — the
-        default — raises ``NotImplementedError`` until M2 task 2 lands the
-        kernel; ask for the Raman-only model with
-        ``Inelastic(fluorescence=False)``. Incompatible with
+        ``f_R = f_phys`` until M3 adds δ_R). With ``fluorescence=True`` —
+        the default (M2 task 2) — the additive ``phi_C *``
+        :func:`robust.rt.inelastic.fluorescence_kernel` term joins in the
+        same space; it **requires** ``iops.a_ph``, the physical source term
+        (``ValueError`` otherwise — use ``Inelastic(fluorescence=False)``
+        for the Raman-only model). Incompatible with
         ``mode='emulator'`` (a term, not a model — ``ValueError``).
     emulator : robust.rt.emulator.Emulator, optional
         Defaults to the packaged weights
@@ -225,14 +227,6 @@ def rrs_forward(
             f"got {on_out_of_domain!r}"
         )
     if inelastic is not None:
-        if inelastic.fluorescence:
-            # M2 task 2 adds phi_C * K_fl; until then a configuration asking
-            # for it must fail loudly, never return an array missing physics.
-            raise NotImplementedError(
-                "chlorophyll fluorescence lands at M2 task 2 of the inelastic "
-                "coding plan; use Inelastic(fluorescence=False) for the "
-                "Raman-only model, or inelastic=None for elastic"
-            )
         if mode == "emulator":
             raise ValueError(
                 "forward: mode='emulator' returns the learned correction term "
@@ -240,6 +234,16 @@ def rrs_forward(
                 "inelastic composition applies to a model output. Use "
                 "mode='ztt' or mode='hybrid' with inelastic, or "
                 "inelastic=None with mode='emulator'"
+            )
+        if inelastic.fluorescence and iops.a_ph is None:
+            # The kernel raises the same requirement; checking here fails
+            # fast — before the emulator loads — where the M0/M1 guard sat.
+            raise ValueError(
+                "forward: Inelastic.fluorescence requires IOPs.a_ph — the "
+                "fluorescence source term is b_F = phi_C * a_ph, and bulk "
+                "absorption cannot stand in for the phytoplankton component. "
+                "Provide a_ph (e.g. IOPs.from_total_bb(..., a_ph=...)) or "
+                "use Inelastic(fluorescence=False)"
             )
 
     rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
@@ -266,24 +270,27 @@ def _apply_inelastic(rrs, iops, geometry, wave, inelastic):
 
     The composition law is written in ``Rrs`` space —
     ``Rrs_total = (Rrs_ZTT + ΔRrs) × f_R + Rrs_fl`` — so the elastic ``rrs``
-    is converted up, composed, and converted back. ``forward``'s final
+    is converted up, composed (Raman multiplies, fluorescence adds
+    ``phi_C * K_fl``), and converted back. ``forward``'s final
     ``rrs_to_Rrs`` then undoes the round trip exactly (algebraically; at
-    ULP level in float — which is why the ``inelastic=None`` branch returns
-    the *same object* untouched: the elastic path stays bit-identical by
-    construction, never by cancellation. Notebook 1 §4 measured what that
-    round trip does to bits.)
-
-    Fluorescence joins here at M2 task 2 (``+ phi_C * K_fl`` before the
-    down-conversion); the caller has already rejected configurations asking
-    for it.
+    ULP level in float — which is why the ``inelastic=None`` and both-off
+    branches return the *same object* untouched: the elastic path stays
+    bit-identical by construction, never by cancellation. Notebook 1 §4
+    measured what that round trip does to bits.)
     """
-    if inelastic is None:
+    if inelastic is None or not (inelastic.raman or inelastic.fluorescence):
         return rrs
-    result = rrs
+    result = conventions.rrs_to_Rrs(rrs)
     if inelastic.raman:
-        f_r = _inelastic.raman_factor(iops, geometry, wave)
-        result = conventions.Rrs_to_rrs(conventions.rrs_to_Rrs(result) * f_r)
-    return result
+        result = result * _inelastic.raman_factor(iops, geometry, wave)
+    if inelastic.fluorescence:
+        # K_fl raises the clear a_ph-is-required error; phi_C is a leaf
+        # (possibly batched per scene), aligned onto the wavelength axis.
+        k_fl = _inelastic.fluorescence_kernel(
+            iops, geometry, wave, emission_shape=inelastic.emission_shape
+        )
+        result = result + jnp.asarray(inelastic.phi_C)[..., None] * k_fl
+    return conventions.Rrs_to_rrs(result)
 
 
 def forward(
@@ -309,8 +316,8 @@ def forward(
 on_out_of_domain
         As :func:`rrs_forward`. In particular ``inelastic=None`` (the default)
         is the elastic model, bit-identical by construction to the
-        pre-extension output; an instance raises ``NotImplementedError``
-        until M2.
+        pre-extension output; an instance composes the analytic Raman factor
+        and/or the ``phi_C``-linear fluorescence term (M2) onto it.
 
     Returns
     -------

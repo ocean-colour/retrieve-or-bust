@@ -28,7 +28,17 @@ function contributes ``b_b/b = 1/2`` (depolarization 0.17 gives 0.489;
 BING's default rounds to the Rayleigh-like 1/2, and matching BING is the M2
 contract).
 
-Fluorescence (:func:`fluorescence_kernel`) lands at M2 task 2.
+**Fluorescence is additive, and φ_C-linear by construction** (design §4.4,
+DQ4): :func:`fluorescence_kernel` returns ``K_fl(λ)`` with the quantum yield
+factored out, so the composed term is ``Rrs_fl = φ_C · K_fl`` and
+``∂Rrs/∂φ_C = K_fl`` — the physiology handle the future inversion retrieves
+rather than bakes in. The kernel is the fixed BING ``calc_Rrs_fluorescence``
+per unit yield: Gordon (1979) fluorescence-as-inelastic-scattering in the
+same S&P98 two-flow framework as Raman, with the **L_u = E_u/π** conversion
+whose absence made pre-fix BING ×3 too bright (the assessment's second
+headline). Unlike Raman, nothing divides out — every normalization here is
+load-bearing, which is why fluorescence carries the π lesson and Raman never
+felt it.
 """
 
 from __future__ import annotations
@@ -39,7 +49,7 @@ from jaxtyping import Array, Float
 from . import conventions, ed
 
 __all__ = [  # noqa: RUF022  - grouped by role
-    # Constants (HydroLight-consistent; equal to bing.rt.raman's — tested)
+    # Constants (HydroLight-consistent; equal to bing's — tested)
     "B_RAMAN_488",
     "RAMAN_EXPONENT",
     "RAMAN_BB_RATIO",
@@ -47,9 +57,22 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "MU_U",
     "MU_R",
     "S_E",
+    "MU_F",
+    "PHI_C_REF",
+    "LAMBDA_FL",
+    "SIGMA_FL",
+    "LAMBDA_FL_SECONDARY",
+    "SIGMA_FL_SECONDARY",
+    "FL_WEIGHT_PRIMARY",
+    "FL_EX_MIN",
+    "FL_EX_MAX",
+    "FL_EX_STEP",
     # Terms
     "raman_bb",
     "raman_factor",
+    "fl_excitation_grid",
+    "emission_line",
+    "fluorescence_kernel",
 ]
 
 #: Raman scattering coefficient at 488 nm excitation, m^-1, **energy units** —
@@ -74,6 +97,44 @@ MU_R = 0.5
 
 #: Shape factor for elastic scattering in the two-flow terms (isotropic).
 S_E = 1.0
+
+#: Mean cosine of the upwelling *fluorescence* stream — isotropic emission,
+#: same value (and same physics) as the Raman ``MU_R``; its own name because
+#: BING keeps them as separate defaults (``mu_f``) and the M2 contract is
+#: bing-equality term for term.
+MU_F = 0.5
+
+#: The reference quantum yield the kernel is evaluated at — HydroLight's
+#: default and therefore the L23 truth's (``robust.rt.data.l23.PHI_C_L23``;
+#: equality is tested). ``fluorescence_kernel`` returns
+#: ``Rrs_fl(PHI_C_REF) / PHI_C_REF``, so ``φ_C · K_fl`` reproduces fixed BING
+#: *exactly* at φ_C = 0.02 and is the design's φ_C-linear-by-construction
+#: form elsewhere (§4.4): the only neglected nonlinearity is the
+#: ``(1 − B·rrs)`` surface-transfer denominator, O(10⁻³) at fluorescence
+#: amplitudes.
+PHI_C_REF = 0.02
+
+#: Chlorophyll-a emission line: primary (PS II) Gaussian center and width
+#: (FWHM 25 nm) — Gordon (1979); what L23/HydroLight used, hence validatable.
+LAMBDA_FL = 685.0
+SIGMA_FL = 10.6
+
+#: Secondary (PS I) shoulder of ``emission_shape='double'`` (FWHM 50 nm,
+#: 0.75/0.25 weights) — physically better, **unvalidatable against L23**
+#: (design §4.4): reported, never gated, off by default and off everywhere
+#: in v1 training/validation.
+LAMBDA_FL_SECONDARY = 730.0
+SIGMA_FL_SECONDARY = 21.2
+FL_WEIGHT_PRIMARY = 0.75
+
+#: Fluorescence excitation band (nm) — light absorbed by photosynthetic
+#: pigments between these bounds can be re-emitted — and the quadrature step.
+#: 5 nm puts the 65 nodes of :func:`fl_excitation_grid` exactly on canonical
+#: grid points (so the excitation IOPs interpolate losslessly there) and is
+#: the fixed contraction size the design budgets for (§4.6: 3320 × 81 × 65).
+FL_EX_MIN = 370.0
+FL_EX_MAX = 690.0
+FL_EX_STEP = 5.0
 
 
 def raman_bb(
@@ -186,3 +247,172 @@ def raman_factor(
     )
 
     return (r_e + r_r + r_re + r_er) / r_e
+
+
+def fl_excitation_grid(dtype=None) -> Float[Array, " ex"]:
+    """The fluorescence excitation quadrature nodes: 370–690 nm, 5 nm, 65 points.
+
+    A fixed grid rather than a subset of the caller's ``wave``: the quadrature
+    is then identical whatever emission grid is requested (a satellite band
+    set, a slice), shapes stay static under ``jit``, and the cross-check can
+    feed BING the very same nodes. On the canonical grid the nodes coincide
+    with grid points, so the excitation IOPs interpolate losslessly.
+
+    Parameters
+    ----------
+    dtype : optional
+        Element dtype; defaults to JAX's current default float.
+
+    Returns
+    -------
+    Array
+        Excitation wavelengths (nm), shape ``(65,)``.
+    """
+    return jnp.arange(FL_EX_MIN, FL_EX_MAX + 0.5 * FL_EX_STEP, FL_EX_STEP, dtype=dtype)
+
+
+def emission_line(
+    wave: Float[Array, "..."],
+    shape: str = "single",
+) -> Float[Array, "..."]:
+    """The chlorophyll emission line ``h_C(λ)`` (nm⁻¹), unit-normalized in λ.
+
+    ``'single'`` — one Gaussian at 685 nm (σ = 10.6 nm), the validated
+    default; ``'double'`` adds the 730 nm PS I shoulder (σ = 21.2 nm) at
+    0.75/0.25 weights — implemented, **unvalidatable against L23** (module
+    constants). Equals BING's ``chl_fl.emission_line_{single,double}_gaussian``.
+
+    Parameters
+    ----------
+    wave : Array
+        Emission wavelengths (nm).
+    shape : str
+        One of ``robust.rt.types.EMISSION_SHAPES``.
+
+    Returns
+    -------
+    Array
+        ``h_C``, same shape as ``wave``.
+
+    Raises
+    ------
+    ValueError
+        On an unknown ``shape`` — loudly, never a silently wrong line.
+    """
+    wave = jnp.asarray(wave)
+
+    def gaussian(center, sigma):
+        norm = 1.0 / (sigma * jnp.sqrt(2.0 * jnp.pi))
+        return norm * jnp.exp(-0.5 * ((wave - center) / sigma) ** 2)
+
+    if shape == "single":
+        return gaussian(LAMBDA_FL, SIGMA_FL)
+    if shape == "double":
+        return FL_WEIGHT_PRIMARY * gaussian(LAMBDA_FL, SIGMA_FL) + (
+            1.0 - FL_WEIGHT_PRIMARY
+        ) * gaussian(LAMBDA_FL_SECONDARY, SIGMA_FL_SECONDARY)
+    raise ValueError(
+        f"emission_line: shape must be 'single' or 'double'; got {shape!r}"
+    )
+
+
+def fluorescence_kernel(
+    iops,
+    geometry,
+    wave: Float[Array, " wave"] | None = None,
+    emission_shape: str = "single",
+) -> Float[Array, "*batch wave"]:
+    """The φ_C-linear fluorescence kernel ``K_fl(λ)``: ``Rrs_fl = φ_C · K_fl``.
+
+    The fixed BING ``calc_Rrs_fluorescence`` per unit quantum yield — Gordon
+    (1979) fluorescence treated as inelastic scattering in the S&P98 two-flow
+    frame (design §4.4), term for term:
+
+    - source ``b_bF(λ′) = ½ · φ_C · a_ph(λ′)`` — isotropic emission, so half
+      goes backward; **this is where ``a_ph`` earns its place in ``IOPs``**;
+    - excitation integral (trapezoid) over :func:`fl_excitation_grid` with the
+      ``λ′/λ`` quanta→energy factor and the true ``Ed(λ′)``, normalized by
+      ``Ed(λ)`` — both from one sky (:mod:`robust.rt.ed`, override honored);
+    - per-λ_em upwelling attenuation ``κ_F(λ) = (a + b_b)/μ_F`` (freezing it
+      at 685 nm is the ~4× 730 nm bug BING's history warns about);
+    - **L_u = E_u/π**: the emission is isotropic, so the upwelling radiance is
+      ``E_u/π`` — the normalization whose absence made pre-fix BING ×3 too
+      bright; the sentinel in the task-3 cross-check guards it;
+    - the emission line ``h_C(λ)`` and the standard surface transfer
+      :func:`robust.rt.conventions.rrs_to_Rrs` (A = 0.52, B = 1.7).
+
+    Evaluated at :data:`PHI_C_REF` and divided by it, so ``φ_C · K_fl``
+    equals BING exactly at the truth's φ_C = 0.02 and is φ_C-linear by
+    construction elsewhere (the O(10⁻³) surface-transfer nonlinearity is the
+    documented approximation, design §4.4). Known accuracy of this backbone
+    (post-fix BING vs L23, 685 nm model/truth): **1.00 / 0.95 / 0.86** at
+    θ_s = 0°/30°/60° — the trophic/zenith drift δ_F must close (M3).
+
+    Pure JAX: batched over leading axes, ``jit``/``vmap``-safe (the
+    ``(..., n_em, 65)`` contraction is fixed-size), differentiable in the
+    IOPs (``a_ph`` included) and ``θ_s``.
+
+    Parameters
+    ----------
+    iops : robust.rt.types.IOPs
+        Must carry ``a_ph`` — the source term is physically the light
+        phytoplankton pigments absorbed; bulk ``a`` cannot stand in for it.
+    geometry : robust.rt.types.Geometry
+        ``theta_s`` selects the packaged sky; ``geometry.Ed`` overrides it
+        (numerator and denominator from the same sky by construction).
+    wave : Array, optional
+        Emission wavelengths (nm); defaults to the canonical grid.
+    emission_shape : str, optional
+        ``'single'`` (default, validated) or ``'double'`` (see
+        :func:`emission_line`). Static — pass
+        ``Inelastic.emission_shape`` through, as ``forward`` does.
+
+    Returns
+    -------
+    Array
+        ``K_fl``, sr⁻¹ per unit φ_C, shape ``(*batch, n_wave)``; ≥ 0, peaked
+        at 685 nm.
+
+    Raises
+    ------
+    ValueError
+        If ``iops.a_ph`` is ``None`` — a physical requirement, not an API
+        whim: without the phytoplankton split there is no fluorescence
+        source. Disable the process (``Inelastic(fluorescence=False)``)
+        or load IOPs with the split.
+    """
+    if iops.a_ph is None:
+        raise ValueError(
+            "fluorescence_kernel: IOPs.a_ph is None, but the fluorescence "
+            "source term is b_F = phi_C * a_ph — bulk absorption cannot "
+            "stand in for the phytoplankton component. Provide a_ph (e.g. "
+            "IOPs.from_total_bb(..., a_ph=...)) or turn the process off "
+            "with Inelastic(fluorescence=False)"
+        )
+    wave = conventions.canonical_wave() if wave is None else jnp.asarray(wave)
+    wave_ex = fl_excitation_grid(dtype=jnp.result_type(wave.dtype, float))
+
+    a_ex = conventions.interp_spectrum(wave_ex, wave, iops.a)
+    bb_ex = conventions.interp_spectrum(wave_ex, wave, iops.bb)
+    aph_ex = conventions.interp_spectrum(wave_ex, wave, iops.a_ph)
+    ed_ex = ed.Ed(geometry.theta_s, wave_ex, override=geometry.Ed)
+    ed_em = ed.Ed(geometry.theta_s, wave, override=geometry.Ed)
+
+    # Source and attenuation, S&P98 two-flow (the Raman Eq. 11 pattern with
+    # the Raman b_bR replaced by the fluorescence source).
+    bb_f = 0.5 * PHI_C_REF * aph_ex
+    k_ex = (a_ex + bb_ex) / MU_D
+    kappa_f_em = (iops.a + iops.bb) / MU_F
+
+    # The (..., n_em, n_ex) contraction: K(λ') + κ_F(λ_em) is a sum, so it
+    # cannot factor across the axes — this broadcast is the design's budget.
+    denom = k_ex[..., None, :] + kappa_f_em[..., :, None]
+    quanta_to_energy = wave_ex / wave[..., None]
+    source = bb_f[..., None, :] / MU_D
+    integrand = ed_ex[..., None, :] * quanta_to_energy * source / denom
+    r_f = jnp.trapezoid(integrand, x=wave_ex, axis=-1) / ed_em
+
+    # Isotropic emission: Lu = Eu/pi (the ×3 fix), then the standard surface
+    # transfer and the emission line — bing's order, kept exactly.
+    Rrs_f = conventions.rrs_to_Rrs(r_f / jnp.pi)
+    return emission_line(wave, emission_shape) * Rrs_f / PHI_C_REF

@@ -157,20 +157,23 @@ def test_inelastic_none_is_the_default(l23_small_batch):
     assert np.array_equal(np.asarray(a), np.asarray(b))
 
 
-def test_inelastic_instance_raises_until_m2():
-    """A configuration asking for unimplemented physics raises, loudly.
+def test_inelastic_fluorescence_without_aph_raises():
+    """Fluorescence without its source term raises, loudly.
 
     The elastic M0 convention: a caller gets a loud error, never a
-    plausible-looking array with missing physics. Updated deliberately at M2
-    task 1 (as the M1 hand-off required): Raman now composes
-    (``test_inelastic.py`` covers it), so the guard has narrowed to
-    fluorescence — which the *default* ``Inelastic()`` requests, keeping this
-    exact call a guaranteed error until M2 task 2 lands the kernel.
+    plausible-looking array with missing physics. Updated deliberately at
+    each M2 task (as the M1 hand-off required): Raman composes since task 1,
+    the fluorescence kernel since task 2 — so the *unimplemented*-physics
+    guard has retired, and what this call now guarantees is the *physical*
+    requirement: the default ``Inelastic()`` asks for fluorescence, whose
+    source term is ``b_F = phi_C * a_ph``, and ``tiny_args`` carries no
+    ``a_ph`` — ``ValueError`` before any model work, never an array with a
+    silently missing term.
     """
     args = tiny_args()
-    with pytest.raises(NotImplementedError, match="M2 task 2"):
+    with pytest.raises(ValueError, match="a_ph"):
         H.forward(*args, inelastic=T.Inelastic())
-    with pytest.raises(NotImplementedError, match="M2 task 2"):
+    with pytest.raises(ValueError, match="a_ph"):
         H.rrs_forward(*args, inelastic=T.Inelastic())
 
 

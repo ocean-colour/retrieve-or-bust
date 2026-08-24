@@ -1,24 +1,27 @@
 """
-Tests for :mod:`robust.rt.inelastic` — M2 task 1, the Raman factor.
+Tests for :mod:`robust.rt.inelastic` — M2 tasks 1-2, the analytic terms.
 
 Three layers, mirroring the M2 gate structure (the formal live-BING
-cross-check module and the fluorescence half arrive with tasks 2-3; the
-Raman-side versions of both start here):
+cross-check module arrives with task 3; spot versions of it start here):
 
-- **Port correctness**: constants equal BING's; a spot cross-check against
-  ``bing.rt.rrs.calc_raman_correction_factor`` on fixture rows at all three
-  zeniths (``importorskip`` — mandatory-green on this machine, skipped on CI).
+- **Port correctness**: constants equal BING's; spot cross-checks against
+  ``bing.rt.rrs.calc_raman_correction_factor`` and
+  ``bing.rt.rrs.calc_Rrs_fluorescence`` on fixture rows at all three zeniths
+  (``importorskip`` — mandatory-green on this machine, skipped on CI).
 - **Characterization, not perfection**: the analytic backbone's *measured*
-  errors against the fixture truth are pinned as bands — on this 50-scene
-  fixture the median increment error (550-700 nm) is **+1.6 % / -4.0 % at
-  30/60 deg and -38.6 % at 0 deg**, matching the assessment's full-release
-  table (+1/-4/-39). The 0-deg failure is delta_R's job (M3); a test that
-  demanded zero error here would be testing the wrong promise.
-- **Composition wiring**: ``forward(..., inelastic=Inelastic(
-  fluorescence=False))`` multiplies the elastic result by ``f_phys`` in
-  ``Rrs`` space (design §2), the ``None`` and all-off routes stay bitwise
-  elastic, fluorescence still raises until task 2, and ``mode='emulator'``
-  refuses the composition.
+  errors against the fixture truth are pinned as bands. Raman: on this
+  50-scene fixture the median increment error (550-700 nm) is **+1.6 % /
+  -4.0 % at 30/60 deg and -38.6 % at 0 deg**, matching the assessment's
+  full-release table (+1/-4/-39). Fluorescence: the median 685 nm
+  model/truth ratio is **0.99 / 0.94 / 0.85 at 0/30/60 deg**, the
+  assessment's 1.00/0.95/0.86 reproduced on our fixture. Both residual
+  structures are the M3 heads' job (delta_R, delta_F); a test that demanded
+  zero error here would be testing the wrong promise.
+- **Composition wiring**: ``forward(..., inelastic=...)`` composes in ``Rrs``
+  space (design §2) — Raman multiplies by ``f_phys``, fluorescence adds
+  ``phi_C * K_fl`` (linear in ``phi_C`` by construction) — the ``None`` and
+  all-off routes stay bitwise elastic, fluorescence without ``a_ph`` is a
+  loud ``ValueError``, and ``mode='emulator'`` refuses the composition.
 """
 
 from __future__ import annotations
@@ -34,9 +37,10 @@ from robust.rt import conventions as C
 from robust.rt import ed as E
 from robust.rt import hybrid as H
 from robust.rt import inelastic as I
+from robust.rt.data.l23 import PHI_C_L23
 from robust.rt.types import Inelastic
 
-#: The Raman-only configuration every wiring test uses.
+#: The Raman-only configuration the task-1 wiring tests use.
 RAMAN_ONLY = Inelastic(fluorescence=False)
 
 #: Emission band of the characterization gate (assessment / coding plan M2).
@@ -46,6 +50,13 @@ BAND = (550.0, 700.0)
 #: at task 1 (+1.6 / -4.0 / -38.6 %): generous enough for float noise, tight
 #: enough that a broken term or a flat-Ed regression leaves them.
 INCREMENT_ERROR_BANDS = {0.0: (-0.45, -0.32), 30.0: (-0.05, 0.08), 60.0: (-0.11, 0.02)}
+
+#: Median 685 nm model/truth bands for ``phi_C * K_fl`` vs the X4-X2 truth,
+#: measured on THIS fixture at task 2 (0.991 / 0.937 / 0.853 at 0/30/60 deg —
+#: the assessment's 1.00/0.95/0.86 on our narrower scene sample). Tight
+#: enough that a pi-normalization regression (x3) or a flat-Ed regression
+#: leaves them instantly; the zenith drift itself is delta_F's target (M3).
+FL_685_RATIO_BANDS = {0.0: (0.96, 1.03), 30.0: (0.90, 0.97), 60.0: (0.82, 0.89)}
 
 
 def factor_and_truth(batch):
@@ -239,12 +250,27 @@ def test_forward_all_processes_off_is_bitwise_elastic(l23_small_inelastic_batch)
     np.testing.assert_array_equal(a, b)
 
 
-def test_fluorescence_still_raises_until_task_2(l23_small_inelastic_batch):
-    """The default configuration asks for fluorescence — loud error, no array."""
+def test_fluorescence_without_aph_is_a_loud_error(l23_small_inelastic_batch):
+    """Fluorescence without its source term — clear error, no array.
+
+    Successor of the "raises until task 2" pin, updated deliberately: the
+    kernel exists now, so the guarded promise is the *physical* requirement
+    (``b_F = phi_C * a_ph``), at both entry points — ``forward``'s fast
+    pre-check and the kernel's own.
+    """
     batch = l23_small_inelastic_batch
-    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
-    with pytest.raises(NotImplementedError, match="M2 task 2"):
-        H.forward(*args, inelastic=Inelastic(), check_domain=False)
+    iops = dataclasses.replace(batch.iops, a_ph=None)
+    with pytest.raises(ValueError, match="a_ph"):
+        H.forward(
+            iops,
+            batch.phase_params,
+            batch.geometry,
+            batch.wave,
+            inelastic=Inelastic(),
+            check_domain=False,
+        )
+    with pytest.raises(ValueError, match="a_ph"):
+        I.fluorescence_kernel(iops, batch.geometry, batch.wave)
 
 
 def test_emulator_mode_refuses_inelastic(l23_small_inelastic_batch):
@@ -274,3 +300,290 @@ def test_composed_forward_gradient_finite(l23_small_inelastic_batch):
     )(row_iops)
     assert np.all(np.isfinite(np.asarray(grad.a)))
     assert np.all(np.isfinite(np.asarray(grad.bb_p)))
+
+
+# ------------------------------------------------- fluorescence kernel (task 2) ----
+
+
+def kernel_and_truth(batch, **kwargs):
+    """phi_C_L23 * K_fl and the X4-X2 truth channel, as NumPy."""
+    k_fl = np.asarray(
+        I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave, **kwargs)
+    )
+    return PHI_C_L23 * k_fl, np.asarray(batch.truth_fluorescence)
+
+
+def index_685(batch) -> int:
+    return int(np.abs(np.asarray(batch.wave) - I.LAMBDA_FL).argmin())
+
+
+def test_fl_reference_phi_is_the_truths():
+    """The kernel's internal reference yield IS the L23 truth's phi_C.
+
+    ``K_fl = Rrs_fl(PHI_C_REF)/PHI_C_REF``, so ``phi_C * K_fl`` equals fixed
+    BING exactly at the truth's yield and is phi_C-linear by construction
+    elsewhere (design §4.4). If these ever diverged, the cross-check and the
+    truth channels would silently score different quantities.
+    """
+    assert I.PHI_C_REF == PHI_C_L23
+
+
+def test_fl_constants_equal_bings():
+    """The port's fluorescence constants ARE bing's."""
+    chl_fl = pytest.importorskip("bing.rt.chl_fl")
+    assert I.PHI_C_REF == chl_fl.PHI_FL_DEFAULT
+    assert I.LAMBDA_FL == chl_fl.LAMBDA_FL_PRIMARY
+    assert I.SIGMA_FL == chl_fl.SIGMA_FL_PRIMARY
+    assert I.LAMBDA_FL_SECONDARY == chl_fl.LAMBDA_FL_SECONDARY
+    assert I.SIGMA_FL_SECONDARY == chl_fl.SIGMA_FL_SECONDARY
+    assert I.FL_WEIGHT_PRIMARY == chl_fl.WEIGHT_PRIMARY
+    assert I.FL_EX_MIN == chl_fl.LAMBDA_EX_MIN
+    assert I.FL_EX_MAX == chl_fl.LAMBDA_EX_MAX
+    assert I.MU_F == 0.5  # bing hardcodes the isotropic default inline
+
+
+def test_emission_line_matches_bing():
+    """Both emission shapes equal bing's, and 'single' integrates to ~1.
+
+    rtol 1e-5: the reference is float64 NumPy where ours runs float32 by
+    default, and a Gaussian tail's relative error grows as |x| * eps.
+    """
+    chl_fl = pytest.importorskip("bing.rt.chl_fl")
+    wave = np.linspace(640.0, 750.0, 23)
+    np.testing.assert_allclose(
+        np.asarray(I.emission_line(wave, "single")),
+        chl_fl.emission_line_single_gaussian(wave),
+        rtol=1e-5,
+    )
+    np.testing.assert_allclose(
+        np.asarray(I.emission_line(wave, "double")),
+        chl_fl.emission_line_double_gaussian(wave),
+        rtol=1e-5,
+    )
+    fine = np.linspace(600.0, 800.0, 2001)
+    integral = np.trapezoid(np.asarray(I.emission_line(fine, "single")), fine)
+    assert integral == pytest.approx(1.0, rel=1e-4)
+    with pytest.raises(ValueError, match="single"):
+        I.emission_line(wave, "triple")
+
+
+def test_kernel_spot_check_against_bing(l23_small_inelastic_batch):
+    """phi_C * K_fl equals bing's calc_Rrs_fluorescence on fixture rows.
+
+    One row per zenith, both models fed the identical excitation grid, IOPs,
+    and Ed — so any disagreement is the port, not the inputs. rtol 1e-5:
+    measured float32 agreement is ~3e-6 (the 65-node trapezoid accumulates;
+    in float64 the port is exact to ~7e-16 — task 3's xcheck pins that under
+    the x64 fixture at the 1e-6 gate). atol clips the h_C tail, which
+    underflows float32 where the float64 reference keeps ~1e-200 values.
+    The 'double' shape rides along on one row — same integral, bing's
+    ``double_gaussian=True``.
+    """
+    bing_rrs = pytest.importorskip("bing.rt.rrs")
+    batch = l23_small_inelastic_batch
+    wave = np.asarray(batch.wave)
+    wave_ex = np.asarray(I.fl_excitation_grid())
+    ours, _ = kernel_and_truth(batch)
+    ours_double = PHI_C_L23 * np.asarray(
+        I.fluorescence_kernel(
+            batch.iops, batch.geometry, batch.wave, emission_shape="double"
+        )
+    )
+
+    for row in (0, 75, 149):  # one per zenith in the 150-sample fixture
+        a = np.asarray(batch.iops.a)[row]
+        bb = np.asarray(batch.iops.bb)[row]
+        aph = np.asarray(batch.iops.a_ph)[row]
+        zenith = float(batch.zenith[row])
+        bing_args = (
+            wave,
+            a,
+            bb,
+            np.interp(wave_ex, wave, a),
+            np.interp(wave_ex, wave, bb),
+            np.interp(wave_ex, wave, aph),
+            wave_ex,
+            np.asarray(E.Ed(zenith, jnp.asarray(wave_ex))),
+            np.asarray(E.Ed(zenith, batch.wave)),
+        )
+        reference = bing_rrs.calc_Rrs_fluorescence(
+            *bing_args, phi_C=PHI_C_L23, double_gaussian=False
+        )
+        np.testing.assert_allclose(ours[row], reference, rtol=1e-5, atol=1e-12)
+        if row == 75:
+            reference = bing_rrs.calc_Rrs_fluorescence(
+                *bing_args, phi_C=PHI_C_L23, double_gaussian=True
+            )
+            np.testing.assert_allclose(
+                ours_double[row], reference, rtol=1e-5, atol=1e-12
+            )
+
+
+def test_kernel_is_physical(l23_small_inelastic_batch):
+    """K_fl >= 0, finite, and peaked at the 685 nm emission line."""
+    batch = l23_small_inelastic_batch
+    ours, _ = kernel_and_truth(batch)
+    wave = np.asarray(batch.wave)
+    assert np.all(np.isfinite(ours))
+    assert ours.min() >= 0.0
+    assert np.all(ours[:, index_685(batch)] > 0.0)
+    assert wave[np.argmax(np.median(ours, axis=0))] == I.LAMBDA_FL
+
+
+def test_kernel_characterization_685(l23_small_inelastic_batch):
+    """The backbone's measured 685 nm amplitude, pinned per zenith.
+
+    Median of (phi_C * K_fl) / (Rrs_X4 - Rrs_X2) at 685 nm. The ~1.00 -> 0.85
+    drift with zenith is *expected* (fixed two-flow mean cosines — design
+    §4.4); it is what M3's delta_F must fix, and its gate will demand
+    |error| <= 5 % where these bands accept up to -18 %.
+    """
+    batch = l23_small_inelastic_batch
+    ours, truth = kernel_and_truth(batch)
+    i685 = index_685(batch)
+    for zenith, (lo, hi) in FL_685_RATIO_BANDS.items():
+        rows = batch.zenith == zenith
+        ratio = np.median(ours[rows, i685] / truth[rows, i685])
+        assert lo < ratio < hi, f"zenith {zenith}: 685 nm model/truth {ratio:.3f}"
+
+
+def test_kernel_ed_override_reaches_the_quadrature(l23_small_inelastic_batch):
+    """The geometry.Ed seam feeds the excitation integral end to end.
+
+    A flat sky replaces both Ed(lambda') and Ed(lambda_em) — the kernel must
+    move at the peak, and stay finite and positive.
+    """
+    batch = l23_small_inelastic_batch
+    flat_sky = (jnp.asarray([350.0, 750.0]), jnp.asarray([1.0, 1.0]))
+    geometry = dataclasses.replace(batch.geometry, Ed=flat_sky)
+
+    default = np.asarray(I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))
+    flat = np.asarray(I.fluorescence_kernel(batch.iops, geometry, batch.wave))
+
+    i685 = index_685(batch)
+    assert np.all(np.isfinite(flat)) and flat.min() >= 0.0
+    assert not np.allclose(default[:, i685], flat[:, i685], rtol=1e-3)
+
+
+def test_double_emission_adds_the_730_shoulder(l23_small_inelastic_batch):
+    """'double' puts real energy at 730 nm where 'single' has only a tail.
+
+    Reported, never gated against L23 (unvalidatable — design §4.4): the
+    test pins that the switch does what it says, not that it is right.
+    """
+    batch = l23_small_inelastic_batch
+    single, _ = kernel_and_truth(batch)
+    double, _ = kernel_and_truth(batch, emission_shape="double")
+    i730 = int(np.abs(np.asarray(batch.wave) - I.LAMBDA_FL_SECONDARY).argmin())
+    assert np.all(double[:, i730] > 10.0 * single[:, i730])
+
+
+def test_kernel_jit_and_vmap(l23_small_inelastic_batch):
+    """Compiled and mapped evaluation agree with eager."""
+    batch = l23_small_inelastic_batch
+    eager = np.asarray(
+        I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave)
+    )
+    jitted = np.asarray(
+        jax.jit(I.fluorescence_kernel, static_argnames="emission_shape")(
+            batch.iops, batch.geometry, batch.wave
+        )
+    )
+    np.testing.assert_allclose(jitted, eager, rtol=1e-6)
+
+    mapped = np.asarray(
+        jax.vmap(lambda io, g: I.fluorescence_kernel(io, g, batch.wave))(
+            batch.iops, batch.geometry
+        )
+    )
+    np.testing.assert_allclose(mapped, eager, rtol=1e-6)
+
+
+# ------------------------------------------------- fluorescence wiring (task 2) ----
+
+
+def test_forward_composes_fluorescence_additively(l23_small_inelastic_batch):
+    """forward(default) == forward(raman-only) + phi_C * K_fl (design §2).
+
+    Algebraically exact in Rrs space — the composition law itself; the rrs
+    round trip inside costs ~1 ULP (float32). Also pins that the composed
+    delta is strictly positive at 685 nm on every sample, as the truth is.
+    """
+    batch = l23_small_inelastic_batch
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+
+    full = np.asarray(H.forward(*args, inelastic=Inelastic(), check_domain=False))
+    raman = np.asarray(H.forward(*args, inelastic=RAMAN_ONLY, check_domain=False))
+    ours, _ = kernel_and_truth(batch)
+
+    np.testing.assert_allclose(full, raman + ours, rtol=5e-6, atol=1e-10)
+    assert np.all((full - raman)[:, index_685(batch)] > 0.0)
+
+
+def test_forward_passes_emission_shape_through(l23_small_inelastic_batch):
+    """Inelastic.emission_shape reaches the kernel — visible at 730 nm."""
+    batch = l23_small_inelastic_batch
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    single = np.asarray(H.forward(*args, inelastic=Inelastic(), check_domain=False))
+    double = np.asarray(
+        H.forward(
+            *args, inelastic=Inelastic(emission_shape="double"), check_domain=False
+        )
+    )
+    i730 = int(np.abs(np.asarray(batch.wave) - I.LAMBDA_FL_SECONDARY).argmin())
+    assert np.all(double[:, i730] > single[:, i730])
+
+
+def test_phi_C_is_a_linear_handle(l23_small_inelastic_batch):
+    """Doubling phi_C doubles the fluorescence term, and dRrs/dphi_C == K_fl.
+
+    phi_C-linearity by construction (design §4.4, DQ4): the composed Rrs is
+    affine in phi_C, so the gradient — the new physiology handle — is the
+    kernel itself, independent of phi_C.
+    """
+    batch = l23_small_inelastic_batch
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    raman = np.asarray(H.forward(*args, inelastic=RAMAN_ONLY, check_domain=False))
+
+    def full(phi):
+        return H.forward(
+            *args, inelastic=Inelastic(phi_C=phi), check_domain=False
+        )
+
+    delta_1x = np.asarray(full(jnp.asarray(0.02))) - raman
+    delta_2x = np.asarray(full(jnp.asarray(0.04))) - raman
+    i685 = index_685(batch)
+    np.testing.assert_allclose(
+        delta_2x[:, i685], 2.0 * delta_1x[:, i685], rtol=1e-4
+    )
+
+    grad = np.asarray(
+        jax.grad(lambda phi: full(phi)[:, i685].sum())(jnp.asarray(0.02))
+    )
+    k_685 = np.asarray(
+        I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave)
+    )[:, i685].sum()
+    np.testing.assert_allclose(grad, k_685, rtol=1e-4)
+
+
+def test_composed_forward_gradient_finite_incl_aph(l23_small_inelastic_batch):
+    """grad through the full default forward w.r.t. the IOPs (a_ph too) is finite."""
+    batch = l23_small_inelastic_batch
+    row_iops = jax.tree_util.tree_map(lambda x: x[75:76], batch.iops)
+    row_pp = jax.tree_util.tree_map(lambda x: x[75:76], batch.phase_params)
+    row_geom = jax.tree_util.tree_map(lambda x: x[75:76], batch.geometry)
+
+    grad = jax.grad(
+        lambda io: H.rrs_forward(
+            io,
+            row_pp,
+            row_geom,
+            batch.wave,
+            inelastic=Inelastic(),
+            check_domain=False,
+        ).sum()
+    )(row_iops)
+    for leaf in (grad.a, grad.bb_p, grad.a_ph):
+        assert np.all(np.isfinite(np.asarray(leaf)))
+    # a_ph only *adds* photons at the emission peak: positive sensitivity.
+    assert float(np.asarray(grad.a_ph)[0, index_685(batch)]) > 0.0

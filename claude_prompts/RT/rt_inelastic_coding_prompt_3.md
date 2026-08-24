@@ -195,6 +195,17 @@ truncated `robust`?). Please unstage/remove it (or tell me its purpose) so it
 doesn't ride along into the next commit. Everything else in this task raised
 no questions.
 
+*Follow-up (Claude, 2026-08-24, task 2).* No answer was recorded, and commit
+`2c1c259` meanwhile brought `rob/` in — the empty `__init__.py` **plus**
+`rob/data/Dutkiewicz2015/optics_phyo_8_1nm.txt` (3631 lines of phytoplankton
+optics). The data file suggests it may be deliberate after all; if so, ignore
+this — if not, it now takes a `git rm` rather than an unstage. Either way a
+one-word answer here closes the question. Task 2 itself raised no new
+questions (the one open design point — how `K_fl` stays φ_C-linear while the
+surface transfer is nonlinear — is answered by design §4.4 itself: the kernel
+is defined at the truth's φ_C = 0.02, `K_fl = Rrs_fl(0.02)/0.02`; logged
+below and in the record §4.3).
+
 ## Next
 
 → `rt_inelastic_coding_prompt_4.md` (M3: correction heads).
@@ -242,3 +253,49 @@ index — please unstage.**
 Task 2 (fluorescence kernel) starts with the composition seam already in
 place — `_apply_inelastic` grows one `+ φ_C·K_fl` line before the
 down-conversion.
+
+### 2026-08-24 (M2 task 2 — fluorescence_kernel ported, composed, characterized; 381 green)
+
+The φ_C-linear fluorescence kernel is in and wired; record §4.3 (v0.15).
+Model: Fable 5. Q&A: no answer to Q1 was found; meanwhile commit `2c1c259`
+*committed* the stray `rob/` (with a Dutkiewicz-2015 optics table, so perhaps
+deliberate) — **follow-up appended under Q1, one word closes it**. No new
+physics questions. (This prompt arrived as "execute the 1st prompt" with
+task 1 already done and logged — read as the next unexecuted one, the same
+offset convention both prior hand-offs used.)
+
+- `robust/rt/inelastic.py::fluorescence_kernel`: fixed BING's
+  `calc_Rrs_fluorescence` per unit yield — `b_bF = ½·φ_C·a_ph(λ′)`, fixed
+  65-node 370–690 nm trapezoid quadrature (`fl_excitation_grid`; fixed so
+  shapes are static under `jit` and bing can be fed identical nodes), λ′/λ
+  quanta→energy, true `Ed(λ′)/Ed(λ_em)` single-sky via the override seam,
+  per-λ_em κ_F, **L_u = E_u/π**, `h_C` via `emission_line` (single default;
+  `'double'` implemented, flagged unvalidatable), surface transfer via
+  `conventions.rrs_to_Rrs` (not re-spelled).
+- **The φ_C-linearity mechanics, made concrete** (design §4.4): the kernel
+  is evaluated at `PHI_C_REF = 0.02` and divided by it, so `φ_C·K_fl` is
+  *exactly* bing at the truth's yield and linear-by-construction elsewhere;
+  the neglected `(1 − B·rrs)` piece is O(10⁻³). `PHI_C_REF == PHI_C_L23`
+  pinned by test.
+- Wiring: `_apply_inelastic` is now the whole §2 law (up-convert once,
+  `× f_R`, `+ φ_C·K_fl` with `phi_C` leaf-aligned, down-convert once);
+  `None`/all-off still return the same object — hash pins green. The
+  task-1 `NotImplementedError` guard retired for the **a_ph requirement**:
+  clear `ValueError` at both `rrs_forward` (fast, pre-emulator — where the
+  old guard sat) and the kernel; the M0 guard test updated deliberately to
+  `test_inelastic_fluorescence_without_aph_raises`.
+- **Port quality, measured**: float32 agreement vs live bing ~3e-6 (65-node
+  trapezoid accumulation); **float64 exact to ~7e-16** — task 3's xcheck
+  pins the 1e-6 gate under x64. Characterization vs fixture truth (median
+  model/truth at 685 nm): **0.991 / 0.937 / 0.853** at 0/30/60° — the
+  assessment's 1.00/0.95/0.86 on our own fixture; pinned as bands
+  (π-regression or flat-Ed fails them instantly); the zenith drift is δ_F's
+  target (M3), not a bug.
+- 13 tests (constants/emission/xcheck spot incl. double/physicality/bands/
+  seam/jax/wiring/linearity/∂Rrs/∂φ_C/gradients incl. a_ph); suite
+  **381 passed** warning-free (also `-W error`); ruff clean.
+
+Task 3 (formal xcheck + error table + FD gradients) starts with both terms
+composed and spot-checked; the sentinel (bing-predates-fixes) and the x64
+rtol ≤ 1e-6 pins are its first moves, and the characterization bands above
+are the fixture-measured numbers it should build on.
