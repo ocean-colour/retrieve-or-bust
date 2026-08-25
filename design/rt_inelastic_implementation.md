@@ -1,7 +1,7 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.21
-**Date:** 2026-08-24
+**Version:** 0.22
+**Date:** 2026-08-25
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -31,7 +31,7 @@ the Date on every bump.
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
-| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (tasks 1–3 of 5 done — **code gate green, ≤ 5 % beaten ~25×**; notebook + hand-off remain) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
+| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (tasks 1–4 of 5 done — **code gate green**, notebook executed; the prompt-5 hand-off remains) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py`, `notebooks/RT/rt_inelastic_coding_4.ipynb` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -940,7 +940,7 @@ delta gates ≤ 5 % on held-out scenes at every zenith including 0°.
 | 1 | Head machinery (`inelastic_corr.py` + `forward` wiring) | ✅ done |
 | 2 | Training (`design/py/train_inelastic_corr.py`, committed weights) | ✅ done — held-out worst 0.21 % (Raman) / 0.10 % (fl) vs the 5 % gates |
 | 3 | Held-out gates (`test_inelastic_corr.py` extension) | ✅ done — **the M3 code gate is green** |
-| 4 | `notebooks/RT/rt_inelastic_coding_4.ipynb` | ⬜ not started |
+| 4 | `notebooks/RT/rt_inelastic_coding_4.ipynb` | ✅ done — executed, committed with outputs |
 | 5 | Update `rt_inelastic_coding_prompt_5.md` | ⬜ not started |
 
 ### 5.2 Head machinery (task 1)
@@ -1089,6 +1089,42 @@ in that mode is `ocpy`'s own import-time `OS_COLOR not set` notice —
 external, pre-existing). The whole M2 gate untouched: analytic
 characterization bands, bing xcheck, elastic hash pins all green; ruff +
 format clean. **This is the M3 code gate** — tasks 4–5 are documentation.
+
+**Q&A closed (2026-08-25).** JXP answered both open items: the
+default-on corrections decision — *"Your move is fine"* — and the stray
+`rob/` directory — *"Keep it"*. Nothing pending.
+
+### 5.5 Notebook (task 4)
+
+**`notebooks/RT/rt_inelastic_coding_4.ipynb`** — executed (`os_313`
+nbconvert, `ocean14` kernel), committed with outputs; recomputes everything
+from the committed weights on the full release (held-out scenes) — the only
+in-notebook training is the deliberately crippled zenith-holdout δ_R of
+§3. Four sections:
+
+1. **Raman before/after** — per-zenith median increment-error spectra
+   (400–750 nm, sliced to the official band; below 400 nm the excitation
+   clamps and the heads never trained): the analytic −38.6 % @ 0° /
+   +30 % @ 490 nm structure flattened into the ±5 % gate band everywhere;
+   the printed table matches §5.3.
+2. **Fluorescence before/after + the trophic tail** — the 685 nm gate bars
+   per zenith (−13.7 % → +0.1 % at 60°), and the a_ph(440)-decile line:
+   the *analytic* term drifts from −11 % (clearest decile) to +11 %
+   (eutrophic tail) — a clean biomass-dependent structure the deciles
+   expose — while the corrected line is flat at ±0.6 %.
+3. **The honest panel** — δ_R retrained live with 60° excluded (1500
+   steps, the training script's own `fit_head` imported — reuse): at the
+   unseen zenith the crippled head sits at **−65.5 %** (−74 % at the
+   script's 3000 steps), far worse than the −4 % backbone. Caption kept
+   honest: *the heads are interpolators in cos θ_s; unseen geometries need
+   coverage or a domain guard.*
+4. **Economics + hand-off** — 129 params/head vs the elastic 417 (the
+   physics carries the shape, the network pays for the residual), and the
+   M4 inheritance: total-Rrs rRMS ≤ 0.5 %, speed ≤ 2× elastic, the §6
+   metrics table, and the truthless diagnostics (φ_C-linearity beyond
+   0.02, `'double'` emission) as reports.
+
+Suite untouched: **416 passed, 1 skipped**; ruff clean.
 
 ---
 

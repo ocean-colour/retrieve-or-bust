@@ -347,3 +347,40 @@ zenith for both processes (the −39 % @ 0° closing), the a_ph(440)-decile
 table, the zenith-holdout collapse (−74 % at unseen 60° — honest caption),
 and head sizes (129 params each) vs the elastic emulator's 417. All
 numbers are in §5.3–5.4 and the training log; lift, don't re-derive.
+
+### 2026-08-25 (M3 task 4 — notebook 4 built and executed; Q&A answered and closed; 416 green)
+
+`notebooks/RT/rt_inelastic_coding_4.ipynb` — executed with outputs
+(321 kB), record §5.5 (v0.22). Model: Fable 5. **Q&A: both open items are
+now ANSWERED and closed** — Q1 (corrections default-on): *"Your move is
+fine"*, so the corrected-by-default `forward` stands; prompt 3's `rob/`
+question: *"Keep it"*, so the directory stays. **No new questions.**
+(Prompt arrived as "execute the 4th prompt" with tasks 1–3 done — for once
+the number and the next task coincide.)
+
+- Built programmatically (`nbformat`, os_313), house style, fixture-free:
+  recomputes from the committed weights on the **full release**, held-out
+  scenes only; the sole in-notebook training is §3's deliberately crippled
+  zenith-holdout δ_R (the training script's own `fit_head` imported —
+  reuse over reinvention).
+- §1 Raman before/after per zenith: the −38.6 % @ 0° and +30 % @ 490 nm
+  analytic structure flattened into the ±5 % band (plots sliced to
+  λ ≥ 400 nm — the official band; the first execution's autoscale exposed
+  the sub-400 clamp region where the heads never trained, +400 % medians —
+  sliced, not hidden: it is outside the model's stated domain).
+- §2 Fluorescence gate bars (−13.7 → +0.1 % at 60°) + the a_ph(440)-decile
+  line — a finding worth keeping: the *analytic* 685 nm error runs from
+  −11 % (clearest decile) to **+11 % (eutrophic tail)** — clean
+  biomass-dependent structure the zenith medians averaged away; corrected
+  is flat at ±0.6 %.
+- §3 the honest panel: crippled δ_R at the unseen 60° = **−65.5 %** at
+  1500 steps (−74 % at 3000), worse than no correction; caption states the
+  interpolator-in-cos θ_s rule and the coverage-or-domain-guard condition.
+- §4 economics (129 vs 417 params) and the M4 inheritance list.
+- Suite untouched: **416 passed, 1 skipped**; ruff clean; hash pins green.
+
+Task 5 closes M3: write `rt_inelastic_coding_prompt_5.md`'s Status from
+record §5 (M4 = validation: total held-out rRMS ≤ 0.5 %/zenith vs Rrs_X4,
+per-process deltas ≤ 5 % (met), elastic hash, gradient gate incl. φ_C
+(met), speed ≤ 2× elastic, review pass CQ6, metrics + figures into
+design/validation/) — and carry the closed Q&A state forward.
