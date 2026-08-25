@@ -2708,3 +2708,42 @@ bracketed citations ([Stoer+25], [Bisson+20XX], etc.) still need the reference P
 
 Next: JXP trims 3.5–4 → 3 pages and refreshes Figure 1 ("this will change"); the
 separate team form and reference PDF remain.
+
+### 2026-08-25 (Final draft prompt 4: v8 — headings dropped, sections mirror the EOI guidelines, text re-grown to ~1,960 words)
+
+Prompt 31 (4th Task under "Final draft"): remove the display headings (run-in style, as
+is standard), restructure the sections to mirror the five EOI-guideline items, and
+re-introduce text back up to ~3.5–4 pages. Model: Fable. **Live doc updated in place**
+(file ID unchanged, verified; JXP's own "VICC EOI - v6" backup sits in the folder);
+stamp v7 → v8.
+
+**Structure now mirrors the guidelines exactly**, five numbered bold run-in sections,
+zero h1–h6 headings in the body (verified on the live doc):
+  1. **Project narrative** — theme, our-lane, success metrics, why-not-already-done +
+     Figure 1, "Are we stuck?", and a NEW "aimed at the heart of the VICC mission"
+     paragraph (budget accuracy / attribution / regime-shift detection mapped to our
+     three deliverables) that also absorbs the portfolio differentiation (COCO2 /
+     InMOS / SUBSEA / CLARiTy) from old §VI — criticality-to-VICC is guidelines item 1.
+  2. **Research plan** — NEW explicit three-hypothesis opener (H1 information-limited
+     inversion / missing information exists; H2 cross-calibration removes the
+     discontinuities that double trend-detection time; H3 assimilation measurably
+     reduces modeled production/export uncertainty) + common-ground methodology; the
+     modeling paragraphs (unchanged from v7); the four observational run-ins, with the
+     **lidar (CALIOP/future missions) + glider sentence restored** (Robert's cut,
+     flagged last round); a NEW guideline-required "Data and computational tools"
+     paragraph (datasets incl. BGC-Argo pilot fleets, SOCAT/GLODAP; MITgcm/ECCO + ROMS
+     + Darwin RT + Bayesian engine + ML emulators; order-100s-of-TB reprocessing on
+     commercial cloud with GPU acceleration; FAIR release — folds SQ2's compute
+     posture in); and a "Relevance to decision-making" MRV/policy close (item 2c).
+  3. **Team composition and external partnerships** — as v7.
+  4. **Preliminary budget** — as v7 (~$8.9M, phasing, ≤10% indirect).
+  5. **Use of generative AI** — as v7.
+
+**Numbers**: 1,958 words on the live doc (verified post-upload) vs 1,773 in v7 — the
+heading removal freed the vertical space that the ~190 new words re-spend; ≈3.5–4 pages
+with the reduced figure. All prior anonymization/typo fixes carried through (UCSC/
+NEMURO-phrasing/Froudin/Housekeeper absent, verified). Uploaded HTML archived at
+`proposals/Schmidt_Sciences/eoi_edit_2026-08-25_v8.html`.
+
+Next: JXP trims to 3 pages; Figure 1 refresh, the separate team form, and the
+reference PDF remain open.
