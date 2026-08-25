@@ -199,8 +199,12 @@ land. If you'd rather corrections be opt-in (default analytic even when
 trained), say so before task 2 commits weights — it's a one-line default
 flip plus doc updates now, a behavior change for downstream users later.
 
+>A. Your move is fine.
+
 *(Carried over, still open: prompt 3 Q&A Q1 — keep or remove the committed
 stray `rob/` directory.)*
+
+>A. Keep it
 
 ## Next
 
@@ -307,3 +311,39 @@ Task 3 (held-out gates) has its numbers measured and logged above; it needs
 (≤ 5 % per process per zenith, bounded-output on the *loaded* heads, a
 corrected-path FD gradient check with θ_s off the Ed anchors) — no
 train-at-test-time, and the whole M2 gate stays green untouched.
+
+### 2026-08-24 (M3 task 3 — held-out gates pinned; the M3 code gate is green; 416)
+
+`test_inelastic_corr.py` extended with the acceptance gates; record §5.4
+(v0.21). Model: Fable 5. Q&A: **no answers found — nothing new from this
+task either**; still open: prompt 4 Q1 (default-on — now in effect, veto
+still possible but is a behavior change) and prompt 3 Q1 (`rob/`).
+(Prompt arrived as "execute the 2nd prompt" with task 2 done and committed
+in `40becd8` — read as task 3 per the standing convention.)
+
+- **Acceptance gates** (full release, held-out scenes, committed weights
+  only — no train-at-test-time; `needs_l23_inelastic` so CI skips while
+  this machine enforces): Raman median |increment error| ≤ 5 % over
+  550–700 nm at every zenith incl. 0°, the 490 nm row at the same bar;
+  fluorescence median |685 nm error| ≤ 5 % per zenith. All pass with
+  ~25× margin (§5.3's table).
+- **Bounds on the loaded heads** over the whole release (also the
+  saturation canary for δ_R's 0.905/1.0 extreme).
+- **Weights-integrity regression**, CI-runnable on the fixture (±2 %
+  bands): catches a corrupt/stale/reverted weight file anywhere the repo
+  runs, without `$OS_COLOR`.
+- **Corrected-path FD gradient gate** (a, bb_p, a_ph, φ_C, θ_s): the M2
+  protocol with `corrections=load_default()` — the inversion's actual
+  differentiation path, through both tanh heads, pinned. θ_s at 35°, off
+  the Ed anchors (the M2 kink caveat).
+- Suite **416 passed, 1 skipped** (the task-1 fallback test, retired by
+  design); CI simulation: 3 gates skip, regression + gradients run (the
+  lone warning there is ocpy's own `OS_COLOR not set` import notice —
+  external, pre-existing). M2 gate untouched; elastic hash pins green;
+  ruff + format clean. **The M3 code gate (task 3's "Gate" line) is met.**
+
+Task 4 (the notebook) is presentation: before/after error spectra per
+zenith for both processes (the −39 % @ 0° closing), the a_ph(440)-decile
+table, the zenith-holdout collapse (−74 % at unseen 60° — honest caption),
+and head sizes (129 params each) vs the elastic emulator's 417. All
+numbers are in §5.3–5.4 and the training log; lift, don't re-derive.

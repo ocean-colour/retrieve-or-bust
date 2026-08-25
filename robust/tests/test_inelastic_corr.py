@@ -406,3 +406,227 @@ def test_elastic_path_never_resolves_corrections(l23_small_inelastic_batch):
             )
     finally:
         IC.load_default.cache_clear()
+
+
+# ------------------------------------------------ the held-out gates (task 3) ----
+#
+# From here down: the committed weights against the full release — the M3
+# acceptance numbers. No train-at-test-time (load_default only); the full-
+# release tests skip without $OS_COLOR (CI), while the fixture-level weight
+# regression and the FD gradient gate run everywhere the repo does.
+
+from robust.rt.data import l23 as L  # noqa: E402
+from robust.tests.conftest import needs_l23_inelastic  # noqa: E402
+
+#: The M3 per-process acceptance bar (coding plan / design DQ6).
+GATE = 0.05
+
+#: The committed weights; every test below is meaningless without them.
+needs_weights = pytest.mark.skipif(
+    not (IC.DEFAULT_RAMAN_WEIGHTS.exists() and IC.DEFAULT_FL_WEIGHTS.exists()),
+    reason="committed correction weights missing — run "
+    "design/py/train_inelastic_corr.py",
+)
+
+
+@pytest.fixture(scope="module")
+def full_release():
+    """The full L23 inelastic batch + splits + terms + loaded heads, once.
+
+    Module-scoped: loading six netCDFs and evaluating both analytic terms on
+    9960 x 81 costs ~15 s, and three tests share it.
+    """
+    batch = L.load_inelastic_batch()
+    splits = L.make_splits(batch)
+    heads = IC.load_default()
+    f_phys = np.asarray(I.raman_factor(batch.iops, batch.geometry, batch.wave))
+    k_fl = np.asarray(I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))
+    return batch, splits, heads, f_phys, k_fl
+
+
+def median_increment_errors(f_model, f_truth, batch, wave, mask, band):
+    """Median (f-1)/(truth-1) - 1 per zenith over a wavelength band."""
+    inc = (f_model - 1.0) / (f_truth - 1.0) - 1.0
+    out = {}
+    for zenith in (0.0, 30.0, 60.0):
+        rows = mask & (batch.zenith == zenith)
+        out[zenith] = float(np.median(inc[rows][:, band]))
+    return out
+
+
+@needs_weights
+@needs_l23_inelastic
+def test_heldout_raman_gate(full_release):
+    """**The M3 Raman gate**: median |increment error| <= 5 % per zenith.
+
+    Held-out scenes only, 550-700 nm, every zenith *including 0 deg* — the
+    line the analytic backbone fails by -38.6 % and delta_R earns. Measured
+    at training time: -0.14 / -0.10 / -0.21 % (0/30/60 deg); asserted at the
+    gate bar, not at the measured values — the gate is the promise, the
+    training log is the achievement. The 490 nm row (analytic +32.6 % at
+    60 deg, corrected +1.0 %) rides along at the same bar.
+    """
+    batch, splits, heads, f_phys, _ = full_release
+    wave = np.asarray(batch.wave)
+    delta = np.asarray(heads.raman.delta(batch.iops, batch.geometry, batch.wave))
+    f_corr = np.asarray(IC.corrected_raman_factor(delta, f_phys))
+    truth = np.asarray(batch.truth_raman_factor)
+
+    band = (wave >= 550.0) & (wave <= 700.0)
+    for zenith, err in median_increment_errors(
+        f_corr, truth, batch, wave, splits.scene_test, band
+    ).items():
+        assert abs(err) <= GATE, f"zenith {zenith}: 550-700 nm {err:+.4f}"
+
+    at490 = np.abs(wave - 490.0) < 1e-6
+    for zenith, err in median_increment_errors(
+        f_corr, truth, batch, wave, splits.scene_test, at490
+    ).items():
+        assert abs(err) <= GATE, f"zenith {zenith}: 490 nm {err:+.4f}"
+
+
+@needs_weights
+@needs_l23_inelastic
+def test_heldout_fluorescence_gate(full_release):
+    """**The M3 fluorescence gate**: median |685 nm error| <= 5 % per zenith.
+
+    Held-out scenes, phi_C = 0.02 (the truth's). The analytic backbone sits
+    at -13.7 % at 60 deg on the full release; measured corrected values are
+    +0.08 / +0.07 / +0.10 %.
+    """
+    batch, splits, heads, _, k_fl = full_release
+    wave = np.asarray(batch.wave)
+    i685 = int(np.abs(wave - 685.0).argmin())
+    delta = np.asarray(heads.fl.delta(batch.iops, batch.geometry, batch.wave))
+    model = L.PHI_C_L23 * k_fl * (1.0 + delta)
+    truth = np.asarray(batch.truth_fluorescence)
+
+    for zenith in (0.0, 30.0, 60.0):
+        rows = splits.scene_test & (batch.zenith == zenith)
+        err = float(np.median(model[rows, i685] / truth[rows, i685])) - 1.0
+        assert abs(err) <= GATE, f"zenith {zenith}: 685 nm {err:+.4f}"
+
+
+@needs_weights
+@needs_l23_inelastic
+def test_loaded_heads_respect_their_bounds(full_release):
+    """|delta| < delta_max on the whole release — the tanh bound, loaded.
+
+    Also records the headroom that matters: training measured max |delta_R|
+    = 0.905 against its 1.0 bound, so this doubles as a canary — a retrain
+    that saturates the bound shows up here before it shows up as a silently
+    clipped correction.
+    """
+    batch, _, heads, _, _ = full_release
+    for head in (heads.raman, heads.fl):
+        delta = np.asarray(head.delta(batch.iops, batch.geometry, batch.wave))
+        assert np.all(np.isfinite(delta))
+        assert np.abs(delta).max() < head.config.delta_max
+
+
+@needs_weights
+def test_committed_weights_regression(l23_small_inelastic_batch):
+    """The corrected model on the CI fixture — the weights-integrity pin.
+
+    Runs everywhere (no $OS_COLOR): the fixture mixes train and held-out
+    scenes, so this is not the acceptance gate — it is the regression that
+    catches a corrupt, stale, or accidentally-reverted weight file. Bands at
+    2 %, ~10x the measured ~0.2 % medians, far under the analytic errors
+    (-39 %, -14 %) any weight failure would reintroduce.
+    """
+    batch = l23_small_inelastic_batch
+    wave = np.asarray(batch.wave)
+    heads = IC.load_default()
+    assert heads.raman is not None and heads.fl is not None
+
+    f_phys = np.asarray(I.raman_factor(batch.iops, batch.geometry, batch.wave))
+    delta_r = np.asarray(heads.raman.delta(batch.iops, batch.geometry, batch.wave))
+    f_corr = np.asarray(IC.corrected_raman_factor(delta_r, f_phys))
+    truth_r = np.asarray(batch.truth_raman_factor)
+    band = (wave >= 550.0) & (wave <= 700.0)
+
+    k_fl = np.asarray(I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))
+    delta_f = np.asarray(heads.fl.delta(batch.iops, batch.geometry, batch.wave))
+    model_fl = L.PHI_C_L23 * k_fl * (1.0 + delta_f)
+    truth_fl = np.asarray(batch.truth_fluorescence)
+    i685 = int(np.abs(wave - 685.0).argmin())
+
+    for zenith in (0.0, 30.0, 60.0):
+        rows = batch.zenith == zenith
+        err_r = (
+            np.median((f_corr[rows][:, band] - 1.0) / (truth_r[rows][:, band] - 1.0))
+            - 1.0
+        )
+        err_f = np.median(model_fl[rows, i685] / truth_fl[rows, i685]) - 1.0
+        assert abs(err_r) <= 0.02, f"zenith {zenith}: Raman {err_r:+.4f}"
+        assert abs(err_f) <= 0.02, f"zenith {zenith}: fluorescence {err_f:+.4f}"
+
+
+@needs_weights
+@pytest.mark.parametrize(
+    ("name", "step"),
+    [
+        ("a", 1e-6),
+        ("bb_p", 1e-9),
+        ("a_ph", 1e-8),
+        ("phi_C", 1e-6),
+        ("theta_s", 1e-3),
+    ],
+)
+def test_gradient_matches_finite_differences_corrected(
+    jax_x64, l23_small_inelastic_batch, name, step
+):
+    """The M2 FD protocol through the *corrected* forward — heads in the path.
+
+    Same shape as ``test_inelastic.py``'s gate (float64, per-variable steps,
+    theta_s at 35 deg — off the piecewise-linear Ed anchors where the
+    theta-derivative is one-sided) with ``corrections=load_default()``, so
+    the differentiation path the future inversion uses — through both tanh
+    heads and their standardisations — is the one pinned.
+    """
+    from robust.rt.types import Geometry, IOPs, PhaseParams
+
+    batch = l23_small_inelastic_batch
+    heads = IC.load_default()
+    dtype = jnp.float64
+    rows = np.where(batch.zenith == 30.0)[0][:3]
+
+    a0 = jnp.asarray(np.asarray(batch.iops.a)[rows], dtype=dtype)
+    bb_w0 = jnp.asarray(np.asarray(batch.iops.bb_w)[rows], dtype=dtype)
+    bb_p0 = jnp.asarray(np.asarray(batch.iops.bb_p)[rows], dtype=dtype)
+    a_ph0 = jnp.asarray(np.asarray(batch.iops.a_ph)[rows], dtype=dtype)
+    B_p0 = jnp.asarray(np.asarray(batch.phase_params.B_p)[rows], dtype=dtype)
+    theta0 = jnp.asarray(np.asarray(batch.geometry.theta_s)[rows] + 5.0, dtype=dtype)
+    wave = jnp.asarray(np.asarray(batch.wave), dtype=dtype)
+    phi0 = jnp.asarray(L.PHI_C_L23, dtype=dtype)
+
+    def scalar(shift):
+        offsets = dict.fromkeys(("a", "bb_p", "a_ph", "phi_C", "theta_s"), 0.0)
+        offsets[name] = shift
+        iops = IOPs(
+            a=a0 + offsets["a"],
+            bb_w=bb_w0,
+            bb_p=bb_p0 + offsets["bb_p"],
+            a_ph=a_ph0 + offsets["a_ph"],
+        )
+        return jnp.mean(
+            H.forward(
+                iops,
+                PhaseParams(B_p=B_p0),
+                Geometry.nadir(theta0 + offsets["theta_s"]),
+                wave,
+                "hybrid",
+                inelastic=Inelastic(phi_C=phi0 + offsets["phi_C"]),
+                corrections=heads,
+                check_domain=False,
+            )
+        )
+
+    analytic = float(jax.grad(scalar)(jnp.asarray(0.0, dtype=dtype)))
+    h = jnp.asarray(step, dtype=dtype)
+    numeric = float((scalar(h) - scalar(-h)) / (2.0 * h))
+
+    assert np.isfinite(numeric), f"d/d{name}: step {step:g} left the domain"
+    assert analytic == pytest.approx(numeric, rel=1e-6), (
+        f"d/d{name}: autodiff {analytic:.10e} vs finite difference {numeric:.10e}"
+    )

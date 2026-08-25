@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.20
+**Version:** 0.21
 **Date:** 2026-08-24
 **Authors:** JXP and Claude
 
@@ -31,7 +31,7 @@ the Date on every bump.
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
-| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (tasks 1–2 of 5 done; **trained weights committed, gate targets beaten ~25×**) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
+| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (tasks 1–3 of 5 done — **code gate green, ≤ 5 % beaten ~25×**; notebook + hand-off remain) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -939,7 +939,7 @@ delta gates ≤ 5 % on held-out scenes at every zenith including 0°.
 |---|------|--------|
 | 1 | Head machinery (`inelastic_corr.py` + `forward` wiring) | ✅ done |
 | 2 | Training (`design/py/train_inelastic_corr.py`, committed weights) | ✅ done — held-out worst 0.21 % (Raman) / 0.10 % (fl) vs the 5 % gates |
-| 3 | Held-out gates (`test_inelastic_corr.py` extension) | ⬜ not started (machinery tests landed with task 1; task 2's script reports the numbers the tests must pin) |
+| 3 | Held-out gates (`test_inelastic_corr.py` extension) | ✅ done — **the M3 code gate is green** |
 | 4 | `notebooks/RT/rt_inelastic_coding_4.ipynb` | ⬜ not started |
 | 5 | Update `rt_inelastic_coding_prompt_5.md` | ⬜ not started |
 
@@ -1056,6 +1056,39 @@ finding (CQ6, `Emulator.domain`) in sharper form: **these heads are
 interpolators in cos θ_s and must not be trusted at unseen geometries.**
 The notebook must show this with an honest caption; any future θ_s-varying
 use needs either training coverage or a domain guard like the emulator's.
+
+### 5.4 Held-out gates (task 3) — the M3 code gate
+
+**`test_inelastic_corr.py` extended (+9 → 27 tests)**, all against the
+*committed* weights (`load_default` only — no train-at-test-time; every
+test `skipif`s with a regenerate message when the files are absent):
+
+- **The acceptance gates** (full release, `needs_l23_inelastic` — skip on
+  CI, mandatory-green here): held-out-scene median |Raman increment error|
+  ≤ **5 %** over 550–700 nm at every zenith **including 0°**, with the
+  490 nm row riding at the same bar; median |685 nm fluorescence error|
+  ≤ **5 %** per zenith. Asserted at the gate bar, not the measured values —
+  the gate is the promise, §5.3's table is the achievement.
+- **Bounds on the loaded heads**: |δ| < `delta_max` over the whole release —
+  doubles as the saturation canary for δ_R's 0.905-of-1.0 extreme.
+- **The weights-integrity regression** (CI-runnable, fixture-fed): the
+  corrected model's fixture medians within ±2 % — ~10× the measured ~0.2 %,
+  ~20× under the analytic errors any corrupt/stale/reverted weight file
+  would reintroduce. This is the everywhere-green guard; the acceptance
+  gates above are the on-this-machine truth.
+- **The corrected-path FD gradient gate** (5-way, CI-runnable): the M2
+  protocol (float64, per-variable steps, θ_s = 35° — off the Ed anchors)
+  through `corrections=load_default()`, so the differentiation path the
+  inversion will use — through both tanh heads and their standardisations —
+  is pinned for `a, bb_p, a_ph, φ_C, θ_s`.
+
+**Results.** `pytest -q` → **416 passed, 1 skipped** (the task-1 fallback
+test, retired by design); with `$OS_COLOR` unset the three full-release
+gates skip and the regression + gradient tests still run (the one warning
+in that mode is `ocpy`'s own import-time `OS_COLOR not set` notice —
+external, pre-existing). The whole M2 gate untouched: analytic
+characterization bands, bing xcheck, elastic hash pins all green; ruff +
+format clean. **This is the M3 code gate** — tasks 4–5 are documentation.
 
 ---
 
