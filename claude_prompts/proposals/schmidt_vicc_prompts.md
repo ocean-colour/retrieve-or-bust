@@ -18,6 +18,26 @@ See the following:
 
 Read the papers in the `context/papers/Biomass` folder.
 
+## EOI Guidelines
+
+EOI submissions should provide a maximum 3-page proposal with the following information:
+
+1. A project narrative, including: 
+   - The primary scientific theme of your proposed project
+   - How your project is critical to addressing the goals and mission of the VICC program
+   - The scope of the proposed research
+2. A clear research plan, including: 
+   - Key project goals, scientific hypotheses, and methodologies
+   - A brief description of data and computational tools that will be used
+   - If applicable, how the proposed research could be used to inform environmental decision-making, management, investment, or policy-relevant science. 
+3. A description of preliminary team composition, and potential external institutional partnerships, including the proposed team members’ scientific ability, relevant expertise, and scientific project management experience. Kindly note:
+    - The EOI proposal document should not include any PI, team, and partner names and affiliations as the EOIs will go through a blind evaluation process. Team names and affiliations will be collected in a separate form. Proposals will be returned without evaluation if any identifying information is included in the EOI proposal document. See the “Formatting Questions” section in the FAQ document for further guidance on anonymization. 
+    - An individual may only serve as the PI on one EOI. They may serve as a co-investigator / collaborator on multiple EOIs. 
+    - Multidisciplinary and international teams of researchers are strongly encouraged
+    - Early-to-mid-career researchers are welcome to submit proposals as the lead PI.
+4. A preliminary budget, which includes a brief description of project expenses such as salary, equipment, travel, indirect costs, etc. Detailed budgets are not required for the EOI stage, but will be requested from teams invited to submit full RFPs in Step 2. Note that Schmidt Sciences caps indirect costs at 10%.
+5. A brief statement indicating if, and how, generative AI was used in developing the proposal. This is for informational purposes only. Any details provided will be excluded from the formal merit evaluation process.
+
 ## Prompts
 
 1. Perform the 1st Task under "EOI"
@@ -52,6 +72,176 @@ Read the papers in the `context/papers/Biomass` folder.
 25. Perform the 1st Task under "EOI continues"
 26. Perform the 2nd Task under "EOI continues"
 27. Perform the 3rd Task under "EOI continues"
+
+28. Perform the 1st Task under "Final draft"
+29. Perform the 2nd Task under "Final draft"
+30. Perform the 3rd Task under "Final draft"
+31. Perform the 4th Task under "Final draft"
+
+## Final draft
+
+1. Our draft of the EOI is on the Google Drive under the `Oceanography/Proposals/2026/Schmidt Sciences` folder.  It is named "VICC EOI".  Please read it and re-read the EOI guidelines which I have pasted in the `EOI Guidelines` section below.  You will see that we are currently far over the page limit.  Please discuss with me ways to shorten it being mindful of the unfinished sections.  Pose your questions in the Q&A section below.  Use Fable if you can.  Log your work.
+
+2. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Then, ask another round before doing any Editing.  Use Fable if you can.  Log your work.
+
+3. I have answered your questions in the Q&A section below.  Please review them and react accordingly.  Then, proceed to edit the EOI doc.  Please target 3.5 to 4 pages total and I will cut it down from there.  Try to use the writing style from the current Sections I an II which JXP wrote.  Use Fable if you can.  Log your work.
+
+4. Ok, thanks for that.  Now, reduce all of the section headings by not using them as is standard.  Also, make the sections mirror the EOI guidelines. This will bring you back to ~3 pages.  So, re-introduce additional text to increase back to ~3.5 to 4 pages.  Use Fable if you can.  Log your work.
+
+### Q&A
+
+#### Round 8 — the length problem, measured, and a shortening plan (2026-08-25)
+
+**The arithmetic first.** The doc today (team-revised since my Aug-19 edit: §III rewritten
+around ECCO-Darwin + regional ROMS with NBLING→D-LITE, ML emulators, and Ensemble 4D-Var;
+Hervé's hand on the float subsection; the TOC scaffold removed) measures, by section:
+§I **811** words, §II **580**, §III **884**, §IV **648** — **2,923 words for I–IV alone**,
+≈ **6–6.5 pages** at 11 pt/1.15 spacing, before Figure 1 (~⅓ page) and before the three
+unfinished sections. The guidelines' five required elements mean V–VII are not optional:
+team (item 3), budget (item 4), AI statement (item 5), plus item 2's "scientific
+hypotheses" and the policy/decision-making relevance clause, which the current text
+carries only implicitly. Reserving ~0.9 page for V–VII and ~⅓ page for the figure leaves
+**≈1.8–2.0 pages ≈ 950–1,000 words for I–IV: a cut to about one-third of what stands.**
+Trimming sentences will not get there; sections must merge or go.
+
+**Proposed word budget** (≈1,500 body words total; every element of guidelines items 1–5
+gets a home):
+
+| Section | now | target | how |
+|---|---|---|---|
+| I. Problem + objectives + success metrics | 811 | ~380 | merge the three empirical-limits paragraphs (BGC-Argo limits / OC limits / "Are we stuck?") into one; keep our-lane + measurable-success paragraphs nearly intact — they ARE items 1–2 |
+| II. (dissolved) | 580 | 0 | the Ltoa→Rrs pedagogy is tutorial for this panel; its two load-bearing paragraphs (vertical-information + unified-framework) compress into §I's close and §IV's lead |
+| III. Modeling | 884 | ~400 | one paragraph of rationale, one of D-LITE+RT-embedded assimilation, one of two-scales+emulators; the D-LITE justification currently appears twice |
+| IV. Observations | 648 | ~350 | Rrs record + Cphyto retrieval to ~2 sentences each; float layer + fieldwork merged into one "anchored in situ" paragraph (which also answers Heidi's realism comment and Hervé's fill-gaps-only framing) |
+| V. Team + partnerships | stub | ~180 | roles only, incl. Hervé's suggested "BGC-Argo multi-instrument data integration and bio-optics" expertise line |
+| VI. Timeline + budget | stub | ~110 | prose summary from the Work Packages sheet; indirect ≤10% |
+| VII. Portfolio + openness + AI (+1 policy sentence for item 2c) | stub | ~130 | ~4 sentences differentiation; FAIR; factual AI statement |
+
+The questions — all are genuinely yours or the team's to answer:
+
+**FD1 — Is §III now editable?** The standing order (CQ5) is "Do not touch Section III,"
+but no 3-page version exists that honors it: §III must drop from 884 to ≈400 words. Do I
+(a) produce the compressed §III myself for the modeling group to review, or (b) hand
+Dustin/Matt/Stephanie the 400-word budget and they self-edit? My lean: (a) — faster, and
+they review the diff rather than face a blank budget.
+
+FD1: Yes, III is now editable.
+
+**FD2 — Dissolve §II as a standalone section?** This is the single biggest lever
+(−580 words). The panel does not need Rrs = Lw/Ed explained; the degeneracy/AC/vertical
+arguments survive in compressed form inside §I and §IV. Confirm, or is §II's pedagogy a
+deliberate choice you want kept at reduced length (~150 words)?
+
+FD2: I confirm.  It was a deliberate choice to have the pedagogy before but no longer
+
+**FD3 — May I compress Robert's §IV text to ~2 sentences per block?** His Rrs-record and
+Cphyto-retrieval paragraphs are ~150 words each and were adopted essentially verbatim
+(CQ1). Cutting them to ~40 words each keeps the claims (full constellation,
+sensor-specific observation operators, PACE→heritage transfer, per-pixel uncertainty)
+and drops the mechanics. Go ahead, or route the compressed versions past Robert first?
+
+FD3: Yes, please compress.
+
+**FD4 — The figure.** Keep Figure 1 at reduced (half-column) size (~⅙–¼ page), or drop
+it? My lean: keep — it is the only quantitative evidence of the problem, and item 1 asks
+why the project is critical. (Note your margin comment "this will change" on the image.)
+
+FD4: Keep it.  
+
+**FD5 — The success metrics are marked in flux.** Your margin note on "from ~32%" says
+"This seems too low; stand by," and Stephanie adds we need "an uncertainty measure on our
+uncertainty measure." The shortened §I hard-wires these numbers in its most prominent
+paragraph. Do you want (a) the current trio kept as placeholders and revised when you
+settle them, or (b) the numbers stated more softly ("halve per-pixel uncertainty; reduce
+the conversion-driven spread to <2×; bring trend detection within the existing record")
+so later revisions don't ripple? My lean: (b) for the EOI — the claims survive, the
+specific baselines move to the full proposal.
+
+FD5:  I want that number to be properly updated.  We worked extensively on this and it should
+be in your original context and report.  Please look back and suggest a rewording.
+
+**FD6 — Blind-review violation now in §III: "the similarly data constrained UCSC ROMS
+implementation."** "UCSC" names an institution; the RFP returns such proposals without
+evaluation. I will replace it with "an established data-constrained regional ROMS
+implementation for the California Current" during the shortening (and fix the "Froudin
++2019" typo → Frouin+2019, which as a third-person citation is fine). Any objection —
+and shall I do a full anonymization sweep at the same time (e.g. "our 11-component
+NEMURO" phrasing is borderline self-identifying)?
+
+FD6: Yes, please do a full anonymization sweep.  We should not be naming institutions in the EOI.
+
+**FD7 — I draft V–VII within the budget above?** Team roles (no names) built from the
+RQ7 role set + Hervé's comment; the budget paragraph summarized from the "Work Packages"
+sheet as it stands (noting your rows still carry placeholder-level costs); portfolio
+differentiation per DQ7; the AI statement per DQ10(i); one sentence on MRV/policy
+relevance to satisfy item 2c. Anything you want claimed or avoided in those sections?
+
+FD7: Yes, please draft those.
+
+**A final observation, not a question.** Several open margin comments are content
+disputes the shortening will forcibly resolve (Stephanie's "can we assimilate cphyto/POC
+if we don't measure them," Matt's NCP-from-NO3/O2 point, Hervé's subsection title). I
+will treat the shortened text as the answer where the cut removes the disputed sentence,
+and leave the comment threads for the team where it does not — but I will not adjudicate
+science disagreements silently.
+
+#### Round 9 — after the FD answers; last round before the edit (2026-08-25)
+
+**All seven answered; the plan is locked**: §III is editable and I will compress it
+myself for the modeling group to review (FD1); §II dissolves (FD2 — noted that the
+pedagogy was deliberate and is now retired); Robert's blocks compress (FD3); the figure
+stays at reduced size (FD4, refreshed when your "this will change" lands); full
+anonymization sweep — "UCSC ROMS" out, and I will also degrade "our … NEMURO" to "an
+established regional biogeochemical model," keeping community tool names (ECCO, Darwin,
+ROMS, MITgcm, Tapenade) since tools are not identities (FD6); V–VII drafted (FD7).
+
+**FD5, reworked per your instruction: high level only, no per-pixel framing.** I went
+back to the report as you asked. Its §3 is unambiguous about why "~32%" was the wrong
+anchor: that number is the bbp→C **conversion scatter alone**, assuming sensor drift,
+biofouling and calibration error are negligible, validated against a "truth" that has
+no certified reference material — the report's own conclusion is that single-study
+error bars are **optimistic lower bounds** and the honest measure is the **spread
+across independent methods: 2.5–3.5×** (global Cphyto stock 218–771 Tg C from the
+conversion choice alone). So the metrics should be stated as global quantities:
+
+> **Success is measurable.** We will (i) determine the **global phytoplankton carbon
+> stock** — today uncertain to a factor of ~3.5 from the optics-to-carbon conversion
+> alone (218–771 Tg C) — **to better than a factor of 1.8, with uncertainties validated
+> against independent methods** rather than in-sample statistics; (ii) deliver the
+> corresponding **global POC and biological-carbon records** with the same standard —
+> methods that should agree currently differ by 2.5–3.5×, and our assimilative estimates
+> must close that gap by at least half; and (iii) **shorten the time to detect a
+> climate-driven trend in ocean biomass from >30 years to ~20** — within the existing
+> multi-mission record.
+
+**FE1 — Confirm that wording** (or mark up what to change). The factor-2 promise
+survives in all three, every number traces to the report, and nothing is per-pixel.
+One alternative if (ii) feels soft: replace it with the NPP/export propagation ("and
+propagate these constraints into primary production and export, where independent
+estimates currently span 2.5–3×"), which claims the consequence rather than a second
+stock.
+
+FE1: Let's use ~3.5x and then better than 50% error
+
+**FE2 — What total does §VI state?** The "Work Packages" sheet currently sums to
+**≈$2.6M over 5 years** (Prochaska 3×50K, storage 125K, Carroll 5×250K, Frouin 5×220K)
+— well under the ~$10M flagship scale from DQ4(a), and several WPs have no rows yet
+(inversion beyond yr 3, BGC-Argo integration, fieldwork, project management, the annual
+meeting). Options: (a) state "approximately $8–10M over 5 years" as the intended scale
+with the current sheet as partial detail (my lean — the EOI needs only a preliminary
+budget, and underclaiming scale reads as an exploratory project); (b) state the sheet's
+$2.6M as-is; (c) you update the sheet first and I summarize whatever it says. Which?
+
+FE2: Reaccess the work package sheet on the Google Drive.  The total is now nearly $9M
+
+**FE3 — Process for the edit itself.** As before: backup copy first, then in-place
+update (same doc ID). Note the in-place update **orphans all open margin comments
+again** — including the unresolved science threads (Stephanie's assimilation question,
+Matt's NCP point). They will survive on the new backup. If the team would rather
+resolve those threads in-doc first, say the word and I hold; otherwise I proceed on
+your go-ahead in the next prompt.
+
+FE3: I have already made a backup.  You can edit the active version without making another backup.
 
 ## EOI continues
 
@@ -2386,3 +2576,135 @@ subagent: single tab; ~988 trailing formatting-only rows; two contentless Google
 stub parts (empty drawing/person XML) dropped on save; no comments, charts, merges, or
 validations existed, so nothing of substance was lost. Scratch xlsx files retained in
 the session scratchpad.
+
+### 2026-08-25 (Final draft prompt 1: measured the overrun, posed Round-8 FD1–FD7 shortening questions — no edits)
+
+Prompt 28 (1st Task under "Final draft"): read the current "VICC EOI" doc + the pasted EOI
+guidelines, assess the page-limit overrun, and pose shortening questions in the Q&A. Model:
+Fable. **No edits were made to the doc.**
+
+**State of the doc** (team-revised since my Aug-19 edit): §III rewritten by the modeling
+group — now global ECCO-Darwin + a data-constrained regional ROMS (California Current),
+NBLING→D-LITE lineage, ML emulators, Ensemble 4D-Var, dual-numbers adjoint for ROMS; §IV's
+float subsection rewritten (clearly Hervé's hand: "A distributed BGC-Argo observational
+layer", harmonized UVP/transmissometry/hyperspectral products, sub-fleet requirements
+definition); targeted-fieldwork paragraph now cites ongoing funded projects; my TOC
+scaffold removed; V–VII still stubs. 15 comment threads (5 resolved).
+
+**The measurement** (txt export, per section): §I 811 / §II 580 / §III 884 / §IV 648 =
+**2,923 words for I–IV ≈ 6–6.5 pages** at 11 pt, before the figure and before the three
+required-but-unwritten sections (team, budget, AI statement + hypotheses/policy clauses of
+item 2). Budgeting ~0.9 pg for V–VII and ~⅓ pg for Figure 1 leaves ~950–1,000 words for
+I–IV — **a cut to ~⅓**. Sentence-trimming cannot get there; sections must merge or go.
+
+**Proposed plan posed in Round 8** (word-budget table in the Q&A): §I 811→~380 (merge the
+three empirical-limits paragraphs; keep our-lane + success-metrics nearly intact);
+**dissolve §II** (−580, the single biggest lever — Ltoa→Rrs pedagogy is tutorial for this
+panel; its two load-bearing paragraphs fold into §I/§IV); §III 884→~400 (D-LITE rationale
+currently stated twice); §IV 648→~350 (Robert's two blocks to ~2 sentences each; float
+layer + fieldwork merged); V ~180 / VI ~110 / VII ~130 drafted fresh.
+
+**Questions FD1–FD7**: does the CQ5 "do not touch §III" order lift, and who compresses it
+(my lean: I compress, modeling group reviews); confirm dissolving §II; may I compress
+Robert's adopted text; keep the figure at reduced size (lean: yes); soften the in-flux
+success metrics to claim-level wording (JXP's own margin note says the 32% baseline will
+change; lean: soften for the EOI); fix the **"UCSC ROMS" blind-review violation** found in
+§III (+ full anonymization sweep; "Froudin+2019" typo); and confirm I draft V–VII within
+the stated budgets (roles per RQ7 + Hervé's suggested expertise line; budget prose from
+the Work Packages sheet; DQ7 portfolio sentences; DQ10 AI statement; one MRV/policy
+sentence for item 2c).
+
+Also flagged, not asked: several open comment threads are science disputes
+(Stephanie's assimilate-what-we-don't-measure, Matt's NCP-from-NO3/O2) that the cut will
+resolve only where it deletes the disputed sentence — I will not adjudicate silently.
+
+Next: JXP answers FD1–FD7; then the shortening pass produces the ≤3-page draft.
+
+### 2026-08-25 (Final draft prompt 2: reviewed FD answers, reworked the success metrics at high level, posed Round-9 FE1–FE3 — no edits)
+
+Prompt 29 (2nd Task under "Final draft"): review the FD1–FD7 answers, react, and ask one
+more round before any editing. Model: Fable. **The EOI doc remains untouched.**
+
+**Answers locked**: §III editable — I compress, modeling group reviews (FD1); §II
+dissolves (FD2); Robert's blocks compress (FD3); figure stays, reduced (FD4); full
+anonymization sweep (FD6); I draft V–VII (FD7).
+
+**FD5 became the substantive work of this turn.** JXP's direction (reinforced by an
+interjection mid-research): the ~32% baseline was wrong AND the framing must stay high
+level — "no one is interested in per-pixel values." Re-read `reports/biomass_summary.md`
+§2.1/§3/§4: the 32% MAPE is conversion-only scatter (assumes away drift/biofouling/
+calibration; no CRM for the "truth"); the report's own standard is the cross-method
+spread — 2.5–3.5×, with the conversion choice alone spanning the global Cphyto stock
+218–771 Tg C. Proposed replacement metrics paragraph (verbatim in Round 9): (i) global
+phytoplankton carbon stock from ~3.5× to <1.8× with uncertainties validated against
+independent methods; (ii) global POC/biological-carbon records to the same standard
+(close the 2.5–3.5× cross-method gap by half) — with an NPP/export-propagation variant
+offered if (ii) reads soft; (iii) trend detection >30 yr → ~20 yr within the existing
+record. Every number traces to the report; nothing per-pixel.
+
+**Round-9 questions**: FE1 confirm the metrics wording (or choose the NPP/export
+variant); FE2 what total §VI states — the Work Packages sheet sums to ≈$2.6M/5 yr
+(several WPs rowless) vs the DQ4(a) ~$10M scale; lean (a): state ~$8–10M as intended
+scale with the sheet as partial detail; FE3 process confirmation — backup + in-place
+update will orphan the open comment threads again (incl. unresolved science disputes);
+hold if the team wants them resolved in-doc first.
+
+Next: JXP answers FE1–FE3; the following prompt executes the full shortening pass
+(≈1,500-word, ≤3-page draft: §II dissolved, §III ~400 w, §IV ~350 w, V–VII drafted,
+anonymization sweep, reduced figure).
+
+### 2026-08-25 (Final draft prompt 3: executed the shortening — "VICC EOI" rewritten in place at v7, ~1,770 words ≈ 3.5–4 pages)
+
+Prompt 30 (3rd Task under "Final draft"): review the FE answers, then edit the doc to
+3.5–4 pages in JXP's §I/§II voice. Model: Fable. **The live doc was updated in place**
+(same file ID; no backup per FE3 — JXP had already made one); version stamp advanced
+v6 → v7.
+
+**FE answers folded in**: FE1 — metric (i) now "global Cphyto stock, uncertain to a
+factor of ~3.5 (218–771 Tg C), determined to better than 50%, validated against
+independent methods"; (ii) global POC to the same standard (close ≥half of the 2.5–3.5×
+cross-method gap); (iii) trend detection >30→~20 yr; nothing per-pixel anywhere. FE2 —
+the Work Packages sheet re-read: now fully populated, **total $8,939,064/5 yr**
+(~$1.76–1.88M/yr, 13 PI groups incl. Kudela, Mazloff/Verdy, Claustre/Andres/Vellucci,
+Dutkiewicz/Jahn, Houskeeper, Dierssen, Takeshita, Koestner, Edwards/Mattern); §V states
+"approximately $8.9M." FE3 — no new backup made.
+
+**The rewrite** (2,923+stubs → 1,773 body words; figure kept, scaled to 70%):
+- §I (~640 w): JXP's opening + our-lane + new metrics; the two empirical-limits
+  paragraphs merged into one ("Why is this not already done? Because the measurements,
+  on their own, cannot do it."); "Are we stuck? Probably —" kept and sharpened; new
+  closing paragraph states the **central hypothesis** explicitly (missing information
+  exists in vertical structure, model process knowledge, assimilation covariances) —
+  satisfying guidelines item 2's "hypotheses."
+- Old §II dissolved per FD2; its vertical-information argument survives inside §I's
+  hypothesis paragraph and §III's BGC-Argo layer. **One deliberate casualty to flag:
+  the lidar/CALIOP/CALIGOLA sentence (Robert's addition) did not survive** — at this
+  length it was an aside about a future mission; restore if Robert objects.
+- §II (was III, ~440 w): the modeling group's five paragraphs compressed to three,
+  keeping every capability (ECCO + regional ROMS both Darwin-coupled, spectral RT,
+  NBLING→D-LITE, Tapenade + dual-number adjoints, hyperspectral radiance assimilation,
+  SOCAT/glider-pH/GLODAP, ML emulators + Ensemble 4D-Var, two-scale design); the
+  twice-stated D-LITE rationale stated once.
+- §III (was IV, ~430 w): four bolded run-in paragraphs (Rrs record; carbon across the
+  record; Hervé's BGC-Argo layer compressed with his framing intact incl. the future
+  sub-fleet requirements; targeted fieldwork per his fill-gaps-only framing + "not a
+  new global survey").
+- §IV Team (~140 w): anonymized roles matching the 13 sheet WPs; European float
+  laboratory (international box); ECR-led WPs; community-infrastructure partnerships.
+- §V Timeline/budget (~110 w): yr 1–2 / 2–4 / 4–5 phasing; ~$8.9M; indirect ≤10%.
+- §VI (~130 w): DQ7 portfolio differentiation (COCO2/InMOS/SUBSEA/CLARiTy); the
+  MRV/policy sentence (item 2c); FAIR; the factual Claude AI-use statement (item 5).
+- **Anonymization sweep**: "UCSC" removed; "our … NEMURO" → "an established dual-number
+  technique … 11-component regional ecosystem model"; typos fixed (Froudin→Frouin,
+  Housekeeper→Houskeeper); footnote [1] dropped with its 20 words.
+
+**Verification**: scripted checks (forbidden strings absent, required strings present,
+1 image, word count) + full connector read of the live doc post-upload. Uploaded HTML
+archived at `proposals/Schmidt_Sciences/eoi_edit_2026-08-25_v7.html`.
+
+**Known side effect**: the in-place update again orphaned the open comment threads
+(JXP's backup holds them). The [XX]-era citation placeholders are gone; remaining
+bracketed citations ([Stoer+25], [Bisson+20XX], etc.) still need the reference PDF.
+
+Next: JXP trims 3.5–4 → 3 pages and refreshes Figure 1 ("this will change"); the
+separate team form and reference PDF remain.
