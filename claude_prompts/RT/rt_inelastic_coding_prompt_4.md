@@ -119,7 +119,8 @@ on, and what it must not break:
    additional questions, ask in Q&A. Use Fable if you can. Log your work.
 4. Read this doc. Execute the 4th task — the notebook. Use Fable if you can.
    Log your work.
-5. Read this doc. Execute the 5th task — modifying the next prompt doc,
+5. Read this doc. Execute the 5th task. Use Fable if you can. Log your work.
+6. Read this doc. Execute the 6th task — modifying the next prompt doc,
    `rt_inelastic_coding_prompt_5.md`. Use Fable if you can. Log your work.
 
 ## M3
@@ -178,7 +179,10 @@ on, and what it must not break:
    result with an honest caption; head sizes vs the elastic emulator's 417
    params.
 
-5. **Finally.** Modify the next prompt doc,
+5. **Review.** I have issued a Pull Request.  Please examine the comments there
+   and make any necessary changes.  Use Fable if you can.  Log your work.
+
+6. **Finally.** Modify the next prompt doc,
    `rt_inelastic_coding_prompt_5.md`, given what M3 actually established.
    Log your work.
 
@@ -384,3 +388,35 @@ record §5 (M4 = validation: total held-out rRMS ≤ 0.5 %/zenith vs Rrs_X4,
 per-process deltas ≤ 5 % (met), elastic hash, gradient gate incl. φ_C
 (met), speed ≤ 2× elastic, review pass CQ6, metrics + figures into
 design/validation/) — and carry the closed Q&A state forward.
+
+### 2026-08-26 (M3 task 5 — PR #18 review pass; 1 finding, fixed)
+
+The JXP-inserted review task; record v0.22.1. Model: Fable 5. Q&A: **no new
+answers needed — both prior questions stand answered and closed** (Q1
+"Your move is fine"; `rob/` "Keep it"); this task raises **no new
+questions**. (Doc edit noted: task 5 is now the PR review, the prompt-doc
+hand-off renumbered to 6 — the Prompts list and the record's task table
+follow.)
+
+- **PR #18 ("Inelastic rt : M3") comments examined**: one inline finding
+  (Cursor Bugbot, medium): `train_inelastic_corr.py` wrote the weight
+  files **directly to the destination and verified afterwards** — a crash
+  mid-write, a failed refusal check, or a broken serialisation would
+  destroy the previous known-good committed weights. The same defect the
+  elastic effort's PR #11 review caught in `train_emulator.py`; this script
+  failed to inherit the fix. Valid on all counts.
+- **Fixed with the elastic pattern**, as a `write_head(head, batch, out)`
+  helper: candidate written *beside* the destination (`tempfile.mkstemp`),
+  reloaded (the feature-mismatch refusal runs on the candidate), required
+  to **reproduce the trained head's δ on the full batch**, permissions
+  restored from the umask, then atomic `os.replace`; the temp file is
+  removed on every exit path, and a failed round trip returns exit 1 with
+  the destination untouched.
+- **Exercised**: a 50-step run writing to a scratch directory took the new
+  path end to end (both files written, round trip verified); the committed
+  weights are byte-untouched (`git status` clean on `robust/`), no stray
+  temp files, `test_inelastic_corr.py` 26 passed / 1 skipped, ruff +
+  format clean. No retrain needed — the fix changes only the write path,
+  not the weights.
+
+Task 6 (the prompt-5 hand-off) closes M3.

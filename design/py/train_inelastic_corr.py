@@ -36,7 +36,9 @@ matches the code.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -173,6 +175,64 @@ def aph_decile_table(fl_model, fl_truth, batch, wave, mask):
         )
 
 
+def write_head(head, batch, out: Path) -> int:
+    """Validate the weights **before** they can replace a known-good file.
+
+    The elastic ``train_emulator.write_weights`` rule, applied here after the
+    PR #18 review caught this script writing straight to the destination and
+    verifying afterwards — the same defect PR #11's review caught on the
+    elastic side: a failed check, a crash mid-write, or a broken
+    serialisation would report an error with the good committed weights
+    already destroyed. The candidate is written *beside* the destination,
+    reloaded, required to reproduce the trained head's delta on the full
+    batch, and only then moved into place with :func:`os.replace` — atomic,
+    so a reader sees the old file or the new one, never a half-written one.
+
+    Parameters
+    ----------
+    head : robust.rt.inelastic_corr.CorrectionHead
+        The trained head to ship.
+    batch : robust.rt.data.l23.L23InelasticBatch
+        The batch on which the reloaded copy must reproduce ``head``'s delta.
+    out : pathlib.Path
+        Destination ``.npz``.
+
+    Returns
+    -------
+    int
+        Process exit status: 0 if the round trip reproduced the correction.
+    """
+    delta = np.asarray(head.delta(batch.iops, batch.geometry, batch.wave))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=out.parent, prefix=out.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        IC.save_head(head, tmp)
+        reloaded = IC.load_head(tmp)  # the refuse-on-mismatch rule runs here
+        same = np.allclose(
+            np.asarray(reloaded.delta(batch.iops, batch.geometry, batch.wave)),
+            delta,
+        )
+        if not same:
+            print(
+                f"round-trip FAILED: the reloaded {head.config.kind} head does "
+                f"not reproduce its delta. {out} left untouched; candidate "
+                "discarded"
+            )
+            return 1
+        # mkstemp creates 0600; a committed artefact must be readable by
+        # everyone who can read the repo — restore plain-open() permissions.
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, out)
+    finally:
+        tmp.unlink(missing_ok=True)
+    print(f"wrote {out} ({out.stat().st_size / 1024:.1f} kB)")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="write nothing")
@@ -257,14 +317,9 @@ def main() -> int:
         return 0
 
     head_r, head_f = results["shipped (all zeniths)"]
-    out_r = args.out_dir / IC.DEFAULT_RAMAN_WEIGHTS.name
-    out_f = args.out_dir / IC.DEFAULT_FL_WEIGHTS.name
-    IC.save_head(head_r, out_r)
-    IC.save_head(head_f, out_f)
-    for path in (out_r, out_f):
-        IC.load_head(path)  # refuse-on-mismatch runs now, not at first use
-        print(f"wrote {path} ({path.stat().st_size / 1024:.1f} kB)")
-    return 0
+    status_r = write_head(head_r, batch, args.out_dir / IC.DEFAULT_RAMAN_WEIGHTS.name)
+    status_f = write_head(head_f, batch, args.out_dir / IC.DEFAULT_FL_WEIGHTS.name)
+    return max(status_r, status_f)
 
 
 if __name__ == "__main__":

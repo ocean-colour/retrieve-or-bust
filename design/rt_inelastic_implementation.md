@@ -1,7 +1,7 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.22
-**Date:** 2026-08-25
+**Version:** 0.22.1
+**Date:** 2026-08-26
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -941,7 +941,8 @@ delta gates ≤ 5 % on held-out scenes at every zenith including 0°.
 | 2 | Training (`design/py/train_inelastic_corr.py`, committed weights) | ✅ done — held-out worst 0.21 % (Raman) / 0.10 % (fl) vs the 5 % gates |
 | 3 | Held-out gates (`test_inelastic_corr.py` extension) | ✅ done — **the M3 code gate is green** |
 | 4 | `notebooks/RT/rt_inelastic_coding_4.ipynb` | ✅ done — executed, committed with outputs |
-| 5 | Update `rt_inelastic_coding_prompt_5.md` | ⬜ not started |
+| 5 | PR #18 review pass (JXP-inserted task) | ✅ done — 1 finding, fixed |
+| 6 | Update `rt_inelastic_coding_prompt_5.md` | ⬜ not started |
 
 ### 5.2 Head machinery (task 1)
 
