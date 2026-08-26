@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.22.1
+**Version:** 0.23
 **Date:** 2026-08-26
 **Authors:** JXP and Claude
 
@@ -31,7 +31,7 @@ the Date on every bump.
 | **M0** | Environment (this machine) & API extension | ✅ done | `robust.rt.types` (extend), `robust.rt.hybrid` (extend), `robust/tests/test_inelastic_types.py` |
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
-| **M3** | Correction heads δ_R, δ_F | 🟡 in progress (tasks 1–4 of 5 done — **code gate green**, notebook executed; the prompt-5 hand-off remains) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py`, `notebooks/RT/rt_inelastic_coding_4.ipynb` |
+| **M3** | Correction heads δ_R, δ_F | ✅ done (PR #18 merged) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py`, `notebooks/RT/rt_inelastic_coding_4.ipynb` |
 | **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
@@ -941,8 +941,8 @@ delta gates ≤ 5 % on held-out scenes at every zenith including 0°.
 | 2 | Training (`design/py/train_inelastic_corr.py`, committed weights) | ✅ done — held-out worst 0.21 % (Raman) / 0.10 % (fl) vs the 5 % gates |
 | 3 | Held-out gates (`test_inelastic_corr.py` extension) | ✅ done — **the M3 code gate is green** |
 | 4 | `notebooks/RT/rt_inelastic_coding_4.ipynb` | ✅ done — executed, committed with outputs |
-| 5 | PR #18 review pass (JXP-inserted task) | ✅ done — 1 finding, fixed |
-| 6 | Update `rt_inelastic_coding_prompt_5.md` | ⬜ not started |
+| 5 | PR #18 review pass (JXP-inserted task) | ✅ done — 1 finding, fixed; PR merged |
+| 6 | Update `rt_inelastic_coding_prompt_5.md` | ✅ done — **M3 complete**; Status-entering-M4 written from §5 |
 
 ### 5.2 Head machinery (task 1)
 
