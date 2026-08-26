@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.23
+**Version:** 0.24
 **Date:** 2026-08-26
 **Authors:** JXP and Claude
 
@@ -32,7 +32,7 @@ the Date on every bump.
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
 | **M3** | Correction heads δ_R, δ_F | ✅ done (PR #18 merged) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py`, `notebooks/RT/rt_inelastic_coding_4.ipynb` |
-| **M4** | Validation (*prototype done*) | ⬜ not started | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
+| **M4** | Validation (*prototype done*) | 🟡 in progress (task 1 done) | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -1136,13 +1136,139 @@ zenith, per-process deltas ≤ 5 %, elastic hash-regression, gradient checks
 incl. φ_C, speed ≤ 2× elastic; review pass; metrics + figures committed under
 `design/validation/`.
 
-*Not started.*
+### 6.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Validation protocol (`validation.py` extension) | ✅ done — both new gate numbers measured; speed fallback applied (6.3× → 1.6×) |
+| 2 | Artifacts (`run_validation.py`) + gate (`test_inelastic_validation.py`) | ⬜ not started |
+| 3 | Review pass (CQ6) | ⬜ not started |
+| 4 | Wrap-up (record, notebook 5) | ⬜ not started |
+
+### 6.2 The protocol (task 1)
+
+**`robust/rt/validation.py` extended** (+7 public functions) with the
+inelastic design-§6 machinery, under the module's standing rule — one
+definition per metric, shared by gate, log, and table:
+
+- **Per-process delta metrics, under permanent names.**
+  `median_increment_error` (gate line 2: median
+  ``(f_model−1)/(f_truth−1) − 1`` per group over a band) and
+  `peak_ratio_error` (gate line 3: median model/truth − 1 at one band).
+  These are `test_inelastic_corr.py`'s definitions *moved*, not copied —
+  the test's local helper and the fluorescence gate now **delegate to
+  validation.py**, so the M3 held-out gates and the M4 table are literally
+  one quantity.
+- **`quantile_bin_labels`** — the generic equal-count binning;
+  `bp_bin_labels` now delegates to it. Deciles of a_ph(440) feed
+  `peak_ratio_error`/`group_rrms` for the trophic diagnostic.
+- **`phi_c_linearity`** — the scaled-truth construction (design §6/§8):
+  model fluorescence delta at ``φ_C = s·0.02`` vs ``s·(Rrs_X4 − Rrs_X2)``,
+  reported per scale/zenith through `peak_ratio_error`. Reported, never
+  gated — truth exists only at s = 1.
+- **`speed_ratio`** — gate line 6 as a function: candidate/reference
+  runtime on identical args, reusing `throughput`; the *ratio* is the
+  reproducible number.
+- **`INELASTIC_FD_STEPS` + `inelastic_gradient_report`** — gate line 5:
+  the M2/M3 FD protocol (float64, per-variable steps, θ_s off the Ed
+  anchors) for **all six inputs** — the elastic four plus `a_ph` and
+  `φ_C` (`B_p` joins the M3 five). Shares the elastic report's
+  classification rules via a factored `_grad_vs_fd`; refuses a missing
+  `a_ph` and a wrong `steps` dict (the "perfect agreement for a variable
+  never perturbed" trap, inherited from the elastic report).
+
+Total rRMS and the per-λ/per-zenith cuts needed nothing new — `rrms`,
+`group_rrms`, `rrms_per_wavelength` on ``rrs(Rrs_X4)`` *are* the protocol.
+The elastic hash-regression (gate line 4) remains `test_inelastic_types.py`'s
+standing two-tier pin; the protocol reports through it rather than
+re-deriving it.
+
+**Tests** (`test_validation.py`, +7 → 838 lines): hand-computed synthetic
+references for both delta metrics (unbalanced groups; scored on the
+*increment*, where the analytic backbone's −39 % looks like 0.4 % in factor
+terms); decile binning ≡ the generic binning; φ_C-linearity flat for a
+linear model and drifting for a quadratic contamination; `speed_ratio`
+internal consistency; the six-variable gradient gate through the real
+composed corrected forward (committed weights, θ_s = 35°, all ≤ 1e-6); the
+two refusal cases.
+
+### 6.3 The two new gate numbers (task 1, measured)
+
+**Total held-out rRMS vs `Rrs_X4`** (rrs space, all processes on,
+φ_C = 0.02, committed weights, elastic splits, this machine):
+
+| model | total | 0° | 30° | 60° |
+|---|---|---|---|---|
+| elastic-only (`inelastic=None`) | 16.73 | 18.69 | 15.39 | 15.92 |
+| analytic inelastic (`corrections=False`) | 3.21 | 4.82 | 1.82 | 2.07 |
+| **corrected (the default model)** | **0.347** | **0.352** | **0.339** | **0.349** |
+
+*(λ ≥ 400 nm — the model's stated domain since M3. Per-λ ladder: median
+0.33 %, worst 0.84 % at 450 nm.)* On the full 350–750 nm grid the corrected
+model measures 2.61/2.27/2.28 % — almost entirely the ten sub-400 nm bands
+(13 % at 350 nm), where the Raman excitation clamps and the heads never
+trained. **The gate's wavelength domain is prompt 5 Q&A Q1** (Claude's
+call: score the gate on the stated domain, report the full grid; awaiting
+JXP). Per-process deltas through the shared definitions are unchanged from
+M3 (§5.3), as required.
+
+**Speed** (full batch 9960 × 81, jitted, CPU, ratio to the elastic hybrid):
+first measurement **6.3×** (216 vs 33 ms) — the coding plan's
+budget-threatened branch fired. After the fallback (§6.4): **median 1.60×**
+over 5 × 10-call trials (52–55 vs 32–35 ms). Shared-machine wander is ~±5 %;
+the gate test should assert a median of several `speed_ratio` trials.
+
+### 6.4 The speed fallback (task 1) — 6.3× → 1.6×
+
+Measured first, as the plan demands; the fluorescence contraction was the
+suspect and was confirmed (`fluorescence_kernel` 167 ms of the 216;
+heads ~20 ms each; `raman_factor` 1.4 ms). Three changes, every
+gate/pin/xcheck green after each (423 passed; live-BING float64 pins
+untouched; the **elastic path deliberately untouched** — its strict hash
+pins are bitwise, and optimizing the ratio's denominator helps nothing):
+
+1. **Quadrature fused** (`inelastic.py`): all λ′-only factors (trapezoid
+   weights, Ed(λ′), quanta→energy, source) fold into one ``(..., n_ex)``
+   numerator; the ``(batch, n_em, 65)`` tensor appears in a single
+   divide-and-reduce. Algebraically identical (float32 reorder ~7e-7).
+   167 → 17 ms.
+2. **`optimization_barrier` on the reduced `r_f`** — the real discovery:
+   XLA CPU consumer-fusion *re-ran the entire 52M-element reduction once
+   per downstream use* of `r_f` (`rrs_to_Rrs` consumes it twice, the
+   emission line again). The barrier pins one materialization —
+   **bit-identical output**, differentiable (the FD gates run through it),
+   `jit`/`vmap`-safe. 17 → 3.8 ms.
+3. **Head evaluation** (`inelastic_corr.py::CorrectionHead.delta`): the
+   ``(batch, wave)`` axes flatten to 2-D before the two small matmuls
+   (XLA's threaded matmul path vs a single-threaded N-D `dot_general`;
+   bit-identical; 20 → 13 ms/head), and the feature standardization folds
+   into Dense_0's kernel/bias (``(x−m)/s @ W = x @ (W/s) − (m/s)@W``;
+   ULP-level, ~4e-7 on δ; a fresh head's δ stays exactly 0 — the output
+   layer is zero-init). 13 → 10 ms/head.
+
+### 6.5 Diagnostics (task 1 — reported, not gated)
+
+- **a_ph(440) deciles** (held-out, fluorescence 685 nm through
+  `quantile_bin_labels` + `peak_ratio_error`): flat — max |err| **0.62 %**
+  (decile 2); the eutrophic decile 10 at +0.00 %. Confirms M3 through the
+  protocol.
+- **φ_C-linearity** (`phi_c_linearity`, scales 0.5/1/2/5×): per-zenith
+  685 nm errors +0.076/+0.072/+0.103 % — **identical across scales to
+  < 1e-4** — linear by construction, as design §4.4 promised.
+- **`emission_shape='double'`**: −8.5 % at 685 nm / +9.8 % at 730 nm vs
+  `'single'` (median, full batch); against the single-shape truth it sits
+  at −23.6 % at 685 nm — consistent with moving 25 % of the emission into
+  a shoulder L23 cannot see. Unvalidatable, off everywhere, reported only.
+
+**Results (task 1).** `pytest -q` → **423 passed, 1 skipped** (416 + 7 new);
+elastic hash pins green; ruff + `ruff format` clean. Chronology: prompt 5
+Log, 2026-08-26.
 
 ---
 
 ## 7. Module index (current)
 
-Inelastic surface as of M2 task 2 (the elastic surface is otherwise
+Inelastic surface as of M4 task 1 (the elastic surface is otherwise
 unchanged — see `rt_elastic_implementation.md` §9):
 
 | Module | Inelastic surface | Since |
@@ -1163,3 +1289,9 @@ unchanged — see `rt_elastic_implementation.md` §9):
 | `robust/tests/files/l23_inelastic_fixture.npz` | the sibling CI fixture (CQ4, 249 kB) | M1 |
 | `robust/tests/test_l23_inelastic_data.py` | the M1 task-3 gate, incl. the CQ4 byte pin and split-equality proofs | M1 |
 | `robust/tests/conftest.py` | `L23_INELASTIC_FILES`, `needs_l23_inelastic` | M1 |
+| `robust.rt.inelastic_corr` | `HeadConfig`, `CorrectionHead`, `CorrectionHeads`, `features_raman`/`features_fl`, `corrected_raman_factor`, `save_head`/`load_head`/`init_head`, `load_default`, `MissingCorrectionWarning` | M3 |
+| `robust/rt/files/{raman,fl}_corr_l23.npz` | the committed trained heads (129 params each) — `forward`'s default corrections | M3 |
+| `design/py/train_inelastic_corr.py` | head training (full release, elastic splits, fixed seeds; candidate-verified atomic writes) | M3 |
+| `robust/tests/test_inelastic_corr.py` | the M3 gate: machinery + the held-out ≤ 5 % acceptance gates, weights-integrity regression, corrected-path FD gradients | M3 |
+| `robust.rt.validation` | the inelastic §6 protocol: `median_increment_error`, `peak_ratio_error`, `quantile_bin_labels`, `phi_c_linearity`, `speed_ratio`, `inelastic_gradient_report`, `INELASTIC_FD_STEPS` (elastic surface unchanged) | M4 |
+| `robust/tests/test_validation.py` | + the M4 protocol-function tests, incl. the six-variable corrected-path gradient gate | M4 |

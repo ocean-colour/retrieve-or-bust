@@ -34,6 +34,7 @@ import pytest
 from robust.rt import hybrid as H
 from robust.rt import inelastic as I
 from robust.rt import inelastic_corr as IC
+from robust.rt import validation as V
 from robust.rt.types import Inelastic
 
 #: One fixed configuration per head kind, small and fast.
@@ -445,13 +446,15 @@ def full_release():
 
 
 def median_increment_errors(f_model, f_truth, batch, wave, mask, band):
-    """Median (f-1)/(truth-1) - 1 per zenith over a wavelength band."""
-    inc = (f_model - 1.0) / (f_truth - 1.0) - 1.0
-    out = {}
-    for zenith in (0.0, 30.0, 60.0):
-        rows = mask & (batch.zenith == zenith)
-        out[zenith] = float(np.median(inc[rows][:, band]))
-    return out
+    """Median (f-1)/(truth-1) - 1 per zenith over a wavelength band.
+
+    Since M4 this delegates to :func:`robust.rt.validation.median_increment_error`
+    — the same definition the protocol and ``run_validation.py`` report, so the
+    gate here and the number in the M4 table cannot drift apart.
+    """
+    return V.median_increment_error(
+        f_model[mask], f_truth[mask], batch.zenith[mask], band
+    )
 
 
 @needs_weights
@@ -501,9 +504,12 @@ def test_heldout_fluorescence_gate(full_release):
     model = L.PHI_C_L23 * k_fl * (1.0 + delta)
     truth = np.asarray(batch.truth_fluorescence)
 
-    for zenith in (0.0, 30.0, 60.0):
-        rows = splits.scene_test & (batch.zenith == zenith)
-        err = float(np.median(model[rows, i685] / truth[rows, i685])) - 1.0
+    # The shared protocol metric (robust.rt.validation.peak_ratio_error), so the
+    # gate and the M4 table report the same quantity.
+    held = splits.scene_test
+    for zenith, err in V.peak_ratio_error(
+        model[held], truth[held], batch.zenith[held], i685
+    ).items():
         assert abs(err) <= GATE, f"zenith {zenith}: 685 nm {err:+.4f}"
 
 

@@ -172,6 +172,24 @@ ruff + format clean; elastic hash pins green. What M4 inherits:
 
 ### Q&A
 
+**Q1 (Claude, 2026-08-26, task 1).** One gate-definition decision made that
+deserves your veto: **the total-rRMS gate (design §6 line 1) is scored over
+λ ≥ 400 nm** — the model's stated domain since M3 (the heads' training band;
+below 400 nm the Raman excitation leaves the L23 grid and clamps, and the
+heads never saw it). On that band the held-out corrected model measures
+**0.352 / 0.339 / 0.349 %** at 0/30/60° — under the 0.5 % bar at every
+zenith. On the *full* 350–750 nm grid it measures 2.61/2.27/2.28 %,
+essentially all of it from the ten sub-400 nm bands (13 % rRMS at 350 nm,
+falling to the gate level by 400). The design wrote "held-out rRMS ≤ 0.5 %"
+before the domain restriction was measured; scoring a model outside its
+stated domain seems wrong to me, but it is your gate. The full-grid number
+will be *reported* in the metrics table either way (candor, not gating). If
+you want the gate on the full grid instead, the prototype fails line 1 and
+the fix is a training-band decision, not a validation one — say so before
+task 2 pins the gate test.
+
+>A. Right, do not gate on the rms outside the 400-700nm range.
+
 ## Next
 
 The prototype is complete. Next steps live in
@@ -188,3 +206,85 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-26 (M4 task 1 — the §6 protocol in validation.py; speed 6.3× → 1.6×; 423 green)
+
+Model: Fable 5. Q&A checked first: **empty — nothing to answer** (prompt 4
+closed everything). One new question asked above (Q1: the total-rRMS gate's
+wavelength domain). Record §6 (v0.24) has the full task-1 write-up.
+
+**The protocol** (`robust/rt/validation.py`, +7 public functions): the
+per-process delta metrics under permanent names —
+`median_increment_error` (Raman; `test_inelastic_corr.py`'s definition,
+which now *delegates here*, so the M3 gate and the M4 table are one
+quantity) and `peak_ratio_error` (fluorescence 685 nm; same reuse);
+`quantile_bin_labels` (the generic form of `bp_bin_labels`, which now
+delegates — deciles for the a_ph(440) diagnostic); `phi_c_linearity` (the
+scaled-truth construction); `speed_ratio` (gate line 6 as a ratio, reusing
+`throughput`); `INELASTIC_FD_STEPS` + `inelastic_gradient_report` (the
+M2/M3 FD protocol for all six inputs incl. `B_p`, `a_ph`, `φ_C`; shares the
+elastic report's classification rules via a factored `_grad_vs_fd`). Total
+rRMS and per-λ/zenith cuts need nothing new — `rrms`/`group_rrms`/
+`rrms_per_wavelength` already are the protocol. The elastic hash-regression
+stays `test_inelastic_types.py`'s standing two-tier pin (reported through,
+not re-derived). +7 tests in `test_validation.py` (hand-computed synthetic
+references; the six-variable gradient gate through the real corrected
+forward at θ_s = 35°, all ≤ 1e-6).
+
+**Measured — the two genuinely new gate numbers.** (1) Held-out total rRMS
+vs `Rrs_X4` (rrs space, all processes on, committed weights):
+**0.352 / 0.339 / 0.349 %** at 0/30/60° over λ ≥ 400 nm — under the 0.5 %
+gate; full-grid 2.61/2.27/2.28 % (the sub-400 clamp region — Q&A Q1).
+Ladder: median 0.33 %, worst 0.84 % at 450 nm. The rRMS ladder: elastic-only
+16.7 % → analytic inelastic 3.2 % → corrected 0.35 % (held-out, ≥ 400 nm).
+(2) **Speed: first measurement 6.3×** the elastic hybrid (216 vs 33 ms,
+full batch, jitted CPU) — the budget-threatened branch fired, fallback
+applied (below) — **final median 1.60×** (52–55 vs 32–35 ms, 5 trials).
+
+**The speed fallback (the coding-plan prescription, measured first).**
+Profiling: `fluorescence_kernel` 167 ms of the 216 (the suspect confirmed);
+heads ~20 ms each; `raman_factor` 1.4 ms. Three changes, all
+gates/pins/xchecks green after each (423 passed, 1 skipped; ruff + format
+clean; live-BING float64 pins untouched):
+1. **Kernel quadrature fused** (`inelastic.py`): everything λ′-only
+   (trapezoid weights, Ed(λ′), quanta→energy, source) folds into one
+   `(..., n_ex)` numerator so the `(batch, n_em, 65)` tensor appears in a
+   single divide-and-reduce — algebraically identical (float32 reorder
+   ~7e-7). 167 → 17 ms.
+2. **`optimization_barrier` on the reduced `r_f`** — the real discovery:
+   XLA CPU consumer-fusion *re-ran the whole 52M-element reduction once per
+   downstream use* of `r_f` (`rrs_to_Rrs` uses it twice, plus the emission
+   line). The barrier pins it to materialize once — **bit-identical**
+   output, differentiable (FD gates pass through it). 17 → 3.8 ms.
+3. **Heads: flatten + fold** (`inelastic_corr.py::CorrectionHead.delta`):
+   the (batch, wave) axes flatten to 2-D before the matmuls (XLA's threaded
+   matmul path; bit-identical, 20 → 13 ms/head), and the feature
+   standardization folds into Dense_0's kernel/bias
+   (`(x−m)/s @ W = x @ (W/s) − (m/s)@W`; ULP-level, ~4e-7 on δ; a fresh
+   head's δ stays exactly 0 since the output layer is zero-init).
+   13 → 10 ms/head.
+The elastic path was deliberately untouched (its strict hash pins are
+bitwise; also keeping the denominator honest — optimizing the reference
+would tighten the ratio for nothing).
+
+**Diagnostics (reported, not gated), through the protocol functions:** the
+a_ph(440)-decile fluorescence line is flat — max |err| **0.62 %** (decile 2
+at +0.62; the eutrophic decile 10 at +0.00) — confirming M3.
+`phi_c_linearity` at scales 0.5/1/2/5×: per-zenith errors
+(+0.076/+0.072/+0.103 %) **identical across scales to <1e-4** — linear by
+construction, as §4.4 promised. `emission_shape='double'`: −8.5 % at
+685 nm, +9.8 % at 730 nm vs `'single'` (median, full batch); scored against
+the single-shape truth it sits at −23.6 % at 685 — consistent with moving
+25 % of the emission into an L23-invisible shoulder; unvalidatable, off
+everywhere, reported only.
+
+**Per-process deltas through the shared definitions** (held-out, unchanged
+from M3, as required): Raman 550–700 nm −0.14/−0.10/−0.21 %, 490 nm
++1.03/+0.82/+0.58 %, fluorescence 685 nm +0.08/+0.07/+0.10 %.
+
+**State for task 2:** `run_validation.py` extension + the committed
+artifacts + `test_inelastic_validation.py` gate file. Gate lines (2)–(5)
+are standing tests; (1) waits on Q1's answer for its wavelength domain;
+(6) should assert the *median* of several `speed_ratio` trials (shared-
+machine wander is ±5 %; 1.6× has real margin, single trials of the
+pre-fallback code did not).
