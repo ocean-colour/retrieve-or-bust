@@ -119,7 +119,8 @@ on, and what it must not break:
    additional questions, ask in Q&A. Use Fable if you can. Log your work.
 4. Read this doc. Execute the 4th task — the notebook. Use Fable if you can.
    Log your work.
-5. Read this doc. Execute the 5th task — modifying the next prompt doc,
+5. Read this doc. Execute the 5th task. Use Fable if you can. Log your work.
+6. Read this doc. Execute the 6th task — modifying the next prompt doc,
    `rt_inelastic_coding_prompt_5.md`. Use Fable if you can. Log your work.
 
 ## M3
@@ -178,7 +179,10 @@ on, and what it must not break:
    result with an honest caption; head sizes vs the elastic emulator's 417
    params.
 
-5. **Finally.** Modify the next prompt doc,
+5. **Review.** I have issued a Pull Request.  Please examine the comments there
+   and make any necessary changes.  Use Fable if you can.  Log your work.
+
+6. **Finally.** Modify the next prompt doc,
    `rt_inelastic_coding_prompt_5.md`, given what M3 actually established.
    Log your work.
 
@@ -199,8 +203,12 @@ land. If you'd rather corrections be opt-in (default analytic even when
 trained), say so before task 2 commits weights — it's a one-line default
 flip plus doc updates now, a behavior change for downstream users later.
 
+>A. Your move is fine.
+
 *(Carried over, still open: prompt 3 Q&A Q1 — keep or remove the committed
 stray `rob/` directory.)*
+
+>A. Keep it
 
 ## Next
 
@@ -262,3 +270,153 @@ parameter-gradient path already tested; it needs the full L23 release
 commits `robust/rt/files/{raman,fl}_corr_l23.npz` — at which point the
 fallback-warning test steps aside automatically and the corrected model
 becomes the default `forward` (Q1).
+
+### 2026-08-24 (M3 task 2 — heads trained on the full release, weights committed; gates beaten ~25×)
+
+`design/py/train_inelastic_corr.py` + committed weights; record §5.3
+(v0.20). Model: Fable 5. Q&A: **no answers found — Q1 (corrections
+default-on) drew no veto before task 2, so it now stands: with the weight
+files committed, `forward(..., inelastic=...)` is the corrected model by
+default**; prompt 3's Q1 (`rob/`) is still open. No new questions from this
+task. (Prompt arrived as "execute the 1st prompt" with task 1 done and
+committed in `3d3bd30` — read as task 2 per the standing convention.)
+
+- **Training**: full release (9960 × 81, `$OS_COLOR`), elastic splits
+  verbatim, full-batch Adam, fixed seeds, ~60 s/head. Relatively-weighted
+  losses + the elastic size penalty: δ_R on the relative *increment* error
+  (λ ≥ 400 nm), train fit 24.8 → 1.69 %, |δ|rms 30.6 %, max 0.905 (bound
+  1.0 — ~10 % headroom at the extreme); δ_F on the emission window
+  normalized per scene by its own 685 nm truth, train fit 5.6 → 0.77 %,
+  |δ|rms 7.1 %, max 0.34 (bound 0.5). 129 params/head — the budget's low
+  end sufficed.
+- **Held-out scenes (the numbers task 3 must pin)**: Raman increment
+  −38.6→−0.14 / +1.2→−0.10 / −4.2→−0.21 % (550–700, 0/30/60°); 490 nm
+  −3.6→+1.0 / +30.9→+0.8 / +32.6→+0.6 %; fluorescence 685
+  +0.3→+0.08 / −5.2→+0.07 / −13.7→+0.10 %. Worst gate metric 0.21 %
+  (Raman), 0.10 % (fl) vs the 5 % bars. a_ph(440) deciles all within
+  ±0.6 % — no eutrophic tail. *Full-release analytic medians differ from
+  the fixture's (−5.2 vs −6.3 % @30° fl; +32.6 vs +30.4 % @490/60°) — the
+  recompute lesson; pin task 3's held-out bands on these.*
+- **Zenith-holdout diagnostic (reported, not shipped)**: at the unseen 60°,
+  δ_R collapses to **−74 %** median increment error — far worse than the
+  analytic backbone it corrects — and δ_F sits at −9.2 %. The elastic
+  extrapolation caveat in sharper form: the heads are interpolators in
+  cos θ_s; unseen geometries need coverage or a domain guard. Honest
+  caption required in notebook 4.
+- **Weights committed-ready**: `robust/rt/files/{raman,fl}_corr_l23.npz`
+  (4.2/4.3 kB), reload-verified at write time (the refusal rule runs in the
+  script, not at first use). Suite: **407 passed, 1 skipped** — the skip is
+  the task-1 fallback-warning test retiring itself exactly as designed;
+  the M2 analytic pins (all `corrections=False`) green untouched; elastic
+  hash pins green; ruff + format clean.
+
+Task 3 (held-out gates) has its numbers measured and logged above; it needs
+`test_inelastic_corr.py` extended with the committed-weights gate tests
+(≤ 5 % per process per zenith, bounded-output on the *loaded* heads, a
+corrected-path FD gradient check with θ_s off the Ed anchors) — no
+train-at-test-time, and the whole M2 gate stays green untouched.
+
+### 2026-08-24 (M3 task 3 — held-out gates pinned; the M3 code gate is green; 416)
+
+`test_inelastic_corr.py` extended with the acceptance gates; record §5.4
+(v0.21). Model: Fable 5. Q&A: **no answers found — nothing new from this
+task either**; still open: prompt 4 Q1 (default-on — now in effect, veto
+still possible but is a behavior change) and prompt 3 Q1 (`rob/`).
+(Prompt arrived as "execute the 2nd prompt" with task 2 done and committed
+in `40becd8` — read as task 3 per the standing convention.)
+
+- **Acceptance gates** (full release, held-out scenes, committed weights
+  only — no train-at-test-time; `needs_l23_inelastic` so CI skips while
+  this machine enforces): Raman median |increment error| ≤ 5 % over
+  550–700 nm at every zenith incl. 0°, the 490 nm row at the same bar;
+  fluorescence median |685 nm error| ≤ 5 % per zenith. All pass with
+  ~25× margin (§5.3's table).
+- **Bounds on the loaded heads** over the whole release (also the
+  saturation canary for δ_R's 0.905/1.0 extreme).
+- **Weights-integrity regression**, CI-runnable on the fixture (±2 %
+  bands): catches a corrupt/stale/reverted weight file anywhere the repo
+  runs, without `$OS_COLOR`.
+- **Corrected-path FD gradient gate** (a, bb_p, a_ph, φ_C, θ_s): the M2
+  protocol with `corrections=load_default()` — the inversion's actual
+  differentiation path, through both tanh heads, pinned. θ_s at 35°, off
+  the Ed anchors (the M2 kink caveat).
+- Suite **416 passed, 1 skipped** (the task-1 fallback test, retired by
+  design); CI simulation: 3 gates skip, regression + gradients run (the
+  lone warning there is ocpy's own `OS_COLOR not set` import notice —
+  external, pre-existing). M2 gate untouched; elastic hash pins green;
+  ruff + format clean. **The M3 code gate (task 3's "Gate" line) is met.**
+
+Task 4 (the notebook) is presentation: before/after error spectra per
+zenith for both processes (the −39 % @ 0° closing), the a_ph(440)-decile
+table, the zenith-holdout collapse (−74 % at unseen 60° — honest caption),
+and head sizes (129 params each) vs the elastic emulator's 417. All
+numbers are in §5.3–5.4 and the training log; lift, don't re-derive.
+
+### 2026-08-25 (M3 task 4 — notebook 4 built and executed; Q&A answered and closed; 416 green)
+
+`notebooks/RT/rt_inelastic_coding_4.ipynb` — executed with outputs
+(321 kB), record §5.5 (v0.22). Model: Fable 5. **Q&A: both open items are
+now ANSWERED and closed** — Q1 (corrections default-on): *"Your move is
+fine"*, so the corrected-by-default `forward` stands; prompt 3's `rob/`
+question: *"Keep it"*, so the directory stays. **No new questions.**
+(Prompt arrived as "execute the 4th prompt" with tasks 1–3 done — for once
+the number and the next task coincide.)
+
+- Built programmatically (`nbformat`, os_313), house style, fixture-free:
+  recomputes from the committed weights on the **full release**, held-out
+  scenes only; the sole in-notebook training is §3's deliberately crippled
+  zenith-holdout δ_R (the training script's own `fit_head` imported —
+  reuse over reinvention).
+- §1 Raman before/after per zenith: the −38.6 % @ 0° and +30 % @ 490 nm
+  analytic structure flattened into the ±5 % band (plots sliced to
+  λ ≥ 400 nm — the official band; the first execution's autoscale exposed
+  the sub-400 clamp region where the heads never trained, +400 % medians —
+  sliced, not hidden: it is outside the model's stated domain).
+- §2 Fluorescence gate bars (−13.7 → +0.1 % at 60°) + the a_ph(440)-decile
+  line — a finding worth keeping: the *analytic* 685 nm error runs from
+  −11 % (clearest decile) to **+11 % (eutrophic tail)** — clean
+  biomass-dependent structure the zenith medians averaged away; corrected
+  is flat at ±0.6 %.
+- §3 the honest panel: crippled δ_R at the unseen 60° = **−65.5 %** at
+  1500 steps (−74 % at 3000), worse than no correction; caption states the
+  interpolator-in-cos θ_s rule and the coverage-or-domain-guard condition.
+- §4 economics (129 vs 417 params) and the M4 inheritance list.
+- Suite untouched: **416 passed, 1 skipped**; ruff clean; hash pins green.
+
+Task 5 closes M3: write `rt_inelastic_coding_prompt_5.md`'s Status from
+record §5 (M4 = validation: total held-out rRMS ≤ 0.5 %/zenith vs Rrs_X4,
+per-process deltas ≤ 5 % (met), elastic hash, gradient gate incl. φ_C
+(met), speed ≤ 2× elastic, review pass CQ6, metrics + figures into
+design/validation/) — and carry the closed Q&A state forward.
+
+### 2026-08-26 (M3 task 5 — PR #18 review pass; 1 finding, fixed)
+
+The JXP-inserted review task; record v0.22.1. Model: Fable 5. Q&A: **no new
+answers needed — both prior questions stand answered and closed** (Q1
+"Your move is fine"; `rob/` "Keep it"); this task raises **no new
+questions**. (Doc edit noted: task 5 is now the PR review, the prompt-doc
+hand-off renumbered to 6 — the Prompts list and the record's task table
+follow.)
+
+- **PR #18 ("Inelastic rt : M3") comments examined**: one inline finding
+  (Cursor Bugbot, medium): `train_inelastic_corr.py` wrote the weight
+  files **directly to the destination and verified afterwards** — a crash
+  mid-write, a failed refusal check, or a broken serialisation would
+  destroy the previous known-good committed weights. The same defect the
+  elastic effort's PR #11 review caught in `train_emulator.py`; this script
+  failed to inherit the fix. Valid on all counts.
+- **Fixed with the elastic pattern**, as a `write_head(head, batch, out)`
+  helper: candidate written *beside* the destination (`tempfile.mkstemp`),
+  reloaded (the feature-mismatch refusal runs on the candidate), required
+  to **reproduce the trained head's δ on the full batch**, permissions
+  restored from the umask, then atomic `os.replace`; the temp file is
+  removed on every exit path, and a failed round trip returns exit 1 with
+  the destination untouched.
+- **Exercised**: a 50-step run writing to a scratch directory took the new
+  path end to end (both files written, round trip verified); the committed
+  weights are byte-untouched (`git status` clean on `robust/`), no stray
+  temp files, `test_inelastic_corr.py` 26 passed / 1 skipped, ruff +
+  format clean. No retrain needed — the fix changes only the write path,
+  not the weights.
+
+Task 6 (the prompt-5 hand-off) closes M3.
