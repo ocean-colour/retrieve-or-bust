@@ -1,0 +1,47 @@
+section,metric,zenith,value
+total_rrms,elastic-only 400-700nm,0,18.7146
+total_rrms,elastic-only full-grid,0,17.8531
+total_rrms,elastic-only 400-700nm,30,15.7988
+total_rrms,elastic-only full-grid,30,14.6721
+total_rrms,elastic-only 400-700nm,60,16.3386
+total_rrms,elastic-only full-grid,60,15.1471
+total_rrms,analytic inelastic 400-700nm,0,4.2941
+total_rrms,analytic inelastic full-grid,0,5.2037
+total_rrms,analytic inelastic 400-700nm,30,1.9408
+total_rrms,analytic inelastic full-grid,30,3.7369
+total_rrms,analytic inelastic 400-700nm,60,2.1784
+total_rrms,analytic inelastic full-grid,60,4.0364
+total_rrms,corrected inelastic 400-700nm,0,0.3432
+total_rrms,corrected inelastic full-grid,0,2.6140
+total_rrms,corrected inelastic 400-700nm,30,0.3405
+total_rrms,corrected inelastic full-grid,30,2.2688
+total_rrms,corrected inelastic 400-700nm,60,0.3401
+total_rrms,corrected inelastic full-grid,60,2.2844
+delta_analytic_pct,Raman 550-700 nm,0,-38.5646
+delta_corrected_pct,Raman 550-700 nm,0,-0.1392
+delta_analytic_pct,Raman 550-700 nm,30,1.2309
+delta_corrected_pct,Raman 550-700 nm,30,-0.0958
+delta_analytic_pct,Raman 550-700 nm,60,-4.2094
+delta_corrected_pct,Raman 550-700 nm,60,-0.2050
+delta_analytic_pct,Raman 490 nm,0,-3.5976
+delta_corrected_pct,Raman 490 nm,0,1.0323
+delta_analytic_pct,Raman 490 nm,30,30.8488
+delta_corrected_pct,Raman 490 nm,30,0.8199
+delta_analytic_pct,Raman 490 nm,60,32.5482
+delta_corrected_pct,Raman 490 nm,60,0.5785
+delta_analytic_pct,fluorescence 685 nm,0,0.2746
+delta_corrected_pct,fluorescence 685 nm,0,0.0757
+delta_analytic_pct,fluorescence 685 nm,30,-5.1961
+delta_corrected_pct,fluorescence 685 nm,30,0.0722
+delta_analytic_pct,fluorescence 685 nm,60,-13.7116
+delta_corrected_pct,fluorescence 685 nm,60,0.1030
+speed,median_ratio,,1.6737
+speed,inelastic_ms,,53.75
+speed,elastic_ms,,32.35
+gradient_rel_diff,a,,2.531e-09
+gradient_rel_diff,bb_p,,3.644e-10
+gradient_rel_diff,B_p,,1.865e-09
+gradient_rel_diff,a_ph,,5.883e-09
+gradient_rel_diff,phi_C,,1.423e-09
+gradient_rel_diff,theta_s,,3.023e-09
+bit_identical,inelastic_none,,True

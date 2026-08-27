@@ -82,6 +82,7 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "inelastic_gradient_report",
     "FD_STEPS",
     "INELASTIC_FD_STEPS",
+    "INELASTIC_GATE_BAND",
     "GRADIENT_TOL",
     "score_models",
     "markdown_table",
@@ -94,6 +95,15 @@ __all__ = [  # noqa: RUF022  - grouped by role
 #: O(1e-3) m^-1. Too large a step also leaves the physical domain -- ``bb_p`` goes
 #: negative and the model returns NaN.
 FD_STEPS = {"a": 1e-6, "bb_p": 1e-9, "B_p": 1e-8, "theta_s": 1e-3}
+
+#: The wavelength band the inelastic total-rRMS gate is scored over, nm —
+#: JXP's decision (prompt 5 Q&A Q1: "do not gate on the rms outside the
+#: 400-700nm range"). Below 400 nm the Raman excitation leaves the L23 grid
+#: and clamps and the heads never trained (the model's stated domain since
+#: M3); the far red is excluded with it. One definition here so the gate test
+#: and ``run_validation.py`` cannot score different bands; the full-grid
+#: number is *reported* alongside, never gated.
+INELASTIC_GATE_BAND = (400.0, 700.0)
 
 #: Per-variable steps for :func:`inelastic_gradient_report` — the M2/M3 gate's
 #: values (``test_inelastic.py``/``test_inelastic_corr.py``), with the elastic

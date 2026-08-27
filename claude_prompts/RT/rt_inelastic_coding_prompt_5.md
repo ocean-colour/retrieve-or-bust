@@ -288,3 +288,51 @@ are standing tests; (1) waits on Q1's answer for its wavelength domain;
 (6) should assert the *median* of several `speed_ratio` trials (shared-
 machine wander is ±5 %; 1.6× has real margin, single trials of the
 pre-fallback code did not).
+
+### 2026-08-26 (M4 task 2 — the §6 gate PASSES on all six lines; artifacts committed; 430 green)
+
+Model: Fable 5. **Q&A: Q1 answered by JXP — "do not gate on the rms outside
+the 400-700nm range" — no new questions.** The gate band is therefore
+**400–700 nm**, defined once as `validation.INELASTIC_GATE_BAND` (one
+definition, so the gate test and the committed table cannot score different
+bands); the full 350–750 nm grid is reported alongside, never gated. Record
+§6.6 (v0.25) has the full write-up.
+
+**`robust/tests/test_inelastic_validation.py`** (7 tests) — the design-§6
+acceptance spelled in one file, one numbered test per line, every metric
+through the task-1 protocol functions. Where a line duplicates a standing
+test (the deltas, the hash pins) that is deliberate and documented: the
+standing tests earned the numbers, this file states the acceptance. Line 4
+re-asserts `test_inelastic_types.py`'s strict SHA-256 tier under the gate's
+name (same helper and pins imported — no second definition; machine-
+anchored, CI keeps the closeness tier) plus release-level bitwise identity
+of omitted/None/all-off. Line 6 asserts the **median of three
+`speed_ratio` trials** (single ratios wander ±5 % here). Full-release lines
+skip without `$OS_COLOR`; weight-dependent lines skip with a regenerate
+message.
+
+**`design/py/run_validation.py --inelastic`** — one command regenerates the
+inelastic metrics table + figures into `design/validation/`, alongside the
+elastic artifacts (`*_inelastic.*`, `inelastic_*.png`); committed weights
+only, nothing trained, ~2 min; exits nonzero if any gate line fails. The
+eager-loader lesson from task 1 is baked in (resolve `emulator`/`heads`
+before anything jits — a memoised loader first touched inside a trace
+caches tracers).
+
+**The committed gate table** (`metrics_inelastic.md`): (1) total held-out
+rRMS vs X4 over 400–700 nm **0.343/0.341/0.340 %** at 0/30/60° (full grid
+2.61/2.27/2.28 %, reported); (2) Raman worst **1.03 %** (490 nm @ 0°);
+(3) fluorescence worst **0.10 %**; (4) bit-identical **True**;
+(5) gradients worst **5.9e-9** of six variables; (6) speed **1.67× median**
+(55 vs 33 ms; trials 1.57–1.68). **All six lines PASS.** Figures: the
+three-model ladder vs X4 (ungated regions shaded so the sub-400 cliff
+stays visible — the corrected line crosses 0.5 % only at the 685 nm
+fluorescence band and 450 nm, per-λ excursions the *total* gate absorbs)
+and the nine-row analytic → corrected deltas plot (−38.6 → −0.14
+headline).
+
+**Results.** `pytest -q` → **430 passed, 1 skipped** (423 + 7 gate tests);
+elastic hash pins green; ruff + format clean. **Gate lines (1)–(6) all
+pass — the prototype's remaining work is task 3 (the review pass; findings
+addressed before the gate is *declared*) and task 4 (notebook 5 + the
+record wrap-up).**
