@@ -35,9 +35,9 @@ delta_analytic_pct,fluorescence 685 nm,30,-5.1961
 delta_corrected_pct,fluorescence 685 nm,30,0.0722
 delta_analytic_pct,fluorescence 685 nm,60,-13.7116
 delta_corrected_pct,fluorescence 685 nm,60,0.1030
-speed,median_ratio,,1.6737
-speed,inelastic_ms,,53.75
-speed,elastic_ms,,32.35
+speed,median_ratio,,1.5912
+speed,inelastic_ms,,52.74
+speed,elastic_ms,,33.52
 gradient_rel_diff,a,,2.531e-09
 gradient_rel_diff,bb_p,,3.644e-10
 gradient_rel_diff,B_p,,1.865e-09

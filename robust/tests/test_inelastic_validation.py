@@ -27,6 +27,7 @@ record §2.8).
 
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -39,28 +40,17 @@ from robust.rt import validation as V
 from robust.rt.data import l23 as L
 from robust.rt.types import Geometry, Inelastic, IOPs, PhaseParams
 from robust.tests import test_inelastic_types as hash_pins
-from robust.tests.conftest import needs_l23_inelastic
+from robust.tests.conftest import needs_l23_inelastic, needs_weights
 
-#: Gate line (1): the wavelength band the total rRMS is scored over — JXP's
-#: prompt 5 Q&A Q1 answer, defined once in :mod:`robust.rt.validation` so the
-#: gate here and the committed metrics table cannot score different bands.
+#: The gate's band and bars, defined once in :mod:`robust.rt.validation` —
+#: JXP's prompt 5 Q&A Q1 answer for the band; the design-§6 numbers for the
+#: bars — so the gate here, the committed metrics table's PASS/FAIL column and
+#: its figure annotations cannot drift apart (M4 review finding: the bars were
+#: initially literals in both places).
 GATE_BAND = V.INELASTIC_GATE_BAND
-
-#: Gate line (1): held-out total rRMS vs Rrs_X4, percent, at each zenith.
-TOTAL_GATE = 0.5
-
-#: Gate lines (2)-(3): per-process median |error|, fractional (5 %).
-DELTA_GATE = 0.05
-
-#: Gate line (6): full-batch forward over elastic-hybrid runtime.
-SPEED_GATE = 2.0
-
-#: The committed weights; the corrected model does not exist without them.
-needs_weights = pytest.mark.skipif(
-    not (IC.DEFAULT_RAMAN_WEIGHTS.exists() and IC.DEFAULT_FL_WEIGHTS.exists()),
-    reason="committed correction weights missing — run "
-    "design/py/train_inelastic_corr.py",
-)
+TOTAL_GATE = V.INELASTIC_GATE_TOTAL_RRMS
+DELTA_GATE = V.INELASTIC_GATE_DELTA
+SPEED_GATE = V.INELASTIC_GATE_SPEED
 
 
 @pytest.fixture(scope="module")
@@ -162,7 +152,9 @@ def test_gate_3_fluorescence_delta(full_release):
     i685 = int(np.abs(wave - 685.0).argmin())
     k_fl = np.asarray(I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))
     delta = np.asarray(heads.fl.delta(batch.iops, batch.geometry, batch.wave))
-    model = L.PHI_C_L23 * k_fl * (1.0 + delta)
+    # The shared composition helper, so this line scores the expression
+    # `forward` actually runs (M4 review finding).
+    model = L.PHI_C_L23 * np.asarray(IC.corrected_fluorescence(delta, k_fl))
     truth = np.asarray(batch.truth_fluorescence)
 
     errors = V.peak_ratio_error(model[held], truth[held], batch.zenith[held], i685)
@@ -268,7 +260,10 @@ def test_gate_6_speed_within_twice_elastic(full_release):
     measured 1.96–2.11 on the *same* code from trial noise alone). Measured
     after the task-1 fallback: ~1.6× (it entered M4 at 6.3×). Both loaders
     are resolved eagerly first — a memoised loader first touched inside a
-    ``jit`` trace caches tracers (the task-1 lesson).
+    ``jit`` trace caches tracers (the task-1 lesson). The callables are
+    jit-wrapped *here*, once, so the trials repay the timing loop and not the
+    XLA compile, and the measurement order alternates per trial so an
+    ordering bias cannot repeat into the median (M4 review findings).
     """
     batch, _, heads, _ = full_release
     from robust.rt import emulator as E
@@ -276,6 +271,7 @@ def test_gate_6_speed_within_twice_elastic(full_release):
     em = E.load_default()
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
 
+    @jax.jit
     def corrected(i, p, g, w):
         return H.forward(
             i,
@@ -289,10 +285,14 @@ def test_gate_6_speed_within_twice_elastic(full_release):
             check_domain=False,
         )
 
+    @jax.jit
     def elastic(i, p, g, w):
         return H.forward(i, p, g, w, "hybrid", emulator=em, check_domain=False)
 
-    ratios = [V.speed_ratio(corrected, elastic, *args, repeats=5)[0] for _ in range(3)]
+    ratios = [
+        V.speed_ratio(corrected, elastic, *args, repeats=5, reverse=bool(t % 2))[0]
+        for t in range(3)
+    ]
     median = float(np.median(ratios))
     assert median <= SPEED_GATE, (
         f"median speed ratio {median:.2f}x over {len(ratios)} trials "

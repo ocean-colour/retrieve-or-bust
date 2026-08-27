@@ -82,6 +82,41 @@ INK, INK_MUTED, GRID = "#1a1a1a", "#5c5c5c", "#dcdcdc"
 C_A, C_B, C_C, MUTED = "#0072B2", "#D55E00", "#56B4E9", "#9a9a9a"
 
 
+def apply_house_style():
+    """Select the Agg backend and set the house rcParams, returning pyplot.
+
+    One definition for every figure writer in this script (the M4 review found
+    the block pasted twice): a style tweak lands everywhere or nowhere, so the
+    committed elastic and inelastic figures cannot silently diverge.
+    """
+    import matplotlib as mpl
+
+    mpl.use("Agg")
+    import matplotlib.pyplot as plt
+
+    mpl.rcParams.update(
+        {
+            "figure.dpi": 130,
+            "savefig.dpi": 130,
+            "font.size": 10.5,
+            "axes.edgecolor": INK_MUTED,
+            "axes.labelcolor": INK,
+            "text.color": INK,
+            "xtick.color": INK_MUTED,
+            "ytick.color": INK_MUTED,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "grid.color": GRID,
+            "grid.linewidth": 0.6,
+            "legend.frameon": False,
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+        }
+    )
+    return plt
+
+
 def save_figure_atomically(fig, path: Path) -> None:
     """Render a figure to a temporary file, then move it into place.
 
@@ -124,31 +159,7 @@ def make_figures(out_dir: Path, wave, per_lambda: dict, zenith_rows: list) -> No
         ``(name, median, lo, hi)`` from :func:`zenith_study`; ``lo``/``hi`` are
         ``None`` for the models that have no seed.
     """
-    import matplotlib as mpl
-
-    mpl.use("Agg")
-    import matplotlib.pyplot as plt
-
-    mpl.rcParams.update(
-        {
-            "figure.dpi": 130,
-            "savefig.dpi": 130,
-            "font.size": 10.5,
-            "axes.edgecolor": INK_MUTED,
-            "axes.labelcolor": INK,
-            "text.color": INK,
-            "xtick.color": INK_MUTED,
-            "ytick.color": INK_MUTED,
-            "axes.spines.top": False,
-            "axes.spines.right": False,
-            "axes.grid": True,
-            "grid.color": GRID,
-            "grid.linewidth": 0.6,
-            "legend.frameon": False,
-            "figure.facecolor": "white",
-            "axes.facecolor": "white",
-        }
-    )
+    plt = apply_house_style()
 
     styles = {
         "standard Gordon": (C_C, 1.8, "-"),
@@ -344,31 +355,7 @@ def make_inelastic_figures(
         ``(label, analytic_pct, corrected_pct)`` per (metric, zenith) — the
         before/after story of the correction heads.
     """
-    import matplotlib as mpl
-
-    mpl.use("Agg")
-    import matplotlib.pyplot as plt
-
-    mpl.rcParams.update(
-        {
-            "figure.dpi": 130,
-            "savefig.dpi": 130,
-            "font.size": 10.5,
-            "axes.edgecolor": INK_MUTED,
-            "axes.labelcolor": INK,
-            "text.color": INK,
-            "xtick.color": INK_MUTED,
-            "ytick.color": INK_MUTED,
-            "axes.spines.top": False,
-            "axes.spines.right": False,
-            "axes.grid": True,
-            "grid.color": GRID,
-            "grid.linewidth": 0.6,
-            "legend.frameon": False,
-            "figure.facecolor": "white",
-            "axes.facecolor": "white",
-        }
-    )
+    plt = apply_house_style()
     lo, hi = V.INELASTIC_GATE_BAND
 
     # --- the vs-X4 ladder: elastic-only -> analytic -> corrected -------------
@@ -386,10 +373,11 @@ def make_inelastic_figures(
     # the honest reason the gate band exists (Q&A Q1), so it stays visible.
     ax.axvspan(wave.min(), lo, color=GRID, alpha=0.45, zorder=0)
     ax.axvspan(hi, wave.max(), color=GRID, alpha=0.45, zorder=0)
-    ax.plot([lo, hi], [0.5, 0.5], color=INK_MUTED, lw=1.2, ls=":")
+    bar = V.INELASTIC_GATE_TOTAL_RRMS
+    ax.plot([lo, hi], [bar, bar], color=INK_MUTED, lw=1.2, ls=":")
     ax.annotate(
-        "0.5 % gate, 400–700 nm",
-        xy=(hi - 8, 0.55),
+        f"{bar:g} % gate, {lo:.0f}–{hi:.0f} nm",
+        xy=(hi - 8, bar * 1.1),
         ha="right",
         fontsize=9,
         color=INK_MUTED,
@@ -412,7 +400,8 @@ def make_inelastic_figures(
     # --- the per-process before/after ----------------------------------------
     fig, ax = plt.subplots(figsize=(8.6, 5.2))
     positions = np.arange(len(delta_rows))
-    ax.axvspan(-5.0, 5.0, color=GRID, alpha=0.45, zorder=0)
+    delta_bar = 100.0 * V.INELASTIC_GATE_DELTA
+    ax.axvspan(-delta_bar, delta_bar, color=GRID, alpha=0.45, zorder=0)
     for y, (_label, analytic, corrected) in zip(positions, delta_rows, strict=True):
         ax.plot([analytic, corrected], [y, y], color=INK_MUTED, lw=1.0, zorder=2)
         ax.plot([analytic], [y], "o", color=MUTED, ms=7, zorder=3)
@@ -428,7 +417,7 @@ def make_inelastic_figures(
     ax.invert_yaxis()
     ax.set_xlabel(
         "median error [%]   (grey dot = analytic backbone, black = corrected; "
-        "band = ±5 % gate)"
+        f"band = ±{delta_bar:g} % gate)"
     )
     fig.suptitle(
         "The per-process gates: what the trained heads closed (held-out medians)",
@@ -520,7 +509,8 @@ def inelastic_main(args_cli) -> int:
     k_fl = np.asarray(INE.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))
     delta_f = np.asarray(heads.fl.delta(batch.iops, batch.geometry, batch.wave))
     fl_analytic = L.PHI_C_L23 * k_fl
-    fl_corrected = fl_analytic * (1.0 + delta_f)
+    # The shared composition helper — the expression forward() runs (review).
+    fl_corrected = L.PHI_C_L23 * np.asarray(IC.corrected_fluorescence(delta_f, k_fl))
     truth_fl = np.asarray(batch.truth_fluorescence)
     i685 = int(np.abs(wave - 685.0).argmin())
 
@@ -542,7 +532,10 @@ def inelastic_main(args_cli) -> int:
     deltas["fluorescence 685 nm"] = {z: (fl_a[z], fl_c[z]) for z in fl_a}
 
     # ------------------------------------------------- bit-identity (line 4)
-    omitted = np.asarray(H.forward(*args, emulator=em, check_domain=False))
+    # The baseline is free: forward() is literally rrs_to_Rrs(rrs_forward()),
+    # so the elastic-only rrs already computed converts to the identical bytes
+    # (M4 review finding — this was a redundant full-batch forward).
+    omitted = np.asarray(C.rrs_to_Rrs(jnp.asarray(rrs_models["elastic-only"])))
     bit_identical = np.array_equal(
         omitted,
         np.asarray(H.forward(*args, inelastic=None, emulator=em, check_domain=False)),
@@ -559,6 +552,11 @@ def inelastic_main(args_cli) -> int:
     )
 
     # -------------------------------------------------------- speed (line 6)
+    # jit once here: throughput reuses an already-wrapped callable, so the
+    # trials repay the timing loop and not one XLA compile per trial; the
+    # measurement order alternates so an ordering bias cannot repeat into the
+    # median (both M4 review findings).
+    @jax.jit
     def corrected_fn(i, p, g, w):
         return H.forward(
             i,
@@ -572,47 +570,55 @@ def inelastic_main(args_cli) -> int:
             check_domain=False,
         )
 
+    @jax.jit
     def elastic_fn(i, p, g, w):
         return H.forward(i, p, g, w, "hybrid", emulator=em, check_domain=False)
 
     trials = [
-        V.speed_ratio(corrected_fn, elastic_fn, *args, repeats=10)
-        for _ in range(args_cli.speed_trials)
+        V.speed_ratio(corrected_fn, elastic_fn, *args, repeats=10, reverse=bool(t % 2))
+        for t in range(args_cli.speed_trials)
     ]
     speed_median = float(np.median([t[0] for t in trials]))
     inelastic_ms = 1e3 * float(np.median([t[1] for t in trials]))
     elastic_ms = 1e3 * float(np.median([t[2] for t in trials]))
 
     # ---------------------------------------------------- gradients (line 5)
+    # try/finally so an exception cannot leave float64 on for the rest of the
+    # process (M4 review finding) — every later float32 comparison would then
+    # run on different bytes.
     jax.config.update("jax_enable_x64", True)
-    rows = np.where(zen == 30)[0][:3]
-    f64 = lambda x: jnp.asarray(np.asarray(x)[rows], dtype=jnp.float64)  # noqa: E731
-    grad_report = V.inelastic_gradient_report(
-        lambda i, p, g, w, phi: H.forward(
-            i,
-            p,
-            g,
-            w,
-            "hybrid",
-            inelastic=Inelastic(phi_C=phi),
-            corrections=heads,
-            emulator=em,
-            check_domain=False,
-        ),
-        IOPs(
-            a=f64(batch.iops.a),
-            bb_w=f64(batch.iops.bb_w),
-            bb_p=f64(batch.iops.bb_p),
-            a_ph=f64(batch.iops.a_ph),
-        ),
-        PhaseParams(B_p=f64(batch.phase_params.B_p)),
-        # 35 deg: off the packaged-Ed anchors (0/30/60), where the derivative
-        # is one-sided (record §4.4) — the standing gates' choice.
-        Geometry.nadir(jnp.full((len(rows),), 35.0, dtype=jnp.float64)),
-        jnp.asarray(wave, dtype=jnp.float64),
-        phi_C=jnp.asarray(L.PHI_C_L23, jnp.float64),
-    )
-    jax.config.update("jax_enable_x64", False)
+    try:
+        rows = np.where(zen == 30)[0][:3]
+        f64 = lambda x: jnp.asarray(  # noqa: E731
+            np.asarray(x)[rows], dtype=jnp.float64
+        )
+        grad_report = V.inelastic_gradient_report(
+            lambda i, p, g, w, phi: H.forward(
+                i,
+                p,
+                g,
+                w,
+                "hybrid",
+                inelastic=Inelastic(phi_C=phi),
+                corrections=heads,
+                emulator=em,
+                check_domain=False,
+            ),
+            IOPs(
+                a=f64(batch.iops.a),
+                bb_w=f64(batch.iops.bb_w),
+                bb_p=f64(batch.iops.bb_p),
+                a_ph=f64(batch.iops.a_ph),
+            ),
+            PhaseParams(B_p=f64(batch.phase_params.B_p)),
+            # 35 deg: off the packaged-Ed anchors (0/30/60), where the
+            # derivative is one-sided (record §4.4) — the standing gates' choice.
+            Geometry.nadir(jnp.full((len(rows),), 35.0, dtype=jnp.float64)),
+            jnp.asarray(wave, dtype=jnp.float64),
+            phi_C=jnp.asarray(L.PHI_C_L23, jnp.float64),
+        )
+    finally:
+        jax.config.update("jax_enable_x64", False)
 
     # ----------------------------------------------- diagnostics (not gated)
     i440 = int(np.abs(wave - 440.0).argmin())
@@ -661,16 +667,8 @@ def inelastic_main(args_cli) -> int:
             check_domain=False,
         )
     )
-    single = np.asarray(
-        H.forward(
-            *args,
-            "hybrid",
-            inelastic=Inelastic(),
-            corrections=heads,
-            emulator=em,
-            check_domain=False,
-        )
-    )
+    # Same reuse rule as the bit-identity baseline: the corrected rrs is in hand.
+    single = np.asarray(C.rrs_to_Rrs(jnp.asarray(rrs_models["corrected inelastic"])))
     i730 = int(np.abs(wave - 730.0).argmin())
     double_685 = 100.0 * float(np.median(double[:, i685] / single[:, i685] - 1.0))
     double_730 = 100.0 * float(np.median(double[:, i730] / single[:, i730] - 1.0))
@@ -693,20 +691,20 @@ def inelastic_main(args_cli) -> int:
         [
             "1 total rRMS vs X4",
             f"{worst_total:.3f} % (worst zenith)",
-            "<= 0.5 %",
-            "PASS" if worst_total <= 0.5 else "FAIL",
+            f"<= {V.INELASTIC_GATE_TOTAL_RRMS:g} %",
+            "PASS" if worst_total <= V.INELASTIC_GATE_TOTAL_RRMS else "FAIL",
         ],
         [
             "2 Raman delta incl. 0 deg",
             f"{100 * worst_raman:.2f} % (worst)",
-            "<= 5 %",
-            "PASS" if worst_raman <= 0.05 else "FAIL",
+            f"<= {100 * V.INELASTIC_GATE_DELTA:g} %",
+            "PASS" if worst_raman <= V.INELASTIC_GATE_DELTA else "FAIL",
         ],
         [
             "3 fluorescence delta",
             f"{100 * worst_fl:.2f} % (worst)",
-            "<= 5 %",
-            "PASS" if worst_fl <= 0.05 else "FAIL",
+            f"<= {100 * V.INELASTIC_GATE_DELTA:g} %",
+            "PASS" if worst_fl <= V.INELASTIC_GATE_DELTA else "FAIL",
         ],
         [
             "4 inelastic=None bit-identical",
@@ -723,8 +721,8 @@ def inelastic_main(args_cli) -> int:
         [
             "6 speed vs elastic hybrid",
             f"{speed_median:.2f}x (median)",
-            "<= 2x",
-            "PASS" if speed_median <= 2.0 else "FAIL",
+            f"<= {V.INELASTIC_GATE_SPEED:g}x",
+            "PASS" if speed_median <= V.INELASTIC_GATE_SPEED else "FAIL",
         ],
     ]
     all_pass = all(row[-1] == "PASS" for row in gate_rows)
@@ -898,9 +896,13 @@ def inelastic_main(args_cli) -> int:
     )
 
     delta_fig_rows = [
-        (f"{label}, {z:.0f} deg", 100.0 * a, 100.0 * c)
+        (
+            f"{label}, {z:.0f} deg",
+            100.0 * deltas[label][z][0],
+            100.0 * deltas[label][z][1],
+        )
         for label in deltas
-        for z, (a, c) in ((z, deltas[label][z]) for z in zeniths)
+        for z in zeniths
     ]
     make_inelastic_figures(args_cli.out, wave, ladders, delta_fig_rows)
 
@@ -1079,31 +1081,37 @@ def main() -> int:
         "",
     ]
 
+    # try/finally for the same reason as the inelastic section: an exception
+    # here must not leave float64 on for the rest of the process.
     jax.config.update("jax_enable_x64", True)
-    rows = np.where(zen == 30)[0][:3]
-    f64 = lambda x: jnp.asarray(np.asarray(x)[rows], dtype=jnp.float64)  # noqa: E731
-    iops64 = IOPs(
-        a=f64(batch.iops.a), bb_w=f64(batch.iops.bb_w), bb_p=f64(batch.iops.bb_p)
-    )
-    phase64 = PhaseParams(B_p=f64(batch.phase_params.B_p))
-    geom64 = Geometry.nadir(
-        jnp.full((len(rows),), GRADIENT_CHECK_ZENITH, dtype=jnp.float64)
-    )
-    wave64 = jnp.asarray(np.asarray(batch.wave), dtype=jnp.float64)
-    grad_rows = []
-    for name, fn in (
-        ("ZTT backbone", lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w)),
-        ("O25 form", lambda i, p, g, w: B.rrs_o25(i, p, g, w)),
-        (
-            "hybrid, MLP",
-            lambda i, p, g, w: H.rrs_forward(
-                i, p, g, w, "hybrid", emulator=mlp_em, check_domain=False
+    try:
+        rows = np.where(zen == 30)[0][:3]
+        f64 = lambda x: jnp.asarray(  # noqa: E731
+            np.asarray(x)[rows], dtype=jnp.float64
+        )
+        iops64 = IOPs(
+            a=f64(batch.iops.a), bb_w=f64(batch.iops.bb_w), bb_p=f64(batch.iops.bb_p)
+        )
+        phase64 = PhaseParams(B_p=f64(batch.phase_params.B_p))
+        geom64 = Geometry.nadir(
+            jnp.full((len(rows),), GRADIENT_CHECK_ZENITH, dtype=jnp.float64)
+        )
+        wave64 = jnp.asarray(np.asarray(batch.wave), dtype=jnp.float64)
+        grad_rows = []
+        for name, fn in (
+            ("ZTT backbone", lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w)),
+            ("O25 form", lambda i, p, g, w: B.rrs_o25(i, p, g, w)),
+            (
+                "hybrid, MLP",
+                lambda i, p, g, w: H.rrs_forward(
+                    i, p, g, w, "hybrid", emulator=mlp_em, check_domain=False
+                ),
             ),
-        ),
-    ):
-        report = V.gradient_report(fn, iops64, phase64, geom64, wave64)
-        grad_rows.append([name, *(f"{report[k]:.1e}" for k in V.FD_STEPS)])
-    jax.config.update("jax_enable_x64", False)
+        ):
+            report = V.gradient_report(fn, iops64, phase64, geom64, wave64)
+            grad_rows.append([name, *(f"{report[k]:.1e}" for k in V.FD_STEPS)])
+    finally:
+        jax.config.update("jax_enable_x64", False)
     lines.append(V.markdown_table(grad_rows, ["model", *V.FD_STEPS]))
     lines += [
         "",

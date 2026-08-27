@@ -112,6 +112,31 @@ needs_l23_inelastic = pytest.mark.skipif(
 )
 
 
+def _correction_weights_committed():
+    """Whether the M3 trained correction heads are on disk.
+
+    A function so the (cheap — flax loads lazily) ``robust.rt`` import happens
+    at collection, not at this module's import.
+    """
+    from robust.rt import inelastic_corr
+
+    return (
+        inelastic_corr.DEFAULT_RAMAN_WEIGHTS.exists()
+        and inelastic_corr.DEFAULT_FL_WEIGHTS.exists()
+    )
+
+
+#: Skip a test that needs the committed M3 correction weights. Defined once
+#: here (M4 review finding: three test modules carried verbatim copies) so a
+#: change to the weight layout or the regenerate message cannot leave stale
+#: copies skipping — or running — for the wrong reason.
+needs_weights = pytest.mark.skipif(
+    not _correction_weights_committed(),
+    reason="committed correction weights missing — run "
+    "design/py/train_inelastic_corr.py",
+)
+
+
 @pytest.fixture(scope="session")
 def l23_small_batch():
     """A 50-scene L23 batch, loaded through the real loader from the committed fixture.

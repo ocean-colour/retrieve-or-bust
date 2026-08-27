@@ -79,6 +79,7 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "load_head",
     "load_default",
     "corrected_raman_factor",
+    "corrected_fluorescence",
 ]
 
 #: The two correction processes. Order is cosmetic; the kind on a
@@ -429,6 +430,35 @@ def corrected_raman_factor(delta_r, f_phys):
         ``f_R``, same shape as ``f_phys``.
     """
     return 1.0 + (f_phys - 1.0) * (1.0 + delta_r)
+
+
+def corrected_fluorescence(delta_f, k_fl):
+    """The corrected fluorescence kernel ``K_fl · (1 + δ_F)``.
+
+    The Raman rule applied to the additive term: the composition is written
+    once so ``hybrid._apply_inelastic``, the M3/M4 gate tests and
+    ``run_validation.py`` score literally the same expression — before this
+    helper (M4 review finding) each spelled it by hand, and a future change
+    to the composition (a clamp, a bounded form) would have left the gates
+    certifying a model ``forward`` no longer runs. The caller multiplies by
+    ``φ_C`` afterwards, exactly as the design §2 law and ``_apply_inelastic``
+    do (float multiplication is not associative, so the order is part of the
+    contract).
+
+    Parameters
+    ----------
+    delta_f : Array
+        δ_F from :meth:`CorrectionHead.delta`, broadcastable to ``k_fl``.
+    k_fl : Array
+        The analytic kernel from
+        :func:`robust.rt.inelastic.fluorescence_kernel`.
+
+    Returns
+    -------
+    Array
+        The corrected kernel, same shape as ``k_fl``.
+    """
+    return k_fl * (1.0 + delta_f)
 
 
 def save_head(head: CorrectionHead, path) -> None:

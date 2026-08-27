@@ -1,7 +1,7 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.25
-**Date:** 2026-08-26
+**Version:** 0.26
+**Date:** 2026-08-27
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -32,7 +32,7 @@ the Date on every bump.
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
 | **M3** | Correction heads δ_R, δ_F | ✅ done (PR #18 merged) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py`, `notebooks/RT/rt_inelastic_coding_4.ipynb` |
-| **M4** | Validation (*prototype done*) | 🟡 tasks 1–2 done — **the §6 gate PASSES** (review + wrap-up remain) | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/*_inelastic.*`, `robust/tests/test_inelastic_validation.py` |
+| **M4** | Validation (*prototype done*) | 🟡 tasks 1–3 done — **the §6 gate PASSES, review pass complete** (wrap-up remains) | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/*_inelastic.*`, `robust/tests/test_inelastic_validation.py` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -1142,7 +1142,7 @@ incl. φ_C, speed ≤ 2× elastic; review pass; metrics + figures committed unde
 |---|------|--------|
 | 1 | Validation protocol (`validation.py` extension) | ✅ done — both new gate numbers measured; speed fallback applied (6.3× → 1.6×) |
 | 2 | Artifacts (`run_validation.py`) + gate (`test_inelastic_validation.py`) | ✅ done — **all six §6 lines PASS**; artifacts committed and regenerable |
-| 3 | Review pass (CQ6) | ⬜ not started |
+| 3 | Review pass (CQ6) | ✅ done — 8-angle self-review; 13 findings fixed, 6 declined with reasons (§6.7); gate re-verified |
 | 4 | Wrap-up (record, notebook 5) | ⬜ not started |
 
 ### 6.2 The protocol (task 1)
@@ -1284,7 +1284,7 @@ metric through the §6.2 protocol functions:
 | 3 fluorescence 685 nm delta | worst **0.10 %** (60°) | ≤ 5 % | ✅ |
 | 4 `inelastic=None` bit-identical | True (omitted = None = all-off; strict SHA-256 pins re-asserted) | bitwise | ✅ |
 | 5 gradients, all six inputs incl. φ_C | worst **5.9e-9** (a_ph) | ≤ 1e-6 | ✅ |
-| 6 speed vs elastic hybrid, full batch | **1.67× median** (55 vs 33 ms; trials 1.57–1.68) | ≤ 2× | ✅ |
+| 6 speed vs elastic hybrid, full batch | **1.59× median** (53 vs 34 ms; trials 1.51–1.60, post-review) | ≤ 2× | ✅ |
 
 Line 4's pre-change anchor re-runs `test_inelastic_types.py`'s strict tier
 under the gate's name (same helper, same pins — no second definition; CI
@@ -1315,6 +1315,62 @@ gate tests); elastic hash pins green; ruff + `ruff format` clean. **Gate
 lines (1)–(6) all pass — what remains for "prototype done" is the task-3
 review pass (CQ6, findings addressed before the gate is declared) and the
 task-4 wrap-up.** Chronology: prompt 5 Log, 2026-08-26 (task 2).
+
+### 6.7 The review pass (task 3) — CQ6
+
+Eight-angle self-review over the full M4 branch diff (conventions,
+simplification, reuse, altitude, efficiency, removed-behavior audit,
+line-by-line, cross-file tracer; no M4 PR existed yet, so no external Bugbot
+comments — those follow JXP's PR). **~15 distinct findings after dedup: 13
+fixed, 6 declined with reasons** (prompt 5 Log has the itemized list).
+Verification: 431 passed, 1 skipped; the §6 gate re-verified PASSED on the
+regenerated artifacts. The fixes that matter:
+
+- **A genuine test regression caught and closed** (three finders,
+  independently): the task-1 delegation of the M3 held-out gates to the
+  shared metrics silently dropped their zenith-coverage enforcement — the
+  old hard-coded three-zenith loops failed loudly on an empty group
+  (`median([]) = NaN`), the new dict iteration passed vacuously. Both M3
+  gates now assert `set(errors) == {0, 30, 60}`, as the M4 gate file
+  already did.
+- **The gate bars joined the gate band**: `INELASTIC_GATE_TOTAL_RRMS /
+  _DELTA / _SPEED` in `validation.py` — the gate test's assertions, the
+  script's PASS/FAIL column *and* the figures' annotated bars all read the
+  same constants (they were independent literals in each).
+- **`corrected_fluorescence` added** (`inelastic_corr`, the Raman rule
+  applied to the additive term): `hybrid._apply_inelastic`, both gate
+  files and the script now score literally the expression `forward` runs,
+  instead of four hand-spelled copies of `k_fl·(1+δ)`.
+- **The Dense_0 fold got its guard**: the standardisation fold couples to
+  `emulator._network`'s internal layer naming and would fail *silently* on
+  a structural change (a wrong fold still yields bounded, plausible δ);
+  a new test pins folded against the explicit unfolded path with
+  non-trivial mean/std.
+- **Speed measurement hardened**: `throughput` reuses an already-jitted
+  callable (the trial loops were recompiling both full forwards per trial —
+  8 of the script's 10 speed-section compiles were waste), and
+  `speed_ratio(..., reverse=)` lets trials alternate measurement order so
+  an ordering bias cannot repeat into the median (measured ~6 % here,
+  within trial noise — alternation is free). Committed post-review speed:
+  **1.59× median**, trials 1.51–1.60.
+- Hygiene: `needs_weights` moved to `conftest.py` (was verbatim in three
+  test modules); the duplicated six-variable gradient gate deleted from
+  `test_validation.py` (it lives once, as gate line 5);
+  `median_increment_error` slices to the band *before* dividing (a zero
+  increment outside the band no longer warns); both of the script's x64
+  toggles wrapped in try/finally; the script's duplicated rcParams block,
+  two redundant full-batch forwards, and a dead helper parameter removed.
+
+**Declined, with reasons** (log, 2026-08-27): centralizing the per-process
+band literals (550–700/490/685/440 nm are design-fixed quantities quoted in
+§6 itself; a constants refactor would churn M3-pinned files against a
+hypothetical regrid); `speed_ratio`'s ratio-in-the-tuple API; folding the
+script's gate orchestration into package helpers (the drift channel is
+closed by the shared constants; the rest is script plumbing); generalizing
+`inelastic_gradient_report`'s closure into a spec-driven abstraction (two
+15-line protocol closures, no third consumer); jitting every one of the
+script's full-batch forwards (each distinct config pays a multi-second
+compile; the eager total is seconds in a ~1-minute script).
 
 ---
 

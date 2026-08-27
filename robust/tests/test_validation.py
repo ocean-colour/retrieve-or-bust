@@ -853,20 +853,11 @@ def test_throughput_rejects_zero_repeats():
 #
 # The design-§6 machinery for the inelastic gate: the per-process delta metrics
 # under their permanent names, the a_ph(440)-decile binning, the φ_C-linearity
-# construction, the speed ratio, and the six-variable gradient report. Synthetic
-# data where a hand computation is the reference; the real composed forward
-# (fixture + committed weights) where the *path* is what is being certified.
-
-from robust.rt import inelastic_corr as IC  # noqa: E402
-from robust.rt.types import Inelastic  # noqa: E402
-
-#: The committed correction heads; the gradient-path test is meaningless without
-#: them (same guard as ``test_inelastic_corr.py``).
-needs_weights = pytest.mark.skipif(
-    not (IC.DEFAULT_RAMAN_WEIGHTS.exists() and IC.DEFAULT_FL_WEIGHTS.exists()),
-    reason="committed correction weights missing — run "
-    "design/py/train_inelastic_corr.py",
-)
+# construction, the speed ratio, and the refusal contracts of the six-variable
+# gradient report — synthetic data, hand computations as the reference. The
+# gradient gate itself (the real composed corrected forward) lives once, in
+# ``test_inelastic_validation.py`` gate line 5 (the M4 review removed a
+# line-for-line duplicate of it here).
 
 
 def test_median_increment_error_matches_hand_computation():
@@ -992,52 +983,6 @@ def test_speed_ratio_is_consistent_with_its_own_timings():
 
     assert candidate_s > 0.0 and reference_s > 0.0
     assert ratio == pytest.approx(candidate_s / reference_s, rel=1e-9)
-
-
-@needs_weights
-def test_inelastic_gradient_report_passes_the_gate(jax_x64, l23_small_inelastic_batch):
-    """**Gate line (5) through the protocol function**: all six inputs, incl. φ_C.
-
-    The same FD protocol ``test_inelastic_corr.py`` pins variable by variable
-    (float64, per-variable steps, θ_s at 35° — off the piecewise-linear Ed
-    anchors, record §4.4), run through :func:`validation.inelastic_gradient_report`
-    against the composed corrected forward — the exact code path
-    ``run_validation.py`` reports, with ``B_p`` joining the M3 five.
-    """
-    batch = l23_small_inelastic_batch
-    heads = IC.load_default()
-    rows = np.where(batch.zenith == 30.0)[0][:3]
-    f64 = lambda x: jnp.asarray(np.asarray(x)[rows], dtype=jnp.float64)  # noqa: E731
-
-    iops = IOPs(
-        a=f64(batch.iops.a),
-        bb_w=f64(batch.iops.bb_w),
-        bb_p=f64(batch.iops.bb_p),
-        a_ph=f64(batch.iops.a_ph),
-    )
-    phase = PhaseParams(B_p=f64(batch.phase_params.B_p))
-    geometry = Geometry.nadir(jnp.full((len(rows),), 35.0, dtype=jnp.float64))
-    wave = jnp.asarray(np.asarray(batch.wave), dtype=jnp.float64)
-
-    def model(i, p, g, w, phi):
-        return H.forward(
-            i,
-            p,
-            g,
-            w,
-            "hybrid",
-            inelastic=Inelastic(phi_C=phi),
-            corrections=heads,
-            check_domain=False,
-        )
-
-    report = V.inelastic_gradient_report(
-        model, iops, phase, geometry, wave, phi_C=jnp.asarray(0.02, jnp.float64)
-    )
-
-    assert set(report) == set(V.INELASTIC_FD_STEPS)
-    for name, value in report.items():
-        assert value <= V.GRADIENT_TOL, f"d/d{name}: {value:.3e}"
 
 
 def test_inelastic_gradient_report_refuses_bad_input(jax_x64):

@@ -15,7 +15,7 @@ The total-rRMS line is scored over **400-700 nm** (prompt 5 Q&A Q1: the model's 
 | 3 fluorescence delta | 0.10 % (worst) | <= 5 % | PASS |
 | 4 inelastic=None bit-identical | True | True | PASS |
 | 5 gradients incl. phi_C | 5.9e-09 (worst of 6) | <= 1e-06 | PASS |
-| 6 speed vs elastic hybrid | 1.67x (median) | <= 2x | PASS |
+| 6 speed vs elastic hybrid | 1.59x (median) | <= 2x | PASS |
 
 ## Total held-out rRMS vs Rrs_X4, per zenith
 
@@ -43,10 +43,10 @@ The total-rRMS line is scored over **400-700 nm** (prompt 5 Q&A Q1: the model's 
 
 | model | ms / call | x elastic |
 |---|---|---|
-| elastic hybrid | 32.35 | 1.00 |
-| corrected inelastic | 53.75 | 1.67 |
+| elastic hybrid | 33.52 | 1.00 |
+| corrected inelastic | 52.74 | 1.59 |
 
-Trial ratios: 1.68, 1.66, 1.57, 1.67, 1.68 — wall-clock on a shared machine wanders ~5 %, which is why the gate asserts the median.
+Trial ratios: 1.60, 1.51, 1.57, 1.60, 1.59 — wall-clock on a shared machine wanders ~5 %, which is why the gate asserts the median.
 
 ## Gradient gate (jax.grad vs central differences, float64, theta_s = 35 deg)
 

@@ -83,6 +83,9 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "FD_STEPS",
     "INELASTIC_FD_STEPS",
     "INELASTIC_GATE_BAND",
+    "INELASTIC_GATE_TOTAL_RRMS",
+    "INELASTIC_GATE_DELTA",
+    "INELASTIC_GATE_SPEED",
     "GRADIENT_TOL",
     "score_models",
     "markdown_table",
@@ -104,6 +107,16 @@ FD_STEPS = {"a": 1e-6, "bb_p": 1e-9, "B_p": 1e-8, "theta_s": 1e-3}
 #: and ``run_validation.py`` cannot score different bands; the full-grid
 #: number is *reported* alongside, never gated.
 INELASTIC_GATE_BAND = (400.0, 700.0)
+
+#: The inelastic acceptance bars (design §6 lines 1–3 and 6), defined once for
+#: the same reason as :data:`INELASTIC_GATE_BAND`: the gate test asserts them
+#: and ``run_validation.py`` prints its PASS/FAIL column and draws its figure
+#: bars from them, so a tightened bar cannot leave a committed table
+#: contradicting the acceptance test (M4 review finding). Units: total rRMS in
+#: percent; per-process delta as a fraction (0.05 = 5 %); speed as a ratio.
+INELASTIC_GATE_TOTAL_RRMS = 0.5
+INELASTIC_GATE_DELTA = 0.05
+INELASTIC_GATE_SPEED = 2.0
 
 #: Per-variable steps for :func:`inelastic_gradient_report` — the M2/M3 gate's
 #: values (``test_inelastic.py``/``test_inelastic_corr.py``), with the elastic
@@ -344,13 +357,19 @@ def median_increment_error(
         ``{label: median increment error}``, signed, in ascending label order.
         Fractional, not percent — the ≤ 5 % gate is ``abs(value) <= 0.05``.
     """
-    inc = (np.asarray(model_factor) - 1.0) / (np.asarray(truth_factor) - 1.0) - 1.0
-    labels = np.asarray(labels)
     band = np.asarray(band)
+    # Slice to the band *before* dividing: a truth factor of exactly 1 (no
+    # increment — e.g. the clamped sub-400 nm region, or synthetic data)
+    # outside the scored band would otherwise emit divide-by-zero warnings for
+    # columns the median never sees (M4 review finding).
+    model_factor = np.asarray(model_factor)[:, band]
+    truth_factor = np.asarray(truth_factor)[:, band]
+    inc = (model_factor - 1.0) / (truth_factor - 1.0) - 1.0
+    labels = np.asarray(labels)
     out = {}
     for value in np.unique(labels):
         rows = labels == value
-        out[float(value)] = float(np.median(inc[rows][:, band]))
+        out[float(value)] = float(np.median(inc[rows]))
     return out
 
 
@@ -479,7 +498,11 @@ def throughput(model, *args, repeats: int = 5) -> tuple[float, float]:
     """
     if repeats < 1:
         raise ValueError(f"throughput: repeats must be >= 1; got {repeats}")
-    compiled = jax.jit(model)
+    # A callable that is already jit-wrapped is used as-is: wrapping it again
+    # would discard its compile cache, so a caller looping trials would pay a
+    # full XLA compile per trial for identical jaxprs (M4 review finding —
+    # 8 of the validation script's 10 speed-section compiles were this).
+    compiled = model if isinstance(model, jax.stages.Wrapped) else jax.jit(model)
     out = compiled(*args)
     out.block_until_ready()
     start = time.perf_counter()
@@ -491,26 +514,36 @@ def throughput(model, *args, repeats: int = 5) -> tuple[float, float]:
 
 
 def speed_ratio(
-    candidate, reference, *args, repeats: int = 5
+    candidate, reference, *args, repeats: int = 5, reverse: bool = False
 ) -> tuple[float, float, float]:
     """Candidate runtime over reference runtime, jitted, on identical arguments.
 
     The inelastic speed gate (design §6 line 6) in function form: the full-batch
     inelastic forward against the elastic hybrid on the same batch, same
-    machine, ≤ 2×. The *ratio* is the gated number — :func:`throughput`'s
-    milliseconds wander ~20 % between runs on a shared machine, while the ratio
-    of two back-to-back timings reproduces.
+    machine, ≤ 2× (:data:`INELASTIC_GATE_SPEED`). The *ratio* is the gated
+    number — :func:`throughput`'s milliseconds wander ~20 % between runs on a
+    shared machine, while the ratio of two back-to-back timings reproduces.
 
     Parameters
     ----------
     candidate, reference : callable
         ``model(*args) -> Array``. Close extra configuration (``inelastic=``,
         ``corrections=``) over in a lambda so both take the same positionals —
-        that is what makes "identical arguments" literal.
+        that is what makes "identical arguments" literal. **Callers looping
+        trials should pass ``jax.jit``-wrapped callables**: :func:`throughput`
+        reuses an already-compiled wrapper, so the XLA compile is paid once
+        across all trials instead of once per trial.
     *args
         Passed to both models.
     repeats : int, optional
         Timed calls per model after each one's compile-paying warm-up.
+    reverse : bool, optional
+        Time the reference before the candidate. Whichever model runs first
+        can see a slightly different machine state (cache, turbo/thermal), so
+        trial loops should alternate this flag — a fixed order would repeat
+        the same ordering bias in every trial and the median could not cancel
+        it (M4 review finding; measured ~6 % here, within trial noise, but
+        alternation is free).
 
     Returns
     -------
@@ -519,8 +552,12 @@ def speed_ratio(
     candidate_seconds, reference_seconds : float
         The per-call means, for the report table.
     """
-    candidate_seconds, _ = throughput(candidate, *args, repeats=repeats)
-    reference_seconds, _ = throughput(reference, *args, repeats=repeats)
+    if reverse:
+        reference_seconds, _ = throughput(reference, *args, repeats=repeats)
+        candidate_seconds, _ = throughput(candidate, *args, repeats=repeats)
+    else:
+        candidate_seconds, _ = throughput(candidate, *args, repeats=repeats)
+        reference_seconds, _ = throughput(reference, *args, repeats=repeats)
     return candidate_seconds / reference_seconds, candidate_seconds, reference_seconds
 
 

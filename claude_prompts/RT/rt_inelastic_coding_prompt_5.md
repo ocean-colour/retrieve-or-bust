@@ -336,3 +336,79 @@ elastic hash pins green; ruff + format clean. **Gate lines (1)–(6) all
 pass — the prototype's remaining work is task 3 (the review pass; findings
 addressed before the gate is *declared*) and task 4 (notebook 5 + the
 record wrap-up).**
+
+### 2026-08-27 (M4 task 3 — the review pass: 8 angles, 13 findings fixed, 6 declined; gate re-verified; 431 green)
+
+Model: Fable 5. **Q&A: no new answers found (Q1 remains the only entry,
+already applied) and no new questions from this task.** No M4 PR exists yet,
+so there were no Bugbot comments to fold in — when JXP opens the PR and
+triggers `@cursor review`, any findings land as task-4-adjacent work.
+Record §6.7 (v0.26) has the structured summary.
+
+**The review**: the `code-review` skill at high effort over the full M4
+branch diff (`0750970..HEAD`, 15 files) — eight finder angles (conventions,
+simplification, reuse, altitude, efficiency, removed-behavior audit,
+line-by-line, cross-file trace), deduped to ~15 distinct findings; the two
+non-obvious ones verified empirically before acting. **Fixed (13):**
+
+1. *Zenith-coverage regression in the M3 gates* (3 finders, independently —
+   the review's best catch): my task-1 delegation to the shared metrics
+   made `test_heldout_{raman,fluorescence}_gate` iterate whatever zenith
+   groups exist; an empty group (split/loader regression) would pass
+   vacuously where the pre-M4 hard-coded loops failed loudly. Both gates
+   now assert `set(errors) == {0, 30, 60}` (module constant `ZENITHS`).
+2. *Gate bars now share one definition*: `INELASTIC_GATE_TOTAL_RRMS/_DELTA/
+   _SPEED` in `validation.py`; the gate test, the script's PASS/FAIL rows
+   and both figures' annotated bars read them (each had its own literals —
+   a tightened bar would have left a committed table contradicting pytest).
+3. *`IC.corrected_fluorescence(delta, k_fl)` added* and used by
+   `hybrid._apply_inelastic` (bit-identical expression), both gate files,
+   the weights-regression test and the script — the Raman-rule symmetry the
+   M3 design intended; four hand-spelled copies of `k_fl·(1+δ)` gone.
+4. *Fold guard*: `test_delta_fold_matches_the_unfolded_network` pins the
+   Dense_0 standardisation fold against the explicit unfolded path with
+   noise params and non-trivial mean/std — the coupling to
+   `emulator._network`'s layer naming now fails loudly instead of silently.
+5. *`throughput` reuses jitted callables* (`jax.stages.Wrapped` check):
+   the speed trial loops were recompiling both full forwards per trial —
+   8 of the script's 10 speed-section compiles were pure waste.
+6. *`speed_ratio(..., reverse=)`*: trials alternate measurement order;
+   measured ordering bias ~6 % (within trial noise, but alternation is
+   free and the median can now cancel it). Gate test + script alternate.
+7. *`median_increment_error` slices to the band before dividing* — a truth
+   factor of exactly 1 outside the scored band no longer emits
+   divide-by-zero warnings.
+8. *`needs_weights` moved to `conftest.py`* (was verbatim in three files).
+9. *Duplicate six-variable gradient gate deleted* from `test_validation.py`
+   — it lives once, as gate line 5 (`test_inelastic_validation.py`); the
+   refusal-contract tests stay.
+10. *Both x64 toggles in the script wrapped in try/finally* (elastic
+    section too — same latent bug).
+11. *`apply_house_style()`*: the 20-line rcParams block was pasted twice.
+12. *Two redundant full-batch forwards removed* in the script (`omitted`
+    and `single` derive from arrays already in hand;
+    `forward ≡ rrs_to_Rrs(rrs_forward)`).
+13. *Dead `wave` parameter / helper indirection removed* in
+    `test_inelastic_corr.py` (the gates call the shared metrics directly);
+    plus the nested-generator comprehension unrolled in the script.
+
+**Declined (6, reasons):** per-process band literals (550–700/490/685/440
+are design-§6-quoted physical definitions; centralizing churns M3-pinned
+files against a hypothetical regrid); `speed_ratio` returning the ratio in
+its tuple (ergonomics; all three callers want exactly that number);
+package-level orchestration helpers for the script's gate rows (drift
+channel closed by the shared constants; the rest is script plumbing);
+generalizing the two FD-report closures into a spec-driven base (no third
+consumer; the copies differ where the physics differs); jitting all ~12 of
+the script's full-batch forwards (each distinct config pays a multi-second
+compile for an eager total of a few seconds); `emission_shape`/decile
+micro-optimizations beyond the two array reuses.
+
+**Verification.** `pytest -q` → **431 passed, 1 skipped** (430 + 2
+fold-guard − 1 deleted duplicate); elastic hash pins green; ruff + format
+clean. Artifacts regenerated: **the §6 gate re-verified PASSED** — speed
+median now **1.59×** (trials 1.51–1.60, tighter after compile-once +
+alternation; was 1.67×), every other line unchanged (worst total 0.343 %,
+Raman 1.03 %, fluorescence 0.10 %, gradients 5.9e-9, bit-identity True).
+PNGs byte-identical. **Task 4 (notebook 5 + record wrap-up) is what stands
+between here and "prototype done"; the branch is ready for JXP's M4 PR.**
