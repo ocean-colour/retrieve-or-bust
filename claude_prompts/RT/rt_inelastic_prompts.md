@@ -67,6 +67,111 @@ If you need to run Python use the `ocean14` conda environment.
 
 ## Q&A
 
+### Report
+
+Questions from Claude (2026-08-27) before writing the end-of-effort report.
+Context: all five coding prompt docs are complete, the design-§6 acceptance
+gate PASSES (held-out total rRMS 0.343/0.341/0.340 % vs X4 at 0/30/60° on
+400–700 nm; worst per-process delta 1.03 %; gradients to 5.9e-9 incl. φ_C;
+1.59× elastic runtime), and the elastic precedent is
+`reports/report_rt_elastic_model.md` (313 lines, 3 figures via
+`reports/make_report_figures.py` from the committed validation artifacts).
+Each question carries a recommendation.
+
+**RQ1 (Filename and location).** The prompt says `report/rt_elastic_model.md`,
+but the repo directory is `reports/` (plural) and this is the *inelastic*
+effort — the elastic report already occupies
+`reports/report_rt_elastic_model.md`. I propose
+**`reports/report_rt_inelastic_model.md`**, mirroring the elastic naming.
+OK?
+
+**RQ1-answer:** Ok
+
+**RQ2 (Scope — prototype-focused or the full arc).** "The work we have done"
+spans four phases: (i) the BING assessment quantified against L23
+(`context/RT/rt_inelastic_bing_summary.md`); (ii) the BING fixes (the 1/π
+fluorescence normalization, the true-Ed Raman ratio — landed in the BING repo,
+PR issued); (iii) the design + coding plan; (iv) the M0–M4 prototype in
+`robust/rt`. The elastic report covered only its prototype and *linked* to its
+context/design docs. My recommendation: the same shape — the report's
+deliverable is the prototype (the combined elastic+inelastic `forward()`),
+with the assessment and the BING fixes compressed into the
+motivation/background section as the findings that set the correction targets
+(the ×π fluorescence error and the flat-Ed Raman error are worth stating as
+results there, since they affect published BING-based fits), linking out for
+the detail. Or do you want a full-arc report treating all four phases at
+comparable depth?
+
+**RQ2-answer:**  Right, don't worry about the BING fixes.
+
+**RQ3 (Template, audience, and the headline claim).** I plan to mirror the
+elastic report exactly: same section skeleton (Executive summary → motivation
+→ the model → data & validation protocol → results → what it may claim and
+may not → open items → recommended next priorities → reproducibility →
+document map → references), same header block (team report, "intended to
+evolve into a public (non-refereed) write-up", authors J. Xavier Prochaska
+and Claude (Fable 5), version 1.0), same audience (you + Robert Frouin +
+future sessions). One framing choice: the natural headline is the *complete*
+forward model — `forward(..., inelastic=Inelastic())` reproduces the
+all-processes-on L23 ocean (X4) to 0.34 % held-out rRMS, i.e. the elastic-era
+accuracy now holds for the realistic ocean rather than an elastic idealization
+— with the elastic 0.30 % quoted as the inherited base. Agree with that
+framing?
+
+**RQ3-answer:** I agree
+
+**RQ4 (Figures).** Elastic precedent: `reports/make_report_figures.py`
+regenerates the report figures from committed artifacts only (no recompute of
+the science). I propose a sibling script `reports/make_inelastic_report_figures.py`
+producing ~4 figures: (a) an architecture schematic of the composition law
+`Rrs = (Rrs_ZTT + ΔRrs) × f_R(1+δ_R) + φ_C·K_fl(1+δ_F)`; (b) the rRMS ladder
+per wavelength (elastic-only ~16 % → analytic backbone ~3 % → corrected
+0.34 %, ungated regions shaded) from `rrms_per_wavelength_inelastic.csv`;
+(c) the nine per-process delta rows analytic → corrected against the ±5 %
+band (the −38.6 → −0.14 % headline at 0°) from `metrics_inelastic.csv`;
+(d) the zenith-holdout caveat figure (the −74 % cliff at an unseen 60°). For
+the BING-fix motivation I'd *reuse* the committed assessment figures in
+`context/RT/` by link rather than regenerate. OK, or different figure
+choices?
+
+**RQ4-answer:** Ok
+
+**RQ5 (Candor about the BING errors and the caveats).** Two calibration
+checks for a document Frouin will read and that may become public: (i) the
+report states plainly that the pre-fix BING fluorescence term overestimated
+Rrs_fl by ~×π (so published `include_Chl_fl` fits carry an effective-φ_C
+~π× smaller than nominal) and that flat-Ed was the dominant Raman error —
+final-state framing per your A6 preference (the finding and the fix, no
+debugging narrative). (ii) The "what it may not claim" section quotes the
+sharp measured caveats verbatim: the −74 % zenith-holdout cliff, φ_C truth
+at only 0.02, the sub-400 nm excitation clamp, `'double'` emission
+unvalidatable. I recommend both, at the elastic report's level of bluntness.
+OK?
+
+**RQ5-answer:** Ok
+
+**RQ6 (Closing recommendations).** The elastic report closed with
+"Recommended priorities (M5)". For the inelastic close I propose: (1) the
+inversion step — the forward model is complete and differentiable incl.
+∂Rrs/∂φ_C, so IOP+φ_C retrieval is the natural next effort; (2) the
+HydroLight run wishlist (design §8) prioritized by which caveat each run
+retires (geometry coverage first, varied-φ_C second); (3) CDOM fluorescence
+via the reserved `cdom_fl` hook once truth exists. Should the report go
+further and recommend *which* to do first (my lean: inversion — the caveats
+bind at unseen geometries, not on the L23 domain where the inversion work
+would start), or lay out the options without a pick?
+
+**RQ6-answer:** Yes, include a recommendation on what to do first.
+
+**RQ7 (Branch/PR state in the header).** The elastic report's header cited
+its branch and milestones. The inelastic work sits on `inelastic-rt` (M0 =
+PR #14, M3 = PR #18 merged; M4 pending your PR). Should the report header
+cite the branch + PR trail as-is, or do you plan to merge before the report
+lands so it can cite `main`?
+
+**RQ7-answer:** I will develop on the inelastic-rt branch and then merge it before the report lands.
+Therefore, refer to `main`.
+
 ### Coding
 
 Questions from Claude (2026-08-20) before writing
@@ -1008,3 +1113,94 @@ reinvention, pytest gates, elastic hash-regression green from M0 onward.
 
 **Next:** JXP review/commit of the docs, then begin execution with
 `rt_inelastic_coding_prompt_1.md` prompt 1.
+
+### 2026-08-27 (Report prompt 1: reviewed the completed effort; posed Q&A/Report round 1)
+
+Executed Report prompt 1 (model: Fable). No report written yet — per the
+prompt, posed seven questions (RQ1–RQ7) in the new Q&A/Report section, each
+with a recommendation.
+
+**State of the effort reviewed before asking:** all five coding prompt docs
+executed to completion; `design/rt_inelastic_implementation.md` v0.27
+(2026-08-27) records M0–M4 all ✅ and **the design-§6 acceptance gate
+PASSES** — held-out total rRMS vs X4 of 0.343/0.341/0.340 % at 0/30/60° on
+the 400–700 nm gate band (bar ≤ 0.5 %); worst per-process delta 1.03 %
+(Raman 490 nm at 0°; bar ≤ 5 %; the −38.6 % analytic high-sun error closed
+to −0.14 %); `inelastic=None` bit-identical (strict SHA-256 pins); gradients
+for all six inputs incl. φ_C to 5.9e-9; speed 1.59× the elastic hybrid
+(median; budget 2×). Final suite: 431 passed, 1 skipped; artifacts committed
+under `design/validation/*inelastic*` and regenerable by
+`python design/py/run_validation.py --inelastic`. Also re-read the elastic
+report (`reports/report_rt_elastic_model.md`) as the structural template and
+its figure pipeline (`reports/make_report_figures.py` from committed
+artifacts).
+
+**Two filename discrepancies flagged in RQ1:** the prompt names the
+deliverable `report/rt_elastic_model.md`, but the repo directory is
+`reports/` (plural) and the elastic report already occupies
+`reports/report_rt_elastic_model.md` — recommended
+`reports/report_rt_inelastic_model.md`.
+
+**The seven questions:** RQ1 filename/location; RQ2 scope (prototype-focused
+with the BING assessment/fixes compressed into motivation, vs full-arc);
+RQ3 template/audience and the headline framing (the complete forward model
+reproducing the realistic X4 ocean at 0.34 %, elastic 0.30 % as the inherited
+base); RQ4 figures (sibling `make_inelastic_report_figures.py`, ~4 figures
+from committed artifacts; reuse `context/RT/` figures by link); RQ5 candor
+(state the ~×π BING fluorescence error and its consequence for published
+fits, final-state framing per A6; quote the sharp caveats incl. the −74 %
+zenith-holdout cliff verbatim); RQ6 closing recommendations (inversion next
+vs options-only); RQ7 whether the header cites branch `inelastic-rt` + the
+PR trail or waits for a merge to `main`.
+
+**Next:** await JXP's answers (Report prompt 2), then write the report.
+
+### 2026-08-27 (Report prompt 2: wrote reports/report_rt_inelastic_model.md + 4 figures)
+
+Executed Report prompt 2 (model: Fable). Reviewed the RQ1–RQ7 answers — all
+affirmative, with three directives: keep the BING fixes to passing mention
+(RQ2), include an explicit first-priority recommendation (RQ6), and refer to
+`main` since the `inelastic-rt` branch will be merged before the report lands
+(RQ7). Wrote the deliverables:
+
+- **`reports/report_rt_inelastic_model.md`** — the end-of-effort report,
+  mirroring the elastic report's skeleton section for section (executive
+  summary → motivation → the model → data & validation protocol → results →
+  may-claim/may-not → open items → recommended priorities → reproducibility →
+  document map → references). Headline per RQ3: the *complete* forward model
+  reproduces the all-processes-on L23 ocean (X4) to 0.34 % held-out rRMS at
+  all three zeniths on 400–700 nm — the elastic-era accuracy now holding
+  against the realistic ocean (the elastic-only model scores 16–19 % on that
+  truth, 48 % at the 685 nm peak). Per RQ5 the motivation states the two
+  upstream BING findings plainly (the ~×π fluorescence normalization and its
+  effective-φ_C consequence for published fits; flat-Ed as the dominant Raman
+  shape error) in final-state framing, and §5 quotes the sharp caveats
+  verbatim (the −74 % zenith-holdout cliff, φ_C truth at one point, the
+  sub-400 nm clamp at 13 %, the unvalidatable 'double' emission, one-sided
+  θ_s derivatives at the Ed anchors, the elastic inheritances). Per RQ6, §7
+  opens with the pick: **do the inversion next** (the caveats bind at unseen
+  geometries, not on the L23 domain; ∂Rrs/∂φ_C is the physiology handle the
+  architecture preserved), with the geometry HydroLight runs commissioned in
+  parallel and a domain guard for the heads until they exist.
+- **`reports/make_inelastic_report_figures.py`** — sibling of the elastic
+  figure script, committed-artifacts-only (reads
+  `design/validation/{rrms_per_wavelength_inelastic,metrics_inelastic}.csv`;
+  the zenith-holdout numbers transcribed from the implementation record §5.3
+  with provenance noted, matching the elastic script's transcription
+  precedent). Produces `fig_inelastic_architecture.png` (the composition-law
+  dataflow), `fig_inelastic_rrms_ladder.png` (per-λ elastic-only → analytic →
+  corrected vs X4, ungated regions shaded, the 0.5 % gate bar drawn only over
+  its band), `fig_inelastic_deltas.png` (the nine per-process rows analytic →
+  corrected against the ±5 % band), `fig_inelastic_unseen_zenith.png` (the
+  −74 % cliff). House palette reused from the elastic script (same validated
+  adjacent order; every series direct-labeled). `ruff check` clean (the
+  sibling's status); all four figures rendered and visually inspected.
+
+One small correction made en route: an early docstring draft cited a
+`--exclude-zenith` flag that `train_inelastic_corr.py` does not have — the
+script trains the zenith-holdout variant unconditionally; fixed before
+committing outputs.
+
+**Next:** JXP review of the report; merge of `inelastic-rt` (the report's
+header already refers to `main` per RQ7). This closes the prompt docs for
+the inelastic RT effort.
