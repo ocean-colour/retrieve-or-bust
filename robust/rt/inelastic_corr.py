@@ -79,6 +79,7 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "load_head",
     "load_default",
     "corrected_raman_factor",
+    "corrected_fluorescence",
 ]
 
 #: The two correction processes. Order is cosmetic; the kind on a
@@ -342,10 +343,27 @@ class CorrectionHead:
             head (zero-init output layer).
         """
         x = _FEATURE_FNS[self.config.kind](iops, geometry, wave)
-        x_std = (x - self.mean) / self.std
-        return _emulator._delta(
-            _emulator._network(self.config), self.params, x_std, self.config
+        # Two reorganisations from the M4 speed fallback (record §6), both
+        # algebraically identical (ULP-level float differences, ~4e-7 on δ):
+        # the standardisation folds into the first layer's weights and bias —
+        # ``(x−m)/s @ W = x @ (W/s) − (m/s) @ W`` on (6, 16) arrays, saving a
+        # full elementwise pass over the feature tensor — and the (batch...,
+        # wave) axes flatten for the two small matmuls, which XLA lowers to
+        # its threaded matmul where the N-D dot_general stays in a
+        # single-threaded loop. Together: 20 → 10 ms per head, full release.
+        p = self.params["params"]
+        inv_std = 1.0 / self.std
+        first = {
+            "kernel": p["Dense_0"]["kernel"] * inv_std[:, None],
+            "bias": p["Dense_0"]["bias"]
+            - (self.mean * inv_std) @ p["Dense_0"]["kernel"],
+        }
+        folded = {"params": {**p, "Dense_0": first}}
+        flat = x.reshape(-1, x.shape[-1])
+        delta = _emulator._delta(
+            _emulator._network(self.config), folded, flat, self.config
         )
+        return delta.reshape(x.shape[:-1])
 
 
 @jax.tree_util.register_dataclass
@@ -412,6 +430,35 @@ def corrected_raman_factor(delta_r, f_phys):
         ``f_R``, same shape as ``f_phys``.
     """
     return 1.0 + (f_phys - 1.0) * (1.0 + delta_r)
+
+
+def corrected_fluorescence(delta_f, k_fl):
+    """The corrected fluorescence kernel ``K_fl · (1 + δ_F)``.
+
+    The Raman rule applied to the additive term: the composition is written
+    once so ``hybrid._apply_inelastic``, the M3/M4 gate tests and
+    ``run_validation.py`` score literally the same expression — before this
+    helper (M4 review finding) each spelled it by hand, and a future change
+    to the composition (a clamp, a bounded form) would have left the gates
+    certifying a model ``forward`` no longer runs. The caller multiplies by
+    ``φ_C`` afterwards, exactly as the design §2 law and ``_apply_inelastic``
+    do (float multiplication is not associative, so the order is part of the
+    contract).
+
+    Parameters
+    ----------
+    delta_f : Array
+        δ_F from :meth:`CorrectionHead.delta`, broadcastable to ``k_fl``.
+    k_fl : Array
+        The analytic kernel from
+        :func:`robust.rt.inelastic.fluorescence_kernel`.
+
+    Returns
+    -------
+    Array
+        The corrected kernel, same shape as ``k_fl``.
+    """
+    return k_fl * (1.0 + delta_f)
 
 
 def save_head(head: CorrectionHead, path) -> None:

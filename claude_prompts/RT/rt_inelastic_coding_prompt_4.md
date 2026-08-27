@@ -420,3 +420,40 @@ follow.)
   not the weights.
 
 Task 6 (the prompt-5 hand-off) closes M3.
+
+### 2026-08-26 (M3 task 6 — prompt 5 rewritten from what M3 established; M3 COMPLETE)
+
+`rt_inelastic_coding_prompt_5.md` updated; record v0.23 (M3 ✅, PR #18
+merged). Model: Fable 5. Q&A: **no new answers and none needed — both prior
+questions remain answered and closed**; this task raises **no new
+questions**. (Prompt arrived as "execute the 6th prompt" — task 6 was next;
+numbering aligned.)
+
+What changed in prompt 5, and why:
+
+- **Working agreements corrected** (the draft carried the stale
+  `rt-inelastic-prototype` branch name; now `inelastic-rt`, the two-tier
+  hash gate, and the no-wholesale-pip rule).
+- **"Status entering M4" written** (the draft's empty block): M3 complete
+  at 416 + 1-skipped with PR #18 merged; the corrected-by-default forward
+  and its three switches (`corrections=None/False`, `inelastic=None`); the
+  per-process gate lines *already met and pinned* (−0.14/−0.10/−0.21 %
+  Raman, +0.08/+0.07/+0.10 % fluorescence — so M4's genuinely new numbers
+  are the total rRMS vs X4 and the ≤ 2× speed ratio); both FD gradient
+  gates and the θ_s-anchor kink; the measured −74 % extrapolation cliff
+  the candor section must carry; speed unmeasured (the M4 risk, with the
+  fluorescence contraction named as the suspect); the safe weight-write
+  path; the PR + `@cursor review` pattern; notebook tooling.
+- **Task text sharpened**: task 1 told to *report through* the standing
+  tests and `validation.rrms` rather than fork definitions, and to measure
+  before applying the speed fallback; task 3 carries the per-milestone
+  PR/Bugbot pattern (real findings at M0 and M3); task 4's caveat list is
+  now the *measured* one (geometry cliff, φ_C-at-0.02, 'double',
+  λ ≥ 400 nm domain, θ_s kink), to be carried verbatim from the record.
+
+**M3 is closed**: two 129-parameter bounded heads, trained on the elastic
+splits of the full release, take every per-process error from the analytic
+backbone's −39 %/−14 % failures to ≤ 0.21 % on held-out scenes — with the
+φ_C handle intact, the extrapolation limit measured and documented, and
+the whole M0–M2 gate stack green beneath them.
+→ `rt_inelastic_coding_prompt_5.md` (M4: validation — prototype complete).

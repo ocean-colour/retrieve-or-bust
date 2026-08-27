@@ -34,6 +34,7 @@ import pytest
 from robust.rt import hybrid as H
 from robust.rt import inelastic as I
 from robust.rt import inelastic_corr as IC
+from robust.rt import validation as V
 from robust.rt.types import Inelastic
 
 #: One fixed configuration per head kind, small and fast.
@@ -125,6 +126,45 @@ def test_delta_is_bounded(config, l23_small_inelastic_batch):
     assert np.all(np.isfinite(delta))
     assert np.abs(delta).max() < config.delta_max
     assert np.abs(delta).max() > 0.0  # the noise actually fired
+
+
+@pytest.mark.parametrize("config", [RAMAN_CONFIG, FL_CONFIG], ids=["raman", "fl"])
+def test_delta_fold_matches_the_unfolded_network(config, l23_small_inelastic_batch):
+    """The M4 speed fold reproduces the plain standardise-then-apply path.
+
+    ``CorrectionHead.delta`` folds the feature standardisation into Dense_0's
+    kernel/bias — a coupling to ``emulator._network``'s internal layer naming
+    that would fail *silently* if the network ever gained a non-Dense first op
+    (a wrong fold still yields bounded, plausible-looking deltas; a rename at
+    least raises KeyError). This pins the fold against the reference path —
+    explicit ``(x − mean)/std`` through the unmodified params — with noise
+    parameters *and* non-trivial mean/std, so the fold arithmetic is actually
+    exercised (M4 review finding). Tolerance is ULP-scale float32 reorder
+    (~4e-7 measured on the release).
+    """
+    from robust.rt import emulator as _emulator
+
+    batch = l23_small_inelastic_batch
+    rng = np.random.default_rng(11)
+    head = dataclasses.replace(
+        randomized(IC.init_head(config.kind, config)),
+        mean=jnp.asarray(rng.normal(0.0, 1.0, 6), dtype=jnp.float32),
+        std=jnp.asarray(rng.uniform(0.5, 2.0, 6), dtype=jnp.float32),
+    )
+    x = (
+        IC.features_raman(batch.iops, batch.geometry, batch.wave)
+        if config.kind == "raman"
+        else IC.features_fl(batch.iops, batch.geometry, batch.wave)
+    )
+    reference = _emulator._delta(
+        _emulator._network(config), head.params, (x - head.mean) / head.std, config
+    )
+    np.testing.assert_allclose(
+        np.asarray(head.delta(batch.iops, batch.geometry, batch.wave)),
+        np.asarray(reference),
+        rtol=2e-5,
+        atol=1e-6 * config.delta_max,
+    )
 
 
 def test_corrected_factor_form(l23_small_inelastic_batch):
@@ -416,17 +456,19 @@ def test_elastic_path_never_resolves_corrections(l23_small_inelastic_batch):
 # regression and the FD gradient gate run everywhere the repo does.
 
 from robust.rt.data import l23 as L  # noqa: E402
-from robust.tests.conftest import needs_l23_inelastic  # noqa: E402
+from robust.tests.conftest import needs_l23_inelastic, needs_weights  # noqa: E402
 
-#: The M3 per-process acceptance bar (coding plan / design DQ6).
-GATE = 0.05
+#: The M3 per-process acceptance bar (coding plan / design DQ6) — the shared
+#: gate constant, so this bar and the M4 gate file's cannot drift.
+GATE = V.INELASTIC_GATE_DELTA
 
-#: The committed weights; every test below is meaningless without them.
-needs_weights = pytest.mark.skipif(
-    not (IC.DEFAULT_RAMAN_WEIGHTS.exists() and IC.DEFAULT_FL_WEIGHTS.exists()),
-    reason="committed correction weights missing — run "
-    "design/py/train_inelastic_corr.py",
-)
+#: Every zenith the release holds; the gates assert their per-zenith dicts
+#: cover exactly this set. The protocol functions key off ``np.unique`` of the
+#: labels, which silently omits an *empty* group — without this assert a
+#: split/loader regression that dropped a zenith would pass the gate
+#: vacuously where the pre-M4 hard-coded loop failed loudly (M4 review
+#: finding).
+ZENITHS = {0.0, 30.0, 60.0}
 
 
 @pytest.fixture(scope="module")
@@ -444,16 +486,6 @@ def full_release():
     return batch, splits, heads, f_phys, k_fl
 
 
-def median_increment_errors(f_model, f_truth, batch, wave, mask, band):
-    """Median (f-1)/(truth-1) - 1 per zenith over a wavelength band."""
-    inc = (f_model - 1.0) / (f_truth - 1.0) - 1.0
-    out = {}
-    for zenith in (0.0, 30.0, 60.0):
-        rows = mask & (batch.zenith == zenith)
-        out[zenith] = float(np.median(inc[rows][:, band]))
-    return out
-
-
 @needs_weights
 @needs_l23_inelastic
 def test_heldout_raman_gate(full_release):
@@ -468,21 +500,23 @@ def test_heldout_raman_gate(full_release):
     """
     batch, splits, heads, f_phys, _ = full_release
     wave = np.asarray(batch.wave)
+    held = splits.scene_test
     delta = np.asarray(heads.raman.delta(batch.iops, batch.geometry, batch.wave))
     f_corr = np.asarray(IC.corrected_raman_factor(delta, f_phys))
     truth = np.asarray(batch.truth_raman_factor)
 
-    band = (wave >= 550.0) & (wave <= 700.0)
-    for zenith, err in median_increment_errors(
-        f_corr, truth, batch, wave, splits.scene_test, band
-    ).items():
-        assert abs(err) <= GATE, f"zenith {zenith}: 550-700 nm {err:+.4f}"
-
-    at490 = np.abs(wave - 490.0) < 1e-6
-    for zenith, err in median_increment_errors(
-        f_corr, truth, batch, wave, splits.scene_test, at490
-    ).items():
-        assert abs(err) <= GATE, f"zenith {zenith}: 490 nm {err:+.4f}"
+    # The shared protocol metric (robust.rt.validation.median_increment_error),
+    # so the gate here and the M4 table report the same quantity.
+    for label, band in (
+        ("550-700 nm", (wave >= 550.0) & (wave <= 700.0)),
+        ("490 nm", np.abs(wave - 490.0) < 1e-6),
+    ):
+        errors = V.median_increment_error(
+            f_corr[held], truth[held], batch.zenith[held], band
+        )
+        assert set(errors) == ZENITHS
+        for zenith, err in errors.items():
+            assert abs(err) <= GATE, f"zenith {zenith}: {label} {err:+.4f}"
 
 
 @needs_weights
@@ -498,12 +532,16 @@ def test_heldout_fluorescence_gate(full_release):
     wave = np.asarray(batch.wave)
     i685 = int(np.abs(wave - 685.0).argmin())
     delta = np.asarray(heads.fl.delta(batch.iops, batch.geometry, batch.wave))
-    model = L.PHI_C_L23 * k_fl * (1.0 + delta)
+    # The shared composition (corrected_fluorescence) and metric
+    # (peak_ratio_error), so the gate scores the expression `forward` runs and
+    # the number the M4 table reports.
+    model = L.PHI_C_L23 * np.asarray(IC.corrected_fluorescence(delta, k_fl))
     truth = np.asarray(batch.truth_fluorescence)
 
-    for zenith in (0.0, 30.0, 60.0):
-        rows = splits.scene_test & (batch.zenith == zenith)
-        err = float(np.median(model[rows, i685] / truth[rows, i685])) - 1.0
+    held = splits.scene_test
+    errors = V.peak_ratio_error(model[held], truth[held], batch.zenith[held], i685)
+    assert set(errors) == ZENITHS
+    for zenith, err in errors.items():
         assert abs(err) <= GATE, f"zenith {zenith}: 685 nm {err:+.4f}"
 
 
@@ -547,7 +585,7 @@ def test_committed_weights_regression(l23_small_inelastic_batch):
 
     k_fl = np.asarray(I.fluorescence_kernel(batch.iops, batch.geometry, batch.wave))
     delta_f = np.asarray(heads.fl.delta(batch.iops, batch.geometry, batch.wave))
-    model_fl = L.PHI_C_L23 * k_fl * (1.0 + delta_f)
+    model_fl = L.PHI_C_L23 * np.asarray(IC.corrected_fluorescence(delta_f, k_fl))
     truth_fl = np.asarray(batch.truth_fluorescence)
     i685 = int(np.abs(wave - 685.0).argmin())
 

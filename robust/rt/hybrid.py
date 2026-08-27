@@ -341,7 +341,11 @@ def _apply_inelastic(rrs, iops, geometry, wave, inelastic, heads=None):
             iops, geometry, wave, emission_shape=inelastic.emission_shape
         )
         if heads is not None and heads.fl is not None:
-            k_fl = k_fl * (1.0 + heads.fl.delta(iops, geometry, wave))
+            from . import inelastic_corr
+
+            k_fl = inelastic_corr.corrected_fluorescence(
+                heads.fl.delta(iops, geometry, wave), k_fl
+            )
         result = result + jnp.asarray(inelastic.phi_C)[..., None] * k_fl
     return conventions.Rrs_to_rrs(result)
 

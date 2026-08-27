@@ -1,12 +1,15 @@
 """
-Tests for :mod:`robust.rt.validation`'s protocol functions (M4 task 2).
+Tests for :mod:`robust.rt.validation`'s protocol functions (elastic M4 task 2;
+the inelastic-M4 additions in the final section).
 
 ``rrms`` itself is tested in ``test_baselines.py``, against the independently
 produced ladder in ``context/RT/fig_rrms_ladder.csv``. What lands here is the
 machinery M4 added around it: the per-λ, per-zenith and per-``B_p``-bin
 breakdowns, the throughput timer, and the finite-difference gradient report — plus
 the out-of-domain **fallback policy** on :func:`robust.rt.hybrid.rrs_forward`,
-which is the code JXP asked for in prompt 5's Q7.
+which is the code JXP asked for in prompt 5's Q7. The inelastic M4 adds the
+per-process delta metrics, the quantile/decile binning, the φ_C-linearity
+construction, the speed ratio and the six-variable gradient report.
 
 Two of these deserve their own note, because they are the ones that could pass
 while being wrong:
@@ -843,4 +846,172 @@ def test_throughput_rejects_zero_repeats():
             geometry,
             wave,
             repeats=0,
+        )
+
+
+# ----------------------------------------- the inelastic protocol (M4 task 1) --
+#
+# The design-§6 machinery for the inelastic gate: the per-process delta metrics
+# under their permanent names, the a_ph(440)-decile binning, the φ_C-linearity
+# construction, the speed ratio, and the refusal contracts of the six-variable
+# gradient report — synthetic data, hand computations as the reference. The
+# gradient gate itself (the real composed corrected forward) lives once, in
+# ``test_inelastic_validation.py`` gate line 5 (the M4 review removed a
+# line-for-line duplicate of it here).
+
+
+def test_median_increment_error_matches_hand_computation():
+    """The Raman delta metric is a slice-and-median on the *increment*.
+
+    Scored on ``(f − 1)/(truth − 1) − 1``, not on the factor ratio: the factor
+    is 1 + small, and a ratio of factors would hide a large error in the small
+    part — the analytic backbone's −39 % at 0° looks like 0.4 % in factor terms.
+    Unbalanced groups and a non-trivial band, so a mean-instead-of-median or a
+    band-ignoring implementation cannot pass by luck.
+    """
+    rng = np.random.default_rng(4)
+    truth = 1.0 + rng.uniform(0.01, 0.4, (9, 6))
+    model = 1.0 + (truth - 1.0) * rng.uniform(0.5, 1.5, (9, 6))
+    labels = np.array([0, 0, 0, 0, 0, 30, 30, 60, 60])
+    band = np.array([False, True, True, False, True, False])
+
+    got = V.median_increment_error(model, truth, labels, band)
+
+    assert set(got) == {0.0, 30.0, 60.0}
+    for value in (0, 30, 60):
+        rows = labels == value
+        expected = np.median(((model[rows] - 1.0) / (truth[rows] - 1.0) - 1.0)[:, band])
+        assert got[float(value)] == pytest.approx(float(expected), rel=1e-12)
+
+
+def test_peak_ratio_error_matches_hand_computation():
+    """The fluorescence delta metric: median of the per-scene ratio at one band.
+
+    The median of the *ratio*, not the ratio of medians — every scene counts
+    once, so a handful of eutrophic outliers cannot carry the statistic. A
+    known 10 % low group and a known 5 % high group come back exactly.
+    """
+    rng = np.random.default_rng(5)
+    truth = rng.uniform(1e-4, 1e-3, (8, 4))
+    model = truth.copy()
+    labels = np.array([0, 0, 0, 0, 60, 60, 60, 60])
+    model[labels == 0, 2] = truth[labels == 0, 2] * 0.9
+    model[labels == 60, 2] = truth[labels == 60, 2] * 1.05
+
+    got = V.peak_ratio_error(model, truth, labels, index=2)
+
+    assert got[0.0] == pytest.approx(-0.10, rel=1e-9)
+    assert got[60.0] == pytest.approx(+0.05, rel=1e-9)
+
+
+def test_quantile_bins_generalize_bp_bins_to_deciles():
+    """``bp_bin_labels`` is now the named special case of the generic binning.
+
+    The inelastic protocol bins by ``a_ph(440)`` deciles; one implementation
+    serves both, so the two cuts cannot drift. Deciles of 40 distinct values
+    give ten bins of four.
+    """
+    rng = np.random.default_rng(6)
+    values = rng.uniform(1e-3, 0.35, 40)
+
+    labels_bp, edges_bp = V.bp_bin_labels(jnp.asarray(values))
+    labels_q, edges_q = V.quantile_bin_labels(jnp.asarray(values))
+    np.testing.assert_array_equal(labels_bp, labels_q)
+    np.testing.assert_array_equal(edges_bp, edges_q)
+
+    deciles, edges = V.quantile_bin_labels(values, n_bins=10)
+    counts = np.bincount(deciles, minlength=10)
+    assert edges.shape == (11,)
+    np.testing.assert_array_equal(counts, np.full(10, 4))
+
+
+def test_phi_c_linearity_is_flat_for_a_linear_model_and_catches_a_nonlinear_one():
+    """The scaled-truth construction: linear in φ_C ⇒ the same error at every scale.
+
+    The model term and the scaled truth are both proportional to the scale, so
+    for an exactly φ_C-linear model the per-zenith error is *identical* across
+    scales — that flat line is the diagnostic's whole message. A quadratic
+    contamination must show up as drift, or the check checks nothing.
+    """
+    rng = np.random.default_rng(7)
+    truth = rng.uniform(1e-4, 1e-3, (6, 3))
+    labels = np.array([0, 0, 30, 30, 60, 60])
+    phi_ref = 0.02
+    unit = truth * rng.uniform(0.9, 1.1, truth.shape) / phi_ref  # the model's K_fl
+
+    linear = V.phi_c_linearity(
+        lambda phi: phi * unit, truth, labels, index=1, phi_ref=phi_ref
+    )
+    assert set(linear) == {0.5, 1.0, 2.0, 5.0}
+    for zenith in (0.0, 30.0, 60.0):
+        errors = {scale: linear[scale][zenith] for scale in linear}
+        assert max(errors.values()) - min(errors.values()) == pytest.approx(
+            0.0, abs=1e-12
+        )
+
+    quadratic = V.phi_c_linearity(
+        lambda phi: phi * unit * (1.0 + 5.0 * phi),
+        truth,
+        labels,
+        index=1,
+        phi_ref=phi_ref,
+    )
+    spread = max(quadratic[s][0.0] for s in quadratic) - min(
+        quadratic[s][0.0] for s in quadratic
+    )
+    assert spread > 1e-3
+
+
+def test_speed_ratio_is_consistent_with_its_own_timings():
+    """The ratio is exactly the quotient of the two reported timings.
+
+    Wall-clock itself is not reproducible to better than ~20 % on a shared
+    machine, so — as with ``throughput`` — internal consistency is the only
+    honest assertion; the *measured* ratio is quoted in the record instead.
+    """
+    iops, phase, geometry, wave = synthetic()
+
+    ratio, candidate_s, reference_s = V.speed_ratio(
+        lambda i, p, g, w: B.rrs_gordon(i, p, g, w),
+        lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w),
+        iops,
+        phase,
+        geometry,
+        wave,
+        repeats=2,
+    )
+
+    assert candidate_s > 0.0 and reference_s > 0.0
+    assert ratio == pytest.approx(candidate_s / reference_s, rel=1e-9)
+
+
+def test_inelastic_gradient_report_refuses_bad_input(jax_x64):
+    """Missing ``a_ph`` and a wrong ``steps`` dict raise, as the elastic report.
+
+    The failure modes are the elastic ones (extra key ⇒ a variable "agrees"
+    without ever being perturbed) plus the inelastic-specific silent skip: a
+    report without ``a_ph`` would certify a model with no fluorescence source.
+    """
+    iops, phase, geometry, wave = synthetic(n_sample=3)
+
+    with pytest.raises(ValueError, match="a_ph"):
+        V.inelastic_gradient_report(
+            lambda i, p, g, w, phi: B.rrs_gordon(i, p, g, w),
+            iops,  # synthetic() carries no a_ph
+            phase,
+            geometry,
+            wave,
+            phi_C=0.02,
+        )
+
+    with_aph = IOPs(a=iops.a, bb_w=iops.bb_w, bb_p=iops.bb_p, a_ph=0.5 * iops.a)
+    with pytest.raises(ValueError, match="steps must name exactly"):
+        V.inelastic_gradient_report(
+            lambda i, p, g, w, phi: B.rrs_gordon(i, p, g, w),
+            with_aph,
+            phase,
+            geometry,
+            wave,
+            phi_C=0.02,
+            steps={"a": 1e-6},
         )

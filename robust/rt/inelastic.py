@@ -43,6 +43,7 @@ felt it.
 
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
@@ -406,11 +407,26 @@ def fluorescence_kernel(
 
     # The (..., n_em, n_ex) contraction: K(λ') + κ_F(λ_em) is a sum, so it
     # cannot factor across the axes — this broadcast is the design's budget.
-    denom = k_ex[..., None, :] + kappa_f_em[..., :, None]
-    quanta_to_energy = wave_ex / wave[..., None]
-    source = bb_f[..., None, :] / MU_D
-    integrand = ed_ex[..., None, :] * quanta_to_energy * source / denom
-    r_f = jnp.trapezoid(integrand, x=wave_ex, axis=-1) / ed_em
+    # What *can* factor is everything λ'-only: the trapezoid weights, Ed(λ'),
+    # the quanta→energy numerator and the source fold into one (..., n_ex)
+    # array, so the big tensor appears in a single divide-and-reduce that XLA
+    # fuses without materialising the integrand (the M4 speed fallback: the
+    # unfused form cost 167 ms of a 33 ms elastic call; this one costs 4).
+    # Algebraically identical to trapezoid(integrand)/(wave · Ed(λ_em));
+    # float32 agreement with the unfused form is ~7e-7 (reordered sums).
+    dx = jnp.diff(wave_ex)
+    trapezoid_w = 0.5 * jnp.concatenate([dx[:1], dx[:-1] + dx[1:], dx[-1:]])
+    numerator = trapezoid_w * wave_ex * ed_ex * bb_f / MU_D
+    r_f = jnp.sum(
+        numerator[..., None, :] / (k_ex[..., None, :] + kappa_f_em[..., :, None]),
+        axis=-1,
+    )
+    # The barrier pins the reduced (..., n_em) result to materialise once:
+    # without it XLA's consumer fusion re-runs the whole reduction (prelude
+    # gathers included) for every use of r_f downstream — measured 17 ms vs
+    # 3.8 ms on the full release, bit-identical output. Differentiable
+    # (identity JVP) and jit/vmap-safe; the FD gradient gates run through it.
+    r_f = jax.lax.optimization_barrier(r_f) / (wave * ed_em)
 
     # Isotropic emission: Lu = Eu/pi (the ×3 fix), then the standard surface
     # transfer and the emission line — bing's order, kept exactly.
