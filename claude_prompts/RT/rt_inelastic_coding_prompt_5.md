@@ -412,3 +412,42 @@ alternation; was 1.67×), every other line unchanged (worst total 0.343 %,
 Raman 1.03 %, fluorescence 0.10 %, gradients 5.9e-9, bit-identity True).
 PNGs byte-identical. **Task 4 (notebook 5 + record wrap-up) is what stands
 between here and "prototype done"; the branch is ready for JXP's M4 PR.**
+
+### 2026-08-27 (M4 task 4 — notebook 5 + the record finished; **the inelastic prototype is done**)
+
+Model: Fable 5. **Q&A: no new answers found (Q1 remains the only entry,
+already applied at task 2) and no new questions — nothing pending.** Still
+no M4 PR at execution time, so no Bugbot comments existed to address; when
+JXP opens the PR, any `@cursor review` findings are post-wrap-up work.
+
+**`notebooks/RT/rt_inelastic_coding_5.ipynb`** — built programmatically
+(`nbformat` from `os_313`, notebooks 1–4 house style), executed via the
+`os_313` nbconvert on the `ocean14` kernel, committed with outputs
+(229 kB). Four sections (record §6.8): the total-rRMS ladder
+(elastic-only → analytic → corrected, ungated regions shaded but visible);
+the nine-row per-process before/after (−38.6 → −0.14 % at 0° as the top
+line); speed + gradients **re-verified live in the notebook run** (this
+run's median 1.71× printed beside the committed 1.59×, both under the 2×
+gate — the ±5 % machine wander made visible rather than hidden; gradients
+worst 5.9e-9; bit-identity re-checked True); and the claims/caveats
+statement. The setup cell **asserts the recomputed gate-band totals equal
+`design/validation/metrics_inelastic.csv`** before anything renders — the
+elastic no-transcription rule, enforced by the notebook itself.
+
+**The record is finished** (v0.27): §6.8 (notebook), §6.9 (definition of
+done, mirroring the elastic §6.10 — the claim with its two recorded
+amendments: branch `inelastic-rt` per prompt 1 Q2, gate band 400–700 nm
+per prompt 5 Q1; and the five measured caveats verbatim: the −74 %
+3-zenith cliff, φ_C truth only at 0.02, `'double'` unvalidatable at
+−23.6 %, the sub-400 nm clamp at 13 %, the θ_s-anchor kink — plus the
+elastic inheritances). Status table: M0–M4 all ✅; the §1 verification
+block updated to the final count.
+
+**Verification.** Final `pytest -q` → **431 passed, 1 skipped**; ruff +
+format clean; elastic hash pins green; notebook figures inspected.
+**The M4 gate is passed, reviewed, and recorded — the inelastic prototype
+is complete.** Branch `inelastic-rt` holds M0–M4 ready for JXP's M4 PR
+(`@cursor review` per the milestone pattern). Next steps:
+`claude_prompts/RT/rt_inelastic_prompts.md` (the Report prompts) and the
+coding plan's "Beyond v1" HydroLight wishlist, which awaits JXP's compute
+planning.

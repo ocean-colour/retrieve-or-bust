@@ -1,6 +1,6 @@
 # Inelastic RT Implementation Record
 
-**Version:** 0.26
+**Version:** 0.27
 **Date:** 2026-08-27
 **Authors:** JXP and Claude
 
@@ -32,7 +32,7 @@ the Date on every bump.
 | **M1** | Ed module, excitation grid, X2/X4 data | ✅ done | `robust.rt.ed`, `robust.rt.conventions` (extend), `robust.rt.data.l23` (extend), `robust/rt/data/ed_l23.npz`, sibling CI fixture |
 | **M2** | Analytic terms in JAX | ✅ done | `robust.rt.inelastic`, composition in `robust.rt.hybrid`, `robust/tests/test_inelastic_bing_xcheck.py`, `notebooks/RT/rt_inelastic_coding_3.ipynb` |
 | **M3** | Correction heads δ_R, δ_F | ✅ done (PR #18 merged) | `robust.rt.inelastic_corr`, `robust/rt/files/{raman,fl}_corr_l23.npz`, `design/py/train_inelastic_corr.py`, `notebooks/RT/rt_inelastic_coding_4.ipynb` |
-| **M4** | Validation (*prototype done*) | 🟡 tasks 1–3 done — **the §6 gate PASSES, review pass complete** (wrap-up remains) | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/*_inelastic.*`, `robust/tests/test_inelastic_validation.py` |
+| **M4** | Validation (*prototype done*) | ✅ **done — the §6 gate PASSES; the prototype is complete** (§6.9) | `robust.rt.validation` (extend), `design/py/run_validation.py` (extend), `design/validation/*_inelastic.*`, `robust/tests/test_inelastic_validation.py` |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -63,16 +63,16 @@ reported, never gated. The `bing` cross-check tests (M2) import the *fixed*
 BING (branch `inelastic-fixes`) live and `skipif` when it is unavailable, so
 GitHub CI stays green while local runs enforce the pin (CQ3a).
 
-**Verification (current).** `pytest -q` from the repo root → **390 passed**
-(355 as of M1 + 32 M2 `test_inelastic.py` + 3 `test_inelastic_bing_xcheck.py`);
-details below superseded only in count:
-(`ocean14`, this machine, 2026-08-24, `$OS_COLOR` set): 279 elastic unmodified
-+ 31 M0/hash-gate (two-tier since task 7, §2.8) + 45 M1 (`test_ed.py` 20,
-Raman-grid additions in `test_conventions.py` 9, `test_l23_inelastic_data.py`
-15, plus the review-debt regression test in `test_l23.py`). `ruff check` and
+**Verification (final, 2026-08-27).** `pytest -q` from the repo root →
+**431 passed, 1 skipped** (`ocean14`, this machine, `$OS_COLOR` set; the
+skip is the deliberately-retired missing-weights fallback test). The ledger:
+279 elastic unmodified + the M0 hash gate (two-tier, §2.8) + M1 (Ed,
+Raman grid, X2/X4 data) + M2 (analytic terms + live-BING xcheck) + M3
+(head machinery + held-out gates) + M4 (protocol functions + the 7-test
+acceptance gate + the review-pass additions). `ruff check` and
 `ruff format --check` clean. With `CI=true` simulated: strict hash tier
-skips, closeness tier green; with `$OS_COLOR` unset the raw-netCDF tests
-skip and the fixture-fed loaders still run.
+skips, closeness tier green; with `$OS_COLOR` unset the full-release gates
+skip and the fixture-fed regressions still run.
 
 ---
 
@@ -1143,7 +1143,7 @@ incl. φ_C, speed ≤ 2× elastic; review pass; metrics + figures committed unde
 | 1 | Validation protocol (`validation.py` extension) | ✅ done — both new gate numbers measured; speed fallback applied (6.3× → 1.6×) |
 | 2 | Artifacts (`run_validation.py`) + gate (`test_inelastic_validation.py`) | ✅ done — **all six §6 lines PASS**; artifacts committed and regenerable |
 | 3 | Review pass (CQ6) | ✅ done — 8-angle self-review; 13 findings fixed, 6 declined with reasons (§6.7); gate re-verified |
-| 4 | Wrap-up (record, notebook 5) | ⬜ not started |
+| 4 | Wrap-up (record, notebook 5) | ✅ done — notebook executed + committed; definition of done stated (§6.9) |
 
 ### 6.2 The protocol (task 1)
 
@@ -1371,6 +1371,68 @@ closed by the shared constants; the rest is script plumbing); generalizing
 15-line protocol closures, no third consumer); jitting every one of the
 script's full-batch forwards (each distinct config pays a multi-second
 compile; the eager total is seconds in a ~1-minute script).
+
+### 6.8 Notebook (task 4)
+
+**`notebooks/RT/rt_inelastic_coding_5.ipynb`** — executed (`os_313`
+nbconvert on the `ocean14` kernel), committed with outputs. Four sections,
+every headline number recomputed from the committed weights on the full
+release and **asserted equal to the committed artifacts** in the setup cell
+(the elastic §6.10 no-transcription rule, now enforced by the notebook
+itself — `metrics_inelastic.csv` is read and compared before anything is
+shown):
+
+1. **The total-rRMS ladder** — elastic-only (5–18 %, 48 % at the 685 nm
+   peak: the cost of ignoring inelastic physics) → analytic backbone
+   (2–5 %) → corrected (median 0.33 %), per λ on held-out scenes, the
+   ungated regions shaded but visible (the sub-400 clamp cliff is *why*
+   the gate band exists) and the caption explicit that the per-λ line may
+   cross 0.5 % where the per-zenith total — the gated number — absorbs it.
+2. **Per-process before/after** — the nine (metric × zenith) rows against
+   the ±5 % band; the −38.6 → −0.14 % headline at 0°.
+3. **Speed + gradients, re-verified live** — the notebook run measures its
+   own `speed_ratio` (median of alternating-order, compile-once trials;
+   printed beside the committed 1.59×) and the six-variable FD report
+   (worst 5.9e-9), and re-checks bit-identity — the gate re-asserted at
+   read time, not quoted.
+4. **What the prototype may claim** — the definition-of-done statement and
+   the five measured caveats, verbatim (§6.9); the branch state for JXP's
+   PR.
+
+### 6.9 Definition of done — the prototype, and what it may claim
+
+The coding plan's acceptance is the design-§6 gate, verbatim. **By the gate
+as amended, the prototype passes and the inelastic milestone is complete.**
+The amendments, both JXP's and both recorded rather than quietly applied:
+the branch is **`inelastic-rt`** (prompt 1 Q&A Q2; not the plan's
+`rt-inelastic-prototype`), and the total-rRMS line is scored over
+**400–700 nm** (prompt 5 Q&A Q1) — the model's stated domain, with the full
+350–750 nm numbers reported, never gated.
+
+What it may claim: `forward(iops, phase_params, geometry, wave,
+inelastic=Inelastic())` reproduces the all-processes-on L23 ocean to
+**0.343/0.341/0.340 %** held-out rRMS at 0/30/60° on its domain, with
+per-process deltas ≤ 1.03 % worst (including Raman at high sun — the
+−38.6 % analytic line closed to −0.14 %), leaves elastic-only behavior
+**bit-identical** (strict SHA-256 pins), is differentiable in everything
+including φ_C to **5.9e-9** worst, and runs at **1.59×** the elastic
+hybrid (median; budget 2×) — with committed weights (4.2 + 4.3 kB, 129
+params/head), a committed metrics table + two figures regenerable by
+`python design/py/run_validation.py --inelastic`, the 7-test acceptance
+gate (`test_inelastic_validation.py`), and this record.
+
+What it may **not** claim — each measured, not hypothesized: geometry
+beyond the three training zeniths (the −74 % cliff at an unseen 60°,
+§5.3); φ_C beyond 0.02 (linear by construction, truth at one point);
+`'double'` emission (−23.6 % vs the single-shape truth; unvalidatable);
+λ < 400 nm (the excitation clamp, 13 % at 350 nm); θ_s-derivatives at the
+Ed anchors (one-sided, §4.4); plus the elastic inheritances (nadir view,
+L23-like water, the narrow `B_p` slice). The "Beyond v1" HydroLight
+wishlist (design §8) is the path that turns each into a testable gate.
+
+Every number above is checked programmatically — notebook 5's setup cell
+asserts against `design/validation/metrics_inelastic.csv`, and the gate
+tests assert against live computation — not transcribed.
 
 ---
 
