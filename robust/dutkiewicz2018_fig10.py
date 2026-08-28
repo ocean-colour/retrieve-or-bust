@@ -43,7 +43,17 @@ The figure is stored in the paper PDF as an embedded raster image
    Kudela points on the digitized Dutkiewicz joint PDF when their CSVs are
    present.  If the Kudela data are shown, the axes are extended to hold
    the full GLORIA dynamic range and the original Fig. 10a panel is drawn
-   as a dashed rectangle.
+   as a dashed rectangle.  ``plot`` also draws two empirical Chl-a/CDOM
+   relations from the literature, converted to the same concentration axes
+   through the same Darwin ccdom(450) as the overlays above:
+
+   * Morel (2009): aCDOM(440) = 0.032 * Chl^0.63 m^-1, shifted to 450 nm
+     with the Darwin slope exp(-0.021 * 10) and divided by ccdom(450), i.e.
+     CDOM (mmol C m^-3) = 0.1441 * Chl^0.63.
+   * Stramska & Stramski (2005): aCDOM(lambda) = 0.012 * Chl^0.65 *
+     exp(-0.014 * (lambda - 440)) m^-1, evaluated at lambda = 450 nm with
+     their own spectral slope (0.014 nm^-1, not Darwin's) and divided by
+     ccdom(450), i.e. CDOM (mmol C m^-3) = 0.05796 * Chl^0.65.
 
 Pixel calibration (measured from the embedded image; see claude_prompts/
 dutkiewicz_priors.md logs for the derivation):
@@ -96,6 +106,21 @@ APH_STAR_440 = 0.05582   # m^2 (mg Chl)^-1, Bricaud et al. (1998)
 CCDOM_450 = 0.18         # m^2 (mmol C)^-1, Dutkiewicz et al. (2015) Table 1
 SCDOM = 0.021            # nm^-1 CDOM spectral slope, Dutkiewicz et al. (2015)
 AG440_TO_450 = float(np.exp(-SCDOM * (450 - 440)))   # ~0.81
+
+# Empirical Chl-a -> CDOM-absorption relations from the literature.  Both give
+# an absorption coefficient (m^-1), so each is converted to a Fig. 10a CDOM
+# concentration (mmol C m^-3) by dividing by CCDOM_450, exactly as done for the
+# Loisel and Kudela overlays.
+# Morel (2009, J. Geophys. Res. 114, C01016): aCDOM(440) = 0.032 * Chl^0.63;
+# shifted 440 -> 450 nm with the Darwin slope, as for the Kudela/GLORIA data.
+MOREL09_A, MOREL09_B = 0.032, 0.63
+MOREL09_COEFF = MOREL09_A * AG440_TO_450 / CCDOM_450          # ~0.1441
+# Stramska & Stramski (2005, J. Geophys. Res. 110, C10018):
+# aCDOM(lambda) = 0.012 * Chl^0.65 * exp(-0.014 * (lambda - 440)); their own
+# spectral slope (0.014 nm^-1) is used to reach 450 nm, not the Darwin slope.
+SS05_A, SS05_B, SS05_SLOPE = 0.012, 0.65, 0.014
+SS05_COEFF = (SS05_A * float(np.exp(-SS05_SLOPE * (450 - 440)))
+              / CCDOM_450)                                    # ~0.05796
 
 # ---------------------------------------------------------------------------
 # Pixel calibration of the embedded raster (2047 x 921 px)
@@ -479,6 +504,20 @@ def plot():
     ax.plot([10.0 ** X_LOG_RANGE[0], 10.0 ** X_LOG_RANGE[1]],
             [10.0 ** Y_LOG_RANGE[0], 10.0 ** Y_LOG_RANGE[1]],
             color='0.4', linestyle='--', linewidth=1)
+
+    # Empirical Chl-a -> CDOM relations from the literature, converted to
+    # concentration with ccdom(450) (see module docstring).  Evaluate over the
+    # Chl range actually displayed, which the Kudela overlay may have widened.
+    chl_lo, chl_hi = ax.get_ylim()
+    chl_lit = np.logspace(np.log10(chl_lo), np.log10(chl_hi), 200)
+    ax.plot(MOREL09_COEFF * chl_lit ** MOREL09_B, chl_lit,
+            color='darkorange', linestyle='-', linewidth=1.8,
+            label='Morel (2009)')
+    ax.plot(SS05_COEFF * chl_lit ** SS05_B, chl_lit,
+            color='darkturquoise', linestyle='--', linewidth=1.8,
+            label='Stramska & Stramski (2005)')
+    ax.set_ylim(chl_lo, chl_hi)
+    any_overlay = True
 
     if any_overlay:
         ax.legend(loc='upper left', framealpha=0.9, fontsize=8)

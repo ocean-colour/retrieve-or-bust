@@ -27,6 +27,15 @@ See the following:
 
 5. I have updated the answers.  I don't think they affect any of your work, but double check.  Log your work.  Use Fable if you can.
 
+6. Let's add two relations between Chl-a and CDOM from the literature:
+
+   - Morel (2009)
+     - CDOM(440) = 0.032 * Chl-a^0.63
+   - Stramska & Stramski (2005)
+     - CDOM(lambda) = 0.012 * Chl-a^0.65 * exp(-0.014 * (lambda - 440))
+
+Add these to the figure and the Legend.  Use Opus.  Log your work.  
+
 ## Q&A
 
 Questions from Claude (2026-08-14) about the two files in `$OS_COLOR/Raphe`,
@@ -106,6 +115,75 @@ The "Logs" section will record Claude's work.  Please use the following format:
 ...
 
 ## Logs
+
+### 2026-08-23 (Added the Morel 2009 and Stramska & Stramski 2005 Chl-a/CDOM relations to Fig. 10a)
+
+Executed prompt 6 with Claude Opus 5.
+
+**Unit logic.** Both published relations give a CDOM *absorption
+coefficient* (m^-1), not the CDOM *concentration* (mmol C m^-3) on the
+Fig. 10a x-axis, so each had to go through the same Darwin
+ccdom(450) = 0.18 m^2 (mmol C)^-1 used for the Loisel+2023 and Kudela
+overlays:
+
+- **Morel (2009)**: aCDOM(440) = 0.032 * Chl^0.63. Only a 440 nm value is
+  given, so it is shifted to 450 nm with the Darwin spectral slope
+  exp(-0.021 * 10) = 0.8106 (the same shift already applied to the
+  Kudela/GLORIA aCDOM(440) data), then divided by 0.18:
+  CDOM = 0.032 * 0.8106 / 0.18 * Chl^0.63 = **0.14410 * Chl^0.63**.
+- **Stramska & Stramski (2005)**: aCDOM(lambda) = 0.012 * Chl^0.65 *
+  exp(-0.014 * (lambda - 440)). This one supplies its own spectral slope,
+  so it is evaluated at lambda = 450 with *their* 0.014 nm^-1
+  (exp(-0.14) = 0.8694) rather than Darwin's, then divided by 0.18:
+  CDOM = 0.012 * 0.8694 / 0.18 * Chl^0.65 = **0.057957 * Chl^0.65**.
+
+**Script changes.** `robust/dutkiewicz2018_fig10.py` gained
+`MOREL09_A/B/COEFF` and `SS05_A/B/SLOPE/COEFF` next to the other
+conversion constants (with the citations), the module docstring's `plot`
+section now spells out both conversions, and `plot()` draws each relation
+as a line over the Chl range actually in effect at that point
+(`ax.get_ylim()`, i.e. widened to ~10^-2-2x10^4 mg m^-3 by the Kudela
+overlay): Morel as a solid orange line, Stramska & Stramski as a dashed
+turquoise line, both labelled in the existing legend. No other part of the
+script was touched; the figure was regenerated with `plot` only.
+
+**What the figure shows** (`robust/data/dutkiewicz2018_fig10a_regenerated.png`).
+Because CDOM ~ Chl^0.63-0.65, on these axes (Chl on y) both lines have
+slope ~1.5-1.6 in log-log, i.e. noticeably steeper than the grey 1:1
+reference and a good match to the tilt of the Darwin ridge.
+
+- The Morel line threads essentially straight up the Darwin ridge: it
+  passes through the dark-red high-density core at Chl ~ 0.03-0.3
+  (CDOM ~ 0.02-0.07) and continues through the middle of the Kudela field
+  (Pacific/Arctic) point cloud at Chl ~ 1-30. At the published Fig. 10a
+  mode (Chl = 0.077, CDOM = 0.043) Morel predicts CDOM = 0.029 — within a
+  factor 1.5 of Darwin, which is remarkable agreement given that one is a
+  mechanistic DOM model and the other an empirical fit.
+- The Stramska & Stramski line is a near-parallel offset ~0.4 dex to lower
+  CDOM (a factor 2.3-2.6 below Morel across the plotted Chl range, the two
+  exponents being nearly equal; 0.011 at the Darwin mode). It
+  runs along the upper-left flank of the Darwin ridge and straight through
+  the Loisel+2023 cloud, i.e. it lands in the same low-CDOM-per-Chl part of
+  the phase space that the prompt-2 log flagged as the L23 sampling bias.
+- Both lines fall to the *left* of the Kudela GLORIA (inland/coastal)
+  swarm at high Chl — those optically complex waters carry far more CDOM
+  per unit Chl than either open-ocean relation, consistent with allochthonous
+  (terrestrial) CDOM that neither relation nor Darwin's ridge represents.
+- Neither line reproduces Darwin's vertical high-CDOM branch near
+  CDOM ~ 0.2-0.5, which by construction no single power law can.
+
+**Caveats.** (i) These are empirical absorption-based fits from source
+populations (Case-1 open ocean for Morel; Baltic/coastal and open ocean for
+Stramska & Stramski) very different from Darwin's global model output, and
+they were converted to concentration through the single Darwin `ccdom`
+constant — exactly the same caveat as the Loisel/Kudela conversions, and it
+shifts both curves horizontally by whatever factor `ccdom` is wrong by.
+(ii) The 440->450 nm shift for Morel uses the Darwin slope (0.021 nm^-1)
+rather than a Morel-specific slope; at 10 nm this is only a 19% effect, but
+it is a borrowed assumption. (iii) The relations are plotted over the full
+widened Chl range, well beyond the Chl ~ 0.03-3 mg m^-3 range where they
+were actually calibrated, so the high-Chl ends are extrapolations shown for
+context only.
 
 ### 2026-08-15 (Double-checked the updated Q&A answers against the analysis)
 
