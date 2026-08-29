@@ -75,7 +75,7 @@ hyperspectral reflectance** (PACE / OCI and beyond).
 
 - Paula Bontemps (URI)
 - Heidi Dierssen (UConn)
-- Henry Housekeeper (WHOI)
+- Henry Houskeeper (WHOI)
 - Robert Frouin (SIO)
 - Mariah Kavanaugh (OSU)
 - Raphe Kudela (UCSC)
