@@ -34,6 +34,13 @@ Three concerns, in order of importance:
   defaulting to ``None`` following the ``Geometry.wind`` precedent — no leaves
   when unset, so every existing call site and ``vmap`` axis spec is untouched.
 
+M5 (CDOM-fluorescence design, task 1) extends the same contracts: ``IOPs``
+gains optional ``a_cdom`` (mirroring ``a_ph`` exactly), ``CDOMFl`` is a new
+registered pytree (``scale`` its single differentiable leaf), and
+``Inelastic.cdom_fl`` is retyped from the reserved always-reject scalar hook to
+``CDOMFl | None`` — ``None`` stays the default, and the set-but-unused states
+stay bit-identical (the design §3 extended bit-identity requirement).
+
 Everything here runs on the committed fixture or on synthetic inputs — no
 ``$OS_COLOR`` needed, so the whole module runs in CI.
 """
@@ -284,14 +291,134 @@ def test_inelastic_validate_accepts_defaults():
         T.Inelastic(phi_C=jnp.asarray(1.5)),
         T.Inelastic(phi_C=jnp.asarray(jnp.nan)),
         T.Inelastic(emission_shape="triple"),
+        # A bare scalar was the pre-M5 reserved-hook signature; since the M5
+        # retype it is rejected for a *different* reason — cdom_fl must be a
+        # CDOMFl instance, and validate() type-checks it so the old calling
+        # convention fails loudly instead of half-configuring the process.
         T.Inelastic(cdom_fl=jnp.asarray(0.1)),
+        # A CDOMFl instance is accepted, but validate() delegates to
+        # CDOMFl.validate(), so an unusable nested configuration still raises.
+        T.Inelastic(cdom_fl=T.CDOMFl(scale=jnp.asarray(0.0))),
     ],
-    ids=["zero", "negative", "above-one", "nan", "bad-shape", "cdom-set"],
+    ids=[
+        "zero",
+        "negative",
+        "above-one",
+        "nan",
+        "bad-shape",
+        "cdom-not-a-cdomfl",
+        "cdom-bad-scale",
+    ],
 )
 def test_inelastic_validate_rejects(bad):
     """Each documented failure mode raises; phi_C=0 points at the boolean."""
     with pytest.raises(ValueError):
         bad.validate()
+
+
+# ------------------------------------------------------------- CDOMFl type ----
+
+
+def test_cdom_fl_defaults():
+    """The CDOM design §3 signature: ``CDOMFl(scale=1.0)``."""
+    cdom = T.CDOMFl()
+    assert float(np.asarray(cdom.scale)) == pytest.approx(1.0)
+
+
+def test_cdom_fl_flatten_unflatten_roundtrip():
+    """Flatten/unflatten reproduces the instance."""
+    cdom = T.CDOMFl(scale=jnp.asarray(1.5))
+    leaves, treedef = jax.tree_util.tree_flatten(cdom)
+    rebuilt = jax.tree_util.tree_unflatten(treedef, leaves)
+    assert isinstance(rebuilt, T.CDOMFl)
+    assert float(rebuilt.scale) == pytest.approx(1.5)
+
+
+def test_cdom_fl_scale_is_the_only_leaf():
+    """``scale`` is the single leaf — the contract ``grad``/``vmap`` rely on."""
+    leaves = jax.tree_util.tree_leaves(T.CDOMFl())
+    assert len(leaves) == 1
+    assert float(np.asarray(leaves[0])) == pytest.approx(1.0)
+
+
+def test_cdom_fl_replace_and_frozen():
+    """stdlib dataclass behaviour: frozen, and ``replace`` works."""
+    cdom = T.CDOMFl()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        cdom.scale = 2.0  # type: ignore[misc]
+    bumped = dataclasses.replace(cdom, scale=jnp.asarray(2.0))
+    assert float(bumped.scale) == pytest.approx(2.0)
+    assert float(np.asarray(cdom.scale)) == pytest.approx(1.0)
+
+
+def test_cdom_fl_jit_traversal():
+    """``jit`` accepts a CDOMFl argument and traces its leaf."""
+
+    @jax.jit
+    def scale_squared(cdom: T.CDOMFl):
+        return cdom.scale**2
+
+    out = scale_squared(T.CDOMFl(scale=jnp.asarray(1.5)))
+    assert float(out) == pytest.approx(2.25)
+
+
+def test_cdom_fl_vmap_traversal():
+    """``vmap`` maps over a batched ``scale`` — per-scene amplitudes."""
+    batched = T.CDOMFl(scale=jnp.asarray([0.5, 1.0, 2.0]))
+    out = jax.vmap(lambda cdom: 2.0 * cdom.scale)(batched)
+    np.testing.assert_allclose(np.asarray(out), [1.0, 2.0, 4.0], rtol=1e-6)
+
+
+def test_cdom_fl_grad_returns_the_container():
+    """``grad`` w.r.t. a CDOMFl returns a CDOMFl — d/d(scale) labelled.
+
+    ``scale`` enters the CDOM-fluorescence term linearly
+    (``Rrs_cdom = scale * K_cdom * (1 + delta_C)``), so its derivative is the
+    kernel itself; here a stand-in scalar checks the plumbing that M5 task 7's
+    real gradient gate will exercise.
+    """
+    grad = jax.grad(lambda cdom: 3.0 * cdom.scale)(T.CDOMFl(scale=jnp.asarray(1.0)))
+    assert isinstance(grad, T.CDOMFl)
+    assert float(grad.scale) == pytest.approx(3.0)
+
+
+def test_cdom_fl_validate_accepts_default():
+    T.CDOMFl().validate()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        T.CDOMFl(scale=jnp.asarray(0.0)),
+        T.CDOMFl(scale=jnp.asarray(-1.0)),
+        T.CDOMFl(scale=jnp.asarray(jnp.nan)),
+    ],
+    ids=["zero", "negative", "nan"],
+)
+def test_cdom_fl_validate_rejects(bad):
+    """Non-finite or non-positive ``scale`` raises; zero points at cdom_fl=None."""
+    with pytest.raises(ValueError, match="scale"):
+        bad.validate()
+
+
+def test_inelastic_accepts_cdom_fl_instance():
+    """A CDOMFl instance is now accepted — the reserved hook retired at M5."""
+    T.Inelastic(cdom_fl=T.CDOMFl()).validate()
+
+
+def test_inelastic_cdom_fl_set_nests_its_leaf():
+    """With ``cdom_fl`` set, ``phi_C`` and the nested ``scale`` are both leaves;
+    unset, the default single-leaf contract of
+    :func:`test_inelastic_phi_c_is_the_only_default_leaf` is unchanged.
+    """
+    leaves = jax.tree_util.tree_leaves(
+        T.Inelastic(cdom_fl=T.CDOMFl(scale=jnp.asarray(2.0)))
+    )
+    assert len(leaves) == 2
+    values = sorted(float(np.asarray(leaf)) for leaf in leaves)
+    assert values[0] == pytest.approx(0.02)  # phi_C
+    assert values[1] == pytest.approx(2.0)  # cdom_fl.scale
+    assert len(jax.tree_util.tree_leaves(T.Inelastic(cdom_fl=None))) == 1
 
 
 # --------------------------------------------------------------- IOPs.a_ph ----
@@ -382,6 +509,127 @@ def test_elastic_forward_ignores_a_ph():
     a = H.rrs_forward(iops, phase_params, geometry, wave, "ztt")
     b = H.rrs_forward(with_a_ph, phase_params, geometry, wave, "ztt")
     assert np.array_equal(np.asarray(a), np.asarray(b))
+
+
+# ------------------------------------------------------------- IOPs.a_cdom ----
+
+
+def test_iops_a_cdom_defaults_to_none_with_unchanged_leaves():
+    """No ``a_cdom`` → exactly the elastic three leaves, as before M5."""
+    iops = T.IOPs(
+        a=jnp.full(N, 0.15),
+        bb_w=jnp.broadcast_to(C.bb_w(), (N,)),
+        bb_p=jnp.full(N, 0.003),
+    )
+    assert iops.a_cdom is None
+    assert len(jax.tree_util.tree_leaves(iops)) == 3
+
+
+def test_iops_a_cdom_set_becomes_a_leaf_and_survives_jit_vmap():
+    """With ``a_cdom`` set there are four leaves and JAX traverses them all."""
+    shape = (5, N)
+    iops = T.IOPs(
+        a=jnp.full(shape, 0.15),
+        bb_w=jnp.broadcast_to(C.bb_w(), shape),
+        bb_p=jnp.full(shape, 0.003),
+        a_cdom=jnp.full(shape, 0.05),
+    )
+    assert len(jax.tree_util.tree_leaves(iops)) == 4
+    total = jax.jit(lambda i: i.a_cdom.sum())(iops)
+    # rel=1e-5, not 1e-6: a 405-term float32 sum carries ~1e-6 of accumulation
+    # noise on its own (the float32-tolerance gotcha the elastic record §2 pins).
+    assert float(total) == pytest.approx(0.05 * 5 * N, rel=1e-5)
+    per_scene = jax.vmap(lambda i: i.a_cdom.mean())(iops)
+    assert per_scene.shape == (5,)
+
+
+def test_iops_from_total_bb_passes_a_cdom_through():
+    a = jnp.full(N, 0.15)
+    bb = jnp.broadcast_to(C.bb_w(), (N,)) + 0.003
+    a_cdom = jnp.full(N, 0.05)
+    iops = T.IOPs.from_total_bb(a, bb, a_cdom=a_cdom)
+    np.testing.assert_array_equal(np.asarray(iops.a_cdom), np.asarray(a_cdom))
+    assert T.IOPs.from_total_bb(a, bb).a_cdom is None
+
+
+def test_iops_from_total_bb_broadcasts_a_cdom_like_bb_w():
+    """A shared (n_wave,) a_cdom is broadcast to the batch shape, as bb_w is.
+
+    The a_ph analogue (PR #14 review finding 3) applied to the new field: the
+    constructor's uniform-batch-shape guarantee — the reason plain
+    ``vmap(f, in_axes=0)`` works — must hold for a shared spectrum too.
+    """
+    shape = (5, N)
+    iops = T.IOPs.from_total_bb(
+        jnp.full(shape, 0.15),
+        jnp.broadcast_to(C.bb_w(), shape) + 0.003,
+        a_cdom=jnp.full(N, 0.05),
+    )
+    assert iops.a_cdom.shape == shape
+    iops.validate()
+    per_scene = jax.vmap(lambda i: i.a_cdom.mean())(iops)
+    assert per_scene.shape == (5,)
+
+
+def test_iops_validate_rejects_bad_a_cdom():
+    """Shape mismatch, negative values, and a_cdom > a are each caught."""
+    good = T.IOPs(
+        a=jnp.full(N, 0.15),
+        bb_w=jnp.broadcast_to(C.bb_w(), (N,)),
+        bb_p=jnp.full(N, 0.003),
+        a_cdom=jnp.full(N, 0.05),
+    )
+    good.validate()
+    with pytest.raises(ValueError, match="a_cdom"):
+        dataclasses.replace(good, a_cdom=jnp.full(N - 1, 0.05)).validate()
+    with pytest.raises(ValueError, match="a_cdom"):
+        dataclasses.replace(good, a_cdom=jnp.full(N, -0.05)).validate()
+    with pytest.raises(ValueError, match="component"):
+        dataclasses.replace(good, a_cdom=jnp.full(N, 0.2)).validate()
+
+
+def test_elastic_forward_ignores_a_cdom():
+    """The elastic path gives bit-identical output with and without ``a_cdom``.
+
+    'Ignores it' is the CDOM design's word (§3); this is that word as
+    arithmetic — the :func:`test_elastic_forward_ignores_a_ph` twin.
+    """
+    iops, phase_params, geometry, wave = tiny_args()
+    with_a_cdom = dataclasses.replace(iops, a_cdom=jnp.asarray([0.05, 0.03]))
+    a = H.rrs_forward(iops, phase_params, geometry, wave, "ztt")
+    b = H.rrs_forward(with_a_cdom, phase_params, geometry, wave, "ztt")
+    assert np.array_equal(np.asarray(a), np.asarray(b))
+
+
+def test_inelastic_forward_ignores_unused_a_cdom(l23_small_inelastic_batch):
+    """The inelastic path (``cdom_fl=None``) is bitwise indifferent to a set
+    ``a_cdom`` — the design §3 extended bit-identity requirement, on the real
+    Raman + Chl-fl route over the committed 50-scene fixture.
+    """
+    batch = l23_small_inelastic_batch
+    with_a_cdom = dataclasses.replace(batch.iops, a_cdom=0.3 * batch.iops.a)
+    kwargs = dict(inelastic=T.Inelastic(), corrections=False, check_domain=False)
+    a = H.forward(batch.iops, batch.phase_params, batch.geometry, batch.wave, **kwargs)
+    b = H.forward(with_a_cdom, batch.phase_params, batch.geometry, batch.wave, **kwargs)
+    assert np.array_equal(np.asarray(a), np.asarray(b))
+
+
+def test_inelastic_cdom_fl_without_a_cdom_raises():
+    """CDOM fluorescence without its source term raises, loudly.
+
+    The :func:`test_inelastic_fluorescence_without_aph_raises` twin: setting
+    ``cdom_fl`` asks for a term whose source is proportional to ``a_cdom``
+    (CDOM design §2), and ``tiny_args`` carries no ``a_cdom`` — ``ValueError``
+    before any model work, never an array with a silently missing term.
+    ``fluorescence=False`` so the ``a_ph`` guard (also unmet here) cannot mask
+    the one under test.
+    """
+    args = tiny_args()
+    inelastic = T.Inelastic(fluorescence=False, cdom_fl=T.CDOMFl())
+    with pytest.raises(ValueError, match="a_cdom"):
+        H.forward(*args, inelastic=inelastic)
+    with pytest.raises(ValueError, match="a_cdom"):
+        H.rrs_forward(*args, inelastic=inelastic)
 
 
 # ------------------------------------------------------------- Geometry.Ed ----

@@ -86,8 +86,22 @@ the design-§7 HydroLight runs unblock M6.
   (`conventions.py`), and the L23 loaders (`robust/rt/data/l23.py`, with
   `a_ph` extraction) all exist and are reused, not rebuilt. L23 stores a_g
   separately from a_nap, so `a_cdom` extraction mirrors the `a_ph` pattern.
-- *(Fill in / correct on entry: branch name JXP created, exact test count on
-  that branch, anything the merge changed.)*
+- **Entry state (2026-08-29, task 1, Fable):** the `inelastic-rt` → `main`
+  merge has **not** happened yet and no fresh branch off `main` exists;
+  task 1 was executed directly on `inelastic-rt` — a flagged deviation from
+  the fresh-branch assumption above (see Q&A CQ1 rather than a silent call).
+  Suite state observed at `inelastic-rt` HEAD **before** task 1 on this
+  machine (JXP's Mac, darwin — not the tank server that pinned the hashes):
+  428 passed, 3 failed, 1 skipped. The 3 failures are machine-anchored, not
+  regressions: the two strict SHA-256 pins
+  (`test_elastic_hash_regression_strict`, `test_gate_4_pre_change_pins`)
+  reproduce a *different but deterministic* hash on this Mac
+  (`02de5483…` — identical on pristine HEAD and on the task-1 tree, so the
+  elastic bits are provably unchanged by task 1; both ULP-closeness tiers
+  pass), plus one timing-flaky speed test that passes on re-run. Consistent
+  with **431 passed, 1 skipped** on the machine where the pins hold. After
+  task 1: **451 passed, 1 skipped**, same two strict-pin failures only
+  (+22 tests).
 
 ## Prompts
 
@@ -209,6 +223,14 @@ the design-§7 HydroLight runs unblock M6.
 
 ### Q&A
 
+**CQ1 (task 1, 2026-08-29, Claude/Fable → JXP):** This doc assumes M5 work
+happens on a fresh branch off `main`, created once `inelastic-rt` is merged —
+but the merge hasn't happened (read-only `git log` shows no such branch), and
+the checkout is `inelastic-rt`, so task 1 was executed directly on it.
+Should M5 continue on `inelastic-rt` as-is, or should I pause until you merge
+to `main` and create the fresh branch (carrying task 1's uncommitted changes
+over)?
+
 ## Next
 
 → M6 (δ_C training + quantitative gate) is **deferred**: it opens only when
@@ -224,3 +246,67 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-29 (M5 task 1 — types extended: `IOPs.a_cdom`, `CDOMFl`, `cdom_fl` retyped; 451 green) (model: Fable)
+
+Executed task 1 — the pure interface/data-model change plus tests. No kernel,
+no composition math, no head (tasks 3/5/6). Files touched:
+
+- `robust/rt/types.py`: `IOPs` gains optional `a_cdom: Spectrum | None = None`,
+  mirroring `a_ph` verbatim — docstring attribute entry (`Geometry.wind`
+  pytree semantics: no leaves unset, treedef change when set), a mirrored
+  `a_cdom=None` keyword on `from_total_bb` with the same
+  batch-shape broadcast (the PR #14 uniform-batch-shape guarantee), and the
+  same three `validate()` checks (shape match, `check_iop`, component-of-`a`
+  bound `a_cdom ≤ a`). New registered pytree `CDOMFl(scale=1.0)`
+  (design §3): frozen dataclass, `scale` its single differentiable leaf (the
+  `s_C` amplitude on the Hawes reference kernel), `validate()` rejecting
+  non-finite/non-positive scale with a message pointing at `cdom_fl=None`
+  rather than `scale=0`; added to `__all__`. `Inelastic.cdom_fl` retyped from
+  the reserved always-reject `Scalar | None` hook to `CDOMFl | None = None` —
+  `None` stays the default (load-bearing: the X4 truth omits CDOM-fl);
+  `validate()` now type-checks a set value (`isinstance(…, CDOMFl)`, so the
+  pre-M5 bare-scalar calling convention fails loudly — deliberate choice over
+  duck-typing, matching the module's explicit-boundary-check philosophy) and
+  delegates to `CDOMFl.validate()`. Note: the task text's "preserved by
+  `select()`" is a stray reference — no `select()` exists anywhere in the
+  codebase (grepped); nothing to preserve beyond the pytree mechanics.
+- `robust/rt/hybrid.py`: **one guard clause only**, in `rrs_forward` beside
+  the `fluorescence`/`a_ph` twin: `cdom_fl is not None and iops.a_cdom is
+  None` ⇒ `ValueError` naming `a_cdom` (the task-1 "usable at forward() time"
+  requirement). No composition wiring — until task 5, `cdom_fl` set *with*
+  `a_cdom` present passes the guard and is then ignored by the composition;
+  that interim window closes when task 5 wires the term and pins the extended
+  regression.
+- `robust/tests/test_inelastic_types.py` (+22 tests, per the concurrency
+  constraint kept here rather than a new `test_cdom_types.py` — the gate's
+  filename is satisfied in substance, same module the a_ph/Inelastic
+  contracts live in): CDOMFl pytree mechanics (defaults, flatten/unflatten,
+  single-leaf, frozen/replace, jit/vmap/grad traversal of `scale`), CDOMFl
+  validator accept/reject (zero/negative/nan), `Inelastic(cdom_fl=CDOMFl())`
+  now accepted, nested-leaf accounting (set ⇒ `phi_C` + `scale` two leaves;
+  unset ⇒ one), the old "cdom-set" reject case retargeted (bare scalar now
+  rejected as a type error, plus a new nested-bad-scale case), the five a_ph
+  test twins for `a_cdom` (default-None leaves, leaf/jit/vmap, from_total_bb
+  passthrough + broadcast, validator rejects), **bitwise indifference** of
+  both the elastic route (tiny_args, ztt) and the real inelastic route
+  (Raman+Chl-fl on the 50-scene fixture, `cdom_fl=None`) to a set-but-unused
+  `a_cdom`, and the new guard (`fluorescence=False, cdom_fl=CDOMFl()` without
+  `a_cdom` raises with "a_cdom" at both entry points).
+
+Suite: before task 1 (pristine `inelastic-rt` HEAD, this Mac) 428 passed /
+3 failed / 1 skipped; after, **451 passed / 2 failed / 1 skipped**
+(`conda run -n ocean14 python -m pytest robust/tests/ -q`). The failures are
+the two **machine-anchored strict SHA-256 pins**, failing identically on
+pristine HEAD — this Mac is not the tank server that pinned them, and it
+reproduces its own deterministic hash `02de5483…`, *byte-identical between
+pristine HEAD and the task-1 tree*, which is the strongest available evidence
+the elastic bits are untouched; both ULP-closeness tiers pass. Per the pin's
+own docstring this is a finding for JXP, not a hash to re-pin (recorded in
+"Status entering M5"). The third pristine failure (speed gate) is timing
+flakiness; it passes on the task-1 tree. ruff check/format clean on all three
+files. `CDOMFl` is exported from `robust.rt.types.__all__` but deliberately
+not re-exported from `robust/rt/__init__.py` (file outside task 1's allowed
+edit set; task 5's wiring is the natural place). Branch finding: no fresh
+branch off `main` exists — work proceeded on `inelastic-rt`; question posed
+to JXP as Q&A CQ1.

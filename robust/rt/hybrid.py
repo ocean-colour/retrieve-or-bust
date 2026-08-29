@@ -279,6 +279,17 @@ def rrs_forward(
                 "Provide a_ph (e.g. IOPs.from_total_bb(..., a_ph=...)) or "
                 "use Inelastic(fluorescence=False)"
             )
+        if inelastic.cdom_fl is not None and iops.a_cdom is None:
+            # Same fail-fast as the a_ph guard above: the CDOM-fluorescence
+            # source term is proportional to a_cdom (CDOM design §2), and bulk
+            # absorption cannot stand in for the CDOM component.
+            raise ValueError(
+                "forward: Inelastic.cdom_fl requires IOPs.a_cdom — the "
+                "CDOM-fluorescence source term is proportional to a_cdom, "
+                "and bulk absorption cannot stand in for the CDOM component. "
+                "Provide a_cdom (e.g. IOPs.from_total_bb(..., a_cdom=...)) "
+                "or use Inelastic(cdom_fl=None)"
+            )
 
     heads = None
     if inelastic is not None and (inelastic.raman or inelastic.fluorescence):

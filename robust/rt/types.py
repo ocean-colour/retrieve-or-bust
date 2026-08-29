@@ -49,6 +49,7 @@ __all__ = [  # noqa: RUF022  - argument order of forward(), not alphabetical
     "PhaseParams",
     "Geometry",
     "Inelastic",
+    "CDOMFl",
     "EMISSION_SHAPES",
 ]
 
@@ -87,12 +88,23 @@ class IOPs:
         physical requirement, not an API whim. Follows the ``Geometry.wind``
         precedent: an unset optional field contributes no leaves, but the
         treedef changes once it is set, so ``jit`` recompiles once per variant.
+    a_cdom : Array or None
+        CDOM absorption (m^-1), same shape as ``a``; the CDOM-fluorescence
+        source term is proportional to ``a_cdom`` (CDOM design §2,
+        ``design/rt_cdom_fluorescence_model.md``). Optional (default ``None``)
+        and **ignored by the elastic, Raman, and Chl-fl paths**: only the
+        CDOM-fluorescence term (``Inelastic.cdom_fl``) *requires* it — again a
+        physical requirement, not an API whim. Same ``Geometry.wind``-style
+        pytree behaviour as ``a_ph``: no leaves when unset, one treedef change
+        (and ``jit`` recompile) when set. L23 populates it from a_g, which is
+        stored separately from a_nap.
     """
 
     a: Spectrum
     bb_w: Spectrum
     bb_p: Spectrum
     a_ph: Spectrum | None = None
+    a_cdom: Spectrum | None = None
 
     @property
     def bb(self) -> Spectrum:
@@ -123,6 +135,7 @@ class IOPs:
         wave: Float[Array, " wave"] | None = None,
         *,
         a_ph: Spectrum | None = None,
+        a_cdom: Spectrum | None = None,
     ) -> IOPs:
         """Build from total backscattering, splitting off pure water.
 
@@ -147,6 +160,8 @@ class IOPs:
             Wavelengths (nm); defaults to the canonical grid.
         a_ph : Array, optional
             Phytoplankton absorption (m^-1), passed through unchanged.
+        a_cdom : Array, optional
+            CDOM absorption (m^-1), passed through unchanged.
 
         Returns
         -------
@@ -166,7 +181,11 @@ class IOPs:
             # Broadcast like bb_w, for the same reason: every leaf shares the
             # batch shape, so plain vmap(f, in_axes=0) works (PR #14 review).
             a_ph = jnp.broadcast_to(jnp.asarray(a_ph), a.shape)
-        return cls(a=a, bb_w=bb_w, bb_p=bb - bb_w, a_ph=a_ph)
+        if a_cdom is not None:
+            # Broadcast like bb_w, for the same reason: every leaf shares the
+            # batch shape, so plain vmap(f, in_axes=0) works (PR #14 review).
+            a_cdom = jnp.broadcast_to(jnp.asarray(a_cdom), a.shape)
+        return cls(a=a, bb_w=bb_w, bb_p=bb - bb_w, a_ph=a_ph, a_cdom=a_cdom)
 
     def validate(self, wave: Float[Array, " wave"] | None = None) -> None:
         """Raise ``ValueError`` unless the IOPs are physical and consistent.
@@ -204,6 +223,18 @@ class IOPs:
                 raise ValueError(
                     "IOPs: a_ph exceeds total absorption a somewhere -- a_ph is "
                     "a *component* of a, so this is a unit or bookkeeping error"
+                )
+        if self.a_cdom is not None:
+            if self.a_cdom.shape != self.a.shape:
+                raise ValueError(
+                    f"IOPs: a_cdom shape {self.a_cdom.shape} does not match "
+                    f"a {self.a.shape}"
+                )
+            conventions.check_iop(self.a_cdom, "IOPs.a_cdom")
+            if np.any(np.asarray(self.a_cdom) > np.asarray(self.a)):
+                raise ValueError(
+                    "IOPs: a_cdom exceeds total absorption a somewhere -- a_cdom "
+                    "is a *component* of a, so this is a unit or bookkeeping error"
                 )
         if wave is not None:
             conventions.check_wave(wave)
@@ -385,6 +416,58 @@ EMISSION_SHAPES = ("single", "double")
 
 @jax.tree_util.register_dataclass
 @dataclass(frozen=True)
+class CDOMFl:
+    """Configuration of the CDOM-fluorescence term (CDOM design §3, §4).
+
+    The value of :attr:`Inelastic.cdom_fl` when CDOM fluorescence is on:
+    ``Rrs_cdom = scale * K_cdom * (1 + delta_C)``, with ``K_cdom`` the analytic
+    Hawes et al. (1992) kernel (``design/rt_cdom_fluorescence_model.md`` §2).
+    A pytree rather than a bare scalar so that M6 can grow shape metadata
+    (static fields) without an API break — the same extension-point argument
+    made on :class:`PhaseParams`.
+
+    Setting an instance requires ``IOPs.a_cdom`` — the physical source term —
+    which ``forward`` enforces at call time, mirroring the
+    ``fluorescence``/``a_ph`` guard.
+
+    Attributes
+    ----------
+    scale : Array or float
+        Amplitude ``s_C`` on the fixed Hawes reference kernel, dimensionless;
+        scalar or batched per scene. Default 1.0 (the reference kernel as
+        published). A differentiable pytree *leaf* — it is the
+        ``phi_C``-analogue handle for the eventual inversion, so
+        ``grad``/``vmap``/``jit`` must traverse it.
+    """
+
+    scale: Scalar | float = 1.0
+
+    def validate(self) -> None:
+        """Raise ``ValueError`` unless the configuration is usable.
+
+        Boundary check only -- do not call inside ``jit``/``vmap``.
+
+        Raises
+        ------
+        ValueError
+            If ``scale`` is non-finite or not strictly positive. ``scale`` is
+            an amplitude on the reference kernel; disable the process with
+            ``Inelastic(cdom_fl=None)``, not ``scale=0``.
+        """
+        arr = np.asarray(self.scale, dtype=float)
+        if not np.all(np.isfinite(arr)):
+            raise ValueError("CDOMFl.scale: non-finite value(s)")
+        if np.any(arr <= 0.0):
+            raise ValueError(
+                f"CDOMFl.scale: the amplitude on the Hawes reference kernel "
+                f"must be positive; got range "
+                f"[{arr.min():.6g}, {arr.max():.6g}]. Disable CDOM "
+                "fluorescence with Inelastic(cdom_fl=None), not scale=0"
+            )
+
+
+@jax.tree_util.register_dataclass
+@dataclass(frozen=True)
 class Inelastic:
     """Configuration of the inelastic processes (inelastic design §3).
 
@@ -395,9 +478,10 @@ class Inelastic:
     lands the physics; the type itself is pinned at M0 so every later milestone
     builds against the same interface.
 
-    **Leaves vs static fields.** ``phi_C`` (and, once populated, ``cdom_fl``) are
-    pytree *leaves*: ``phi_C`` is a differentiable input — retrieving it is the
-    point (design DQ4) — so ``grad``/``vmap`` must traverse it. The process
+    **Leaves vs static fields.** ``phi_C`` (and, when set, ``cdom_fl.scale``)
+    are pytree *leaves*: ``phi_C`` is a differentiable input — retrieving it is
+    the point (design DQ4) — so ``grad``/``vmap`` must traverse it, and the
+    nested :class:`CDOMFl` contributes its own leaf the same way. The process
     switches ``raman``/``fluorescence`` and the ``emission_shape`` selector are
     *static* metadata: they select code paths, so tracing them makes no sense and
     ``jit`` specializes on them instead (one recompile per configuration, like
@@ -417,17 +501,22 @@ class Inelastic:
         ``forward`` when the physics lands (M2), not here.
     emission_shape : str
         One of :data:`EMISSION_SHAPES`. Static. Default ``'single'``.
-    cdom_fl : Array or None
-        Reserved hook for CDOM fluorescence (design §8). Must be ``None`` in v1;
-        ``validate()`` enforces that so a caller cannot silently configure a
-        process that does not exist yet.
+    cdom_fl : CDOMFl or None
+        CDOM-fluorescence configuration (CDOM design §3,
+        ``design/rt_cdom_fluorescence_model.md``). **``None`` (the default)
+        keeps the process off** — load-bearing: the shipped X4 truth omits CDOM
+        fluorescence, so ``Inelastic(..., cdom_fl=None)`` must stay
+        bit-identical to the shipped inelastic output. Set a :class:`CDOMFl`
+        instance to turn the term on; that *requires* ``IOPs.a_cdom`` (the
+        physical source term), which ``forward`` enforces at call time, and
+        the nested ``scale`` becomes an additional differentiable leaf.
     """
 
     phi_C: Scalar | float = 0.02
     raman: bool = field(default=True, metadata=dict(static=True))
     fluorescence: bool = field(default=True, metadata=dict(static=True))
     emission_shape: str = field(default="single", metadata=dict(static=True))
-    cdom_fl: Scalar | None = None
+    cdom_fl: CDOMFl | None = None
 
     def validate(self) -> None:
         """Raise ``ValueError`` unless the configuration is usable.
@@ -441,7 +530,10 @@ class Inelastic:
             yield; real values are ~0.005-0.06, but only the definitional bound
             is a type-level invariant -- the looser philosophy of
             :meth:`PhaseParams.validate`); if ``emission_shape`` is not in
-            :data:`EMISSION_SHAPES`; or if ``cdom_fl`` is set (reserved, v1).
+            :data:`EMISSION_SHAPES`; or if ``cdom_fl`` is set but is not a
+            valid :class:`CDOMFl` (wrong type -- e.g. a bare scalar, the
+            pre-M5 reserved-hook signature -- or one whose own ``validate()``
+            rejects it).
         """
         arr = np.asarray(self.phi_C, dtype=float)
         if not np.all(np.isfinite(arr)):
@@ -458,7 +550,12 @@ class Inelastic:
                 f"got {self.emission_shape!r}"
             )
         if self.cdom_fl is not None:
-            raise ValueError(
-                "Inelastic.cdom_fl is a reserved hook (design §8); CDOM "
-                "fluorescence is not implemented in v1 -- leave it None"
-            )
+            if not isinstance(self.cdom_fl, CDOMFl):
+                raise ValueError(
+                    f"Inelastic.cdom_fl: must be a CDOMFl instance (or None to "
+                    f"keep CDOM fluorescence off); got "
+                    f"{type(self.cdom_fl).__name__}. A bare scalar was the "
+                    "pre-M5 reserved-hook signature -- wrap the amplitude as "
+                    "CDOMFl(scale=...)"
+                )
+            self.cdom_fl.validate()
