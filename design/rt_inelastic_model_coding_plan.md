@@ -199,6 +199,12 @@ solar spectra → the DQ5 concern made testable; sub-350 nm). Plus real-sky Ed
 through the `Geometry.Ed` seam and PS I double-Gaussian validation.
 Milestones to be detailed once M4 results are in.
 
+*Update (2026-08-29):* CDOM fluorescence now has its own design doc and
+M5/M6 milestone plan in
+[`design/rt_cdom_fluorescence_model.md`](rt_cdom_fluorescence_model.md),
+executed by `claude_prompts/RT/rt_cdom_coding_prompt_1.md` (M5 now; M6
+deferred until HydroLight CDOM-fl truth exists).
+
 ---
 
 ## Testing strategy
