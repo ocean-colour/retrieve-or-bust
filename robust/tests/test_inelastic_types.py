@@ -91,8 +91,35 @@ PRE_CHANGE_SHA256_RRS_BELOW = (
     "d111464020aacb47bbc9dd9aa027dd11b2e15e019a735687b6c6c0fa504c2c38"
 )
 
+#: The committed pre-CDOM-wiring default-inelastic outputs (M5 task 5) —
+#: ``forward``/``rrs_forward`` with ``inelastic=Inelastic()`` (``raman=True,
+#: fluorescence=True, cdom_fl=None``) on the 150-sample inelastic fixture;
+#: regenerate with ``gen_inelastic_fixture.write_inelastic_default_reference``
+#: only on a deliberate change to the shipped inelastic model.
+INELASTIC_DEFAULT_REFERENCE = (
+    pathlib.Path(__file__).parent / "files" / "inelastic_default_reference_outputs.npz"
+)
 
-from robust.tests.conftest import tiny_args  # noqa: E402 - shared helper
+#: SHA-256 of ``np.asarray(out).tobytes()`` for the default-inelastic
+#: configuration above, computed on the PRE-CDOM-WIRING code (M5 task 5, step
+#: 5a: the reference was written and hashed **before** ``hybrid.py`` grew the
+#: ``Rrs_cdom`` composition) with the committed trained heads
+#: (``corrections=None``) and ``check_domain=False``. These pins prove the
+#: CDOM branch is unreachable — a no-op by construction — when ``cdom_fl``
+#: stays ``None`` (CDOM design §3). Machine anchoring: pinned on JXP's Mac
+#: (darwin, 2026-08-29) — a *different* machine from the tank server that
+#: anchored the elastic pins above, so on any one machine one strict set may
+#: fail while the other passes; the closeness tiers carry the guard
+#: everywhere (the finding recorded in the M5 prompt doc's task-1 log).
+PRE_CDOM_SHA256_RRS_ABOVE = (
+    "0dd365158e3037261ee061777fe51da8fa132d4f0972792ad068b9c73641291a"
+)
+PRE_CDOM_SHA256_RRS_BELOW = (
+    "72d4a308e2222c802e18e1878d00f26853db831d9db82a8e529cfead883cc0b8"
+)
+
+
+from robust.tests.conftest import needs_weights, tiny_args  # noqa: E402 - shared
 
 
 def sha256_of(array) -> str:

@@ -250,6 +250,73 @@ def write_inelastic_fixture(path: Path = INELASTIC_FIXTURE_PATH) -> None:
         tmp.unlink(missing_ok=True)
 
 
+#: Destination of the inelastic-default reference outputs (the M5 task-5
+#: extended bit-identity regression's everywhere-runnable form;
+#: robust/tests/test_inelastic_types.py reads it).
+INELASTIC_DEFAULT_REF_PATH = (
+    REPO / "robust" / "tests" / "files" / "inelastic_default_reference_outputs.npz"
+)
+
+
+def write_inelastic_default_reference(path: Path = INELASTIC_DEFAULT_REF_PATH) -> None:
+    """Write the default-inelastic `forward`/`rrs_forward` outputs on the fixture.
+
+    The CDOM-fluorescence design (§3) extends the bit-identity guarantee: the
+    *default* inelastic configuration — ``Inelastic()``, i.e. ``raman=True,
+    fluorescence=True, cdom_fl=None`` — must stay bit-identical when the CDOM
+    branch is wired into ``hybrid.forward()`` (M5 task 5), because the shipped
+    X4 truth and the reported 0.34 % gate omit CDOM fluorescence. This is the
+    :func:`write_elastic_reference` discipline applied to the new pin: the
+    arrays here were computed on the **pre-wiring** code (before ``hybrid.py``
+    grew any ``Rrs_cdom`` composition), so the strict SHA-256 pins in
+    ``test_inelastic_types.py`` prove the new branch is unreachable — a no-op
+    by construction — when ``cdom_fl`` stays ``None``. Computed with the
+    packaged trained heads (``corrections=None``, the shipped default) and
+    ``check_domain=False``, on the sibling inelastic fixture (150 samples,
+    which carry the ``a_ph``/``a_cdom`` the default config exercises).
+    Regenerate only on a deliberate change to the shipped inelastic model.
+    """
+    from robust.rt import hybrid
+    from robust.rt.data import l23
+    from robust.rt.types import Inelastic
+
+    batch = l23.load_inelastic_batch(
+        reader=l23.inelastic_npz_reader(
+            INELASTIC_FIXTURE_PATH,
+            REPO / "robust" / "tests" / "files" / "l23_small.npz",
+        )
+    )
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    arrays = {
+        "Rrs": np.asarray(
+            hybrid.forward(*args, inelastic=Inelastic(), check_domain=False)
+        ),
+        "rrs": np.asarray(
+            hybrid.rrs_forward(*args, inelastic=Inelastic(), check_domain=False)
+        ),
+    }
+
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        check = np.load(tmp)
+        assert set(check.files) == {"Rrs", "rrs"}
+        for key in ("Rrs", "rrs"):
+            assert check[key].dtype == np.float32
+            assert check[key].shape == arrays[key].shape
+            assert np.array_equal(check[key], arrays[key])
+        check.close()
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+        print(f"Wrote {path} ({path.stat().st_size / 1024:.0f} kB)")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def main() -> None:
     print("Part 1: Ed(0+) spectra (X=2 files)")
     write_ed()
@@ -257,6 +324,8 @@ def main() -> None:
     write_elastic_reference()
     print("Part 2: sibling CI fixture (X1/X2/X4 channels + aph)")
     write_inelastic_fixture()
+    print("Inelastic-default reference outputs (M5 task-5 pin companion)")
+    write_inelastic_default_reference()
 
 
 if __name__ == "__main__":

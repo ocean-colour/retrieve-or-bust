@@ -494,7 +494,78 @@ Goal: a real, published site — thin on prose, complete in mechanics.
 
 ### Q&A
 
-*(Empty — to be filled turn by turn.)*
+Questions from Claude (2026-08-29, model: Opus), raised during D1 tasks 1–2.
+Neither blocked the two tasks — both gates were run and passed as written —
+but the first contradicts a fact this document asserts, so it needs your call
+before D1's task 7, whose gate demands a green suite.
+
+**Q1 (The elastic hash-regression is red on this machine, and was red *before*
+I touched anything).** "Status entering D1" says the suite is green as the
+coding effort left it. It is not, on this checkout, in `ocean14`. I ran
+`pytest -q -ra` **before** the first edit to `robust/` (exactly so a docs-side
+change could never be blamed), and got:
+
+```
+2 failed, 451 passed, 1 skipped in 57.30s
+FAILED robust/tests/test_inelastic_types.py::test_elastic_hash_regression_strict
+FAILED robust/tests/test_inelastic_validation.py::test_gate_4_pre_change_pins
+```
+
+Re-running after the `robust/__init__.py` edit gave the identical result
+(`2 failed, 451 passed, 1 skipped in 58.14s`, same two names), so the
+`__version__` addition is provably not the cause.
+
+Both failures are the same assertion — `sha256_of(Rrs) !=
+PRE_CHANGE_SHA256_RRS_ABOVE` — and the evidence says **platform drift, not a
+code regression**:
+
+- the closeness tier, `test_elastic_regression_close_everywhere` (rtol 5e-7,
+  ≈4 ULP), **passes**;
+- measured deviation from the committed
+  `robust/tests/files/elastic_reference_outputs.npz`: `Rrs` differs in
+  2742/12150 elements (22.6 %), **max relative 3.33e-07, max 3.0 ULP**; `rrs`
+  differs in 2862/12150 (23.6 %), max relative 1.64e-07, **max 2.0 ULP**.
+  That is float32 rounding noise, not a restructured route;
+- `ocean14` now carries **jax/jaxlib 0.11.0** and NumPy 2.4.6, which are
+  almost certainly not the versions the pins were computed under.
+
+`test_inelastic_types.py` anticipated exactly this, in the comment above the
+pins: *"If a platform change — CPU, jax/XLA version — ever trips this without
+any code change, that is a finding to take to JXP, not a hash to update
+quietly."* So I am taking it to you rather than repinning. Note the strict
+tier is `skipif(CI)`, so GitHub Actions is unaffected — this is a dev-machine
+gate only.
+
+My recommendation: **treat it as a JAX-version drift finding and repin
+deliberately in a separate, non-docs commit**, recording the jax/jaxlib/NumPy
+versions beside the new hashes, since the closeness tier is the guard that
+actually detects a route change and it is green. The alternative — leaving it
+red — costs D1 task 7 its "`pytest -q -ra` green" gate, which I would then
+have to reinterpret as "green except these two, unchanged from the pre-edit
+baseline". Which do you want? And should the repin happen here or on the
+coding side, outside the docs effort?
+
+**Q2 (The branch moved under me, mid-task).** The working agreement says to
+read the branch I am standing on and record its real name. I started task 1 on
+**`inelastic-rt`** with a clean tree. Partway through task 2 you committed the
+work in progress and checked out **`cdom-rt`**; `git log` shows my scaffold
+landing in `834466f "docs and cdom"` (and `f1bd765 "docs and more"` before
+it), and the tree is clean again. Nothing was lost — every file I created is
+committed byte-for-byte as I wrote it, and I re-verified both gates afterwards
+on `cdom-rt`.
+
+Two things I did not decide for you. (i) DocQ8 and this document's working
+agreements both say the docs work belongs on a **fresh branch off `main` once
+`inelastic-rt` merges**; it is now on `cdom-rt` instead, alongside the CDOM
+work. That is your call, not mine, but it means the docs commits and the CDOM
+commits will land together. (ii) `.readthedocs.yaml` is committed on a branch,
+so the first RTD build (D1 task 7's real gate) will only happen once that
+branch is pushed and RTD is pointed at it — RTD builds the project's default
+version, usually `main`.
+
+My recommendation: no action needed from me either way; just confirm which
+branch you want the remaining D1 tasks (3–7) to be written on, and I will read
+it fresh at the start of each turn rather than assuming.
 
 ## D2
 
@@ -685,3 +756,258 @@ Record work in the Logs section below, format:
 <Detailed description of the work and what you learned>
 
 ## Logs
+
+### 2026-08-29 (D1 task 1 — scaffold and `conf.py`; strict build green, zero warnings)
+
+**Branch.** Started on `inelastic-rt`, working tree clean (`git status`
+verified before the first write). JXP committed the work and moved the
+checkout to `cdom-rt` while task 2 was running — see Q&A Q2; nothing was lost.
+
+**Created** (all new, none pre-existing): `docs/conf.py`, `docs/index.md`,
+`docs/Makefile`, `docs/requirements.txt`, `docs/api.rst`,
+`docs/installation.md`, `docs/quickstart.md`, `docs/references.md`,
+`docs/model/overview.md`, and `.gitkeep` placeholders in `docs/_static/`,
+`docs/_templates/`, `docs/using/`, `docs/reports/`, `docs/figures/` (git does
+not track empty directories, and the task asked for the directories the page
+set needs). `docs/member_policy.md` **was not moved or edited** — it is
+reached through the Reference toctree as `Team <member_policy>`, and the
+rendered navbar confirms the retitle took (`member_policy.html">Team`).
+
+**`conf.py`.** Built to the spec: `sys.path.insert(0, "..")`; `project =
+"retrieve-or-bust"`; `release` from `robust.__version__` in a `try/except`
+falling back to `"0.0.dev0"`, `version` = first two dotted fields; the nine
+extensions with `myst_nb` and *not* `myst_parser`; `source_suffix` mapping
+`.rst`/`.md`/`.ipynb`; `nb_execution_mode = "off"`; `suppress_warnings =
+["myst.xref_missing"]`; `napoleon_use_ivar/use_param/use_rtype = True` with
+both docstring styles on; the four `autodoc_default_options` plus
+`autodoc_typehints = "description"` and `autosummary_generate = True`;
+`autodoc_mock_imports = []` with the comment naming *why* the empty list is
+safe (`robust.rt` imports only `jax`, `jaxtyping`, `numpy` at module level);
+the five intersphinx targets; `pydata_sphinx_theme` with a deliberately small
+`html_theme_options`.
+
+**Deviations from the plan, all recorded rather than papered over:**
+
+1. **`linkify` had to go.** I initially enabled six
+   `myst_enable_extensions`; `linkify` needs the separate `linkify-it-py`
+   package and myst-nb *raises* at build time without it
+   (`ModuleNotFoundError: Linkify enabled but not installed.`) — the first
+   build died there. Rather than add a dependency nothing needs, I dropped it
+   and left a comment in `conf.py` saying so. The enabled set is now
+   `dollarmath`, `amsmath`, `colon_fence`, `deflist`. The spec required "at
+   least `dollarmath` and `colon_fence`"; both are in.
+2. **`myst_heading_anchors = 3`** added (not in the spec) so the long D2
+   chapters can link to each other's subsections.
+3. **The theme did *not* fight `-W`.** The fallback to `sphinx-book-theme`
+   was not needed and was not taken. `pydata-sphinx-theme` 0.21.0 built clean
+   on the first attempt with the minimal option set.
+4. **Navbar shape, for task 6 to revisit.** pydata renders top-level toctree
+   *documents* as navbar tabs, so right now the tabs read "Installation /
+   Quickstart / The model in one page / API reference / References / Team"
+   rather than the five section names. That is a consequence of every section
+   currently being a flat list of stubs; it will resolve itself when tasks 4–6
+   and D2 give the sections real children. Flagging it so nobody is surprised.
+
+**`.gitignore`** gained `docs/_static/fig_*.png` and
+`docs/reports/report_rt_*.md` (with a comment explaining they are byte-derived
+from committed `reports/` files, so a second committed copy would only create
+drift). `docs/_build/` was already ignored.
+
+**Gate, run exactly as specified.**
+
+Step 1 — the dry-run, before installing anything:
+
+```
+$ /Users/xavier/miniforge3/envs/ocean14/bin/python -m pip install --dry-run -r docs/requirements.txt
+...
+Would install SQLAlchemy-2.0.52 jupyter-cache-1.0.1 mdit-py-plugins-0.6.1
+  myst-nb-1.4.0 myst-parser-5.1.0 pydata-sphinx-theme-0.21.0
+  sphinx-copybutton-0.5.2 sphinx_design-0.7.0 tabulate-0.10.0
+```
+
+Purely additive: nine new packages, **no** "Would uninstall" and no upgrade
+line anywhere in the output; everything else reported "Requirement already
+satisfied". `sphinx>=8` was satisfied by the Sphinx 9.1.0 already in
+`ocean14`, and `jax`/`jaxtyping`/`numpy`/`flax`/`optax` were all already
+present, so the editable `bing`/`ocpy` checkouts were never at risk. Installed
+for real after that.
+
+Step 2 — the build:
+
+```
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+Running Sphinx v9.1.0
+loading translations [en]... done
+[autosummary] generating autosummary for: api.rst, index.md, installation.md,
+  member_policy.md, model/overview.md, quickstart.md, references.md
+loading intersphinx inventory 'numpy'      from https://numpy.org/doc/stable/objects.inv ...
+loading intersphinx inventory 'scipy'      from https://docs.scipy.org/doc/scipy/objects.inv ...
+loading intersphinx inventory 'python'     from https://docs.python.org/3/objects.inv ...
+loading intersphinx inventory 'matplotlib' from https://matplotlib.org/stable/objects.inv ...
+loading intersphinx inventory 'jax'        from https://docs.jax.dev/en/latest/objects.inv ...
+...
+build succeeded.
+
+The HTML pages are in docs/_build/html.
+EXIT=0
+```
+
+**Zero warnings** — the only two lines in the whole log matching
+`warning|error` are field *names* inside myst's config dump
+(`suppress_warnings=[]`, `execution_allow_errors=False`), not messages. Clean
+build from an empty `_build/` takes **1.38 s wall** (`/usr/bin/time -p`: real
+1.38, user 0.79, sys 0.15) for 7 pages.
+
+**Intersphinx verified rather than assumed**, as the spec asked — each
+`objects.inv` fetched and decoded independently:
+
+```
+python       OK | Project: Python            | Version: 3.14     | 19319 objects
+numpy        OK | Project: NumPy             | Version: 2.5      |  8274 objects
+scipy        OK | Project: SciPy             | Version: 1.18.0   | 11924 objects
+matplotlib   OK | Project: Matplotlib        | Version: 3.11.1   | 11399 objects
+jax          OK | Project: JAX               | Version: (blank)  |  4146 objects
+```
+
+All five resolve. (Aside worth keeping: numpy.org returns **403** to a bare
+`urllib` User-Agent — it only served the inventory once I sent a Sphinx UA.
+Sphinx's own fetch is fine, but a naive link-checking script would report a
+false failure there.)
+
+**Rendered-HTML spot checks** (because "the build exited 0" is not the same as
+"the page is right"): `pydata-sphinx-theme` classes present in `index.html`;
+the light/dark `theme-switch-button` present; the GitHub `icon_links` URL
+present; `$R_{rs}(\lambda)$` rendered as MathJax (`R_{rs}` in the output); the
+three toctree captions ("Getting started", "The model", "Reference") all
+rendered; `sphinx-copybutton`'s CSS/JS copied into `_static/`; and
+`member_policy.html` reached from the sidebar as **Team**.
+
+**What I learned.** (a) The `-W` gate really is unforgiving in the useful way:
+the one thing that broke was an extension I added on my own initiative, and it
+broke *loudly* at build start rather than silently degrading. (b) `nitpicky`
+is off by default, so a `{mod}`/`{func}` role pointing at a not-yet-documented
+Python object does *not* warn — which means the API cross-references D2 relies
+on will not be gate-enforced unless we turn nitpick on. I avoided the issue in
+`index.md` by using plain code formatting for `robust.rt.forward()`, but this
+is worth a decision at task 5. (c) Every page in the tree is in a toctree, so
+there is not one orphan warning; the `.gitkeep` files are not source files and
+Sphinx ignores them.
+
+### 2026-08-29 (D1 task 2 — `robust.__version__` single-sourced, `.readthedocs.yaml`, RTD build rehearsed in a clean 3.12 venv)
+
+**Files touched.** Two lines of `robust/` in spirit, nine in fact:
+`robust/__init__.py` gains `__version__ = "0.0.dev0"` plus a comment block
+saying it is the single source of truth and naming both consumers. `setup.py`
+gains a `get_version()` helper that **regex-parses the literal** out of
+`robust/__init__.py` — `re.search(r"^__version__\s*=\s*['\"]([^'\"]+)['\"]",
+..., re.M)`, raising `RuntimeError` if it ever fails to match — and
+`setup_keywords['version']` now calls it instead of repeating `'0.0.dev0'`.
+Parsing rather than importing matters concretely and not just theoretically:
+pip builds in an isolated environment where `jax` is absent, so `import
+robust` at build time would have broken `pip install .` — and the rehearsal
+below is where that would have surfaced. New root `.readthedocs.yaml`
+(dotted), exactly the block DocQ3 specified: `version: 2`, `build.os:
+ubuntu-24.04`, `build.tools.python: "3.12"`, `sphinx.configuration:
+docs/conf.py` + `builder: html` + `fail_on_warning: false` with the comment
+explaining that the strict gate lives in CI, and `python.install` = `{method:
+pip, path: .}` then `{requirements: docs/requirements.txt}`. **No `formats:`
+block**, per the spec. No deviations from the plan in this task.
+
+**Gate, every sub-check.**
+
+```
+$ python -c "import robust; print(robust.__version__)"
+0.0.dev0
+$ python setup.py --version
+0.0.dev0
+$ python -c "import yaml; print(yaml.safe_load(open('.readthedocs.yaml')))"
+{'version': 2, 'build': {'os': 'ubuntu-24.04', 'tools': {'python': '3.12'}},
+ 'sphinx': {'configuration': 'docs/conf.py', 'builder': 'html',
+            'fail_on_warning': False},
+ 'python': {'install': [{'method': 'pip', 'path': '.'},
+                        {'requirements': 'docs/requirements.txt'}]}}
+$ pip install -e . --no-deps
+Created wheel for retrieve-or-bust: filename=retrieve_or_bust-0.0.dev0-0.editable-py3-none-any.whl
+Successfully installed retrieve-or-bust-0.0.dev0
+```
+
+The wheel *filename* carrying `0.0.dev0` is the proof that the regex ran
+inside pip's isolated build environment.
+
+**The RTD rehearsal — and the one place I had to substitute.** The gate says
+"a throwaway `python3.12 -m venv`". There is **no `python3.12` on this
+machine** (`ocean14` is Python **3.14.6**; the system interpreter is 3.9.6; no
+`uv`, no Homebrew `python@3.12`, no python.org framework build). I therefore
+created a throwaway conda prefix at `<scratchpad>/rtd312` with
+`conda create -y -p ... python=3.12 --no-default-packages` (→ Python
+**3.12.14**) and then made a genuine `python3.12 -m venv` from *that*
+interpreter at `<scratchpad>/rtd-venv`. The venv started with exactly one
+package (`pip 25.0.1`), so it is as clean as the gate intends; only the
+provenance of the 3.12 binary differs from the letter of the instruction.
+
+Then the two install steps the YAML declares, in order, and the build the way
+RTD runs it (lenient, matching `fail_on_warning: false`):
+
+```
+$ <rtd-venv>/bin/python -m pip install .
+Successfully built retrieve-or-bust
+Successfully installed ... retrieve-or-bust-0.0.dev0 ...   (49 packages)
+
+$ <rtd-venv>/bin/python -m pip install -r docs/requirements.txt
+Successfully installed ... jax-0.11.1 jaxlib-0.11.1 jaxtyping-0.3.11
+  flax-0.12.9 optax-0.2.8 sphinx-9.1.0 pydata-sphinx-theme-0.21.0
+  myst-nb-1.4.0 myst-parser-5.1.0 sphinx-design-0.7.0
+  sphinx-copybutton-0.5.2 ...                                (78 packages)
+
+$ <rtd-venv>/bin/python -c "import robust; print(robust.__version__); import robust.rt"
+0.0.dev0
+robust.rt imported OK
+
+$ <rtd-venv>/bin/python -m sphinx -b html docs <scratchpad>/rtd-build
+build succeeded.       EXIT=0     (zero WARNING/ERROR lines in the log)
+
+$ <rtd-venv>/bin/python -m sphinx -b html -W --keep-going docs <scratchpad>/rtd-build-strict
+build succeeded.       EXIT=0
+```
+
+128 packages in the finished environment. **What the rehearsal actually
+taught us, which is the point of doing it:**
+
+1. **`import robust.rt` succeeds with no `ocpy` anywhere in the environment,
+   no `$OS_COLOR`, and no L23 data.** That is the DocQ2 no-mocking decision
+   validated on a real RTD-shaped environment rather than inferred from a
+   grep. `ocpy` is not in the 128-package list and nothing asked for it.
+2. **`pip install .` does not pull the JAX stack** — `setup.py`'s
+   `install_requires` deliberately omits it — so jax arrives only via
+   `docs/requirements.txt`. The two install steps are genuinely
+   complementary; dropping either would break the build.
+3. The **version single-sourcing survives the round trip**: the built site
+   carries `VERSION: '0.0.dev0'` in `_static/documentation_options.js` and
+   `# Version: 0.0` in `objects.inv`, i.e. `release` and `version` both
+   derived from the one literal.
+4. **No surprises in the resolved versions**: the venv got jax/jaxlib
+   **0.11.1** where `ocean14` has 0.11.0, and NumPy 2.5.2 vs 2.4.6 — but the
+   docs build touches neither numerically, and both builds are byte-clean.
+
+**Post-edit test run** (the gate asks for it), compared against the baseline I
+deliberately took *before* the first `robust/` edit:
+
+```
+before:  2 failed, 451 passed, 1 skipped in 57.30s
+after:   2 failed, 451 passed, 1 skipped in 58.14s   (same two test names)
+$ ruff check robust/        All checks passed!
+$ ruff format --check robust/   32 files already formatted
+```
+
+Identical. The two failures are **pre-existing** — `test_inelastic_types.py::
+test_elastic_hash_regression_strict` and `test_inelastic_validation.py::
+test_gate_4_pre_change_pins`, both the same bitwise SHA-256 pin — and the
+`__version__` addition provably did not cause them. This contradicts "Status
+entering D1", which records the suite as green, so it is **Q&A Q1** with the
+measured drift (max 3.0 ULP, closeness tier green) rather than something I
+repinned quietly; the test file's own comment asks for exactly that.
+
+**Stopping here**, per the turn's instruction: a genuine question for JXP
+arose (Q1, plus the branch-move note as Q2), so tasks 3 and beyond are not
+attempted. Task 2's own gate was nonetheless run in full and passed, since
+none of its checks depend on the answer.
