@@ -182,6 +182,70 @@ def test_elastic_regression_close_everywhere(l23_small_batch):
     np.testing.assert_allclose(np.asarray(rrs), reference["rrs"], rtol=5e-7, atol=0.0)
 
 
+# ---------------------------------- inelastic-default hash-regression (M5) ----
+
+
+def inelastic_default_outputs(batch):
+    """The two M5 regression quantities, computed exactly as the pins were.
+
+    The default ``Inelastic()`` — ``cdom_fl=None`` implicitly — with the
+    packaged trained heads (``corrections=None``, the shipped default) and
+    ``check_domain=False``; the :func:`elastic_outputs` pattern on the
+    inelastic fixture, whose samples carry the ``a_ph``/``a_cdom`` the
+    default configuration exercises.
+    """
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    return (
+        H.forward(*args, inelastic=T.Inelastic(), check_domain=False),
+        H.rrs_forward(*args, inelastic=T.Inelastic(), check_domain=False),
+    )
+
+
+@needs_weights
+@strict_bits_are_local
+def test_inelastic_default_hash_regression_strict(l23_small_inelastic_batch):
+    """``forward(..., inelastic=Inelastic())`` is bit-identical to the
+    pre-CDOM-wiring shipped inelastic model.
+
+    The M5 task-5 extension of the elastic strict tier (CDOM design §3): the
+    pins and reference were computed **before** ``hybrid.py`` grew the
+    ``Rrs_cdom`` composition, so this passing after the wiring proves the new
+    branch is unreachable when ``cdom_fl`` stays ``None`` — the default model
+    remains provably CDOM-fl-free, keeping the X4-truth 0.34 % gate's claims
+    valid. Skips under CI and without the committed heads (the default
+    ``corrections=None`` resolves them; absent weights would silently change
+    the bytes under comparison).
+    """
+    Rrs, rrs = inelastic_default_outputs(l23_small_inelastic_batch)
+    assert np.asarray(Rrs).dtype == np.float32
+    assert sha256_of(Rrs) == PRE_CDOM_SHA256_RRS_ABOVE
+    assert sha256_of(rrs) == PRE_CDOM_SHA256_RRS_BELOW
+
+    reference = np.load(INELASTIC_DEFAULT_REFERENCE)
+    np.testing.assert_array_equal(np.asarray(Rrs), reference["Rrs"])
+    np.testing.assert_array_equal(np.asarray(rrs), reference["rrs"])
+
+
+@needs_weights
+def test_inelastic_default_regression_close_everywhere(l23_small_inelastic_batch):
+    """Closeness tier: the default-inelastic route matches the committed
+    pre-CDOM-wiring outputs to ULP scale, on every platform.
+
+    The committed arrays are the pinned bytes (their SHA-256 *is* the strict
+    pin), so this is the same guard at the tolerance cross-platform float32
+    allows — rtol 5e-7 (~4 ULP), exactly the elastic closeness tier's. Any
+    genuine change to the default inelastic route — e.g. CDOM arithmetic
+    leaking into the ``cdom_fl=None`` path — shows up broadly at this
+    tolerance, on the tank server and CI as well as the pinning Mac.
+    """
+    Rrs, rrs = inelastic_default_outputs(l23_small_inelastic_batch)
+    reference = np.load(INELASTIC_DEFAULT_REFERENCE)
+    assert sha256_of(reference["Rrs"]) == PRE_CDOM_SHA256_RRS_ABOVE
+    assert sha256_of(reference["rrs"]) == PRE_CDOM_SHA256_RRS_BELOW
+    np.testing.assert_allclose(np.asarray(Rrs), reference["Rrs"], rtol=5e-7, atol=0.0)
+    np.testing.assert_allclose(np.asarray(rrs), reference["rrs"], rtol=5e-7, atol=0.0)
+
+
 def test_inelastic_none_is_the_default(l23_small_batch):
     """Omitting ``inelastic`` and passing ``None`` are the same call, bitwise."""
     batch = l23_small_batch
