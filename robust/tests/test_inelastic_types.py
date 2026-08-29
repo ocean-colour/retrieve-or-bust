@@ -775,3 +775,15 @@ def test_inelastic_is_exported():
 
     assert rt.Inelastic is T.Inelastic
     assert "Inelastic" in rt.__all__
+
+
+def test_cdom_fl_is_exported():
+    """``robust.rt`` re-exports ``CDOMFl`` (M5 task 5 — deferred from task 1,
+    which left ``__init__.py`` untouched; the composition wiring makes
+    ``CDOMFl`` a genuine ``forward()`` argument type, so it exports beside
+    ``Inelastic``, and the ``cdom_fl`` submodule joins the roster)."""
+    from robust import rt
+
+    assert rt.CDOMFl is T.CDOMFl
+    assert "CDOMFl" in rt.__all__
+    assert "cdom_fl" in rt.__all__

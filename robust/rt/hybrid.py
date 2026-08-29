@@ -46,6 +46,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
+from . import cdom_fl as _cdom_fl
 from . import conventions
 from . import inelastic as _inelastic
 from . import ztt as _ztt
@@ -210,7 +211,11 @@ def rrs_forward(
         :func:`robust.rt.inelastic.fluorescence_kernel` term joins in the
         same space; it **requires** ``iops.a_ph``, the physical source term
         (``ValueError`` otherwise — use ``Inelastic(fluorescence=False)``
-        for the Raman-only model). Incompatible with
+        for the Raman-only model). With ``cdom_fl=CDOMFl(...)`` (M5 task 5;
+        ``None`` stays the default — the shipped X4 truth omits CDOM
+        fluorescence) the additive ``scale *``
+        :func:`robust.rt.cdom_fl.cdom_kernel` term joins too; it
+        **requires** ``iops.a_cdom`` the same way. Incompatible with
         ``mode='emulator'`` (a term, not a model — ``ValueError``).
     corrections : optional
         The learned M3 corrections applied on top of the analytic terms
@@ -318,11 +323,12 @@ def _apply_inelastic(rrs, iops, geometry, wave, inelastic, heads=None):
     """Compose the inelastic processes onto an elastic ``rrs`` (design §2).
 
     The composition law is written in ``Rrs`` space —
-    ``Rrs_total = (Rrs_ZTT + ΔRrs) × f_R + Rrs_fl`` — so the elastic ``rrs``
-    is converted up, composed (Raman multiplies, fluorescence adds
-    ``phi_C * K_fl (1 + δ_F)``), and converted back. ``forward``'s final
-    ``rrs_to_Rrs`` then undoes the round trip exactly (algebraically; at
-    ULP level in float — which is why the ``inelastic=None`` and both-off
+    ``Rrs_total = (Rrs_ZTT + ΔRrs) × f_R + Rrs_fl + Rrs_cdom`` — so the
+    elastic ``rrs`` is converted up, composed (Raman multiplies, fluorescence
+    adds ``phi_C * K_fl (1 + δ_F)``, CDOM fluorescence adds
+    ``scale * K_cdom`` — CDOM design §2), and converted back. ``forward``'s
+    final ``rrs_to_Rrs`` then undoes the round trip exactly (algebraically;
+    at ULP level in float — which is why the ``inelastic=None`` and all-off
     branches return the *same object* untouched: the elastic path stays
     bit-identical by construction, never by cancellation. Notebook 1 §4
     measured what that round trip does to bits.)
@@ -333,7 +339,12 @@ def _apply_inelastic(rrs, iops, geometry, wave, inelastic, heads=None):
     ``δ_F = 0``) — by *omission* of the correction arithmetic, not by
     multiplying with a computed zero.
     """
-    if inelastic is None or not (inelastic.raman or inelastic.fluorescence):
+    # cdom_fl counts as an active process here: without it, a caller setting
+    # cdom_fl alone (raman=False, fluorescence=False) would silently get the
+    # untouched elastic rrs back — a missing term, not a style nit (M5 task 5).
+    if inelastic is None or not (
+        inelastic.raman or inelastic.fluorescence or inelastic.cdom_fl is not None
+    ):
         return rrs
     result = conventions.rrs_to_Rrs(rrs)
     if inelastic.raman:
@@ -358,6 +369,14 @@ def _apply_inelastic(rrs, iops, geometry, wave, inelastic, heads=None):
                 heads.fl.delta(iops, geometry, wave), k_fl
             )
         result = result + jnp.asarray(inelastic.phi_C)[..., None] * k_fl
+    if inelastic.cdom_fl is not None:
+        # K_cdom raises the clear a_cdom-is-required error; scale is the
+        # CDOMFl leaf (possibly batched per scene), aligned onto the
+        # wavelength axis. Task 6 will multiply this by (1 + delta_C) once
+        # the head exists; until then this term IS the full CDOM
+        # contribution — an absent/untrained head is (1 + 0) = 1 (CFQ3).
+        k_cdom = _cdom_fl.cdom_kernel(iops, geometry, wave)
+        result = result + jnp.asarray(inelastic.cdom_fl.scale)[..., None] * k_cdom
     return conventions.Rrs_to_rrs(result)
 
 

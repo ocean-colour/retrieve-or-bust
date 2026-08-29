@@ -91,3 +91,56 @@ jobs:
 
       - name: Check formatting
         run: ruff format --check robust/
+
+  docs:
+    name: sphinx (-W)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.12 only, not a matrix: Read the Docs builds this site on
+      # ubuntu-24.04 / python 3.12 (see .readthedocs.yaml), so CI's job is to
+      # catch a broken build *before* RTD does, on the same interpreter. A
+      # second Python version would test Sphinx, not us.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      # docs/requirements.txt, not the root requirements.txt, and for the same
+      # reason the test job avoids it: the root file's two `git+` lines drag in
+      # ocpy's geospatial extras that no page needs. This file carries the
+      # Sphinx toolchain *plus* the real import-time stack (jax, jaxtyping,
+      # numpy, flax, optax), because conf.py sets `autodoc_mock_imports = []`
+      # -- autodoc genuinely imports robust.rt, so the rendered signatures and
+      # jaxtyping shapes are the real ones rather than mock repr's.
+      - name: Install the documentation toolchain
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      # --no-deps for the same reason as the test job: everything robust
+      # actually imports is already installed by the step above, and letting pip
+      # re-resolve here would only risk pulling a different jax. This step
+      # exists so autodoc can `import robust.rt` from an installed package
+      # rather than relying on conf.py's sys.path insert alone.
+      - name: Install the package
+        run: pip install -e . --no-deps
+
+      # No $OS_COLOR and no L23 netCDFs are needed here, unlike the test job:
+      # the docs build only *copies* figures that are already committed under
+      # reports/ (docs/figures/make_docs_figures.py defaults to copy mode;
+      # regeneration, which does need L23, is opt-in via --regenerate and is
+      # never reachable from conf.py). If a future page starts regenerating a
+      # figure at build time, this job is what will break -- and this comment is
+      # why.
+      #
+      # -W turns every warning into an error, which is the whole point: a page
+      # missing from a toctree, a broken cross-reference or a bad image path all
+      # become build failures instead of quietly-degraded pages. --keep-going
+      # reports every such problem in one run rather than stopping at the first,
+      # so a red build is one fix-up cycle, not five. RTD itself builds with
+      # fail_on_warning: false so a stray environment warning there can never
+      # block publication -- the strict gate lives here.
+      - name: Build the documentation strictly
+        run: python -m sphinx -b html -W --keep-going docs docs/_build/html

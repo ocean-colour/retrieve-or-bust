@@ -84,6 +84,8 @@ __all__ = [  # noqa: RUF022  - grouped by role
     # The Hawes function and the kernel
     "eta_hawes",
     "cdom_kernel",
+    # The clamp's documented cost (task 4)
+    "truncated_excitation_fraction",
 ]
 
 # --------------------------------------------------------- Hawes FA7 constants
@@ -217,6 +219,65 @@ def eta_hawes(
     width = 0.6 * (HAWES_A2 / wave_ex + HAWES_B2)
     z = (1.0 / wave_em - center) / width
     return g_y * a0 * jnp.exp(-(z**2))
+
+
+def truncated_excitation_fraction(
+    wave: Float[Array, " wave"] | None = None,
+    quad_step: float = 0.25,
+) -> Float[Array, " wave"]:
+    """The fraction of Hawes-function emission the 350 nm clamp truncates.
+
+    The committed diagnostic of design §2 / M5 task 4: the production kernel
+    integrates excitation over 350–490 nm (:func:`cdom_excitation_grid`),
+    but ``g_Y`` admits excitation down to 310 nm — so for each emission
+    wavelength λ this quantifies what the clamp throws away, **from the Hawes
+    function itself** (no IOPs, no Ed, no scene)::
+
+        fraction(λ) = ∫_{310}^{350} η_Y(λ, λ_e) dλ_e
+                      / ∫_{310}^{490} η_Y(λ, λ_e) dλ_e
+
+    This function deliberately evaluates η_Y below 350 nm — unlike
+    :func:`cdom_kernel`, which provably never reads IOPs or Ed there —
+    precisely because its purpose is to characterize the clamp's cost. It is
+    a property of the FA7 parameterization alone: the *actual* truncated
+    contribution in a scene is further weighted by ``a_cdom(λ_e)·Ed(λ_e)``,
+    and UV ``Ed`` is comparatively weak (Zhai et al.'s own rationale for the
+    same clamp), so these numbers are a **conservative upper-bound flavor**
+    of caveat, not a measured Rrs error.
+
+    Quadrature: trapezoid on uniform ``quad_step`` sub-grids over each range
+    (the default 0.25 nm is converged — measured max 3.5e-6 relative against
+    a 2× refinement on the canonical grid; even 1 nm sits within 3e-5
+    absolute). The denominator is
+    strictly positive for every emission wavelength on the canonical grid
+    (η_Y's Gaussian tails never underflow there — the far-red 750 nm row
+    keeps exp(−z²) ≳ 1e-11 in float32), so the ``jnp.where`` guard below is
+    inert in practice; it exists for pathological emission wavelengths far
+    outside the Hawes band, where *both* integrals underflow to exactly 0.0
+    and the honest answer is defined as 0 — no emission at all, so nothing
+    was truncated — rather than a silent 0/0 NaN.
+
+    Parameters
+    ----------
+    wave : Array, optional
+        Emission wavelengths (nm); defaults to the canonical grid.
+    quad_step : float, optional
+        Sub-grid spacing (nm) of both trapezoid integrals; default 0.25.
+
+    Returns
+    -------
+    Array
+        The truncated fraction per emission wavelength, in [0, 1]; shape
+        ``wave.shape``.
+    """
+    wave = conventions.canonical_wave() if wave is None else jnp.asarray(wave)
+    n_lo = int(round((CDOM_EX_MIN - GY_EX_MIN) / quad_step)) + 1
+    n_full = int(round((GY_EX_MAX - GY_EX_MIN) / quad_step)) + 1
+    ex_lo = jnp.linspace(GY_EX_MIN, CDOM_EX_MIN, n_lo)
+    ex_full = jnp.linspace(GY_EX_MIN, GY_EX_MAX, n_full)
+    numerator = jnp.trapezoid(eta_hawes(wave[..., None], ex_lo), ex_lo, axis=-1)
+    denominator = jnp.trapezoid(eta_hawes(wave[..., None], ex_full), ex_full, axis=-1)
+    return jnp.where(denominator > 0.0, numerator / denominator, 0.0)
 
 
 def cdom_kernel(

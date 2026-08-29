@@ -429,3 +429,128 @@ this session; both ULP-closeness tiers pass, and the occasionally-flaky speed
 test passed in both runs. ruff check + format clean on all five touched .py
 files. Not done here, by scope: no `hybrid.py` wiring (task 5), no δ_C
 (task 6), no truncated-fraction diagnostic (task 4).
+
+### 2026-08-29 (M5 tasks 4–5 — truncated-fraction diagnostic + record §8.1; pre-wiring pin, CDOM composition wired, no-op proved; 474 green) (model: Fable)
+
+Executed tasks 4–5 on `cdom-rt` (verified; tree clean at start). Q&A checked:
+CQ1 answered (this branch); CQ2 still open and deliberately untouched —
+tasks 4–5 depend only on the kernel existing, not on the FA7 values, so no
+re-ask and no invented answer. No δ_C head (task 6), no plausibility/FD/speed
+gates (task 7).
+
+**Task 4 — the truncated-fraction diagnostic** (`robust/rt/cdom_fl.py`,
+`robust/tests/test_cdom_fl.py` +3, `design/rt_inelastic_implementation.md`):
+
+- The clamp itself was already structural (task 3: the excitation grid
+  *starts* at 350 nm); the new deliverable is
+  `truncated_excitation_fraction(wave)` — for each emission λ,
+  `∫₃₁₀³⁵⁰ η_Y dλ_e / ∫₃₁₀⁴⁹⁰ η_Y dλ_e`, from the Hawes FA7 function alone
+  (no IOPs/Ed/scene; the one deliberate sub-350 nm evaluation of η_Y, which
+  is its purpose). Trapezoid at 0.25 nm, converged (max 3.5e-6 relative vs a
+  2× refinement — pinned as a test); 0/0 guarded: far outside the Hawes band
+  both integrals underflow to exactly 0.0 and the fraction is *defined* as 0
+  (no emission → nothing truncated), never a silent NaN — measured that the
+  guard is provably inert on the canonical grid (min denominator > 0
+  everywhere; min fraction 0.0697 at 605 nm), also pinned.
+- **Measured numbers** (canonical grid): λ_em 350/400/450/500/550/600/650/
+  700/750 nm → **0.846 / 0.566 / 0.297 / 0.142 / 0.083 / 0.070 / 0.078 /
+  0.103 / 0.146**. The headline caveat: **57 % of the nominal
+  310–490 nm-excited Hawes emission at 400 nm is excluded by the production
+  clamp** (85 % at 350 nm, 30 % at 450 nm; minimum ~7 % near 605 nm, rising
+  to ~15 % at 750 nm via the sub-350 Gaussians' red tails) — design §8's
+  blue-band risk realized, recorded rather than asserted away, with the
+  honesty note that the *realized* Rrs truncation is further suppressed by
+  `a_cdom(λ_e)·Ed(λ_e)` weighting (UV Ed is weak — Zhai et al.'s own clamp
+  rationale). Pinned banded (±0.03 abs) at those nine wavelengths — it
+  characterizes, it doesn't gate to zero.
+- The gate's other half ("kernel provably never reads IOPs/Ed below 350 nm")
+  is **fully covered by task 3's spy test**
+  (`test_kernel_never_reads_iops_or_ed_below_350`, seams on
+  `interp_spectrum`/`ed.Ed`) plus `test_excitation_grid_is_the_hard_clamp` —
+  stated in a comment at the task-4 test block instead of duplicating.
+- Record updated: **`design/rt_inelastic_implementation.md` gains §8
+  "M5 — CDOM fluorescence *(in progress …)*" with §8.1 only** — the table
+  above, the caveat verbatim, the quadrature/guard notes, and a pointer to
+  `design/rt_cdom_fluorescence_model.md` §2 for the clamp's rationale. The
+  heading itself marks the section partial; tasks 1–3's retrospective and the
+  rest of M5 are task 8's job.
+
+**Task 5 — composition + the extended bit-identity regression**, in the
+sequence-critical order:
+
+- **Step 5a, the pin FIRST** (`design/py/gen_inelastic_fixture.py`,
+  new committed `robust/tests/files/inelastic_default_reference_outputs.npz`,
+  88 kB; `robust/tests/test_inelastic_types.py`): before touching
+  `hybrid.py`, added `write_inelastic_default_reference()` (the
+  `write_elastic_reference` template verbatim: compute on the fixture batch
+  via the real reader, savez to temp, round-trip byte-verify, atomic
+  replace; also appended to `main()`), ran it on the **unmodified** code, and
+  pinned SHA-256 of the arrays as
+  `PRE_CDOM_SHA256_RRS_ABOVE = 0dd365158e3037261ee061777fe51da8fa132d4f0972792ad068b9c73641291a`
+  (`forward`) and
+  `PRE_CDOM_SHA256_RRS_BELOW = 72d4a308e2222c802e18e1878d00f26853db831d9db82a8e529cfead883cc0b8`
+  (`rrs_forward`) — the default `Inelastic()` (`cdom_fl=None` implicit),
+  committed trained heads (`corrections=None`), `check_domain=False`, on the
+  150-sample inelastic fixture. Two-tier test pair mirrors the elastic one:
+  `test_inelastic_default_hash_regression_strict`
+  (`@strict_bits_are_local`, also `@needs_weights` — absent weights would
+  silently change the bytes) and
+  `test_inelastic_default_regression_close_everywhere` (rtol 5e-7).
+  **Both ran green before any `hybrid.py` edit** (tautological then; the
+  harness-is-wired proof). **Machine-anchoring finding for JXP:** these pins
+  are anchored to *this Mac* — a different machine from the tank server that
+  anchored the M0 elastic pins — so on any one machine one strict set may
+  fail while the other passes (documented on the constants; the closeness
+  tiers carry the guard everywhere).
+- **Step 5b, the wiring** (`robust/rt/hybrid.py`): (1) the **guard fix** —
+  `_apply_inelastic`'s early return tested only `raman or fluorescence`, so
+  a caller setting *only* `cdom_fl` (raman/fluorescence off) would have
+  passed `forward()`'s a_cdom check and then silently received the untouched
+  elastic `rrs` — a plausible-looking array with the requested physics
+  missing, precisely the failure mode the module's loud-error philosophy
+  exists to prevent; the condition now also treats `cdom_fl is not None` as
+  an active process. (2) The additive term, mirroring the fluorescence
+  block: `result += jnp.asarray(inelastic.cdom_fl.scale)[..., None] *
+  _cdom_fl.cdom_kernel(iops, geometry, wave)`, with the comment that task 6
+  will multiply by `(1 + δ_C)` once the head exists — until then this term
+  IS the full CDOM contribution ((1+0)=1, CFQ3). Composition-law docstrings
+  updated to `… + Rrs_fl + Rrs_cdom`. `forward()`'s task-1 a_cdom guard
+  confirmed consistent, untouched; the heads-resolution block stays scoped
+  to raman/fluorescence (task 6's concern, per instruction). Also completed
+  the task-1 deferral: `CDOMFl` + the `cdom_fl` submodule re-exported from
+  `robust/rt/__init__.py` (the wiring makes `CDOMFl` a genuine `forward()`
+  argument type), with an export test twin.
+- **Step 5c, the proofs** — (1) **no-op proof**: both new pin tests re-run
+  after the wiring, **bit-identical, green** — the CDOM branch is unreachable
+  when `cdom_fl=None`, by construction not by cancellation (and the elastic
+  strict pin still reproduces the identical local hash `02de5483…` before and
+  after, so the elastic bits are untouched too). (2) **Additive proof**
+  (`robust/tests/test_inelastic.py`, the wiring-test home, +2):
+  `test_forward_composes_cdom_fluorescence_additively` — with
+  `CDOMFl(scale=2.0)` (deliberately ≠ 1 so a dropped amplitude can't pass),
+  `forward(default+cdom) == forward(default) + 2·K_cdom` at rtol 5e-6/atol
+  1e-10, **in Rrs space** — the composition law's own space (`K_cdom` ends in
+  `rrs_to_Rrs`, so the term adds above the surface; the prompt's
+  rrs_forward-difference phrasing would pick up Lee's non-linear conversion,
+  ~1/A ≈ 1.9× off), matching the fluorescence twin's precedent; the same
+  identity is asserted a second time from `rrs_forward` outputs explicitly
+  converted up, pinning additivity at exactly the composed layer. (3) The
+  guard-fix regression `test_cdom_fl_alone_composes`:
+  `Inelastic(raman=False, fluorescence=False, cdom_fl=CDOMFl())` is *not*
+  bitwise-elastic (the pre-fix silent no-op) and *is* elastic + K_cdom.
+  (4) `test_gate_4_elastic_bit_identity` extended with the fully explicit
+  `Inelastic(raman=False, fluorescence=False, cdom_fl=None)` third assertion.
+
+Suite (`conda run -n ocean14 python -m pytest robust/tests/ -q`, this Mac):
+before **466 passed / 2 failed / 1 skipped**; after **474 passed / 2 failed /
+1 skipped** (+8: 3 diagnostic, 2 pins, 2 wiring, 1 export). The 2 failures
+are the same two machine-anchored elastic strict pins, same local hash
+`02de5483…` before and after; both closeness tiers green. The
+occasionally-flaky speed gate passed in the before and final runs (it failed
+once in an intermediate run mid-edit and passed on the clean re-run — timing
+noise, and its config is `Inelastic()` default, where the CDOM branch is
+provably unreachable). ruff check + format clean on all nine touched .py
+files. Untouched, by scope: CQ2 (open, JXP's), `types.py`, the δ_C head,
+`_resolve_corrections`. Noted in passing: `claude_prompts/RT/rt_docs_prompt_1.md`
+carries uncommitted changes not from this session (JXP's, presumably) — left
+alone.

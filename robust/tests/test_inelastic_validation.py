@@ -166,13 +166,19 @@ def test_gate_3_fluorescence_delta(full_release):
 def test_gate_4_elastic_bit_identity(l23_small_batch):
     """**§6 line 4**: ``inelastic=None`` bit-identical to the elastic hybrid.
 
-    Two assertions, both bitwise: omitting ``inelastic`` and passing ``None``
-    are the same arrays, and turning every process off
-    (``Inelastic(raman=False, fluorescence=False)``) returns them too — the
-    design §1 guarantee that the elastic path is a no-op *by construction*
-    (the ``None`` branch returns the same object), not by cancelling
-    arithmetic. The pre-change anchoring — the SHA-256 pins and the committed
-    reference arrays — is the standing two-tier regression in
+    Three assertions, all bitwise: omitting ``inelastic`` and passing
+    ``None`` are the same arrays, and turning every process off — both the
+    pre-M5 spelling (``Inelastic(raman=False, fluorescence=False)``, where
+    ``cdom_fl=None`` is implicit) and the fully explicit
+    ``Inelastic(raman=False, fluorescence=False, cdom_fl=None)`` — returns
+    them too. The explicit form makes the M5 task-5 guard fix's correctness
+    visible rather than assumed: ``_apply_inelastic`` now also treats a set
+    ``cdom_fl`` as an active process, and this pins that an explicitly-unset
+    one still short-circuits to the untouched elastic ``rrs`` — the design
+    §1 guarantee that the elastic path is a no-op *by construction* (the
+    ``None`` branch returns the same object), not by cancelling arithmetic.
+    The pre-change anchoring — the SHA-256 pins and the committed reference
+    arrays — is the standing two-tier regression in
     ``test_inelastic_types.py``; :func:`test_gate_4_pre_change_pins` re-runs
     its strict tier under this gate's name.
     """
@@ -187,8 +193,16 @@ def test_gate_4_elastic_bit_identity(l23_small_batch):
             check_domain=False,
         )
     )
+    all_off_explicit = np.asarray(
+        H.forward(
+            *args,
+            inelastic=Inelastic(raman=False, fluorescence=False, cdom_fl=None),
+            check_domain=False,
+        )
+    )
     np.testing.assert_array_equal(omitted, explicit_none)
     np.testing.assert_array_equal(omitted, all_off)
+    np.testing.assert_array_equal(omitted, all_off_explicit)
 
 
 @hash_pins.strict_bits_are_local

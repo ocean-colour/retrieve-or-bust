@@ -140,6 +140,84 @@ def test_kernel_never_reads_iops_or_ed_below_350(
     assert min(seen) >= C.CDOM_EX_MIN
 
 
+# ------------------------------------ truncated-fraction diagnostic (task 4) ----
+
+#: The measured truncated fractions (0.25 nm quadrature, canonical grid),
+#: banded generously (±0.03 absolute) — the diagnostic *characterizes* the
+#: clamp's cost (design §2), it does not gate it to zero. The implementation
+#: record §8.1 carries the same numbers as the documented caveat.
+TRUNCATED_FRACTION_BANDS = {
+    350.0: 0.846,
+    400.0: 0.566,
+    450.0: 0.297,
+    500.0: 0.142,
+    550.0: 0.083,
+    600.0: 0.070,
+    650.0: 0.078,
+    700.0: 0.103,
+    750.0: 0.146,
+}
+
+
+def test_truncated_fraction_pinned_at_representative_wavelengths():
+    """The clamp's measured cost, pinned as bands per emission wavelength.
+
+    ``fraction(λ) = ∫₃₁₀³⁵⁰ η_Y dλ_e / ∫₃₁₀⁴⁹⁰ η_Y dλ_e`` — a property of the
+    Hawes FA7 function alone (no IOPs, no Ed). The headline caveat: **57 % of
+    the nominal 310–490 nm-excited emission at λ = 400 nm is excluded by the
+    production 350 nm clamp** (30 % at 450 nm, ~7 % at the 605 nm minimum,
+    rising again to ~15 % at 750 nm through the sub-350 Gaussians' red
+    tails). Large blue-band values were design §8's flagged risk — recorded
+    here and in the implementation record §8.1, not asserted away. Re-pin
+    deliberately if the FA7 constants are corrected (Q&A CQ2).
+    """
+    wave = conventions.canonical_wave()
+    fraction = np.asarray(C.truncated_excitation_fraction())
+    w = np.asarray(wave)
+    assert fraction.shape == w.shape
+    assert np.all(np.isfinite(fraction))
+    assert np.all((fraction >= 0.0) & (fraction <= 1.0))
+    for lam, expected in TRUNCATED_FRACTION_BANDS.items():
+        i = int(np.abs(w - lam).argmin())
+        assert abs(fraction[i] - expected) < 0.03, (
+            f"lambda_em = {lam:.0f} nm: measured {fraction[i]:.4f}, "
+            f"pinned band {expected:.3f} +/- 0.03"
+        )
+
+
+def test_truncated_fraction_quadrature_converged():
+    """The default 0.25 nm sub-grid agrees with a 2× refinement (measured max
+    3.5e-6 relative on the canonical grid) — the reported numbers are
+    quadrature-converged, not grid artifacts."""
+    native = np.asarray(C.truncated_excitation_fraction())
+    refined = np.asarray(C.truncated_excitation_fraction(quad_step=0.125))
+    np.testing.assert_allclose(native, refined, rtol=1e-5, atol=0.0)
+
+
+def test_truncated_fraction_guard_and_domain():
+    """The 0/0 guard: far outside the Hawes band both integrals underflow to
+    exactly 0.0 and the fraction is *defined* as 0 (no emission → nothing
+    truncated), never a silent NaN. On the canonical grid the denominator is
+    strictly positive, so the guard is provably inert there (min measured
+    fraction ~0.070 at 605 nm)."""
+    pathological = np.asarray(
+        C.truncated_excitation_fraction(wave=jnp.asarray([100.0]))
+    )
+    assert pathological[0] == 0.0  # both integrals underflow — guarded, not NaN
+    on_grid = np.asarray(C.truncated_excitation_fraction())
+    assert np.all(on_grid > 0.0)  # the guard never fires on the canonical grid
+
+
+# The task-4 gate's other half — "the production kernel provably never reads
+# IOPs or Ed below 350 nm" — is fully covered by the task-3 spy test
+# ``test_kernel_never_reads_iops_or_ed_below_350`` above (it wraps the real
+# ``interp_spectrum``/``ed.Ed`` seams and asserts every wavelength the kernel
+# reads is >= 350 nm) together with ``test_excitation_grid_is_the_hard_clamp``
+# (the grid *is* the clamp). Not duplicated here; ``eta_hawes`` itself being
+# evaluated below 350 nm by ``truncated_excitation_fraction`` is deliberate
+# and touches no IOPs or Ed (see its docstring).
+
+
 # ------------------------------------------------------------------ the kernel ----
 
 

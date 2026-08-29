@@ -1467,3 +1467,64 @@ unchanged — see `rt_elastic_implementation.md` §9):
 | `robust/tests/test_validation.py` | + the M4 protocol-function tests, incl. the six-variable corrected-path gradient gate | M4 |
 | `robust/tests/test_inelastic_validation.py` | **the §6 acceptance gate** — one test per gate line, gate band `INELASTIC_GATE_BAND` (Q&A Q1), median-of-trials speed line | M4 |
 | `design/py/run_validation.py --inelastic` + `design/validation/*inelastic*` | the committed metrics table, CSVs and two figures; regenerates every record-§6 number; exits nonzero on a gate failure | M4 |
+
+## 8. M5 — CDOM fluorescence *(in progress — task 8 completes this write-up; this section currently covers only task 4's diagnostic)*
+
+### 8.1 The 350 nm clamp + truncated-fraction diagnostic (task 4)
+
+The CDOM-fluorescence design (`design/rt_cdom_fluorescence_model.md` §2 —
+the design rationale for the clamp itself lives there) imposes a **hard
+350 nm lower excitation limit**: the Hawes `g_Y` gate nominally admits
+excitation down to 310 nm, but the L23/IOP/Ed grids start at 350 nm, so
+`cdom_fl.cdom_excitation_grid()` simply *starts* there — the production
+kernel provably never reads IOPs or Ed below 350 nm (the task-3 spy test
+`test_kernel_never_reads_iops_or_ed_below_350` plus
+`test_excitation_grid_is_the_hard_clamp` pin this at the seams; task 4
+confirmed they cover the gate rather than duplicating them).
+
+What the clamp costs is task 4's committed diagnostic,
+`cdom_fl.truncated_excitation_fraction(wave)`:
+
+```
+fraction(λ) = ∫₃₁₀³⁵⁰ η_Y(λ, λ_e) dλ_e / ∫₃₁₀⁴⁹⁰ η_Y(λ, λ_e) dλ_e
+```
+
+— computed from the Hawes FA7 function **itself** (no IOPs, no Ed, no
+scene), trapezoid quadrature at 0.25 nm (converged: max 3.5e-6 relative vs
+a 2× refinement), with a guarded 0/0 for emission wavelengths far outside
+the Hawes band where both integrals underflow to exactly 0.0 (defined as 0
+— no emission, nothing truncated — never a silent NaN; on the canonical
+350–750 nm grid the denominator is strictly positive and the guard is
+provably inert). This function is the one deliberate exception to the
+clamp: it evaluates `η_Y` below 350 nm *because* its purpose is to
+characterize what the clamp throws away.
+
+**Measured (canonical grid, FA7 constants as flagged in Q&A CQ2):**
+
+| λ_em (nm) | 350 | 400 | 450 | 500 | 550 | 600 | 650 | 700 | 750 |
+|---|---|---|---|---|---|---|---|---|---|
+| truncated fraction | 0.846 | 0.566 | 0.297 | 0.142 | 0.083 | 0.070 | 0.078 | 0.103 | 0.146 |
+
+**The caveat, stated plainly: 57 % of the Hawes function's nominal
+310–490 nm-excited emission at λ = 400 nm is excluded by the production
+350 nm clamp** (85 % at 350 nm, 30 % at 450 nm; the minimum is ~7 % near
+605 nm, rising again to ~15 % at 750 nm through the sub-350 excitation
+Gaussians' red tails). This is exactly the design-§8 risk ("if the
+truncated fraction turns out large in the blue emission bands, the caveat
+hardens into a wishlist-item-6 dependency") coming true in the violet-blue.
+Two honesty notes: (i) these are properties of the η_Y redistribution
+alone — the *realized* truncated Rrs contribution is further weighted by
+`a_cdom(λ_e)·Ed(λ_e)`, and sub-350 nm surface `Ed` is strongly suppressed
+(ozone + solar spectrum — Zhai et al.'s own reason for the identical
+clamp), so the table is the conservative, scene-free flavor of the caveat;
+(ii) the numbers inherit the FA7 constants' provenance flag (CQ2 — not yet
+independently verified) and re-pin trivially with them. Quote this table
+wherever the term's output is quoted (design §2's documented-caveat
+requirement); the HydroLight truth runs of design §7, when they land,
+resolve how much of it survives the Ed weighting.
+
+Gate tests (`robust/tests/test_cdom_fl.py`, task-4 section):
+`test_truncated_fraction_pinned_at_representative_wavelengths` (the table
+above, banded ±0.03 — it characterizes, it does not gate to zero),
+`test_truncated_fraction_quadrature_converged`, and
+`test_truncated_fraction_guard_and_domain`.

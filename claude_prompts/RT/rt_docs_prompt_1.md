@@ -545,6 +545,25 @@ have to reinterpret as "green except these two, unchanged from the pre-edit
 baseline". Which do you want? And should the repin happen here or on the
 coding side, outside the docs effort?
 
+**Q1 addendum, written after the fact — most of this is already answered.**
+While I was finishing task 2 an uncommitted change to
+`robust/tests/test_inelastic_types.py` appeared in the working tree (the CDOM
+M5 effort, running concurrently), and it contains the real explanation, better
+than my jax-version guess: *"Machine anchoring: pinned on JXP's Mac (darwin,
+2026-08-29) — a **different machine from the tank server that anchored the
+elastic pins** above, so on any one machine one strict set may fail while the
+other passes; the closeness tiers carry the guard everywhere (the finding
+recorded in the M5 prompt doc's task-1 log)."* So the elastic pins were
+anchored on the tank server and this Mac reproduces them only to ~3 ULP, which
+is expected behaviour and is already documented on the coding side. That
+demotes Q1 from "is the elastic route broken?" (it is not) to a single
+bookkeeping question: **should D1 task 7's "`pytest -q -ra` green" gate be read
+as "green modulo the machine-anchored strict tiers"?** My recommendation: yes,
+and no repin — the numbers above stand as the measured evidence, and I will
+record the two expected failures explicitly at task 7 rather than claim a
+green suite. Ignore the repin recommendation in the paragraph above; I wrote
+it before seeing the M5 note.
+
 **Q2 (The branch moved under me, mid-task).** The working agreement says to
 read the branch I am standing on and record its real name. I started task 1 on
 **`inelastic-rt`** with a clean tree. Partway through task 2 you committed the
@@ -1005,7 +1024,12 @@ test_gate_4_pre_change_pins`, both the same bitwise SHA-256 pin — and the
 `__version__` addition provably did not cause them. This contradicts "Status
 entering D1", which records the suite as green, so it is **Q&A Q1** with the
 measured drift (max 3.0 ULP, closeness tier green) rather than something I
-repinned quietly; the test file's own comment asks for exactly that.
+repinned quietly; the test file's own comment asks for exactly that. (Q1 then
+picked up its own addendum: a concurrent CDOM/M5 edit to that same test file,
+which landed in the working tree while I was writing this log, already records
+the cause — the elastic pins were anchored on the **tank server**, not this
+Mac. No repin needed; the open part is only how task 7 should word its
+green-suite gate.)
 
 **Stopping here**, per the turn's instruction: a genuine question for JXP
 arose (Q1, plus the branch-move note as Q2), so tasks 3 and beyond are not

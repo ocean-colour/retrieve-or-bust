@@ -56,6 +56,7 @@ raises :class:`NotImplementedError`.
 
 from . import (
     baselines,
+    cdom_fl,
     conventions,
     data,
     ed,
@@ -67,7 +68,7 @@ from . import (
     ztt,
 )
 from .hybrid import forward
-from .types import Geometry, Inelastic, IOPs, PhaseParams
+from .types import CDOMFl, Geometry, Inelastic, IOPs, PhaseParams
 
 # Grouped by role, and ordered as the pipeline runs (conventions -> data ->
 # backbone -> emulator -> hybrid -> validation), not alphabetically: the order is
@@ -79,6 +80,7 @@ __all__ = [  # noqa: RUF022
     "data",
     "ed",
     "inelastic",
+    "cdom_fl",
     "ztt",
     "emulator",
     "hybrid",
@@ -91,4 +93,5 @@ __all__ = [  # noqa: RUF022
     "PhaseParams",
     "Geometry",
     "Inelastic",
+    "CDOMFl",
 ]
