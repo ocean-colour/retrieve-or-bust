@@ -586,6 +586,55 @@ My recommendation: no action needed from me either way; just confirm which
 branch you want the remaining D1 tasks (3–7) to be written on, and I will read
 it fresh at the start of each turn rather than assuming.
 
+**Q3 (`-W` does *not* catch a broken `{func}`/`{class}` cross-reference, which
+is what D2 task 2's gate says it does).** Raised at D1 task 3, where the
+strictness proof turned it up. Task 3 asked me to prove `-W` is genuinely
+strict by introducing a bad cross-reference, and offered "a `{func}` role
+pointing at a nonexistent target" as the example. Measured, in a scratch copy
+of `docs/`, all three with `-W --keep-going`:
+
+```
+{doc}`no_such_page_at_all`                    → WARNING [ref.doc]        EXIT=1
+toctree entry model/this_page_does_not_exist  → WARNING [toc.not_readable] EXIT=1
+{func}`robust.rt.no_such_function_whatsoever` → no warning              EXIT=0
+  ... the same file with -n added             → WARNING [ref.func]      EXIT=1
+```
+
+So `-W` is strict about documents, toctrees and images, but a **typo'd Python
+cross-reference renders as plain text and passes**, because Sphinx's `nitpicky`
+is off by default and `conf.py` does not turn it on. Task 3's own gate is
+satisfied by the first two (and I logged it that way), so this blocks nothing
+today. It matters at **D2 task 2**, whose gate states as fact: *"every
+`:func:`/`:class:` cross-reference resolves — with `-W`, a typo'd role is a
+build failure, which is the point."* That is currently false, and the model
+chapters are exactly the pages that will be dense with such roles.
+
+Three options, in the order I'd rank them:
+
+1. **Turn on `nitpicky = True` in `conf.py` at D1 task 5** (the API page task,
+   which is where the API anchors first exist to point at), with a
+   `nitpick_ignore` list for the unavoidable misses. This makes D2 task 2's
+   gate mean what it says. The cost is real and should not be waved away:
+   nitpick also flags every unresolvable *type annotation* in autodoc output,
+   and with `autodoc_typehints = "description"` plus `jaxtyping`'s
+   `Float[Array, "*batch wave"]` annotations, the first nitpicky build will
+   almost certainly produce a wall of `py:class reference target not found`
+   that has to be triaged into `nitpick_ignore` before it goes green.
+2. **Add a narrower CI step** that greps the built HTML for roles that fell
+   back to plain text, rather than flipping nitpick globally — catches the
+   typos without fighting jaxtyping.
+3. **Leave it, and reword D2 task 2's gate** to "every cross-reference
+   spot-checked in the rendered HTML" — honest, but manual, and it will rot.
+
+My recommendation: **(1), attempted at task 5, with a hard fallback to (3) if
+the `nitpick_ignore` list turns into an unbounded jaxtyping-shaped
+whack-a-mole** — the decision point being "does the ignore list stay short
+enough to read". I'd rather find that out at task 5, when the API page is the
+only autodoc surface, than at D2 task 2 with five chapters already written
+against a gate that cannot enforce them. Either way D2 task 2's wording needs
+a small edit, since as written it asserts a behaviour we have now measured to
+be absent. Which do you want?
+
 ## D2
 
 Goal: the prose, the provenance and the figures — the site as a manual.
@@ -1035,3 +1084,164 @@ green-suite gate.)
 arose (Q1, plus the branch-move note as Q2), so tasks 3 and beyond are not
 attempted. Task 2's own gate was nonetheless run in full and passed, since
 none of its checks depend on the answer.
+
+### 2026-08-29 (D1 task 3 — the CI `docs` job; `-W` proven strict, and a hole in that proof found)
+
+**Branch.** `cdom-rt` (read fresh at the start of the turn, per the working
+agreement). **Only file edited: `.github/workflows/ci.yml`.** `robust/` was not
+touched — task 3 has no sanctioned `robust/` edit — and none of the concurrent
+CDOM effort's uncommitted files were opened or written.
+
+**Open questions re-checked, no new developments.** Q1 and Q2 both still stand
+unanswered in this document (no `> A.` or equivalent has been added). Neither
+blocks task 3: this task runs no pytest, so Q1's machine-anchored strict tiers
+are not in its path, and Q2's own recommendation — read the branch you are
+standing on — is what I did. Not re-litigating either here.
+
+**What was added.** A third job, after `test` and `lint`:
+
+```yaml
+  docs:
+    name: sphinx (-W)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', cache: pip}
+      - name: Install the documentation toolchain
+        run: pip install -r docs/requirements.txt     (after --upgrade pip)
+      - name: Install the package
+        run: pip install -e . --no-deps
+      - name: Build the documentation strictly
+        run: python -m sphinx -b html -W --keep-going docs docs/_build/html
+```
+
+Every step carries a *why* comment, matching the file's established density.
+The four things the comments record, because they are the things a future
+reader will otherwise get wrong: (a) 3.12 is not a matrix here on purpose —
+`.readthedocs.yaml` builds on ubuntu-24.04/3.12, so CI's job is to fail before
+RTD does, on the same interpreter; a second version would be testing Sphinx,
+not us; (b) `docs/requirements.txt` rather than the root file, the same
+reasoning the `test` job already spells out about the two `git+` lines, plus
+the fact that `autodoc_mock_imports = []` means autodoc genuinely imports
+`robust.rt`, so the real stack must be present; (c) `--no-deps` mirrors the
+`test` job — everything importable is already installed by the previous step,
+and re-resolving could only pull a different jax; (d) **the job needs no
+`$OS_COLOR` and no L23 data**, unlike `test`, because the docs build only
+*copies* committed figures out of `reports/` — D2's `make_docs_figures.py`
+defaults to copy mode and `--regenerate` is opt-in and never reachable from
+`conf.py`. That comment names itself as the explanation for the day the job
+breaks. (Worth noting for D2 task 6: right now there is nothing to regenerate
+at all, since that script does not exist yet.)
+
+**Gate, every sub-check, real output.**
+
+1 — the workflow parses, and the job is shaped as specified:
+
+```
+$ python -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml'))"
+PARSE_EXIT=0
+jobs: ['test', 'lint', 'docs']
+name: sphinx (-W) | runs-on: ubuntu-latest
+  step: actions/checkout@v4
+  step: actions/setup-python@v5 | {'python-version': '3.12', 'cache': 'pip'}
+  step: Install the documentation toolchain | pip install -r docs/requirements.txt
+  step: Install the package                 | pip install -e . --no-deps
+  step: Build the documentation strictly    | python -m sphinx -b html -W --keep-going docs docs/_build/html
+```
+
+2 — **the venv was reused, not recreated.** The task-2 throwaway venv at
+`<scratchpad>/rtd-venv` was checked before trusting it and was still healthy
+(`Python 3.12.14`, `sphinx 9.1.0`, `robust 0.0.dev0`), so I reused it rather
+than rebuilding — which also makes this a slightly *stronger* test than a fresh
+venv, since it proves the job's steps are idempotent over an already-populated
+environment. The three job steps run in order, verbatim:
+
+```
+$ <rtd-venv>/bin/python -m pip install --upgrade pip
+Successfully installed pip-26.2.1            (was 25.0.1)
+$ <rtd-venv>/bin/python -m pip install -r docs/requirements.txt
+  ... every line "Requirement already satisfied"; nothing new resolved
+$ <rtd-venv>/bin/python -m pip install -e . --no-deps
+Successfully uninstalled retrieve-or-bust-0.0.dev0   (the task-2 non-editable install)
+Successfully installed retrieve-or-bust-0.0.dev0     (now editable)
+$ <rtd-venv>/bin/python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.        BUILD_EXIT=0
+grep -cE "WARNING|ERROR" → 0
+```
+
+Zero warnings, exit 0. Note the editable install *replaced* task 2's plain
+`pip install .` in that venv — expected, since the CI job installs `-e`, and
+harmless in a throwaway.
+
+3 — **`-W` proven genuinely strict, in a scratch copy** (`<scratchpad>/docs-break`,
+a `cp -R` of `docs/`, so the repo tree was never dirtied — the copy was
+confirmed to build clean first, `BASELINE_COPY_EXIT=0`). Two independent
+deliberate breaks, each reverted by discarding and re-copying:
+
+```
+BREAK A — {doc} role at a nonexistent target
+  index.md:51: WARNING: unknown document: 'no_such_page_at_all' [ref.doc]
+  build finished with problems, 1 warning (with warnings treated as errors).
+  EXIT=1
+
+BREAK B — malformed toctree entry
+  index.md:35: WARNING: toctree contains reference to nonexisting document
+    'model/this_page_does_not_exist' [toc.not_readable]
+  build finished with problems, 1 warning (with warnings treated as errors).
+  EXIT=1
+```
+
+Both fail the build. Scratch copies deleted afterwards; the real tree rebuilt
+clean (`FINAL_BUILD_EXIT=0`, zero WARNING/ERROR lines).
+
+**The finding this task actually produced — and it contradicts D2's gate.** The
+task text offered "a `{func}` role pointing at a nonexistent target" as the
+canonical example of a bad cross-reference. I tried it, and **it does not fail
+the build**:
+
+```
+BREAK C — {func}`robust.rt.no_such_function_whatsoever`
+  build succeeded.        EXIT=0        ← no warning at all
+same file, adding -n (nitpicky):
+  index.md:51: WARNING: py:func reference target not found:
+    robust.rt.no_such_function_whatsoever [ref.func]
+  EXIT=1
+```
+
+This is task 1's log item (b) — "`nitpicky` is off by default, so a
+`{mod}`/`{func}` role pointing at a not-yet-documented Python object does not
+warn" — now demonstrated rather than inferred, and it matters more than it did
+then, because **D2 task 2's gate asserts the opposite in writing**: "every
+`:func:`/`:class:` cross-reference resolves — with `-W`, a typo'd role is a
+build failure, which is the point." As configured today it is not. Raised as
+**Q3**; it does not block task 3, whose gate asks only that `-W` be strict,
+which breaks A and B establish.
+
+**Deviations.** One, and it is mine to own: my first attempt at break B silently
+did nothing — a heredoc read `os.environ['S']` while `S` was set but not
+exported, so the Python raised `KeyError: 'S'` and the subsequent build
+reported `BREAK_B_EXIT=0 / build succeeded`, which for about ten seconds looked
+like evidence that toctree breaks pass `-W`. It was evidence that my edit never
+landed. Re-run with `export S=...` plus an `assert new != t` guard on the
+replacement, and it failed as it should. Recording it because a false green
+from a no-op edit is exactly the failure mode this repo's "verify prose against
+output" rule exists to catch, and I nearly wrote the wrong conclusion down.
+
+**Assumption checked rather than trusted**, as the turn asked: `ocean14` did
+already have everything (`pip install --dry-run -r docs/requirements.txt`
+produced **no** "Would install" and no "Would uninstall" line — every
+requirement already satisfied from tasks 1–2). Nothing new was installed into
+`ocean14` in this task.
+
+**Tree state — and JXP committed mid-task again.** `git status` came back
+completely clean at the end, which was momentarily alarming; `git log` explains
+it: `02e3583 "docs and cdom"` landed while the build was running and swept up
+my `ci.yml` edit along with the CDOM work. Verified byte-for-byte that nothing
+was lost — `git show HEAD:.github/workflows/ci.yml` and the working-tree file
+both carry the `docs:` job at line 95, `name: sphinx (-W)` at 96, and the
+strict build command at 146. Same pattern as Q2 in task 2; no action needed,
+noting it so the sequence is on the record.
+
+**Stopping at task 3**, per the turn's instruction — task 4 not attempted even
+though the gate is green.
