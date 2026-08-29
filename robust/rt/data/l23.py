@@ -650,6 +650,7 @@ INELASTIC_RAW_FIELDS = (
     "bbnw",
     "bnw",
     "aph",
+    "ag",
     "Rrs1",
     "Rrs2",
     "Rrs4",
@@ -676,8 +677,8 @@ class L23InelasticBatch:
     Attributes
     ----------
     iops : IOPs
-        With ``a_ph`` set; identical across the X scenarios (asserted at
-        read time).
+        With ``a_ph`` and ``a_cdom`` set; identical across the X scenarios
+        (asserted at read time).
     phase_params : PhaseParams
         ``B_p`` spectrum, as elastic.
     geometry : Geometry
@@ -746,6 +747,11 @@ class L23InelasticBatch:
                 "L23InelasticBatch: iops.a_ph is None -- the inelastic loader "
                 "must supply the fluorescence source term"
             )
+        if self.iops.a_cdom is None:
+            raise ValueError(
+                "L23InelasticBatch: iops.a_cdom is None -- the inelastic loader "
+                "must supply the CDOM-fluorescence source term"
+            )
         self.iops.validate(wave=self.wave)
         self.phase_params.validate()
         self.geometry.validate()
@@ -786,9 +792,10 @@ def _read_inelastic_file(zenith: int) -> dict[str, np.ndarray]:
         "bbnw": np.asarray(ds1.bbnw.data, dtype=float),
         "bnw": np.asarray(ds1.bnw.data, dtype=float),
         "aph": np.asarray(ds1.aph.data, dtype=float),
+        "ag": np.asarray(ds1.ag.data, dtype=float),
     }
     for x, ds in datasets.items():
-        for key in ("a", "bb", "aph"):
+        for key in ("a", "bb", "aph", "ag"):
             if not np.array_equal(np.asarray(ds[key].data, dtype=float), out[key]):
                 raise ValueError(
                     f"L23 inelastic read: {key} differs between X=1 and X={x} "
@@ -802,7 +809,7 @@ def inelastic_npz_reader(path, elastic_path):
     """An inelastic ``reader`` backed by the sibling + elastic fixtures.
 
     The sibling fixture (CQ4) deliberately stores only what the elastic
-    fixture lacks -- ``aph`` and the X=2/X=4 ``Rrs`` -- plus ``a``/``bb``/
+    fixture lacks -- ``aph``, ``ag``, and the X=2/X=4 ``Rrs`` -- plus ``a``/``bb``/
     ``Rrs1`` copies used here to *prove* the two files describe the same 50
     scenes (a mismatch raises rather than silently pairing different water).
     ``bbnw``/``bnw`` come from the elastic fixture.
@@ -844,7 +851,7 @@ def inelastic_npz_reader(path, elastic_path):
                     "describe the same scenes"
                 )
             out[field] = ours
-        for field in ("aph", "Rrs2", "Rrs4"):
+        for field in ("aph", "ag", "Rrs2", "Rrs4"):
             out[field] = np.asarray(sibling[f"{field}_{int(zenith)}"], dtype=float)
         return out
 
@@ -884,7 +891,18 @@ def load_inelastic_batch(
     read = _read_inelastic_file if reader is None else reader
     wave_ref: np.ndarray | None = None
     parts: dict[str, list[np.ndarray]] = {
-        key: [] for key in ("a", "bb_w", "bb_p", "a_ph", "B_p", "Rrs1", "Rrs2", "Rrs4")
+        key: []
+        for key in (
+            "a",
+            "bb_w",
+            "bb_p",
+            "a_ph",
+            "a_cdom",
+            "B_p",
+            "Rrs1",
+            "Rrs2",
+            "Rrs4",
+        )
     }
     theta_parts, scene_parts = [], []
 
@@ -908,6 +926,7 @@ def load_inelastic_batch(
         parts["bb_w"].append(raw["bb"][index] - bbnw)
         parts["bb_p"].append(bbnw)
         parts["a_ph"].append(raw["aph"][index])
+        parts["a_cdom"].append(raw["ag"][index])
         parts["B_p"].append(bbnw / raw["bnw"][index])
         for x in (1, *INELASTIC_XS):
             parts[f"Rrs{x}"].append(raw[f"Rrs{x}"][index])
@@ -923,6 +942,7 @@ def load_inelastic_batch(
             bb_w=jnp.asarray(np.concatenate(parts["bb_w"])),
             bb_p=jnp.asarray(np.concatenate(parts["bb_p"])),
             a_ph=jnp.asarray(np.concatenate(parts["a_ph"])),
+            a_cdom=jnp.asarray(np.concatenate(parts["a_cdom"])),
         ),
         phase_params=PhaseParams(B_p=jnp.asarray(B_p)),
         geometry=Geometry.nadir(jnp.asarray(np.concatenate(theta_parts))),

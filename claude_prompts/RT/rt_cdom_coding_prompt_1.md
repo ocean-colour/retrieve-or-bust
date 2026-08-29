@@ -231,6 +231,23 @@ Should M5 continue on `inelastic-rt` as-is, or should I pause until you merge
 to `main` and create the fresh branch (carrying task 1's uncommitted changes
 over)?
 
+>A. Ok, I am on a branch named `cdom-rt` now. 
+
+**CQ2 (task 3, 2026-08-29, Claude/Fable → JXP):** The Hawes FA7 constants in
+`robust/rt/cdom_fl.py` need a primary-source check. The *functional form*
+(η_Y Gaussian in wavenumber, Zhai et al. 2017 Eqs. 5–8) is
+peer-reviewed-verified, but the FA7 numbers themselves came from Mobley's
+Ocean Optics Web Book via an AI-mediated page fetch (the page is JS-rendered)
+and could not be corroborated against a second source. If you have access to
+Mobley's *Light and Water* §5.15 or Hawes (1992), Proc. SPIE 1750, please
+confirm or correct: **A1 = 0.470** (dimensionless), **B1 = 8.077×10⁻⁴ nm⁻¹**,
+**A2 = 0.407** (dimensionless), **B2 = −4.57×10⁻⁴ nm⁻¹** (r² = 0.987), and
+the A0(λ_e) table (units ×10⁻⁵ nm⁻¹): 310→5.81, 330→6.34, 350→8.00, 370→9.89,
+390→9.39, 410→10.48, 430→12.59, 450→13.48, 470→13.61, 490→9.24. The §5.2
+correctness-pin test (`test_a0_table_reproduced_at_the_gaussian_peak`)
+deliberately pins exactly these numbers, so a correction means editing the
+constants in `cdom_fl.py` and the test re-pins itself trivially.
+
 ## Next
 
 → M6 (δ_C training + quantitative gate) is **deferred**: it opens only when
@@ -310,3 +327,105 @@ not re-exported from `robust/rt/__init__.py` (file outside task 1's allowed
 edit set; task 5's wiring is the natural place). Branch finding: no fresh
 branch off `main` exists — work proceeded on `inelastic-rt`; question posed
 to JXP as Q&A CQ1.
+
+### 2026-08-29 (M5 tasks 2–3 — loader `a_cdom` wiring + fixture regen; the Hawes kernel `cdom_fl.py`; 466 green) (model: Fable)
+
+Executed tasks 2–3 on branch `cdom-rt` (verified before starting). No touch
+to `types.py` (task 1, done) or `hybrid.py`'s composition (task 5); no δ_C
+head (task 6); no truncated-fraction diagnostic (task 4 — but the hard clamp
+itself is in, see below).
+
+**Task 2 — loader wiring** (`robust/rt/data/l23.py`,
+`design/py/gen_inelastic_fixture.py`, `robust/tests/test_l23_inelastic_data.py`):
+
+- `INELASTIC_RAW_FIELDS` gains `"ag"` (the L23 netCDF name for CDOM/gelbstoff
+  absorption; `ag` is distinct from detrital `ad`, confirmed by opening the
+  files). `_read_inelastic_file` reads `ds1.ag` and the X=1/2/4
+  consistency-assert loop now covers `ag` exactly like `aph`.
+  `load_inelastic_batch` threads `a_cdom` through `parts` into the
+  `IOPs(a_cdom=...)` constructor; `L23InelasticBatch`'s docstring and
+  `validate()` mirror the `a_ph` presence contract for `a_cdom`.
+  `inelastic_npz_reader` and `write_inelastic_fixture` both gain `"ag"` in
+  their per-field loops, mirroring `aph`'s threading exactly.
+- **The committed CI fixture's bytes changed** (expected and required):
+  `robust/tests/files/l23_inelastic_fixture.npz` regenerated via
+  `write_inelastic_fixture()` only (deliberately *not* the script's `main()`,
+  which would also rewrite `ed_l23.npz` and the machine-anchored
+  `elastic_reference_outputs.npz` — neither may change in this session).
+  New size 285 kB, still under the 300 kB budget test; the script's own
+  round-trip validation (real `load_inelastic_batch` through the real reader,
+  now demanding `a_cdom`) passed before the atomic replace. The **elastic**
+  fixture's bytes are untouched (its SHA-256 pin stays green).
+- New loader tests (+4): the design-§8 a_dg foot-gun **pinned as real
+  assertions** on the fixture batch — `a_cdom ≥ 0` and `a_ph + a_cdom ≤ a`
+  everywhere (measured margin: max(a_ph + a_cdom − a) ≈ −5.3e-3) — plus the
+  same pins at full-release scale (9960 samples, `needs_l23*`-guarded);
+  golden absolute pins on fixture rows (`ag_0[0]@440 = 5.7960e-03`,
+  `ag_30[7]@440 = 3.1390e-03`); a bit-faithful loader-vs-raw-netCDF golden at
+  (scene 0, scene 7) × (0°, 60°); a `validate()`-requires-`a_cdom` twin; and
+  `ag` rows added to the existing fixture-vs-netCDF bit-faithfulness sweep.
+  Fixture-backed tests need no `$OS_COLOR`; the live-netCDF ones carry the
+  established `needs_l23`/`needs_l23_inelastic` skip markers.
+
+**Task 3 — the Hawes kernel** (`robust/rt/cdom_fl.py` new,
+`robust/tests/test_cdom_fl.py` new, +11 tests):
+
+- `eta_hawes(λ, λ_e)` implements Zhai, Hu, Lee et al. (2017), Opt. Express
+  25(8), Eqs. (7)–(8) literally — the Gaussian argument in **reciprocal
+  wavelength**: center `A1/λ_e + B1`, width `0.6·(A2/λ_e + B2)`, amplitude
+  `A0(λ_e)` linearly interpolated (`jnp.interp`) between the ten tabulated
+  nodes (a documented secondary uncertainty), gated by `g_Y` (310–490 nm).
+- **Provenance, spelled out (also in the module docstring):** the functional
+  form and the ≥350 nm excitation floor are **peer-reviewed-verified** (JXP
+  extracted Eqs. 5–8 verbatim from the published PDF; Zhai et al. themselves
+  clamp λ_e ≥ 350 nm citing UV ozone absorption + low solar irradiance —
+  independent corroboration of our CFQ4 clamp). The **FA7 numeric constants
+  are NOT independently verified**: sourced from Mobley's Ocean Optics Web
+  Book (retrieved 2026-08-29, AI-mediated fetch of a JS-rendered page), FA7
+  being HydroLight's own default (not Zhai's 9:1 FA7:HA6 mix). Flagged
+  prominently on the constants, pinned as-is by the §5.2 test so re-pinning
+  is trivial, and posed to JXP as **Q&A CQ2** (full numbers restated there).
+  The "C. K. Carder" vs Kendall L. Carder citation discrepancy in Zhai's
+  reference list is recorded in the docstring rather than silently resolved.
+- `cdom_kernel(iops, geometry, wave)` mirrors `fluorescence_kernel`'s S&P98
+  machinery term for term — source `b_bY = ½·a_cdom(λ_e)` (isotropic, no
+  reference-yield division: `CDOMFl.scale` is applied by task 5's
+  composition, never here), true `Ed(λ_e)` via the existing Ed module,
+  trapezoid quadrature, `K(λ_e)=(a+b_b)/MU_D`, `κ_Y(λ)=(a+b_b)/MU_F`,
+  `optimization_barrier`, **L_u = E_u/π**, `rrs_to_Rrs` — with the one
+  **structural departure**: η_Y is non-separable in (λ, λ_e), so it
+  multiplies the `(..., n_em, n_ex)` integrand *before* the excitation
+  reduction instead of post-multiplying the reduced sum like Chl-fl's
+  `emission_line`. Honest speed note: that costs one extra elementwise
+  multiply on the big tensor by a *batch-free* (n_em, n_ex) matrix, but the
+  contraction is 29 nodes vs Chl-fl's 65, so no speed regression is expected
+  (task 7 measures it).
+- Excitation grid `cdom_excitation_grid()`: **350–490 nm at 5 nm, 29 nodes**
+  — the hard clamp *is* the grid (no clamping arithmetic), the 490 nm top is
+  `g_Y`'s own cutoff, and 5 nm matches the canonical spacing so every node
+  lands on a canonical grid point (asserted). A `step` argument exists solely
+  for the convergence gate.
+- Gate tests, honestly labeled: A0 reproduced at each tabulated λ_e's own
+  emission peak (docstring says plainly it pins the table/interp *plumbing*,
+  not the physics); η_Y ≥ 0 + `g_Y` gating; emission **peak** red-shifted for
+  every admissible λ_e (analytic: peak wavenumber < 1/λ_e iff λ_e < ~656 nm)
+  — stated plainly that the Gaussian-in-wavenumber form does *not* enforce a
+  strict Stokes shift (blue tail at λ=λ_e is ~6 % of peak at 350 nm, ~22 % at
+  490 nm; asserted subdominant, never asserted away); quadrature convergence
+  5 nm vs 2.5 nm at rtol 1e-2 (measured max 5.6e-3); the clamp proved at the
+  seams (spies on `interp_spectrum`/`ed.Ed` — every wavelength the kernel
+  reads is ≥ 350 nm); a_cdom-required error; physicality (K ≥ 0, finite,
+  broad, median peak in the blue-green — measured median K@440 ≈ 3.6e-5 sr⁻¹,
+  ~0.5 % of median Rrs@440 on the fixture, inside the design-§5.3 ballpark
+  task 7 will gate); jit/vmap agreement; finite + nonzero `a_cdom` gradient
+  smoke (full FD gate incl. `scale` is task 7).
+
+Suite (`conda run -n ocean14 python -m pytest robust/tests/ -q`, this Mac):
+before **451 passed / 2 failed / 1 skipped**; after **466 passed / 2 failed /
+1 skipped** (+15). The 2 failures are the same two machine-anchored strict
+SHA-256 pins as task 1's entry, reproducing the identical local hash
+`02de5483…` before *and* after — the elastic bits are provably untouched by
+this session; both ULP-closeness tiers pass, and the occasionally-flaky speed
+test passed in both runs. ruff check + format clean on all five touched .py
+files. Not done here, by scope: no `hybrid.py` wiring (task 5), no δ_C
+(task 6), no truncated-fraction diagnostic (task 4).

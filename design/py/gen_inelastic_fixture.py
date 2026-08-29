@@ -199,7 +199,7 @@ N_SCENE_FIXTURE = 50
 def write_inelastic_fixture(path: Path = INELASTIC_FIXTURE_PATH) -> None:
     """Part 2: the sibling CI fixture (coding plan CQ4).
 
-    The elastic fixture's 50 scene indices x {a, aph, bb, Rrs1, Rrs2, Rrs4}
+    The elastic fixture's 50 scene indices x {a, aph, ag, bb, Rrs1, Rrs2, Rrs4}
     at all three zeniths, float32, and nothing else (Ed ships in the package
     data; ``bbnw``/``bnw`` stay in the elastic fixture, whose bytes this
     script never touches). The a/bb/Rrs1 copies exist so
@@ -219,7 +219,7 @@ def write_inelastic_fixture(path: Path = INELASTIC_FIXTURE_PATH) -> None:
     for zenith in ZENITHS:
         raw = l23._read_inelastic_file(zenith)  # noqa: SLF001 - the loader's own reader
         arrays["wave"] = raw["wave"].astype(np.float32)
-        for field in ("a", "aph", "bb", "Rrs1", "Rrs2", "Rrs4"):
+        for field in ("a", "aph", "ag", "bb", "Rrs1", "Rrs2", "Rrs4"):
             arrays[f"{field}_{zenith}"] = raw[field][:N_SCENE_FIXTURE].astype(
                 np.float32
             )
