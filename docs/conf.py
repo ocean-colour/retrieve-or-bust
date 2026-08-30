@@ -165,6 +165,28 @@ intersphinx_mapping = {
     "jax": ("https://docs.jax.dev/en/latest/", None),
 }
 
+# -- Generated figures -------------------------------------------------------
+#
+# The site's figures are committed once, under ``reports/``. This copies the
+# ones the site renders into ``docs/_static/`` (which is gitignored for
+# ``fig_*.png``), so there is never a second committed copy to drift.
+#
+# Called here, at conf.py import time, rather than from a Sphinx event: the
+# copies must exist before the *read* phase, because a document that references
+# a missing image is a warning and CI builds with -W. Doing it here also means
+# Read the Docs and CI produce the copies themselves, from a bare checkout, with
+# no extra build step to remember. It is pure pathlib/shutil (no matplotlib) and
+# idempotent, so paying for it on every build is free.
+#
+# Sphinx evaluates conf.py with the working directory set to the config
+# directory, which is what makes the relative path below correct -- the same
+# assumption the sys.path line at the top of this file already makes.
+sys.path.insert(0, os.path.abspath("figures"))
+
+from make_docs_figures import copy_figures  # noqa: E402
+
+copy_figures()
+
 # -- HTML output -------------------------------------------------------------
 
 # pydata-sphinx-theme: neither BING/PAB's sphinx_rtd_theme nor IOPtics' furo,

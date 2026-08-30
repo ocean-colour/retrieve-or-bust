@@ -727,6 +727,55 @@ your call than mine. Which?
 
 >A. Yes, leave it in.  I am developing the CDOM code in parallel on this same branch.
 
+Question from Claude (2026-08-30, model: Opus), raised during D1 task 6. It did
+not block the task — the gate ran and passed — but it invalidates a linking
+plan that two later tasks depend on, so it is better answered now than
+discovered at D2.
+
+**Q6 (`main` has no `reports/`, no `design/` and no `notebooks/`, so every
+"link out to GitHub on `main`" the plan calls for is a 404 today).** Task 6
+asks the front page to name where the headline numbers were measured, and
+DocQ5/D2 task 1 both say the reports, the design docs, the coding plans and the
+implementation records are **linked out to GitHub, not rendered**. I checked the
+targets rather than assuming, and `main` does not contain them:
+
+```
+$ git ls-tree --name-only main
+.claude  .gitignore  CLAUDE.md  LICENSE  README.md  claude_prompts
+context  docs  proposals  requirements.txt  robust  setup.py
+
+$ git cat-file -e main:reports/report_rt_inelastic_model.md
+fatal: path 'reports/report_rt_inelastic_model.md' exists on disk,
+       but not in 'main'
+```
+
+So `reports/`, `design/` and `notebooks/` exist only on this branch's lineage;
+`main` is still at `a6acd35`, before the whole elastic + inelastic effort.
+Anything of the form
+`https://github.com/ocean-colour/retrieve-or-bust/blob/main/reports/…` resolves
+to a 404 until the branch merges. That collides with two written instructions:
+D2 task 1's gate — *"every GitHub link in the development record resolves
+(check the paths against the repo, and use `main`, not a branch name)"* — cannot
+be satisfied as worded, and D2 task 6 rewrites the reports' repo-relative links
+to `blob/main/…` URLs, which would ship broken links on the first RTD build.
+
+For today I wrote **no link**: the front page names the two evidence files as
+literal paths (`reports/report_rt_elastic_model.md`,
+`reports/report_rt_inelastic_model.md`) and says the Reports section will render
+them in full. That is accurate and cannot rot, but it is not a link, and the
+front page is exactly where a reader wants one.
+
+My recommendation, in order: **(1)** if `cdom-rt` (or its successor) merges to
+`main` before D2 finishes, do nothing — every `blob/main/…` URL becomes correct
+on merge, and D2 task 1 writes them as specified. **(2)** If the merge will be
+later than D2, add a single `github_url_base` constant to `conf.py` (defaulting
+to `blob/main/`, overridable by an environment variable) so the whole site's
+outbound links move in one edit rather than fifteen. **(3)** What I would *not*
+do is hardcode `blob/cdom-rt/…`: the working agreements forbid treating a branch
+name as fact, and those URLs would rot at the merge instead of before it.
+Which — and is the merge to `main` expected before or after the docs effort
+finishes?
+
 ## D2
 
 Goal: the prose, the provenance and the figures — the site as a manual.
@@ -1821,3 +1870,310 @@ tree, which is why `a_cdom`, `cdom_fl` and `CDOMFl` appear above.
 
 **Stopping at task 5**, per the turn's instruction: the gate is green, and two
 genuine questions (Q4, Q5) are open, so task 6 was not attempted.
+
+### 2026-08-30 (D1 task 6 — the front page and the model overview; the hero has a supply chain, and `main` turns out to be empty of everything the site cites)
+
+**Branch.** `cdom-rt`, read fresh at the start of the turn (`git branch
+--show-current`). JXP had committed again since task 5 — `55bafe8 "cdom is
+nearly done"` — so the tree was clean when I started and **nothing in
+`robust/`, `design/` or `notebooks/` was touched by me**; the final
+`git status --short` is sixteen paths (three modified, thirteen new) and every
+one is under `docs/`, plus this file.
+
+**Files.** Three modified — `docs/index.md`, `docs/model/overview.md`,
+`docs/conf.py` (+22 lines) — and thirteen new, all stubs or the figure script:
+`docs/figures/make_docs_figures.py`, `docs/model/{conventions,ztt,emulator,
+forward,ed,inelastic,fluorescence,corrections,baselines}.md`, and
+`docs/using/{data,validation,limitations}.md`.
+
+---
+
+#### `docs/figures/make_docs_figures.py`, and how `conf.py` calls it
+
+Copy mode only, as the task specifies. `pathlib` + `shutil`, nothing else
+imported — no matplotlib at module level, so it runs in the documentation build
+environment (`docs/requirements.txt`), which has no plotting stack. The public
+surface is one tuple and one function: `DOCS_FIGURES`, today
+`("fig_inelastic_architecture.png",)` — the hero, and only the hero, since that
+is the only figure the site renders at D1 — and
+`copy_figures(names=DOCS_FIGURES, *, reports_dir=None, static_dir=None)`
+returning `[(filename, "copied" | "up-to-date")]`.
+
+**Idempotent, and measured to be.** A destination whose size and integer mtime
+match the source is skipped, which is exact rather than heuristic because
+`shutil.copy2` copies both across and nothing else writes these files. Two
+consecutive runs:
+
+```
+$ python docs/figures/make_docs_figures.py
+     copied: .../docs/_static/fig_inelastic_architecture.png     [first run, after rm]
+$ python docs/figures/make_docs_figures.py
+ up-to-date: .../docs/_static/fig_inelastic_architecture.png
+$ python docs/figures/make_docs_figures.py
+ up-to-date: .../docs/_static/fig_inelastic_architecture.png
+$ md5 -q reports/fig_inelastic_architecture.png docs/_static/fig_inelastic_architecture.png
+0a098caa2e08ff6be420d14e80474607
+0a098caa2e08ff6be420d14e80474607
+```
+
+A missing source raises `FileNotFoundError` naming the path and the script that
+would regenerate it, rather than skipping quietly: a silent skip resurfaces much
+later as a missing-image warning, and CI builds with `-W`, so the loud early
+failure is strictly cheaper.
+
+**`conf.py` calls it at import time**, not from a Sphinx event:
+
+```python
+sys.path.insert(0, os.path.abspath("figures"))
+
+from make_docs_figures import copy_figures  # noqa: E402
+
+copy_figures()
+```
+
+The reason is timing, and it is worth writing down: the copies must exist before
+the **read** phase, because a document referencing a missing image is a warning,
+and a warning is a build failure here. An `app.connect` hook on `builder-inited`
+would also be early enough, but import time is simpler and needs no coordination
+with the `setup(app)` task 5 added for the docstring repairs — which is why I
+did **not** register it inside that `setup()`, contrary to what task 5's log
+suggested for this turn. There is still exactly one `setup()`, doing one thing.
+The relative path works because Sphinx evaluates `conf.py` with the working
+directory set to the config directory — the same assumption the file's existing
+`sys.path.insert(0, os.path.abspath(".."))` already makes, verified by the build
+rather than by reading the Sphinx source.
+
+The upshot is the one DocQ7 asked for: **RTD and CI produce the copies
+themselves from a bare checkout**, `docs/_static/fig_*.png` stays gitignored
+(the pattern task 1 added), and there is no second committed copy of the PNG to
+drift.
+
+---
+
+#### `docs/index.md`
+
+Structure, in order: the hero figure with a caption naming its source; **What
+this is** (two paragraphs, DocQ1 — assumes ocean colour, assumes nothing about
+this repo: the phase-function argument, the backbone, the residual, the two
+inelastic terms, and that gradients are the point); **What exists, and what does
+not**, which opens in bold with *"This is a forward model, and only a forward
+model… the inversion does not exist yet"* **before** any accuracy number, then
+the headline numbers, then their limits in the same breath; a four-card
+`sphinx-design` grid; and four hidden `toctree` blocks.
+
+**The numbers, and where each came from.** All from the two reports' executive
+summaries, checked against the file rather than recalled: 0.34 % rRMS held out,
+all processes on, every zenith, 400–700 nm; elastic-only 16–19 % against the
+same truth and 48 % at the 685 nm peak; the elastic half 0.30 % rRMS on elastic
+truth and 2.3× the O25 refit; gradients ≤ 5.9 × 10⁻⁹; 1.59× runtime;
+`inelastic=None` bit-identical, SHA-256 pinned; and the limits — the −74 %
+unseen-zenith cliff, φ_C truth at one value (0.02), and λ < 400 nm outside the
+domain.
+
+**One sentence I had to correct against the source**, recorded because this
+repo's recurring documentation defect is exactly this. I first wrote *"the
+elastic backbone on its own is 0.30 % rRMS"*. It is not: 0.30 % is the elastic
+**hybrid** — backbone *plus* the learned residual — and the report says so
+("the hybrid reaches 0.30 % rRMS on held-out water bodies"). The page now reads
+"the elastic half on its own — backbone plus residual". The claim was wrong by
+one component of the model, and only re-reading §Executive summary caught it.
+
+**Where the numbers were measured is named, not linked** — see **Q6**. The plan
+was a GitHub link on `main`; `main` has no `reports/` directory at all, so the
+page names the two files as literal paths and says the Reports section will
+render them in full. I would rather a reader see a path they can find than a
+link that 404s.
+
+**The card grid** is four cards, `:link-type: doc`, and every target resolves in
+the built HTML (checked by extracting the `sd-stretched-link` hrefs and stat-ing
+the files):
+
+```
+installation.html      exists: True     Getting started
+model/overview.html    exists: True     The model
+using/data.html        exists: True     Using it
+api.html               exists: True     Reference
+```
+
+---
+
+#### `docs/model/overview.md`
+
+The map the D2 chapters hang off. The composition law in display math, both
+corrected forms — `f_R = 1 + (f_phys − 1)(1 + δ_R)` and
+`φ_C·K_fl → φ_C·K_fl(1 + δ_F)` — with the point that an untrained or absent head
+*is* the analytic physics exactly (δ = 0 is the identity in both forms, by
+construction, not by luck). Then the five terms one paragraph each, naming the
+owning module; a short section on **which space the arithmetic happens in** (the
+law is written in `Rrs`; additivity of the elastic parts holds only in `rrs`,
+because `A·rrs/(1 − B·rrs)` is non-linear); the three `mode` values as a
+definition list, including that `'emulator'` is a *term, not a model* and is
+incompatible with `inelastic=`; and the `inelastic=None` bit-identity guarantee
+stated the way `hybrid.py` states it — the `None` branch returns the elastic
+result object **untouched**, so the guarantee is by construction rather than by
+cancellation, and a test pins the fixture SHA-256.
+
+A short note flags {mod}`robust.rt.cdom_fl` as present, **off by default**,
+analytic-only and **unvalidated** (the X4 truth omits CDOM fluorescence), and
+therefore not part of the law above. That is Q5's answer applied to the prose
+side without promising the D2 chapters a paragraph they have not written yet;
+every word of it traces to `robust/rt/__init__.py`'s own docstring.
+
+**The concept → module → API table** is thirteen rows, each pointing at a live
+autodoc anchor: conventions (`rrs_to_Rrs`, `canonical_wave`, `bb_w`); the input
+pytrees (`IOPs`, `PhaseParams`, `Geometry`); `Rrs_ZTT` (`rrs_ZTT`, `Rrs_ZTT`);
+the residual (`Emulator`, `load_default`); the composition (`forward`,
+`rrs_forward`, `MODES`); the sky (`Ed`, `ratio`); analytic Raman
+(`raman_factor`, `raman_bb`); the fluorescence kernel (`fluorescence_kernel`,
+`emission_line`); φ_C and the switches (`Inelastic`); the heads
+(`corrected_raman_factor`, `corrected_fluorescence`, `CorrectionHeads`);
+baselines (`rrs_gordon`, `rrs_o25`); the data (`load_batch`, `make_splits`); and
+the protocol (`rrms`, `score_models`).
+
+**Every one of them resolves.** Since Q3's answer left `nitpicky` off, a typo'd
+role renders as plain text and passes `-W` silently, so I checked the rendered
+HTML the way D2 task 2's reworded gate requires — every `<code class="…xref…">`
+that is not immediately wrapped in a `<a class="reference…">`:
+
+```
+index.html:            1 xref roles,  0 unresolved -> []
+model/overview.html:  54 xref roles,  0 unresolved -> []
+```
+
+That number is also why the table avoids constants: task 5 measured that 23 of
+198 `__all__` names never reach the page (autodoc emits module data only with
+its own `#:` comment), so several obvious targets — `G2_GORDON`, `WAVE_MIN`,
+`FL_EX_STEP` — have no anchor to point at. `MODES` does, and is used.
+
+---
+
+#### The stub pages, and one deviation
+
+Nine for the "The model" toctree, which lives on `overview.md` as the task
+specifies: `conventions`, `ztt`, `emulator`, `forward`, `ed`, `inelastic`,
+`fluorescence`, `corrections`, `baselines`. Each is a title, one sentence naming
+what the chapter will cover (taken from D2 tasks 2 and 3, so it is a promise the
+plan already made), and this note, worded identically on all nine:
+
+> Arrives at D2 — until then, {doc}`overview` is the one-page summary of this piece.
+
+**Deviation, stated plainly: I also created three `docs/using/` stubs** —
+`data.md` ("Data"), `validation.md` ("Validation"), `limitations.md` ("Scope and
+limitations") — which the task did not ask for. The reason is the card grid: the
+task requires a card pointing at **Using it**, no page in that section exists
+yet, and a `:link-type: doc` card at a nonexistent document is a `ref.doc`
+warning, which under `-W` is a build failure. The alternatives were pointing the
+"Using it" card at `quickstart` (which is Getting started, so two cards would
+lead to the same place and the front page would misdescribe the site) or
+dropping the card (which is not what the task says). Three stubs is the smallest
+honest option, and D2 tasks 4 and 5 fill exactly these three files. Their note
+differs, because `overview` is not their summary:
+
+> Arrives at D2 — until then, the front page's *What exists, and what does not* section carries the headline numbers and where they were measured.
+
+Twelve stub titles and twelve notes verified in the built HTML, page by
+page; `model/overview.html` is the only page under `model/` without an
+arrives-at-D2 note, which is correct — it is the one page this task wrote.
+
+---
+
+#### Gate
+
+**1 — `-W` clean from a genuinely clean tree.** `docs/_static/fig_*.png` and
+`docs/_build/` deleted first, so the `conf.py` hook had to produce the hero
+rather than find a stale copy:
+
+```
+$ rm -f docs/_static/fig_*.png ; rm -rf docs/_build
+$ ls -a docs/_static
+.   ..   .gitkeep                              <- no PNG
+$ /usr/bin/time -p python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+grep -cE "WARNING|ERROR"  ->  0
+real 2.57   user 2.19   sys 0.17
+$ ls docs/_static
+.gitkeep   fig_inelastic_architecture.png      <- regenerated by conf.py
+```
+
+23 HTML pages excluding `_modules/`. The build log's own line
+`copying images... [100%] _static/fig_inelastic_architecture.png` is the hook's
+output being consumed, and both `_images/` and `_static/` copies land in
+`_build/html`.
+
+**2 — the hero renders in both light and dark.** Verified from the markup and
+the *shipped* stylesheet, not from an assumption about the theme. Three facts,
+each read out of `docs/_build/html/`:
+
+*(a) The image carries no theme class.* The only `<img>` on `index.html` is
+
+```html
+<img alt="The composed forward-model architecture: IOPs, phase function and
+geometry enter the ZTT analytic backbone and a learned residual emulator; …"
+     src="_images/fig_inelastic_architecture.png" style="width: 100%;" />
+```
+
+— `class` attribute absent, and the strings `only-light` and `only-dark` do not
+occur anywhere in the page.
+
+*(b) pydata's dark rules therefore include it rather than hide it.* From
+`_build/html/_static/styles/pydata-sphinx-theme.css`, i.e. the CSS this build
+actually ships:
+
+```css
+html[data-theme=dark] .only-light, html[data-theme=dark] .only-light~figcaption {display:none!important}
+html[data-theme=dark] img:not(.only-dark,.dark-light) {filter:brightness(.8) contrast(1.2)}
+html[data-theme=dark] .bd-content img:not(.only-dark,.dark-light) {background-color:#fff;border-radius:.25rem}
+```
+
+The hide rule is keyed on `.only-light`, which our `<img>` does not have, so it
+cannot apply. The other two *do* apply, and the third is the one that matters:
+the figure is an opaque-white-background matplotlib PNG (checked with PIL —
+`RGBA 2100×1200`, corner pixels `(255,255,255,255)`), and pydata puts a white
+plate with rounded corners behind exactly this kind of image in dark mode. So
+dark mode gets a deliberately styled light plate, not a white rectangle bleeding
+into a dark page and not a hidden image.
+
+*(c) The image is inside `.bd-content`, which rule (b) requires.* Confirmed in
+the markup — `<main class="bd-main"> → <div class="bd-content"> → <article
+class="bd-article"> → <figure class="align-center">`. And the theme switcher is
+present on the page (`data-mode="light" | "dark" | "auto"` buttons), so the
+toggle a reader would use is really there.
+
+I did not screenshot the two themes — there is no browser in this environment —
+and I would rather say that than imply I looked at pixels. The claim above is
+exactly as strong as its evidence: the image is not theme-conditional, the only
+dark-mode rule that could hide it is keyed on a class it does not carry, and the
+rule that does apply is the one that makes light-background figures legible.
+
+**3 — no toctree entry dangles.** Zero warnings in a `-W --keep-going` build is
+itself the proof (task 3 measured that a toctree entry to a missing document is
+`toc.not_readable`, EXIT=1), and every one of the twelve stubs was then
+confirmed present with its title and note in the rendered HTML.
+
+---
+
+#### Two things for task 7, neither of them blocking
+
+1. **The navbar is not showing the site's five parts as tabs**, which is what
+   the theme rationale near the top of this document promised. pydata's default
+   `navbar_center` flattens the *top-level toctree entries*, and with hidden,
+   captioned toctrees those entries are individual pages — the rendered navbar
+   reads `Installation · Quickstart · The model in one page · Data · Validation ·
+   More ▾`, not `Getting started · The model · Using it · Reference`. It is
+   correct and every page is reachable; it is just not the structure DocQ2's
+   reasoning described. The fix is a `conf.py` change (section landing pages, or
+   an explicit `navbar_center`), which is task 1/7 territory rather than task 6's,
+   so I left `html_theme_options` alone and am flagging it here.
+2. **`docs/using/.gitkeep` and `docs/figures/.gitkeep` are now redundant** —
+   both directories carry real files. Harmless; removing them is a git operation
+   and JXP's call.
+
+**Q&A.** One new question, **Q6**: `main` contains no `reports/`, no `design/`
+and no `notebooks/` — `git ls-tree --name-only main` and `git cat-file -e` are
+quoted there — so the `blob/main/…` links DocQ5, D2 task 1 and D2 task 6 all
+assume are 404s until this branch merges. It changed what the front page could
+do today (paths, not links) and it will bite D2 task 1's gate as worded.
+
+**Stopping at task 6**, per the turn's instruction: the gate is green and task 7
+(the D1 wrap-up) was not attempted.
