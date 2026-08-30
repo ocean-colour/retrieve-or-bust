@@ -14,6 +14,13 @@ are *measurably* wrong (record §4.4: Raman increment −38.6 % at θ_s = 0°,
   which is what keeps the design's φ_C-linearity promise (§4.4): the yield
   stays a clean multiplicative handle, ``∂Rrs/∂φ_C = K_fl·(1 + δ_F)``.
 
+A third head, **δ_C** (CDOM fluorescence, CDOM design M5), is *defined* here
+on the δ_F pattern (``scale · K_cdom · (1 + δ_C)``, features excluding the
+amplitude) but ships **untrained and unwired**: no CDOM-fl truth exists (M6),
+:func:`train_cdom_corr` raises until it does, :func:`load_default` looks for
+no cdom weights, and ``hybrid._apply_inelastic`` composes ``scale · K_cdom``
+directly — bit-for-bit what a zero-init head would produce.
+
 **Features** (design §4.5), standardized per head at train time; the four
 IOP-like columns enter as log10 because they span decades (the elastic
 emulator's ``log10(u)`` precedent):
@@ -66,6 +73,7 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "KINDS",
     "RAMAN_FEATURES",
     "FL_FEATURES",
+    "CDOM_FEATURES",
     "DEFAULT_RAMAN_WEIGHTS",
     "DEFAULT_FL_WEIGHTS",
     "MissingCorrectionWarning",
@@ -74,17 +82,22 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "CorrectionHeads",
     "features_raman",
     "features_fl",
+    "features_cdom",
     "init_head",
     "save_head",
     "load_head",
     "load_default",
     "corrected_raman_factor",
     "corrected_fluorescence",
+    "corrected_cdom",
+    "train_cdom_corr",
 ]
 
-#: The two correction processes. Order is cosmetic; the kind on a
-#: :class:`HeadConfig` is what selects the feature builder.
-KINDS = ("raman", "fl")
+#: The correction processes. Order is cosmetic; the kind on a
+#: :class:`HeadConfig` is what selects the feature builder. ``"cdom"`` is
+#: δ_C — defined but **untrained** in M5 (no truth exists;
+#: :func:`train_cdom_corr` raises until M6).
+KINDS = ("raman", "fl", "cdom")
 
 #: δ_R feature columns, in order (design §4.5; log10 on the IOPs — module
 #: docstring). Stored in the weight files; :func:`load_head` refuses a file
@@ -108,7 +121,22 @@ FL_FEATURES = (
     "wave",
 )
 
-_FEATURES_BY_KIND = {"raman": RAMAN_FEATURES, "fl": FL_FEATURES}
+#: δ_C feature columns, in order — :data:`FL_FEATURES` with the leading
+#: chlorophyll handle swapped for the CDOM one: ``a_cdom(440)`` is the
+#: CDOM-richness handle, the same role ``a_ph(440)`` plays for the
+#: fluorescing biomass. Deliberately **no** ``scale`` column, the same rule
+#: that keeps φ_C out of δ_F (design §4.4): the amplitude must stay a clean
+#: multiplicative handle, ``∂Rrs/∂scale = K_cdom·(1 + δ_C)``.
+CDOM_FEATURES = (
+    "log10_a_cdom440",
+    "log10_a_em",
+    "log10_bb_em",
+    "log10_a_490",
+    "cos_theta_s",
+    "wave",
+)
+
+_FEATURES_BY_KIND = {"raman": RAMAN_FEATURES, "fl": FL_FEATURES, "cdom": CDOM_FEATURES}
 
 #: Floor under the log10 features. L23 IOPs sit well above it (min ~3e-4);
 #: it exists so a caller's zero (a_ph of pure water, say) yields a finite
@@ -143,8 +171,8 @@ class HeadConfig:
     Attributes
     ----------
     kind : str
-        ``'raman'`` or ``'fl'`` — selects the feature builder and the
-        composition form. Stored with the weights.
+        ``'raman'``, ``'fl'``, or ``'cdom'`` — selects the feature builder
+        and the composition form. Stored with the weights.
     hidden : tuple of int
         Hidden widths. The default single 16-wide layer is 129 parameters —
         the low end of the design's O(10²–10³) budget (§4.5); grow only if
@@ -154,7 +182,11 @@ class HeadConfig:
         Hard tanh bound on |δ|. Defaults differ by head because the measured
         errors do: δ_R must reach +0.64 to close the −39 % increment gap at
         0° (1/0.61 − 1), so its bound is 1.0; δ_F needs ~+0.18 for the 60°
-        drift, so the elastic default 0.5 has ample slack.
+        drift, so the elastic default 0.5 has ample slack. δ_C also defaults
+        to 0.5, but that number is an **arbitrary placeholder**: no CDOM-fl
+        truth exists yet (M6), so unlike the other two it is not sized
+        against a measured error — revisit when the design-§7 HydroLight
+        runs land.
     learning_rate, steps, seed : task-2 training knobs, stored now so the
         weight-file format does not change when training lands.
     """
@@ -293,7 +325,62 @@ def features_fl(
     return jnp.stack(columns, axis=-1)
 
 
-_FEATURE_FNS = {"raman": features_raman, "fl": features_fl}
+def features_cdom(
+    iops,
+    geometry,
+    wave: Float[Array, " wave"] | None = None,
+) -> Float[Array, "*batch wave feature"]:
+    """Raw δ_C feature vectors, one per (sample, λ_em) — :data:`CDOM_FEATURES`.
+
+    :func:`features_fl` with the leading handle swapped: ``a_cdom(440)`` in
+    place of ``a_ph(440)`` (the CDOM-richness handle). **No scale column, by
+    the δ_F rule** (design §4.4): the head must not be able to break the
+    amplitude's linearity. ``a_cdom(440)`` and ``a(490)`` are per-scene
+    scalars (via `conventions.interp_spectrum`) broadcast along λ_em.
+
+    Parameters
+    ----------
+    iops : robust.rt.types.IOPs
+        Must carry ``a_cdom`` (the same physical requirement as the kernel).
+    geometry : robust.rt.types.Geometry
+    wave : Array, optional
+
+    Returns
+    -------
+    Array
+        Shape ``(..., n_wave, 6)``.
+
+    Raises
+    ------
+    ValueError
+        If ``iops.a_cdom`` is ``None``.
+    """
+    if iops.a_cdom is None:
+        raise ValueError(
+            "features_cdom: IOPs.a_cdom is None — the CDOM-fluorescence "
+            "correction is keyed on the CDOM component (a_cdom(440) is its "
+            "leading feature). Provide a_cdom or disable the process "
+            "(Inelastic(cdom_fl=None), the default)"
+        )
+    wave = conventions.canonical_wave() if wave is None else jnp.asarray(wave)
+    a_em, bb_em = iops.a, iops.bb
+    acdom440 = conventions.interp_spectrum(jnp.asarray([440.0]), wave, iops.a_cdom)
+    a490 = conventions.interp_spectrum(jnp.asarray([490.0]), wave, a_em)
+    cos_theta = jnp.broadcast_to(
+        jnp.cos(jnp.deg2rad(jnp.asarray(geometry.theta_s)))[..., None], a_em.shape
+    )
+    columns = (
+        jnp.broadcast_to(_log10(acdom440), a_em.shape),
+        _log10(a_em),
+        _log10(bb_em),
+        jnp.broadcast_to(_log10(a490), a_em.shape),
+        cos_theta,
+        jnp.broadcast_to(wave, a_em.shape),
+    )
+    return jnp.stack(columns, axis=-1)
+
+
+_FEATURE_FNS = {"raman": features_raman, "fl": features_fl, "cdom": features_cdom}
 
 
 @jax.tree_util.register_dataclass
@@ -374,10 +461,19 @@ class CorrectionHeads:
     ``None`` fields contribute no leaves (the ``Geometry.wind`` precedent);
     the treedef changes when one is set, so ``jit`` recompiles once per
     combination — correct and cheap.
+
+    ``cdom`` is the δ_C slot — **never populated by** :func:`load_default`
+    (no ``cdom_corr_l23.npz`` exists, and none is looked for) and **not
+    wired into** ``hybrid._apply_inelastic`` in v1: the shipped CDOM term is
+    ``scale · K_cdom``, mathematically exactly what a zero-init head would
+    compose (``(1 + 0) = 1``), so threading a permanently-untrained head
+    through every ``forward()`` would add cost for zero benefit. The slot
+    exists so M6's wiring is an API no-op.
     """
 
     raman: CorrectionHead | None = None
     fl: CorrectionHead | None = None
+    cdom: CorrectionHead | None = None
 
 
 def init_head(kind: str, config: HeadConfig | None = None) -> CorrectionHead:
@@ -386,10 +482,11 @@ def init_head(kind: str, config: HeadConfig | None = None) -> CorrectionHead:
     Parameters
     ----------
     kind : str
-        ``'raman'`` or ``'fl'``.
+        ``'raman'``, ``'fl'``, or ``'cdom'``.
     config : HeadConfig, optional
         Defaults to ``HeadConfig(kind)`` with the per-kind ``delta_max``
-        documented on :class:`HeadConfig` (1.0 for raman, 0.5 for fl).
+        documented on :class:`HeadConfig` (1.0 for raman, 0.5 for fl and —
+        as an arbitrary placeholder pending M6 truth — for cdom).
 
     Returns
     -------
@@ -459,6 +556,57 @@ def corrected_fluorescence(delta_f, k_fl):
         The corrected kernel, same shape as ``k_fl``.
     """
     return k_fl * (1.0 + delta_f)
+
+
+def corrected_cdom(delta_c, k_cdom):
+    """The corrected CDOM-fluorescence kernel ``K_cdom · (1 + δ_C)``.
+
+    :func:`corrected_fluorescence`'s form applied to the third additive term,
+    written once for the same reason — so a wiring, a gate test, and a
+    training objective can only ever score one expression. The caller
+    multiplies by ``scale`` afterwards, exactly as ``hybrid._apply_inelastic``
+    does for ``φ_C`` (float multiplication is not associative, so the order
+    is part of the contract): ``scale · corrected_cdom(δ_C, K_cdom)`` is the
+    intended M6 composition. **Nothing calls this from ``forward()`` in v1**
+    — the shipped term is ``scale · K_cdom``, bit-for-bit what a zero-init
+    head would produce, so the production path carries no head arithmetic
+    until M6 has weights worth carrying (see :class:`CorrectionHeads`).
+
+    Parameters
+    ----------
+    delta_c : Array
+        δ_C from :meth:`CorrectionHead.delta`, broadcastable to ``k_cdom``.
+    k_cdom : Array
+        The analytic kernel from :func:`robust.rt.cdom_fl.cdom_kernel`.
+
+    Returns
+    -------
+    Array
+        The corrected kernel, same shape as ``k_cdom``.
+    """
+    return k_cdom * (1.0 + delta_c)
+
+
+def train_cdom_corr(*args, **kwargs):
+    """Train δ_C — blocked on truth that does not exist yet.
+
+    Raises
+    ------
+    NotImplementedError
+        Always, in v1. CDOM-fluorescence correction-head training is
+        milestone M6, gated on the HydroLight "X4 vs X4 + CDOM-fl" runs
+        of ``design/rt_cdom_fluorescence_model.md`` §7 — no CDOM-fl truth
+        exists anywhere in hand yet (not in L23, not in BING). This stub
+        exists so the training entry point is discoverable and its
+        failure mode is a clear message, not an AttributeError, until M6
+        unblocks it.
+    """
+    raise NotImplementedError(
+        "CDOM-fluorescence correction-head training (M6) is blocked on "
+        "HydroLight 'X4 vs X4 + CDOM-fl' truth runs (design/"
+        "rt_cdom_fluorescence_model.md §7) -- no truth exists yet. See "
+        "design/rt_cdom_fluorescence_model.md §6 for the M5/M6 split."
+    )
 
 
 def save_head(head: CorrectionHead, path) -> None:

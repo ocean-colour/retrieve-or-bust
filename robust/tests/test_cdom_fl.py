@@ -30,6 +30,7 @@ import pytest
 
 from robust.rt import cdom_fl as C
 from robust.rt import conventions, ed
+from robust.rt import inelastic_corr as IC
 
 # ------------------------------------------------------------ the Hawes η_Y ----
 
@@ -307,3 +308,79 @@ def test_kernel_gradients_are_finite(l23_small_inelastic_batch):
         leaf = np.asarray(getattr(grad, name))
         assert np.all(np.isfinite(leaf)), name
     assert np.any(np.asarray(grad.a_cdom) != 0.0)
+
+
+# --------------------------------------- the δ_C head, defined untrained (task 6) ----
+#
+# The gate (M5 task 6): zero-init head ⇒ (1 + δ_C) ≡ 1 bitwise; the training
+# stub raises informatively naming M6; composition with the head present
+# equals composition without it. All at the inelastic_corr/cdom_fl level —
+# deliberately NOT through hybrid.forward, because the head is NOT wired into
+# _apply_inelastic in v1 (the shipped term scale·K_cdom is bit-for-bit what a
+# zero-init head would compose; see CorrectionHeads' docstring).
+
+
+def test_cdom_feature_list_is_the_fl_pattern():
+    """CDOM_FEATURES mirrors FL_FEATURES with a_cdom(440) as the handle —
+    and, per the δ_F rule (design §4.4), no amplitude column anywhere."""
+    assert IC.CDOM_FEATURES == (
+        "log10_a_cdom440",
+        "log10_a_em",
+        "log10_bb_em",
+        "log10_a_490",
+        "cos_theta_s",
+        "wave",
+    )
+    assert IC.CDOM_FEATURES[1:] == IC.FL_FEATURES[1:]
+    assert not any("scale" in name.lower() for name in IC.CDOM_FEATURES)
+    assert "cdom" in IC.KINDS
+
+
+def test_features_cdom_requires_acdom(l23_small_inelastic_batch):
+    """The same physical requirement as the kernel, same loud error."""
+    batch = l23_small_inelastic_batch
+    iops = dataclasses.replace(batch.iops, a_cdom=None)
+    with pytest.raises(ValueError, match="a_cdom"):
+        IC.features_cdom(iops, batch.geometry, batch.wave)
+
+
+def test_fresh_cdom_head_is_exactly_zero(l23_small_inelastic_batch):
+    """Zero-init output layer → δ_C ≡ 0 bitwise: the untrained head IS the
+    analytic backbone (the CFQ3 decay-to-physics property, pinned before any
+    training exists — exactly as M3 task 1 pinned it for δ_R/δ_F)."""
+    batch = l23_small_inelastic_batch
+    head = IC.init_head("cdom")
+    delta = np.asarray(head.delta(batch.iops, batch.geometry, batch.wave))
+    assert delta.shape == np.asarray(batch.iops.a).shape
+    assert np.all(delta == 0.0)
+
+
+def test_corrected_cdom_identity_at_zero(l23_small_inelastic_batch):
+    """corrected_cdom(0, K) == K bitwise — trivial, but a wrong sign or a
+    stray ``+`` here would silently corrupt every M6 composition later."""
+    batch = l23_small_inelastic_batch
+    k_cdom = C.cdom_kernel(batch.iops, batch.geometry, batch.wave)
+    corrected = IC.corrected_cdom(jnp.zeros(()), k_cdom)
+    assert np.array_equal(np.asarray(corrected), np.asarray(k_cdom))
+
+
+def test_zero_cdom_head_composition_equals_no_head(l23_small_inelastic_batch):
+    """The task-6 gate line: composition with the head present equals
+    composition without any head. Tested at the kernel level (the head is
+    not wired into hybrid.forward in v1 — see the section comment), with
+    the delta actually coming out of the head's network."""
+    batch = l23_small_inelastic_batch
+    head = IC.init_head("cdom")
+    k_cdom = C.cdom_kernel(batch.iops, batch.geometry, batch.wave)
+    with_head = IC.corrected_cdom(
+        head.delta(batch.iops, batch.geometry, batch.wave), k_cdom
+    )
+    assert np.array_equal(np.asarray(with_head), np.asarray(k_cdom))
+
+
+def test_train_cdom_corr_raises_naming_m6():
+    """The stub is discoverable and its failure mode is a clear message
+    naming the blocker (M6, the missing HydroLight truth), never an
+    AttributeError."""
+    with pytest.raises(NotImplementedError, match="M6"):
+        IC.train_cdom_corr()

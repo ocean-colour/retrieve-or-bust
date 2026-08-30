@@ -564,6 +564,9 @@ record the two expected failures explicitly at task 7 rather than claim a
 green suite. Ignore the repin recommendation in the paragraph above; I wrote
 it before seeing the M5 note.
 
+>A. Yes and no repin.
+
+
 **Q2 (The branch moved under me, mid-task).** The working agreement says to
 read the branch I am standing on and record its real name. I started task 1 on
 **`inelastic-rt`** with a clean tree. Partway through task 2 you committed the
@@ -585,6 +588,8 @@ version, usually `main`.
 My recommendation: no action needed from me either way; just confirm which
 branch you want the remaining D1 tasks (3–7) to be written on, and I will read
 it fresh at the start of each turn rather than assuming.
+
+>A. We are using cdom-rt for the rest.  I'll handle all git commands.
 
 **Q3 (`-W` does *not* catch a broken `{func}`/`{class}` cross-reference, which
 is what D2 task 2's gate says it does).** Raised at D1 task 3, where the
@@ -634,6 +639,8 @@ only autodoc surface, than at D2 task 2 with five chapters already written
 against a gate that cannot enforce them. Either way D2 task 2's wording needs
 a small edit, since as written it asserts a behaviour we have now measured to
 be absent. Which do you want?
+
+>A. Let's go with your recommendation.
 
 ## D2
 
@@ -1245,3 +1252,171 @@ noting it so the sequence is on the record.
 
 **Stopping at task 3**, per the turn's instruction — task 4 not attempted even
 though the gate is green.
+
+### 2026-08-30 (D1 task 4 — Installation, Quickstart, Team, References; and a gradient that corrected my prose)
+
+**Branch.** `cdom-rt`, read fresh at the start of the turn, per Q2's answer.
+**Files written: three, all under `docs/`** — `installation.md`,
+`quickstart.md`, `references.md`. `robust/` was not touched; task 4 has no
+sanctioned `robust/` edit. `docs/index.md` needed **no change**: task 1 already
+put all four pages in the front-page toctree, `Team <member_policy>` retitle
+included, and the rendered sidebar confirms it (`member_policy.html">Team`).
+`docs/team.md` was not created, as specified. None of the concurrent CDOM
+effort's files were opened for writing.
+
+**Q&A re-checked.** Q1–Q3 all now carry answers. Q1's "Yes and no repin" is
+what shapes this task's only real judgement call: the suite is described on the
+Installation page as green *modulo* two machine-anchored strict-hash tiers,
+named explicitly, with the measured ULP evidence — never as "fully green". Q2
+confirms the branch. Q3 is a task-5 decision and does not touch this task.
+
+**`docs/installation.md`** (~250 lines): requirements and the 3.12 floor;
+`git clone`; the dependency install with a `warning` admonition built around
+the `git+` caveat; `pip install -e . --no-deps`; what `package_data` ships and
+what breaks without it; CPU vs CUDA JAX; `$OS_COLOR` and what skips without it;
+verification; and a short section on building the docs themselves.
+
+**`docs/quickstart.md`** (~330 lines): environment check → load one L23 scene
+from the committed 50-scene fixture → build `IOPs`/`PhaseParams`/`Geometry`
+→ `forward()` → `inelastic=Inelastic()` → the 685 nm and 550–700 nm differences
+→ `jax.grad` w.r.t. `a`, `a_ph` and `phi_C`. Seven numbered sections, every
+snippet executed, every output pasted from that run.
+
+**`docs/references.md`** (~75 lines): 15 entries in five thematic groups, each
+copied from one of the two reports' References sections with a **Source**
+column saying which (E / I / both). Diffed entry by entry against the source
+files before pasting; the only edits are the reports' HTML subscripts
+(`b<sub>b</sub>` → `b_b`), stated on the page.
+
+**Three things measured rather than assumed, each of which changed what I
+wrote.**
+
+1. **The `git+` caveat is worse than "it replaces your checkouts".** The
+   `--dry-run` shows the GitHub `ocpy` installs under a *different
+   distribution name* (`ocpy-ocean` 0.1.0) than the local editable one
+   (`ocpy` 0.1.dev0), so pip's metadata will happily hold both while only one
+   wins on `import ocpy`. That is on the page because it is the failure mode
+   that would waste an afternoon.
+2. **"Without the weights, `mode='hybrid'` fails" is only half true.** The
+   *emulator* weights raise `FileNotFoundError` (verified by pointing
+   `emulator.DEFAULT_WEIGHTS` at a nonexistent path in a subprocess, and the
+   real message is pasted). The two *correction-head* weights do not: they fall
+   back to analytic-only with a single `MissingCorrectionWarning`, by design,
+   because the analytic backbone is a legitimate model. The stub page inherited
+   the loose version; the written page states both behaviours.
+3. **Desiderio has no bibliography entry to copy.** The task text lists
+   Desiderio (2000) among the references, but the name appears **only** in a
+   code comment above `B_RAMAN_488` in `robust/rt/inelastic.py`, with no year
+   or journal, and is in *neither* report's References section. Per the
+   instruction to copy rather than compose, I did not invent one; the page
+   carries a short "A name with no entry" section recording the gap instead.
+   Flagging it here in case JXP wants the citation run down for D2.
+
+**The prose defect this task caught in the act.** I wrote, from physical
+intuition, that the nonzero `∂Rrs(685)/∂a` at 440 nm "is Raman: blue absorption
+suppresses the photons that get redistributed into the red." Then I ran the
+gradient with the processes switched on one at a time, because the house rule
+says to. It is **fluorescence**, not Raman — the Raman-only gradient w.r.t. `a`
+is *exactly zero* at 440 nm:
+
+```
+inelastic=                        d/da@440      d/da@685     d/da_ph@685
+None (elastic)                   +0.0000e+00   -1.4788e-04   +0.0000e+00
+Inelastic(fluorescence=False)    +0.0000e+00   -1.8272e-04   +0.0000e+00
+Inelastic(raman=False)           -1.1346e-06   -2.0024e-04   +2.3789e-04
+Inelastic()                      -1.1346e-06   -2.3508e-04   +2.3789e-04
+```
+
+Fluorescence excitation is broadband; Raman excitation is not. The Raman-only
+`∂Rrs(685)/∂a` is nonzero at exactly three of the 81 grid points —
+
+```
+raman-only d/da nonzero at wavelengths: [555. 560. 685.]
+values: [-3.0453191e-05 -4.1577973e-06 -1.8272053e-04]
+```
+
+— the emission band itself plus the two points bracketing
+1/(1/685 nm + 3400 cm⁻¹) = **555.6 nm**, the Stokes excitation wavelength.
+Re-derived here, not copied. The corrected explanation and this table are now
+*in* the quickstart, because the wrong version was more plausible than the
+right one, which is exactly when a reader needs the evidence. This is the
+"numbers written before they were measured" defect, caught one step before it
+was written down.
+
+**Gate, every sub-check.**
+
+1 — the strict build, from a deleted `_build/`:
+
+```
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0     grep -cE "WARNING|ERROR" → 0
+/usr/bin/time -p: real 1.17  user 0.81  sys 0.12    (7 pages)
+```
+
+2 — **every command in `installation.md` executed in this task.** Two
+exceptions, both labelled *on the page* rather than faked: `pip install
+jax[cuda12]` (no NVIDIA device here) and the full `pip install -r
+requirements.txt` (run as `--dry-run`, since the real one would have replaced
+the editable `bing`/`ocpy` checkouts — and the dry-run's output *is* the
+evidence for the warning). Everything else ran, including `git clone` into the
+scratchpad (`Cloning into 'retrieve-or-bust'...`, HEAD `a6acd35`), which is a
+network fetch and changes no repository state.
+
+3 — **every snippet in `quickstart.md` executed**, from one script whose blocks
+are the page's code blocks verbatim. Then re-run under `env -u OS_COLOR`: the
+output is **byte-identical**, which is the page's "needs no `$OS_COLOR`" claim
+verified rather than asserted. Two claims that were prose until I checked them
+are now checked: the batched call really does return `(150, 81)`, and
+`phi_C · ∂Rrs/∂phi_C` really does equal `Rrs_fl(685) − Rrs(685)` to every
+printed digit (`2.964558e-05` both ways) — the φ_C-linearity guarantee, in one
+line.
+
+4 — **all four pages reachable from the front-page toctree**, checked in the
+rendered HTML rather than the source: every internal `href` on
+`index/installation/quickstart/references.html` resolves to a file that exists
+(28 distinct targets, zero missing). This check matters *here* specifically
+because `conf.py` sets `suppress_warnings = ["myst.xref_missing"]`, so a broken
+Markdown link would not have failed `-W`. Also confirmed rendered: the
+`warning` and two `note` admonitions, five tables on the references page, one
+on the quickstart, and `member_policy.html` reached as **Team**.
+
+**The one deviation, and it is about the test counts.** The gate wants the
+*actual* pass/skip counts. The tree moved three times underneath me while I
+measured — the concurrent CDOM effort committed and then added files during the
+turn — and the counts went `474 → 480 → 482 passed`. Worse, the last run picked
+up a third failure,
+`test_cdom_validation.py::test_cdom_gate_5_speed_within_twice_elastic`, from an
+**untracked** in-progress file (`?? robust/tests/test_cdom_validation.py`) that
+is not part of the committed package at all. Pasting that into an installation
+page would have misled every reader. So the page carries the last matched pair
+taken from a **single invocation** before that file existed —
+`2 failed, 480 passed, 1 skipped` with `$OS_COLOR`, `2 failed, 445 passed, 36
+skipped` without — plus an explicit note that the counts are a snapshot from a
+tree under concurrent development and that the durable facts are the *shape*:
+the two named machine-anchored failures, one pre-existing skip, and a ~35-test
+skip delta. Recording it here so the next person knows the numbers are honest
+and why they will not match exactly.
+
+**Numbers re-measured in this task rather than carried over from Q1** (the
+house rule applies to my own earlier logs too):
+
+```
+Rrs: differ 2742/12150 (22.6%), max rel 3.326e-07, max ULP 3
+rrs: differ 2862/12150 (23.6%), max rel 1.642e-07, max ULP 2
+```
+
+Identical to task 2's figures; the Installation page quotes them as the
+evidence that the two strict-hash failures are float32 platform drift and not a
+broken install.
+
+**Tree state at the end.** `git status --short` shows my three `docs/` pages
+plus this log edit; `robust/rt/inelastic_corr.py`, `robust/rt/validation.py`,
+`robust/tests/test_cdom_fl.py` and the untracked
+`robust/tests/test_cdom_validation.py` are the concurrent CDOM effort's, not
+mine — none was opened for writing here.
+
+**Stopping at task 4**, per the turn's instruction: the gate is green and no
+new blocking question arose, so task 5 was not attempted. The Desiderio gap in
+note 3 above is a loose end for D2, not a blocker, and is recorded here rather
+than raised as a Q&A question.

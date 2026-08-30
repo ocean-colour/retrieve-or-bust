@@ -248,6 +248,24 @@ correctness-pin test (`test_a0_table_reproduced_at_the_gaussian_peak`)
 deliberately pins exactly these numbers, so a correction means editing the
 constants in `cdom_fl.py` and the test re-pins itself trivially.
 
+**CQ3 (task 7, 2026-08-30, Claude/Fable → JXP):** The design §5 item 5 speed
+gate — total forward with CDOM-fl on ≤ 2× the elastic hybrid — **fails on
+this Mac, reproducibly, not as timing flake**:
+`test_cdom_validation.py::test_cdom_gate_5_speed_within_twice_elastic`
+measures median **2.26×** (trials 2.24–2.34 on a quiet machine; 2.45× under
+load). Context that matters: the *shipped* Raman+Chl-fl model alone measures
+**1.94×** here on the same day (its M4 acceptance recorded 1.59×), and the
+CDOM-only forward measures 1.42× — so the CDOM marginal is a modest
+~0.3–0.4× elastic and most of the budget was already consumed by baseline
+drift on this machine before CDOM arrived (on the M4-era 1.59× baseline the
+total would sit ~1.9×, under the gate). I deliberately left the test gating
+the design bar rather than loosening it or gating only the marginal — so the
+suite now carries this failure alongside the two machine-anchored hash pins
+until you decide: re-measure on the machine that anchored the M4 speed
+record, optimize the CDOM kernel (e.g. its (batch, n_em, n_ex) η_Y tensor
+pass — out of my task-7 scope, since task 3's kernel is done), or re-scope
+the budget. Which?
+
 ## Next
 
 → M6 (δ_C training + quantitative gate) is **deferred**: it opens only when
@@ -554,3 +572,111 @@ files. Untouched, by scope: CQ2 (open, JXP's), `types.py`, the δ_C head,
 `_resolve_corrections`. Noted in passing: `claude_prompts/RT/rt_docs_prompt_1.md`
 carries uncommitted changes not from this session (JXP's, presumably) — left
 alone.
+
+### 2026-08-30 (M5 tasks 6–7 — δ_C defined untrained + not wired; plausibility/gradients green; speed gate FAILS 2.26× → CQ3; 482 green) (model: Fable)
+
+Executed tasks 6–7 on `cdom-rt` (verified; the only tree modification at
+start was `rt_docs_prompt_1.md`, the concurrent Docs session's — left alone,
+as were the `docs/*.md` changes that appeared mid-session). Q&A checked: CQ1
+answered, CQ2 open and deliberately untouched (tasks 6–7 don't depend on the
+FA7 values). No touch to `cdom_fl.py`'s kernel, `hybrid.py`'s composition, or
+`types.py` (tasks 1/3/5, done).
+
+**Task 6 — δ_C head defined, untrained** (`robust/rt/inelastic_corr.py`,
+`robust/tests/test_cdom_fl.py` +6):
+
+- `KINDS` gains `"cdom"`; `CDOM_FEATURES = ("log10_a_cdom440", "log10_a_em",
+  "log10_bb_em", "log10_a_490", "cos_theta_s", "wave")` — `FL_FEATURES` with
+  the leading handle swapped a_ph(440) → a_cdom(440), and deliberately **no
+  scale column** (the same rule that keeps φ_C out of δ_F, §4.4);
+  `features_cdom` mirrors `features_fl` (same ValueError shape naming
+  `a_cdom`); both registered in `_FEATURES_BY_KIND`/`_FEATURE_FNS`.
+  `init_head("cdom")` works through the existing ternary (delta_max 0.5 —
+  documented on `HeadConfig` as an **arbitrary placeholder**, not a
+  measured-error bound like raman's 1.0/fl's 0.5, pending M6 truth).
+  `corrected_cdom(delta_c, k_cdom) = k_cdom * (1.0 + delta_c)`, the
+  `corrected_fluorescence` twin, docstring spelling the intended M6
+  composition order (`scale · corrected_cdom(δ_C, K_cdom)`, scale applied by
+  the caller exactly as `_apply_inelastic` does φ_C). `CorrectionHeads`
+  gains `cdom: CorrectionHead | None = None` (no-leaves-when-None pattern).
+  `train_cdom_corr(*args, **kwargs)` raises NotImplementedError:
+  "CDOM-fluorescence correction-head training (M6) is blocked on HydroLight
+  'X4 vs X4 + CDOM-fl' truth runs (design/rt_cdom_fluorescence_model.md §7)
+  -- no truth exists yet. See design/rt_cdom_fluorescence_model.md §6 for
+  the M5/M6 split." All four new names exported in `__all__`.
+- **Deliberate scope boundary, stated as decided**: the head is **NOT wired
+  into `hybrid.py`** — `load_default()` looks for no `cdom_corr_l23.npz`
+  (none exists; nothing to train on) and `_apply_inelastic`/the
+  `heads = _resolve_corrections(...)` block stay raman/fl-scoped. Task 5's
+  shipped `scale * K_cdom` is mathematically exactly what a zero-init head
+  would compose (`(1 + 0) = 1`, CFQ3), so threading a permanently-untrained,
+  never-loadable head through every `forward()` would add cost and
+  complexity for zero present benefit. The head machinery is
+  forward-looking M6 infrastructure, defined and tested in isolation;
+  documented on `CorrectionHeads` and in the test file's section comment.
+- Gate tests (+6): fresh cdom head ⇒ δ ≡ 0 **bitwise** on the 150-sample
+  fixture (the `test_fresh_head_is_exactly_zero` pattern);
+  `corrected_cdom(0, K) == K` bitwise; composition with the zero-init head
+  present == composition without any head, bitwise, at the
+  inelastic_corr/cdom_fl level (not through `hybrid.forward` — see the
+  boundary above); the stub raises with "M6" in the message; feature-list
+  pin; `features_cdom` without `a_cdom` raises naming it.
+
+**Task 7 — plausibility, gradients, speed** (`robust/rt/validation.py`,
+new `robust/tests/test_cdom_validation.py` with 3 gate tests):
+
+- **Gradients (§5.4)** — design choice: a **new** `cdom_gradient_report` +
+  `CDOM_FD_STEPS` in `validation.py` (not inline in the test), because the
+  module's own rule is one shared definition per protocol quantity, and M6
+  will need exactly this function with a trained head swapped in. It is a
+  separate dict/function **deliberately**: `INELASTIC_FD_STEPS`'s
+  must-name-exactly refusal rule anchors the shipped M4 gate, and extending
+  it would break every existing caller. All eight variables (`a`, `bb_p`,
+  `B_p`, `a_ph`, `phi_C`, `theta_s`, `a_cdom` @1e-8, `scale` @1e-6),
+  same GRADIENT_TOL/float64/central-difference/θ_s=35° protocol. Measured
+  through the all-three-processes-on corrected forward: a 2.5e-9,
+  bb_p 8.9e-10, B_p 2.1e-8, a_ph 1.2e-8, phi_C 1.4e-9, theta_s 3.0e-9,
+  **a_cdom 1.4e-8, scale 9.8e-10** — all ≤ 2.2e-8, well under 1e-6. PASSES.
+- **Plausibility (§5.3)** — full release (9960 scenes), `K_cdom` (unit
+  scale) as a fraction of the **elastic hybrid Rrs**, mean over
+  **440–500 nm** (a band mean, not one grid point; where "blue-green"
+  points), a_cdom(440) deciles via `quantile_bin_labels` (the
+  run_validation.py a_ph(440)-decile idiom). Measured decile means (0→9):
+  **0.30 / 0.47 / 0.63 / 0.78 / 0.95 / 1.15 / 1.40 / 1.74 / 2.30 /
+  4.16 %** — the full sequence is **strictly increasing**, so the test
+  gates the whole monotone decile sequence (stronger than top-vs-bottom),
+  plus top decile in a loose 0.3–15 % "a few percent" band and bottom
+  decile ≤ 1.2 % (loose characterizations, stated as such — not physics
+  claims; the full table is in the test docstring). Zenith-stable
+  (top decile 4.20/4.16/4.12 % at 0/30/60°). PASSES.
+- **Speed (§5.5) — FAILS, genuinely, → Q&A CQ3.** The gate reads design §5
+  item 5 as gate_6 does: total forward with everything on
+  (`Inelastic(cdom_fl=CDOMFl())`, trained R+F heads) vs the elastic hybrid,
+  median of 3 alternating `speed_ratio` trials, jit-wrapped once, loaders
+  eager. Measured on a quiet machine: **everything-on 2.26×** (trials
+  2.24–2.34; 2.45× under the Docs session's concurrent pytest load —
+  timing runs here were repeatedly polluted by that session and re-run
+  after waiting it out). Context: the **shipped R+F model alone measures
+  1.94×** the same day (M4 recorded 1.59×), CDOM-only measures **1.42×**
+  — so the CDOM marginal is ~0.3–0.4× elastic and most of the budget was
+  gone to baseline drift before CDOM arrived (on the M4-era baseline the
+  total would sit ~1.9×, under the gate). Left **gating the design bar**
+  rather than loosened/marginal-only — the failure is the honest state of
+  §5 item 5 on this machine; the decision (re-measure on the M4 reference
+  machine, optimize the kernel's (batch, n_em, n_ex) η_Y pass, or re-scope)
+  is JXP's, asked as **CQ3**. The marginal ratio is computed and printed by
+  the test alongside the gated total.
+
+Suite (`conda run -n ocean14 python -m pytest robust/tests/ -q`, this Mac):
+before **474 passed / 2 failed / 1 skipped**; after **482 passed / 3 failed
+/ 1 skipped** (+8 passed, +1 failed). The 2 carried failures are the same
+machine-anchored elastic strict pins, reproducing the identical local hash
+`02de5483…` before and after — elastic bits provably untouched; both
+closeness tiers green. The +1 is the CDOM speed gate above (reproducible,
+not flake — it was re-run per the flaky-speed protocol and holds at
+2.26–2.45×). ruff check + format clean on all four touched .py files.
+Untouched, by scope: CQ2 (open), `cdom_fl.py`'s kernel, `hybrid.py`,
+`types.py`, `load_default`, `design/py/train_inelastic_corr.py` (raman/fl-
+specific; the stub lives in `inelastic_corr.py` instead — nothing to train
+means nothing to script). Task 8 (notebook + record) should carry the
+plausibility table and the CQ3 speed finding forward.

@@ -40,6 +40,14 @@ The same three axes over the all-processes-on model, with the truth channel
   (float64, per-variable steps, θ_s off the Ed anchors) for all inputs of the
   composed corrected forward, now including ``a_ph`` and ``φ_C``.
 
+CDOM addendum (CDOM design §5 items 3–5, M5): the truth-less v1 gate reuses
+this protocol — :func:`quantile_bin_labels` for the a_cdom(440)-decile
+plausibility table, :func:`speed_ratio` for the everything-on budget, and
+:func:`cdom_gradient_report` (a **separate** report with its own
+:data:`CDOM_FD_STEPS`, so the shipped M4 gate's dict is untouched) for all
+eight inputs including ``scale`` and ``a_cdom``. Its assertions live in
+``test_cdom_validation.py``.
+
 The gate assertions live in ``robust/tests/`` (``test_validation.py``,
 ``test_inelastic_validation.py``); run-and-figure scripts in ``design/py/``,
 outside the package. The elastic hash-regression — gate line (4),
@@ -80,8 +88,10 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "speed_ratio",
     "gradient_report",
     "inelastic_gradient_report",
+    "cdom_gradient_report",
     "FD_STEPS",
     "INELASTIC_FD_STEPS",
+    "CDOM_FD_STEPS",
     "INELASTIC_GATE_BAND",
     "INELASTIC_GATE_TOTAL_RRMS",
     "INELASTIC_GATE_DELTA",
@@ -129,6 +139,25 @@ INELASTIC_FD_STEPS = {
     "a_ph": 1e-8,
     "phi_C": 1e-6,
     "theta_s": 1e-3,
+}
+
+#: Per-variable steps for :func:`cdom_gradient_report` — the CDOM design's
+#: §5 item 4 gate ("all inputs including ``scale`` and ``a_cdom``"): the
+#: :data:`INELASTIC_FD_STEPS` variables plus the two the CDOM term adds.
+#: A **separate dict, deliberately**: extending :data:`INELASTIC_FD_STEPS`
+#: would break its "must name exactly" refusal rule for every existing
+#: caller of the shipped, gate-passed M4 report. ``a_cdom`` is IOP-like
+#: (O(1e-2) m^-1 at 440 nm), so it takes ``a_ph``'s step; ``scale`` is O(1),
+#: so ``phi_C``'s 1e-6 is a comfortable relative step.
+CDOM_FD_STEPS = {
+    "a": 1e-6,
+    "bb_p": 1e-9,
+    "B_p": 1e-8,
+    "a_ph": 1e-8,
+    "phi_C": 1e-6,
+    "theta_s": 1e-3,
+    "a_cdom": 1e-8,
+    "scale": 1e-6,
 }
 
 #: The tolerance the gradient gate has held to since M2, in relative terms.
@@ -758,6 +787,112 @@ def inelastic_gradient_report(
                 dataclasses.replace(geometry, theta_s=theta0 + offsets["theta_s"]),
                 wave,
                 phi0 + offsets["phi_C"],
+            )
+        )
+
+    dtype = jnp.asarray(a0).dtype
+    return {
+        name: _grad_vs_fd(scalar, name, step, dtype) for name, step in steps.items()
+    }
+
+
+def cdom_gradient_report(
+    model,
+    iops,
+    phase_params,
+    geometry,
+    wave,
+    *,
+    phi_C,
+    scale,
+    steps: dict[str, float] | None = None,
+) -> dict[str, float]:
+    """:func:`inelastic_gradient_report` for the CDOM-active forward — CDOM §5.4.
+
+    The same FD protocol over the composed forward with **all three**
+    inelastic processes on, for all eight inputs: the M4 six plus ``a_cdom``
+    (the CDOM-fluorescence source term) and ``scale`` (the ``CDOMFl``
+    amplitude the future inversion retrieves). A **new function, not an
+    extension of** :func:`inelastic_gradient_report`: that report and
+    :data:`INELASTIC_FD_STEPS` anchor the shipped M4 acceptance record, and
+    its must-name-exactly refusal rule means growing its dict would force
+    ``a_cdom``/``scale`` steps on every existing caller of a gate that has
+    nothing to do with CDOM.
+
+    Parameters
+    ----------
+    model : callable
+        ``model(iops, phase_params, geometry, wave, phi_C, scale) -> Array``
+        — close ``inelastic=Inelastic(phi_C=..., cdom_fl=CDOMFl(scale=...))``
+        etc. over in a wrapper. Positional ``phi_C``/``scale`` keep this
+        module free of any import from :mod:`robust.rt.hybrid`.
+    iops
+        Must carry ``a_ph`` **and** ``a_cdom`` (``ValueError`` otherwise): a
+        report that silently skipped either source term would certify the
+        wrong model.
+    phase_params, geometry, wave
+        As :func:`gradient_report` — a small batch, geometry carried intact
+        apart from ``theta_s``.
+    phi_C : float or Array
+        The fluorescence yield to evaluate at.
+    scale : float or Array
+        The CDOM-fluorescence amplitude to evaluate at.
+    steps : dict, optional
+        Per-variable steps. Defaults to :data:`CDOM_FD_STEPS`; must name
+        exactly its variables (the same refusal rule as the other two
+        reports — a missing key would report "perfect agreement" for a
+        variable never perturbed).
+
+    Returns
+    -------
+    dict
+        ``{variable: relative difference}`` for the eight
+        :data:`CDOM_FD_STEPS` variables; ``inf`` where the step left the
+        physical domain.
+
+    Notes
+    -----
+    Run under float64 with pre-cast arrays, and keep ``theta_s`` off the
+    packaged-Ed anchors (0/30/60°) — both exactly as
+    :func:`inelastic_gradient_report`'s notes say, and for the same reasons.
+    """
+    steps = dict(CDOM_FD_STEPS if steps is None else steps)
+    if set(steps) != set(CDOM_FD_STEPS):
+        raise ValueError(
+            f"cdom_gradient_report: steps must name exactly "
+            f"{sorted(CDOM_FD_STEPS)}; got {sorted(steps)}"
+        )
+    if iops.a_ph is None or iops.a_cdom is None:
+        raise ValueError(
+            "cdom_gradient_report: iops.a_ph and iops.a_cdom are both "
+            "required — the report certifies the composed forward with all "
+            "three inelastic processes on, whose source terms are "
+            "phi_C * a_ph and (proportional to) a_cdom"
+        )
+    a0, bb_w0, bb_p0 = iops.a, iops.bb_w, iops.bb_p
+    a_ph0, a_cdom0 = iops.a_ph, iops.a_cdom
+    B_p0, theta0 = phase_params.B_p, geometry.theta_s
+    phi0 = jnp.asarray(phi_C)
+    scale0 = jnp.asarray(scale)
+
+    def scalar(shift, *, name):
+        """Mean model output with one variable shifted by ``shift``."""
+        offsets = dict.fromkeys(steps, 0.0)
+        offsets[name] = shift
+        return jnp.mean(
+            model(
+                types.IOPs(
+                    a=a0 + offsets["a"],
+                    bb_w=bb_w0,
+                    bb_p=bb_p0 + offsets["bb_p"],
+                    a_ph=a_ph0 + offsets["a_ph"],
+                    a_cdom=a_cdom0 + offsets["a_cdom"],
+                ),
+                types.PhaseParams(B_p=B_p0 + offsets["B_p"]),
+                dataclasses.replace(geometry, theta_s=theta0 + offsets["theta_s"]),
+                wave,
+                phi0 + offsets["phi_C"],
+                scale0 + offsets["scale"],
             )
         )
 
