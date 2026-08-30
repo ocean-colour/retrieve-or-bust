@@ -247,6 +247,7 @@ the A0(λ_e) table (units ×10⁻⁵ nm⁻¹): 310→5.81, 330→6.34, 350→8.0
 correctness-pin test (`test_a0_table_reproduced_at_the_gaussian_peak`)
 deliberately pins exactly these numbers, so a correction means editing the
 constants in `cdom_fl.py` and the test re-pins itself trivially.
+>A. I don't have access but I am good with the Ocean Optics Web Book.
 
 **CQ3 (task 7, 2026-08-30, Claude/Fable → JXP):** The design §5 item 5 speed
 gate — total forward with CDOM-fl on ≤ 2× the elastic hybrid — **fails on
@@ -265,6 +266,7 @@ until you decide: re-measure on the machine that anchored the M4 speed
 record, optimize the CDOM kernel (e.g. its (batch, n_em, n_ex) η_Y tensor
 pass — out of my task-7 scope, since task 3's kernel is done), or re-scope
 the budget. Which?
+>A. Go ahead and rescope the budget and make note that it is machine-anchored.
 
 ## Next
 
