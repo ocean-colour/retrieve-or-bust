@@ -45,10 +45,17 @@ The top-level package. It carries the version literal that ``setup.py`` and
 The forward model itself: the module docstring below is the shortest complete
 description of what this package computes and which submodule owns each term.
 
+``robust.rt``'s own ``__all__`` is entirely **re-exports** -- the submodules,
+``forward``, and the five input types -- whose canonical definitions are the
+module sections further down. Documenting them twice makes every
+``:class:`IOPs``` in every docstring ambiguous (``robust.rt.IOPs`` vs
+``robust.rt.types.IOPs``), which Sphinx reports as "more than one target
+found", and it detaches ``forward``'s docstring from ``robust.rt.hybrid``'s
+module context so its own ``:func:`rrs_forward``` references stop resolving.
+Hence ``:no-members:`` here: one canonical home per object.
+
 .. automodule:: robust.rt
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   :no-members:
 
 
 conventions -- the shared choices
@@ -147,6 +154,22 @@ The analytic inelastic physics: the multiplicative Raman factor and the
 phi_C-linear chlorophyll-a fluorescence kernel.
 
 .. automodule:: robust.rt.inelastic
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+cdom_fl -- CDOM fluorescence
+----------------------------
+
+The CDOM-fluorescence kernel (Hawes' excitation-emission parameterisation) and
+its excitation grid. **Newest module in the package**, added by the concurrent
+CDOM effort and not part of the eleven this page was originally specified to
+cover; it is here because ``robust.rt.__init__`` imports and re-exports it and
+because two committed docstrings (in ``hybrid`` and ``inelastic_corr``)
+cross-reference :func:`robust.rt.cdom_fl.cdom_kernel`. See Q&A Q5.
+
+.. automodule:: robust.rt.cdom_fl
    :members:
    :undoc-members:
    :show-inheritance:

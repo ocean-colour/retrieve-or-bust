@@ -29,17 +29,20 @@ Gaussian in wavenumber, with center, width, and amplitude depending on λ_e —
 genuinely **non-separable** in (λ, λ_e), unlike the Chl-fl line shape (see
 :func:`cdom_kernel` for the structural consequence).
 
-**Constants — best-available but NOT independently verified.** A0–B2 below are
-the Hawes (1992) **Station FA7** fulvic-acid fit (Gulf of Mexico, West Florida
-Shelf) — HydroLight's own default CDOM-fluorescence choice (CFQ4/design §2),
-so the §7 truth runs and this kernel share constants by construction. (Zhai et
-al. themselves used a 9:1 FA7:HA6 fulvic/humic mixture — deliberately *not*
-followed here.) The numeric values were sourced from Mobley's Ocean Optics Web
-Book (``oceanopticsbook.info/view/scattering/level-2/cdom-fluorescence``,
-retrieved 2026-08-29 via an AI-mediated page fetch); they have **not** been
-independently cross-checked against Hawes (1992), Proc. SPIE 1750, or Light
-and Water §5.15 — verify before treating them as ground truth (Q&A CQ2 in the
-M5 prompt doc). Only the *functional form* above and the 350 nm clamp
+**Constants — sourced from the Ocean Optics Web Book, accepted by JXP.**
+A0–B2 below are the Hawes (1992) **Station FA7** fulvic-acid fit (Gulf of
+Mexico, West Florida Shelf) — HydroLight's own default CDOM-fluorescence
+choice (CFQ4/design §2), so the §7 truth runs and this kernel share constants
+by construction. (Zhai et al. themselves used a 9:1 FA7:HA6 fulvic/humic
+mixture — deliberately *not* followed here.) The numeric values were sourced
+from Mobley's Ocean Optics Web Book
+(``oceanopticsbook.info/view/scattering/level-2/cdom-fluorescence``, retrieved
+2026-08-29 via an AI-mediated page fetch) and **accepted as-sourced by JXP
+without independent primary-source verification** (Q&A CQ2 in the M5 prompt
+doc, 2026-08-30: "I am good with the Ocean Optics Web Book"). That is a
+provenance statement, not a peer-review claim — no cross-check against Hawes
+(1992), Proc. SPIE 1750, or Light and Water §5.15 was performed, but it is no
+longer an open action item. The *functional form* above and the 350 nm clamp
 precedent are peer-reviewed-verified.
 
 **The 350 nm excitation clamp.** ``g_Y`` nominally admits excitation down to
@@ -67,7 +70,7 @@ from . import conventions, ed
 from .inelastic import MU_D, MU_F
 
 __all__ = [  # noqa: RUF022  - grouped by role
-    # Hawes FA7 constants (Ocean Optics Web Book -- flagged, see module docstring)
+    # Hawes FA7 constants (Ocean Optics Web Book, JXP-accepted -- see module docstring)
     "HAWES_A0_WAVE",
     "HAWES_A0",
     "HAWES_A1",
@@ -91,12 +94,12 @@ __all__ = [  # noqa: RUF022  - grouped by role
 # --------------------------------------------------------- Hawes FA7 constants
 #: Excitation wavelengths (nm) at which Hawes tabulated the FA7 amplitude A0.
 #:
-#: PROVENANCE / CONFIDENCE — read before trusting: this table and the four
-#: scalar constants below are the Station FA7 values as reported on Mobley's
-#: Ocean Optics Web Book (retrieved 2026-08-29); **not independently
-#: cross-checked against Hawes (1992) / Light and Water primary text — verify
-#: before treating as ground truth** (M5 prompt doc, Q&A CQ2). The quoted fit
-#: quality is r² = 0.987.
+#: PROVENANCE: this table and the four scalar constants below are the Station
+#: FA7 values as reported on Mobley's Ocean Optics Web Book (retrieved
+#: 2026-08-29), **accepted as-sourced by JXP without independent
+#: primary-source verification** (M5 prompt doc, Q&A CQ2, 2026-08-30) — no
+#: cross-check against Hawes (1992) / Light and Water primary text was
+#: performed, and none is pending. The quoted fit quality is r² = 0.987.
 HAWES_A0_WAVE = np.array(
     [310.0, 330.0, 350.0, 370.0, 390.0, 410.0, 430.0, 450.0, 470.0, 490.0]
 )

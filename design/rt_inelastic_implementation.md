@@ -1468,9 +1468,118 @@ unchanged — see `rt_elastic_implementation.md` §9):
 | `robust/tests/test_inelastic_validation.py` | **the §6 acceptance gate** — one test per gate line, gate band `INELASTIC_GATE_BAND` (Q&A Q1), median-of-trials speed line | M4 |
 | `design/py/run_validation.py --inelastic` + `design/validation/*inelastic*` | the committed metrics table, CSVs and two figures; regenerates every record-§6 number; exits nonzero on a gate failure | M4 |
 
-## 8. M5 — CDOM fluorescence *(in progress — task 8 completes this write-up; this section currently covers only task 4's diagnostic)*
+## 8. M5 — CDOM fluorescence
 
-### 8.1 The 350 nm clamp + truncated-fraction diagnostic (task 4)
+**Goal.** The third inelastic term, per the companion design
+`design/rt_cdom_fluorescence_model.md` (a separate document by decision —
+CFQ1 — because this record's parent design is a finished, gate-passed
+decision record): the analytic Hawes et al. (1992) CDOM-fluorescence
+emission term, the complete interface (`IOPs.a_cdom`, `CDOMFl`,
+`Inelastic.cdom_fl` live), the δ_C head **defined but untrained**, gated by
+the truth-less v1 acceptance of design §5. No truth exists anywhere in hand
+(L23 omits CDOM-fl by design; BING never implemented it), so M5 ships the
+term **analytic-only, default-off, and unvalidated until M6**. Work on
+branch **`cdom-rt`** (Q&A CQ1 — the doc's fresh-branch-off-`main`
+assumption didn't hold at task 1; JXP created `cdom-rt` in response), on
+JXP's Mac — *not* the tank server that anchored the M0 elastic hash pins,
+which is why those two strict pins fail (deterministically, hash
+`02de5483…`, identical before/after every M5 task) throughout this
+milestone's suite counts.
+
+### 8.1 Task status
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Types: `IOPs.a_cdom`, `CDOMFl`, `cdom_fl` retyped | ✅ done — +22 tests; both off-state routes bitwise-indifferent to a set-but-unused `a_cdom` |
+| 2 | Loader: `a_cdom` (= L23 `ag`) + fixture regen | ✅ done — a_dg bookkeeping pinned; golden values |
+| 3 | The Hawes kernel (`cdom_fl.py`) | ✅ done — FA7 constants JXP-accepted (CQ2); correctness pins green |
+| 4 | 350 nm clamp + truncated-fraction diagnostic | ✅ done — §8.5's committed table |
+| 5 | Composition + extended bit-identity pin | ✅ done — pinned *before* wiring; a real guard bug found and fixed |
+| 6 | δ_C head defined, untrained | ✅ done — zero-init ≡ backbone bitwise; deliberately not wired into `hybrid.py` |
+| 7 | Plausibility, gradients, speed | ✅ done — items 3–4 pass outright; item 5 rescoped per CQ3 (§8.8) |
+| 8 | Notebook + record + docs note | ✅ done — `notebooks/RT/rt_cdom_coding_1.ipynb` executed; this section; `robust/rt/__init__.py` status note |
+
+### 8.2 Types and interface (task 1)
+
+`robust/rt/types.py`: `IOPs` gains optional `a_cdom: Spectrum | None =
+None`, mirroring `a_ph` verbatim — the `Geometry.wind` pytree semantics (no
+leaves unset, treedef change when set), a mirrored keyword on
+`from_total_bb` with the same uniform-batch-shape broadcast, and the same
+three `validate()` checks (shape match, non-negativity, component-of-`a`
+bound `a_cdom ≤ a`). New registered pytree **`CDOMFl(scale=1.0)`** (design
+§3): frozen dataclass, `scale` its single differentiable leaf (the s_C
+amplitude on the Hawes reference kernel — a pytree rather than a bare
+scalar so M6 can grow shape metadata without an API break), `validate()`
+rejecting non-finite/non-positive scale with a message pointing at
+`cdom_fl=None` rather than `scale=0`. `Inelastic.cdom_fl` retyped from the
+reserved always-reject scalar hook to `CDOMFl | None = None` — **`None`
+stays the default, load-bearing**: the X4 truth omits CDOM-fl, so the
+report's 0.34 % gate is valid only while the default model is provably
+CDOM-fl-free. `validate()` type-checks a set value (`isinstance`, so the
+pre-M5 bare-scalar convention fails loudly) and delegates to
+`CDOMFl.validate()`; `forward()` gained the usable-at-call-time guard
+(`cdom_fl` set with `iops.a_cdom is None` ⇒ `ValueError` naming `a_cdom`).
+Gate: +22 tests in `test_inelastic_types.py` (the module the a_ph/Inelastic
+contracts already live in) — pytree mechanics, validators, and **bitwise
+indifference** of both the elastic and the real inelastic (`cdom_fl=None`)
+routes to a set-but-unused `a_cdom`. Note for the record: the task text's
+"preserved by `select()`" was a stray reference — no `select()` exists in
+the codebase.
+
+### 8.3 Loader wiring (task 2)
+
+`robust/rt/data/l23.py`: `INELASTIC_RAW_FIELDS` gains `"ag"` (the L23
+netCDF name for CDOM/gelbstoff absorption — distinct from detrital `ad`,
+confirmed against the files), read with the same X=1/2/4
+consistency asserts as `aph` and threaded into `IOPs(a_cdom=...)`;
+`L23InelasticBatch.validate()` mirrors the `a_ph` presence contract. The
+committed CI fixture `l23_inelastic_fixture.npz` was **regenerated**
+(285 kB, still under the 300 kB budget) via `write_inelastic_fixture()`
+alone — deliberately not the generator's `main()`, which would also have
+rewritten the machine-anchored elastic reference (untouchable here). The
+design-§8 a_dg double-counting foot-gun is pinned as real assertions:
+`a_cdom ≥ 0` and `a_ph + a_cdom ≤ a` everywhere, on the fixture and at
+full-release scale (9960 samples; measured margin max(a_ph + a_cdom − a)
+≈ −5.3e-3), plus bit-faithful loader-vs-netCDF goldens
+(`ag_0[0]@440 = 5.7960e-03`, `ag_30[7]@440 = 3.1390e-03`). Fixture-backed
+tests need no `$OS_COLOR`; live-netCDF ones carry the established skip
+markers.
+
+### 8.4 The Hawes kernel (task 3)
+
+`robust/rt/cdom_fl.py` (new): `eta_hawes(λ, λ_e)` implements Zhai, Hu, Lee
+et al. (2017), *Opt. Express* 25(8), Eqs. (7)–(8) literally — for each
+excitation wavelength an emission distribution Gaussian in **wavenumber**,
+center `A1/λ_e + B1`, width `0.6·(A2/λ_e + B2)`, amplitude `A0(λ_e)`
+linearly interpolated between the ten tabulated nodes, gated by `g_Y`
+(310–490 nm). **Provenance, resolved:** the functional form and the 350 nm
+excitation floor are peer-reviewed-verified (Eqs. 5–8 extracted verbatim
+from the published PDF; Zhai et al. impose the same clamp themselves); the
+**FA7 numeric constants** — Hawes (1992) Station FA7, HydroLight's own
+default, so the §7 truth runs share constants by construction — were
+sourced from Mobley's Ocean Optics Web Book via an AI-mediated fetch and
+initially flagged as unverified (Q&A CQ2). **JXP accepted the source as-is
+(CQ2, 2026-08-30: "I am good with the Ocean Optics Web Book")** — the
+constants are now recorded as *sourced from OOWB, accepted without
+independent primary-source verification*: honest provenance, not
+peer-review, and no longer an open action item. `cdom_kernel(iops,
+geometry, wave)` mirrors `fluorescence_kernel`'s S&P98 machinery term for
+term (source `b_bY = ½·a_cdom(λ_e)`, true `Ed(λ_e)`, trapezoid quadrature,
+`K/μ_D`, `κ_Y/μ_F`, `optimization_barrier`, **L_u = E_u/π**, `rrs_to_Rrs`)
+with one **structural departure**: η_Y is non-separable in (λ, λ_e), so it
+multiplies the `(..., n_em, n_ex)` integrand *before* the excitation
+reduction instead of post-multiplying the reduced sum like Chl-fl's
+separable `emission_line` — one extra elementwise multiply by a batch-free
+(n_em, n_ex) matrix, against a 29-node contraction (Chl-fl's is 65).
+Correctness pins (design §5.2): A0 reproduced at each tabulated λ_e's own
+emission peak; η_Y ≥ 0 and `g_Y`-gated; emission peak red-shifted for every
+admissible λ_e (with the honest note that the Gaussian-in-wavenumber form
+does *not* enforce a strict Stokes shift — the blue tail is real and
+asserted subdominant, never asserted away); quadrature convergence 5 nm vs
+2.5 nm at rtol 1e-2 (measured max 5.6e-3); and the clamp proved at the
+seams (spy test: every wavelength the kernel reads is ≥ 350 nm).
+
+### 8.5 The 350 nm clamp + truncated-fraction diagnostic (task 4)
 
 The CDOM-fluorescence design (`design/rt_cdom_fluorescence_model.md` §2 —
 the design rationale for the clamp itself lives there) imposes a **hard
@@ -1517,8 +1626,9 @@ alone — the *realized* truncated Rrs contribution is further weighted by
 `a_cdom(λ_e)·Ed(λ_e)`, and sub-350 nm surface `Ed` is strongly suppressed
 (ozone + solar spectrum — Zhai et al.'s own reason for the identical
 clamp), so the table is the conservative, scene-free flavor of the caveat;
-(ii) the numbers inherit the FA7 constants' provenance flag (CQ2 — not yet
-independently verified) and re-pin trivially with them. Quote this table
+(ii) the numbers inherit the FA7 constants' provenance (CQ2 — sourced from
+the Ocean Optics Web Book, accepted by JXP without independent
+primary-source verification) and re-pin trivially with them. Quote this table
 wherever the term's output is quoted (design §2's documented-caveat
 requirement); the HydroLight truth runs of design §7, when they land,
 resolve how much of it survives the Ed weighting.
@@ -1528,3 +1638,158 @@ Gate tests (`robust/tests/test_cdom_fl.py`, task-4 section):
 above, banded ±0.03 — it characterizes, it does not gate to zero),
 `test_truncated_fraction_quadrature_converged`, and
 `test_truncated_fraction_guard_and_domain`.
+
+### 8.6 Composition + the extended bit-identity regression (task 5)
+
+Executed in the sequence-critical order: **the pin first.** Before touching
+`hybrid.py`, `write_inelastic_default_reference()` (the
+`write_elastic_reference` template: compute on the fixture via the real
+reader, round-trip byte-verify, atomic replace) produced the committed
+`robust/tests/files/inelastic_default_reference_outputs.npz` (88 kB) on the
+**unmodified** code, and SHA-256 of its arrays was pinned
+(`PRE_CDOM_SHA256_RRS_ABOVE = 0dd36515…`, `…_BELOW = 72d4a308…`) as a
+two-tier test pair mirroring the elastic one — strict hash local-only,
+ULP-closeness (rtol 5e-7) everywhere. Note these pins are anchored to
+**JXP's Mac** — a *different* machine from the tank server that anchored the
+M0 elastic pins, so on any one machine one strict set may fail while the
+other passes; the closeness tiers carry the guard everywhere.
+
+Then the wiring (`hybrid.py`), which surfaced **a real bug in the task-1
+guard**: `_apply_inelastic`'s early return tested only
+`raman or fluorescence`, so a caller setting *only* `cdom_fl` would have
+silently received the untouched elastic output — plausible-looking, with
+the requested physics missing. The condition now treats `cdom_fl is not
+None` as an active process, and the regression `test_cdom_fl_alone_composes`
+pins it. The term itself mirrors the fluorescence block:
+`result += scale · cdom_kernel(...)`, composition law
+`(Rrs_ZTT + ΔRrs) × f_R + Rrs_fl + Rrs_cdom`. `CDOMFl` and the `cdom_fl`
+submodule joined `robust/rt/__init__.py`'s exports (deferred from task 1 —
+the wiring makes `CDOMFl` a genuine `forward()` argument type).
+
+The proofs: **both new pins re-ran bit-identical after the wiring** — the
+CDOM branch is unreachable when `cdom_fl=None`, by construction, not by
+arithmetic (and the elastic strict pin reproduced the identical local hash
+before/after, so the elastic bits are untouched too). The **additive proof**
+uses `CDOMFl(scale=2.0)` — deliberately ≠ 1, so a dropped amplitude cannot
+pass — and asserts `forward(default+cdom) == forward(default) + 2·K_cdom`
+**in Rrs space**, the composition law's own layer (an rrs-space difference
+would pick up Lee's non-linear conversion, ~1.9× off).
+
+### 8.7 The δ_C head — defined, untrained, deliberately not wired (task 6)
+
+`robust/rt/inelastic_corr.py`: `KINDS` gains `"cdom"`;
+`CDOM_FEATURES = ("log10_a_cdom440", "log10_a_em", "log10_bb_em",
+"log10_a_490", "cos_theta_s", "wave")` — `FL_FEATURES` with the leading
+handle swapped a_ph(440) → a_cdom(440), and deliberately **no scale
+column** (the rule that keeps φ_C out of δ_F's features). `init_head("cdom")`
+works through the existing machinery (delta_max 0.5, documented as an
+**arbitrary placeholder** pending M6 truth, unlike raman/fl's
+measured-error bounds); `corrected_cdom(δ_C, K_cdom)` is the
+`corrected_fluorescence` twin; `CorrectionHeads` gains
+`cdom: CorrectionHead | None = None`. The training entry point
+`train_cdom_corr` **raises `NotImplementedError`** naming M6 and the
+missing HydroLight truth — nothing to train on, so no weights file exists
+or is loadable.
+
+**Deliberate scope boundary:** the head is **not wired into `hybrid.py`**.
+`load_default()` looks for no `cdom_corr_l23.npz` and `_apply_inelastic`'s
+heads block stays raman/fl-scoped. The shipped `scale · K_cdom` is
+mathematically exactly what a zero-init head would compose (`(1 + 0) = 1`),
+so threading a permanently-untrained, never-loadable head through every
+`forward()` would add cost and complexity for zero present benefit; the
+machinery is forward-looking M6 infrastructure, defined and tested in
+isolation. Gate: fresh cdom head ⇒ δ ≡ 0 **bitwise** on the 150-sample
+fixture; `corrected_cdom(0, K) == K` bitwise; composition with the zero-init
+head equals composition without it; the stub raises naming "M6".
+
+### 8.8 Gates: plausibility, gradients, speed (task 7) — and the CQ3 rescope
+
+**Plausibility (design §5.3) — PASSES.** On the full release (9960 scenes):
+`K_cdom` (unit scale) as a fraction of the elastic hybrid Rrs, mean over
+440–500 nm, stratified into a_cdom(440) deciles:
+
+| decile | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| mean fraction (%) | 0.30 | 0.47 | 0.63 | 0.78 | 0.95 | 1.15 | 1.40 | 1.74 | 2.30 | 4.16 |
+
+The full decile sequence is **strictly increasing** (gated as such —
+stronger than top-vs-bottom); top decile inside the loose "a few percent"
+band (0.3–15 %), bottom ≤ 1.2 %; zenith-stable (top decile 4.20/4.16/4.12 %
+at 0/30/60°). Loose characterizations by design — there is no truth to
+tighten them against.
+
+**Gradients (design §5.4) — PASSES.** A new `cdom_gradient_report` +
+`CDOM_FD_STEPS` in `validation.py` (separate from `INELASTIC_FD_STEPS`,
+whose must-name-exactly refusal rule anchors the shipped M4 gate): all
+eight variables (the M4 six plus `a_cdom` and `scale`) through the composed
+all-three-processes-on corrected forward, float64 central differences —
+worst 2.2e-8 (B_p); `a_cdom` 1.4e-8, `scale` 9.8e-10; gate 1e-6.
+
+**Speed (design §5 item 5) — rescoped per CQ3, then PASSES.** The gate as
+first written asserted the design's 2× elastic budget and **failed
+reproducibly on JXP's Mac**: everything-on/elastic median 2.26–2.34×
+(quiet; 2.45× under concurrent load), vs the shipped R+F model at ~1.9×
+the same day (its M4 acceptance recorded 1.59× on the reference machine)
+and CDOM-only at ~1.4× — i.e. the CDOM marginal is a modest ~0.3–0.4×
+elastic and most of the budget was consumed by baseline drift on this
+machine before CDOM arrived. Presented to JXP as Q&A CQ3 (re-measure on
+the reference machine / optimize the kernel / rescope); **JXP: "Go ahead
+and rescope the budget and make note that it is machine-anchored"
+(2026-08-30).** Task 8 executed the rescope: the bound is now
+`CDOM_GATE_SPEED_MACHINE_ANCHORED = 2.6` in `test_cdom_validation.py`
+(fresh task-8 measurements: medians 2.34/2.30/2.31 over three runs; 2.6 =
+measured medians plus load headroom), the test renamed
+`test_cdom_gate_5_speed_within_rescoped_budget`, and design §5 item 5
+updated to carry the same bar. **Machine-anchored** in exactly the strict
+SHA-256 hash-pin sense: the number characterizes *this Mac's* measured
+behavior, not a portable physical requirement — a different machine may
+reproduce a different, possibly tighter, ratio. The shared
+`validation.INELASTIC_GATE_SPEED = 2.0` gating the shipped M4 record is
+untouched. With the rescope, the gate passes and §5 items 3–5 are closed.
+
+### 8.9 Notebook + docs note (task 8)
+
+**`notebooks/RT/rt_cdom_coding_1.ipynb`** — executed with real outputs
+(nbconvert in `ocean14`; kernelspec note below): what M5 *decided*, shown
+live — the Hawes FA7 basis (η_Y plotted/printed across excitation
+wavelengths, provenance per CQ2), the 350 nm clamp with the §8.5 truncated
+-fraction table recomputed and asserted against the pins, the load-bearing
+default-off (bit-identity of `forward` with and without an unused `a_cdom`
+demonstrated live), the §8.8 plausibility table recomputed on the full
+release, the speed ratio measured live beside the machine-anchored 2.6
+bound, and the what's-not-done paragraph (M6). Kernelspec: this Mac had
+only a `python3` kernelspec registered (the `ocean14`-named spec of §2.3's
+addendum lives on the tank server), so `ipykernel`'s already-installed
+`ocean14` interpreter was registered as a user kernelspec named `ocean14`
+(`python -m ipykernel install --user --name ocean14`) so the committed
+notebook's kernelspec matches the other milestone notebooks' — noted here
+rather than silently matched. **Docs note** (`robust/rt/__init__.py`): the
+stale "elastic physics only / raises until M2" status paragraph replaced
+with the honest current state — elastic complete; Raman+Chl-fl complete and
+gate-passed (the shipped report); CDOM-fl landed **analytic-only,
+default-off (`cdom_fl=None`), and unvalidated until M6** — and `cdom_fl`
+added to the submodule list (it was exported but undescribed).
+
+### 8.10 M5 status
+
+**Shipped:** the analytic CDOM-fluorescence term and its full interface —
+`IOPs.a_cdom` (loader-populated from L23 `ag`), `CDOMFl(scale=1.0)`,
+`Inelastic.cdom_fl`, the Hawes FA7 kernel with the 350 nm clamp and its
+committed truncated-fraction diagnostic, the composition into `forward()`,
+and the δ_C head machinery (zero-init, untrained, unwired) — **gate-passed
+per the rescoped v1 gate** (design §5 as amended by CQ3): off-state
+bit-identity (two-tier, both routes), correctness pins, the plausibility
+band, eight-variable gradients, and speed within the machine-anchored 2.6×.
+The default model remains provably CDOM-fl-free: `Inelastic()` is
+bit-identical to the shipped M4 output, so the report's 0.34 % claim stands
+untouched.
+
+**Not validated:** everything beyond implementation correctness. No truth
+channel exists — L23 omits CDOM-fl by design, BING never implemented it —
+so no rRMS gate, no trained δ_C, no accuracy claim of any kind: the term is
+"Hawes-consistent and plausible" (design §8), **unvalidated until M6**.
+The §8.5 truncation table is the standing caveat wherever the term's output
+is quoted. **M6 unblocks** when the HydroLight "X4 vs X4 + CDOM-fl" paired
+runs of design §7 exist (commissioned jointly with the geometry runs);
+until then there is no prompt doc and nothing to train on. Task 9 (JXP's PR
+review) follows separately and is not part of this design record.

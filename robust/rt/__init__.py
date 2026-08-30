@@ -11,11 +11,12 @@ where ``Rrs_ZTT`` is the Twardowski & Tonizzo (2018) analytic backbone — with 
 *explicit* phase-function dependence — and ``ΔRrs`` is a small learned residual
 (multiple scattering and phase-function effects the backbone misses).
 
-Elastic physics only so far — but the *interface* now carries the inelastic
-extension (design ``design/rt_inelastic_model.md``, M0): ``forward(...,
-inelastic=None)`` with the :class:`~robust.rt.types.Inelastic` configuration
-pytree. ``inelastic=None`` is bit-identical to the elastic hybrid by
-construction; passing an instance raises until M2 lands Raman + fluorescence.
+The inelastic extension (design ``design/rt_inelastic_model.md``) rides on
+top: ``forward(..., inelastic=None)`` with the
+:class:`~robust.rt.types.Inelastic` configuration pytree. ``inelastic=None``
+(the default) is bit-identical to the elastic hybrid by construction; an
+instance composes Raman, chlorophyll fluorescence, and (when
+``cdom_fl`` is set) CDOM fluorescence.
 
 Design    : ``design/rt_elastic_model.md``
 Plan      : ``design/rt_elastic_model_coding_plan.md``
@@ -33,8 +34,11 @@ ed
     ``Ed(theta_s, lambda)`` from packaged L23 spectra + the ``Geometry.Ed``
     override — consumed by the inelastic terms only (M1).
 inelastic
-    The analytic inelastic terms: ``raman_factor`` (M2 task 1);
-    ``fluorescence_kernel`` arrives at M2 task 2.
+    The analytic inelastic terms: ``raman_factor`` and
+    ``fluorescence_kernel`` (M2).
+cdom_fl
+    The analytic CDOM-fluorescence term: ``eta_hawes``, ``cdom_kernel``,
+    the 350 nm-clamp diagnostic (M5).
 ztt
     ``Rrs_ZTT`` — the analytic backbone.
 emulator
@@ -48,10 +52,15 @@ baselines
 
 **Status.** The elastic Week-1 prototype is **complete** — every submodule
 above is implemented and `forward()` is the working hybrid (elastic record
-§6). On the inelastic side, the *types* (M0: ``Inelastic``, ``IOPs.a_ph``,
-``Geometry.Ed``) and the ``ed`` module (M1) have landed; the inelastic
-*physics* arrives at M2, and until then ``forward(..., inelastic=<instance>)``
-raises :class:`NotImplementedError`.
+§6). The inelastic Raman + chlorophyll-fluorescence prototype (M0–M4) is
+likewise **complete and gate-passed** — held-out 0.34 % rRMS vs the X4
+truth, bit-identical elastic off-state (``reports/report_rt_inelastic_model.md``,
+v1.0). M5 adds **CDOM fluorescence** as a third inelastic term
+(``design/rt_cdom_fluorescence_model.md``): **analytic-only** (the Hawes FA7
+kernel; the δ_C head is defined but untrained), **default-off**
+(``Inelastic(cdom_fl=None)`` — the default — stays bit-identical to the
+shipped inelastic model, because the X4 truth omits CDOM-fl), and
+**unvalidated until M6**, pending the design-§7 HydroLight truth runs.
 """
 
 from . import (

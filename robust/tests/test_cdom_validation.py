@@ -51,7 +51,21 @@ PLAUSIBILITY_BAND = (440.0, 500.0)
 CDOM_RICH_BAND = (0.003, 0.15)
 OLIGOTROPHIC_MAX = 0.012
 
-SPEED_GATE = V.INELASTIC_GATE_SPEED
+#: The CDOM speed gate's bound — **machine-anchored, by decision** (Q&A CQ3,
+#: 2026-08-30: "Go ahead and rescope the budget and make note that it is
+#: machine-anchored"). The design's original bar was the shared 2× elastic
+#: budget (``validation.INELASTIC_GATE_SPEED`` — deliberately NOT reused here:
+#: that constant gates the *shipped* M4 Raman+Chl-fl record and must not
+#: move), but on JXP's Mac the everything-on forward reproducibly measures
+#: 2.26–2.34× (quiet; ~2.45× under concurrent load) — mostly baseline drift:
+#: the shipped R+F model itself measures ~1.9× here vs its M4-recorded 1.59×,
+#: and the CDOM marginal is ~0.4× elastic. Like the strict SHA-256 pins, this
+#: number characterizes *this machine's* measured behavior, not a portable
+#: physical requirement — a different machine (e.g. the tank server that
+#: anchored the M4 speed record) may reproduce a different, possibly tighter,
+#: ratio. 2.6 = the measured quiet-machine medians (2.30–2.34 on 2026-08-30)
+#: plus headroom for load; design §5 item 5 carries the same rescoped bar.
+CDOM_GATE_SPEED_MACHINE_ANCHORED = 2.6
 
 
 @pytest.fixture(scope="module")
@@ -192,8 +206,8 @@ def test_cdom_gate_4_gradients_all_inputs(jax_x64, l23_small_inelastic_batch):
 
 @needs_weights
 @needs_l23_inelastic
-def test_cdom_gate_5_speed_within_twice_elastic(cdom_release):
-    """**CDOM §5 item 5**: full-batch forward with CDOM-fl on ≤ 2× elastic.
+def test_cdom_gate_5_speed_within_rescoped_budget(cdom_release):
+    """**CDOM §5 item 5**: full-batch forward with CDOM-fl on, within budget.
 
     ``test_gate_6_speed_within_twice_elastic``'s protocol exactly — median
     of three :func:`validation.speed_ratio` trials, alternating order, both
@@ -205,17 +219,20 @@ def test_cdom_gate_5_speed_within_twice_elastic(cdom_release):
     (CDOM-only forward vs elastic) is measured and reported alongside, not
     gated — the design's budget is on the composed model.
 
-    **Known failing at M5 task 7 (2026-08-30, JXP's Mac, quiet machine) — a
-    finding, not a flake**: everything-on/elastic median **2.26×** (trials
-    2.24–2.34, reproducible), vs R+F-only at 1.94× and CDOM-only at 1.42×
-    the same day. The CDOM marginal (~0.3–0.4× elastic) is modest; the
-    budget was already nearly consumed — the shipped R+F model measured
-    1.59× at the M4 acceptance and 1.94× here/now, so baseline drift on
-    this machine accounts for most of the overage (on the M4-era baseline
-    the total would sit ~1.9×, under the gate). Deliberately left gating
-    the design bar rather than loosened: how to proceed (re-measure on the
-    reference machine, optimize the kernel, or re-scope the budget) is
-    JXP's call — Q&A CQ3 in the M5 prompt doc.
+    **The bound is machine-anchored, not the original design 2×** — the CQ3
+    history, in short: at M5 task 7 (2026-08-30, JXP's Mac, quiet machine)
+    the median measured **2.26–2.34× reproducibly** (2.45× under concurrent
+    load), vs R+F-only at 1.94× and CDOM-only at ~1.4× the same day. The
+    CDOM marginal (~0.3–0.4× elastic) is modest; most of the overage is
+    baseline drift on this machine — the shipped R+F model measured 1.59×
+    at its M4 acceptance and ~1.9× here/now (on the M4-era baseline the
+    total would sit ~1.9×, under the original gate). JXP's call (Q&A CQ3):
+    rescope the budget and note it as machine-anchored. Hence
+    :data:`CDOM_GATE_SPEED_MACHINE_ANCHORED` (see its docstring for what
+    "machine-anchored" means here — the strict-hash-pin sense: a
+    characterization of this Mac, not a portable claim); design §5 item 5
+    records the same rescoped bar. The M4 record's shared
+    ``INELASTIC_GATE_SPEED = 2.0`` is untouched.
     """
     batch, _, _ = cdom_release
     from robust.rt import emulator as E
@@ -266,7 +283,8 @@ def test_cdom_gate_5_speed_within_twice_elastic(cdom_release):
         f"(trials {[f'{r:.2f}' for r in ratios]}); "
         f"CDOM-only/elastic {marginal:.2f}x (reported, not gated)"
     )
-    assert median <= SPEED_GATE, (
+    assert median <= CDOM_GATE_SPEED_MACHINE_ANCHORED, (
         f"median speed ratio {median:.2f}x over {len(ratios)} trials "
-        f"(all: {[f'{r:.2f}' for r in ratios]}) exceeds the {SPEED_GATE}x gate"
+        f"(all: {[f'{r:.2f}' for r in ratios]}) exceeds the machine-anchored "
+        f"{CDOM_GATE_SPEED_MACHINE_ANCHORED}x gate (Q&A CQ3)"
     )

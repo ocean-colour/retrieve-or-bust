@@ -10,6 +10,7 @@ Full reference: https://www.sphinx-doc.org/en/master/usage/configuration.html
 """
 
 import os
+import re
 import sys
 
 # Make the checkout importable for autodoc. conf.py lives at docs/, so the
@@ -103,6 +104,44 @@ autodoc_typehints = "description"  # built-in; no sphinx-autodoc-typehints dep
 # (emulator training) and `ocpy` (the L23 loader) are imported inside
 # functions, so autodoc never drags in ocpy's geospatial tree.
 autodoc_mock_imports = []
+
+
+# -- Docstring markup repair (temporary; see prompt-doc Q&A Q4) ----------------
+#
+# Three docstrings in `robust/` carry reStructuredText that docutils cannot
+# parse, and autodoc renders docstrings verbatim, so each is a build failure
+# under -W. The durable fix is a few characters in the source; D1 task 5 has no
+# sanctioned `robust/` edit (and one of the two files is under concurrent
+# development by the CDOM effort), so the defects are repaired here, at render
+# time, and raised as Q&A Q4 for a source fix at D2 task 5.
+#
+# These are *general* rules, not text-keyed patches: they keep working if the
+# surrounding prose is reworded, and become no-ops once the sources are fixed.
+_DOCSTRING_REPAIRS = [
+    # `**48**(35)` -- docutils requires whitespace or closing punctuation after
+    # a strong end-string; "(" is opening punctuation, so the `**` never
+    # closes. Two journal citations in ztt.py are written this way.
+    (re.compile(r"(\*\*[^*\s][^*]*\*\*)\("), r"\1 ("),
+    # `|delta|` used as mathematical absolute-value bars reads to docutils as a
+    # substitution reference. Escape the bars so they render as literal pipes.
+    (re.compile(r"(?<![\\|])\|(\u03b4[_A-Za-z]*)\|(?![|])"), r"\\|\1\\|"),
+]
+
+
+def _repair_docstring(app, what, name, obj, options, lines):
+    """Apply :data:`_DOCSTRING_REPAIRS` to one autodoc docstring, in place."""
+    for i, line in enumerate(lines):
+        new = line
+        for pattern, replacement in _DOCSTRING_REPAIRS:
+            new = pattern.sub(replacement, new)
+        if new != line:
+            lines[i] = new
+
+
+def setup(app):
+    app.connect("autodoc-process-docstring", _repair_docstring)
+    return {"parallel_read_safe": True, "parallel_write_safe": True}
+
 
 # -- Napoleon ----------------------------------------------------------------
 

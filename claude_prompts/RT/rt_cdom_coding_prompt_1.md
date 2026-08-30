@@ -682,3 +682,115 @@ Untouched, by scope: CQ2 (open), `cdom_fl.py`'s kernel, `hybrid.py`,
 specific; the stub lives in `inelastic_corr.py` instead — nothing to train
 means nothing to script). Task 8 (notebook + record) should carry the
 plausibility table and the CQ3 speed finding forward.
+
+### 2026-08-30 (M5 task 8 — CQ2/CQ3 reactions, notebook executed, record §8 complete, docs note; speed gate now PASSES at 2.6× machine-anchored; 483 green) (model: Fable)
+
+Executed task 8 on `cdom-rt` (verified), **preceded by the two Q&A
+reactions** — both answers landed since task 7:
+
+**CQ2 reaction (FA7 provenance accepted).** JXP: "I don't have access but I
+am good with the Ocean Optics Web Book." `robust/rt/cdom_fl.py`'s
+module docstring and the `HAWES_A0_WAVE`/`HAWES_A0`/`HAWES_A1`/`HAWES_B1`/
+`HAWES_A2`/`HAWES_B2` provenance comments softened from "NOT independently
+verified — verify before treating as ground truth" to **"sourced from
+Mobley's Ocean Optics Web Book, accepted as-sourced by JXP without
+independent primary-source verification (Q&A CQ2, 2026-08-30)"** — still
+honest (a provenance statement, not a peer-review claim), but no longer an
+open action item. The constants' *values* are untouched, the kernel math is
+untouched, and `test_a0_table_reproduced_at_the_gaussian_peak` still pins
+the identical numbers (verified: all `test_cdom_fl.py` tests green). The
+record §8.5's "not yet independently verified" honesty note updated to
+match.
+
+**CQ3 reaction (speed budget rescoped, machine-anchored).** JXP: "Go ahead
+and rescope the budget and make note that it is machine-anchored." Measured
+fresh first, per the varies-with-load caution — three full runs of the gate
+today: medians **2.34 / 2.30 / 2.31×** (single trials 2.23–2.59; CDOM-only
+marginal 1.41–1.43×), consistent with task 7's 2.26–2.34×. Bound chosen:
+**2.6×** — the measured quiet-machine medians plus real headroom for
+concurrent-session load (task 7 saw 2.45× under load; the prompt's 2.5
+suggestion would have cleared that by only 0.05). Implemented as a new
+named constant `CDOM_GATE_SPEED_MACHINE_ANCHORED = 2.6` in
+`test_cdom_validation.py` (deliberately **not** touching
+`validation.INELASTIC_GATE_SPEED = 2.0`, which gates the shipped M4
+record), with the machine-anchored meaning spelled on the constant and in
+the test docstring in the strict-hash-pin sense (characterizes this Mac,
+not portable; the reference machine may reproduce tighter); the test
+renamed `test_cdom_gate_5_speed_within_rescoped_budget` (keeping
+"…within_twice_elastic" would have lied). Design
+`rt_cdom_fluorescence_model.md` §5 item 5 rewritten to carry the rescoped
+bar + the full machine-anchored caveat and the measured facts (baseline
+drift ~1.9× vs M4's 1.59×; CDOM marginal ~0.3–0.4×); the §1 goals line
+that quoted "2×" got a pointer. **The gate now passes** — verified in
+isolation (23/23 in the two CDOM test files) and in the full suite; the
+notebook also measures it live (2.31× median, PASS).
+
+**Task 8a — the notebook.** `notebooks/RT/rt_cdom_coding_1.ipynb` built and
+**executed with real outputs** (16 cells: 5 code, all execution_counts 1–5
+sequential, figure rendered, no errors; 120 kB committed size). Content:
+§1 the Hawes FA7 basis (constants printed, η_Y curves plotted at λ_e =
+350/390/430/470 nm with red-shifted peaks printed; CQ2 provenance stated
+plainly, incl. the no-strict-Stokes-shift honesty note); §2 the 350 nm
+clamp — the truncated-fraction table **recomputed and asserted** against
+the record-§8.5 pins (all nine match); §3 default-off is load-bearing —
+live bitwise proof on the CI fixture (three SHA-256-identical off-state
+variants; term-on changes output only additively = K_cdom, asserted); §4
+the plausibility table recomputed on the full 9960-scene release (matches
+task 7's decile means 0.30→4.16 %, strict monotonicity re-asserted); §5 the
+CQ3 story + live speed measurement (2.31× median vs the 2.6 machine-
+anchored budget, PASS printed and asserted); §6 the M6 boundary paragraph
+(no truth, no trained head, no quantitative gate; pointers to design
+§6/§7). Environment adaptation, recorded rather than fabricated: this Mac
+had only a `python3` kernelspec (the record-§2.3 `ocean14` spec lives on
+the tank server), so `ocean14`'s already-installed ipykernel was registered
+as a user kernelspec named `ocean14` (`python -m ipykernel install --user
+--name ocean14`) and execution ran via `jupyter nbconvert --execute
+--inplace --ExecutePreprocessor.kernel_name=ocean14` from the `ocean14` env
+itself (jupyter/nbconvert 7.17.1 resolve there directly — no `os_313`
+detour needed on this machine); the committed kernelspec therefore
+genuinely reads `ocean14`, consistent with the other milestone notebooks.
+
+**Task 8b — the record.** `design/rt_inelastic_implementation.md` §8 is now
+the complete M5 write-up; the "(in progress …)" qualifier is gone. New:
+§8 intro (goal, branch/CQ1, the standing two-pin caveat), §8.1 task-status
+table, §8.2 types/interface (task 1 — default-off load-bearing, type-
+checked validate, the stray-`select()` note), §8.3 loader wiring (task 2 —
+`ag`, the fixture regen, the a_dg pins + golden values), §8.4 the Hawes
+kernel (task 3 — the equation's provenance split **with the CQ2 resolution
+stated**, the non-separable structural departure, the correctness pins),
+§8.6 composition (task 5 — pin-first sequence, the PRE_CDOM hashes, the
+guard-fix bug + regression, the Rrs-space additive proof), §8.7 the δ_C
+head (task 6 — defined/zero-init/stubbed, and the deliberately-not-wired
+reasoning), §8.8 gates (task 7 — the decile table, the gradient numbers,
+and the CQ3 rescope as the section's centerpiece: measured history, JXP's
+decision verbatim, the 2.6 bound and its machine-anchored meaning), §8.9
+notebook + docs note, §8.10 M5 status (shipped vs not-validated — the
+**"unvalidated until M6"** language appears verbatim there, in §8 intro,
+and in the docs note — and the M6 unblock condition). Task 4's diagnostic
+section renumbered §8.1 → §8.5 into chronological slot, content otherwise
+intact except the CQ2 note.
+
+**Task 8c — the docs note.** `robust/rt/__init__.py` docstring: the stale
+"Elastic physics only so far / raises NotImplementedError until M2" claims
+(pre-dating the shipped M2–M4 work) replaced — the Status paragraph now
+states elastic complete; Raman+Chl-fl complete and gate-passed (report
+cited); **CDOM fluorescence (M5) landed analytic-only, default-off
+(`cdom_fl=None`), and unvalidated until M6** pending the design-§7
+HydroLight runs; `cdom_fl` added to the Submodules list (it was
+imported/exported since task 5 but undescribed) and the `inelastic` entry's
+"arrives at M2 task 2" staleness fixed in passing. Structure (Design/Plan/
+Built-log pointers, submodule ordering) untouched.
+
+Suite (`conda run -n ocean14 python -m pytest robust/tests/ -q`, this Mac):
+**483 passed / 2 failed / 1 skipped** (before task 8: 482/3/1 — the CDOM
+speed gate moved from FAIL to PASS, +1/−1; confirmed in two full runs, one
+mid-session and one final). The 2 failures are the same two machine-
+anchored elastic strict SHA-256 pins as every M5 entry, reproducing the
+identical local hash `02de5483…` — not regressions. ruff check + format
+clean on all three touched .py files (`cdom_fl.py`, `__init__.py`,
+`test_cdom_validation.py` — docstrings/comments/constants only; kernel
+math, `hybrid.py`, `types.py`, `inelastic_corr.py` untouched per scope).
+Also untouched: the Q&A section above, and the concurrent Docs session's
+files (`rt_docs_prompt_1.md`, `docs/api.rst`, `docs/conf.py` carry its
+uncommitted changes — left alone). Remaining: task 9 (PR review) once JXP
+opens the PR.

@@ -642,6 +642,91 @@ be absent. Which do you want?
 
 >A. Let's go with your recommendation.
 
+Questions from Claude (2026-08-30, model: Opus), raised during D1 task 5. Both
+are about `robust/` docstrings, which task 5 has no sanction to edit; neither
+blocked the task (its gate ran and passed as written).
+
+**Q4 (Autodoc surfaced 27 docstring defects in `robust/`, and 4 of them are
+hard `-W` failures I had to work around in `conf.py` rather than fix at
+source).** Task 5 is the first time any `robust/` docstring is *rendered*
+rather than read, and rendering is a stricter reader than a human. Three
+classes of defect fell out, all measured on this checkout:
+
+1. **Four are fatal to the `-W` build** (they are docutils parse errors, not
+   cross-reference misses, so they fail even with `nitpicky` off):
+   `ztt.py`'s two journal citations write `**48**(35)` and `**25**(15)` — a
+   strong end-string followed by `(` never closes, because docutils allows
+   only whitespace or *closing* punctuation there; and `inelastic_corr.py`
+   twice writes `|δ|` for an absolute value, which docutils reads as an
+   undefined substitution reference. Reproduced standalone before I believed
+   it. The source fix is four characters (`**48** (35)`, `\|δ\|`).
+2. **Twelve are malformed NumPy-style type fields** — prose sitting in the
+   type slot, e.g. `RAMAN_EXPONENT : Excitation-wavelength exponent`,
+   `DEFAULT_WEIGHTS : The trained weights shipped with the package`,
+   `O25_RRS_CEILING : O25's stated validity ceiling`. Napoleon dutifully emits
+   each as a `py:class` cross-reference to an English sentence. They render
+   as stray italics today and would be 12 nitpick failures tomorrow.
+3. **Eleven are references to objects autodoc does not emit** — unqualified
+   `:data:`G2_GORDON``, `:attr:`Geometry.Ed``, `:func:`_network``,
+   `:data:`MU_INF_TT2017_ETA_RANGE`` and so on. Several are unresolvable
+   because of the coverage gap in the log below (constants that share one
+   `#:` comment with a neighbour are silently dropped: **23 of 198 public
+   names, 12 %**); the rest want a module-qualified target.
+
+Because task 5 sanctions no `robust/` edit — and one of the two files in class
+1 (`inelastic_corr.py`) is under concurrent CDOM development — I resolved
+class 1 in `docs/conf.py` instead, with a six-line `autodoc-process-docstring`
+hook carrying two *general* regexes (insert a space after a strong end-string
+before `(`; escape absolute-value bars). It repairs the rendering rather than
+suppressing the warning — verified in the HTML: `<em>Appl. Opt.</em>
+<strong>48</strong> (35)` and a literal `|δ|`. It is deliberately not keyed to
+the surrounding prose, so the CDOM effort can reword freely, and it becomes a
+no-op the moment the sources are fixed. But it is a workaround living in the
+docs config for a bug living in the package, and I do not want it to become
+permanent by inattention.
+
+My recommendation: **fold all three classes into D2 task 5's docstring pass**
+(which is already the sanctioned `robust/` docstring edit) rather than opening
+a separate commit now, and delete the `conf.py` hook in the same change. That
+also unblocks turning `nitpicky` on — see the log for the arithmetic. If you
+would rather have the four fatal ones fixed immediately so the hook never
+ships, say so and I will do just those four characters as a one-line task at
+the start of the next turn; they are provably behaviour-free (comment text
+only) but they are still `robust/` edits, which is why I am asking instead of
+doing. Which?
+
+>A. Yes, that is fine.  Fold into D2 task 5.
+
+**Q5 (`robust/rt/cdom_fl.py` is on the API page; task 5's spec predates it).**
+Task 5 enumerates eleven modules. The checkout now has twelve:
+`cdom_fl.py`, from the concurrent CDOM effort, which `robust/rt/__init__.py`
+imports and lists in `__all__` alongside a `CDOMFl` pytree in `types.py`, and
+which two committed docstrings (`hybrid.rrs_forward`, `inelastic_corr.
+corrected_cdom`) cross-reference by name. I **included** it, with its own
+section and an orientation sentence flagging it as the newest module, on the
+grounds that the API page is generated from the checkout and omitting an
+exported module would leave two dangling references and an incomplete
+`__all__`. That is consistent with the turn's instruction to document the tree
+as it stands.
+
+The tension is with the working agreement that **the docs describe the `main`
+state** and that I should "ask rather than document the future": `cdom_fl` is
+unmerged, its own docstring says the CDOM-fluorescence truth data does not
+exist yet (M6), and D2's inelastic chapters and limitations page are written
+on the assumption that CDOM fluorescence is a *follow-on*, listed under
+"Next". If the CDOM branch lands before D2 finishes, including it now is
+simply correct and saves a pass. If it does not, the API page will document a
+term the narrative never explains.
+
+My recommendation: **leave it in** — it is one autodoc block, it costs
+nothing, and the alternative creates dangling cross-references today — but
+decide before D2 task 3 whether the *prose* acquires a CDOM paragraph or
+whether the limitations page must say explicitly that `robust.rt.cdom_fl`
+exists in the API and is not yet validated. I would rather that sentence be
+your call than mine. Which?
+
+>A. Yes, leave it in.  I am developing the CDOM code in parallel on this same branch.
+
 ## D2
 
 Goal: the prose, the provenance and the figures — the site as a manual.
@@ -687,8 +772,17 @@ Goal: the prose, the provenance and the figures — the site as a manual.
 
    **Gate.** `-W` clean; every equation checked against the module or the
    design doc it came from (cite which, in the page or the log); every
-   `:func:`/`:class:` cross-reference resolves — with `-W`, a typo'd role is a
-   build failure, which is the point.
+   `:func:`/`:class:` cross-reference **spot-checked in the rendered HTML** —
+   grep the built pages for roles that fell back to plain text (an unlinked
+   `<code class="xref">` where a link was intended) and fix each. *Reworded at
+   D1 task 5 (Q&A Q3, option-3 fallback): `nitpicky` is **off**, so a typo'd
+   Python role renders as plain text and does not fail `-W`. The measured
+   reason is in that task's log — nitpick on today costs a ~28-entry
+   `nitpick_ignore` (24 one-off targets + 3 regexes), 23 of whose entries
+   would silence genuine docstring defects in `robust/` rather than tool
+   noise. Revisit turning it on at D2
+   task 5, once Q4's docstring fixes land: the residue then collapses to three
+   principled regex entries for `jaxtyping`/napoleon annotation nouns.*
 
 3. **"The model" — the inelastic chapters.** `docs/model/inelastic.md`
    (Raman: the 3400 cm⁻¹ shift and the exact `585.08 nm` from 488 nm
@@ -1420,3 +1514,310 @@ mine — none was opened for writing here.
 new blocking question arose, so task 5 was not attempted. The Desiderio gap in
 note 3 above is a loose end for D2, not a blocker, and is recorded here rather
 than raised as a Q&A question.
+
+### 2026-08-30 (D1 task 5 — the API page; nitpick measured and *not* enabled, and autodoc read the docstrings back to us)
+
+**Branch.** `cdom-rt`, read fresh at the start of the turn (Q2's answer).
+**Files written: two, both under `docs/`** — `docs/api.rst` (the stub task 1
+left is replaced) and `docs/conf.py` (one addition, described below).
+**`robust/` was not touched**: task 5 sanctions no code edit, and every
+`robust/` line in `git status` at the end belongs to the concurrent CDOM
+effort. Plus the two documentation edits this turn produced beyond the log:
+Q&A **Q4** and **Q5**, and a reworded **D2 task 2 gate**.
+
+---
+
+#### The nitpicky decision (Q3): **option 3 taken — `nitpicky` stays off**
+
+Q3 delegated this with a stated fallback condition, so here is the arithmetic
+rather than an opinion. Measured on the finished page, `python -m sphinx -b
+html -n --keep-going`:
+
+```
+596 warnings on the first nitpicky build (before the two structural fixes)
+490 warnings after them
+```
+
+Every one of the 490 is a cross-reference miss (the four docutils parse errors
+are fixed, see below). Broken down by target:
+
+```
+  454  annotation nouns Sphinx cannot resolve, of four kinds:
+         238  Array                    (jaxtyping's element type)
+          66  jaxtyping.Float          (the annotation constructor)
+         112  optional / callable / sequence / array_like   (napoleon nouns)
+          38  quoted shape strings:  '*batch wave', 'wave', 'sample wave', ...
+   36  everything else — 24 distinct targets (see below)
+```
+
+**The jaxtyping wall is tameable and is not the blocker.** All 454 collapse
+into three principled `nitpick_ignore_regex` entries — one for the jaxtyping
+triple (`Float[Array, "*batch wave"]` is parsed into three separate
+cross-references, none of which is a documentable object), one for the quoted
+shape strings, one for napoleon's `optional`/`callable`/`sequence`/`array_like`.
+Three readable lines with a comment. Q3 predicted this would be the fight; it
+is not.
+
+**The blocker is the residue: 36 lines, 24 distinct ignore entries, 23 of
+which would be silencing real bugs.** They are not tool noise — they are
+malformed docstrings in `robust/` (Q&A Q4). To go green today `nitpick_ignore`
+would have to contain literal entries like:
+
+```python
+("py:class", "The trained weights shipped with the package"),
+("py:class", "O25's stated validity ceiling"),
+("py:class", "S&P98 two-flow mean cosines"),
+("py:class", "Chlorophyll-a emission line"),
+("py:class", "design §4.3"),
+("py:class", "energy units"),
+...
+```
+
+That is not "short enough to read", which was Q3's own decision criterion, and
+worse, it inverts the point of nitpick: an ignore list whose entries are
+English sentences is a list of defects promoted to permanent exceptions. So I
+took the **hard fallback to option 3** and reworded D2 task 2's gate (that edit
+is in this document, above, marked as made at this task) to say
+cross-references are **spot-checked in the rendered HTML**, with the reason and
+the way back recorded inline.
+
+**The way back is cheap and I want it on the record:** once Q4's docstring
+fixes land at D2 task 5, the residue goes to ~zero and nitpick costs exactly
+the three regex entries above. Recommend revisiting it there. I did not add
+those entries speculatively — dead config in `conf.py` is how the next person
+learns to distrust the comments.
+
+---
+
+#### `docs/api.rst`
+
+One page, IOPtics' pattern (DocQ4). A short preamble stating the two
+conventions that hold throughout (members are each module's `__all__`; the
+signatures are real because `autodoc_mock_imports` is empty), a
+`.. contents:: :local: :depth: 1` so the long page has an index of its own,
+then **thirteen** `automodule` blocks with a one-line orientation sentence
+above each:
+
+`robust` → `robust.rt` → `conventions` → `types` → `data.l23` → `ed` → `ztt`
+→ `emulator` → `hybrid` → `inelastic` → **`cdom_fl`** → `inelastic_corr` →
+`baselines` → `validation`.
+
+The order is the one task 5 specifies (which is the pipeline order, not the
+`__init__` docstring's literal order — the docstring lists `inelastic` before
+`ztt` and does not mention `inelastic_corr` at all). Two departures from the
+literal spec, both deliberate and both visible on the page:
+
+1. **`cdom_fl` is a thirteenth block.** It did not exist when task 5 was
+   written; it does now, `robust/rt/__init__.py` re-exports it, and two
+   committed docstrings cross-reference `robust.rt.cdom_fl.cdom_kernel`.
+   Raised as **Q5**.
+2. **`robust.rt` gets `:no-members:`, not `:members:`.** Its `__all__` is
+   entirely re-exports, and documenting them twice is actively harmful, not
+   merely redundant. Measured: with `:members:` the build emits six *real*
+   `-W` failures — `more than one target found for cross-reference 'IOPs':
+   robust.rt.IOPs, robust.rt.types.IOPs` and the same for `PhaseParams` and
+   `Geometry` — because every `:class:`IOPs`` in every docstring in the
+   package becomes ambiguous. It also *detaches* `forward`'s docstring from
+   `robust.rt.hybrid`'s module context (autodoc reports it as
+   `robust/rt/__init__.py:docstring of robust.rt.hybrid.forward`), so its own
+   eleven `:func:`rrs_forward`` references stop resolving. `:no-members:`
+   costs eight docstrings their link to `robust.rt.forward` (they render as
+   plain code text) and buys back all eighteen. One canonical home per object;
+   the trade is stated in a comment on the page itself.
+
+**The `__all__` decision: honour it, and it is honoured by default.** Bare
+`:members:` follows `__all__` when a module defines one, and every module here
+does. Verified rather than assumed — nothing on the page is outside its
+module's `__all__` (checked all twelve: `rendered but NOT in __all__: []`
+everywhere), and the rendered order matches `__all__` order because these
+`__all__` lists are themselves source-ordered, so `member-order: "bysource"`
+and `__all__` do not fight. The reason to honour it is that these lists are
+the curated public surface — grouped by role, `# noqa: RUF022` to keep the
+grouping — and the alternative (`:ignore-module-all:`) would drag in the
+private closures that "Status entering D1" already established are not part of
+the API.
+
+**The `__all__` coverage gap, which honouring `__all__` exposed.** 23 of 198
+public names (12 %) do not appear on the page at all, despite being in
+`__all__` and despite `:undoc-members:`:
+
+```
+conventions     5   B_RRS, WAVE_MIN, WAVE_MAX, WAVE_STEP, N_WAVE
+inelastic       7   MU_U, MU_R, SIGMA_FL, SIGMA_FL_SECONDARY,
+                    FL_WEIGHT_PRIMARY, FL_EX_MAX, FL_EX_STEP
+cdom_fl         5   HAWES_B1, HAWES_B2, GY_EX_MAX, CDOM_EX_MAX, CDOM_EX_STEP
+ztt             2   FL_OFFSET, P_BB_ST_MEAN
+validation      2   INELASTIC_GATE_DELTA, INELASTIC_GATE_SPEED
+baselines       1   G2_GORDON
+inelastic_corr  1   DEFAULT_FL_WEIGHTS
+```
+
+The cause is not this repo and not `conf.py`. Reproduced in a four-line
+throwaway module: autodoc emits module-level data **only** if it carries its
+own `#:` doc comment — neither a bare assignment nor an annotated one is
+emitted, `:undoc-members:` notwithstanding.
+
+```
+#: documented
+A = 1.0        -> rendered
+B = 2.0        -> NOT rendered
+C: float = 3.0 -> NOT rendered
+```
+
+Every one of the 23 is a constant that shares a `#:` block with the line above
+it (`MU_D`/`MU_U`/`MU_R`; `G1_GORDON`/`G2_GORDON`; the `WAVE_*` grid). The fix
+is one `#:` line each in `robust/`, which is Q4's territory, not this task's.
+Saying so here because "the page renders every public name" would have been an
+easy and wrong thing to write.
+
+---
+
+#### `docs/conf.py` — the one addition, and it is not the one I expected to make
+
+Not `nitpicky` (see above) but a six-line `autodoc-process-docstring` hook
+plus a `setup(app)`. Four docstrings in `robust/` carry reStructuredText
+docutils cannot parse, and autodoc renders docstrings verbatim, so each is a
+**hard `-W` failure with nitpick off**:
+
+```
+ztt.py    P_BB_ST_ANGLES      WARNING: Inline strong start-string without end-string
+ztt.py    MU_INF_TT2017_TABLE1  "
+inelastic_corr.py  HeadConfig            ERROR: Undefined substitution referenced: "δ"
+inelastic_corr.py  CorrectionHead.delta   "
+```
+
+Diagnosed rather than guessed: `**48**(35)` fails because docutils permits
+only whitespace or *closing* punctuation after a strong end-string, and `(` is
+opening punctuation. Confirmed standalone before writing anything —
+`**48**(35)` warns, `**48** (35)` and `**48**\ (35)` do not. `|δ|` is read as
+a substitution reference.
+
+The durable fix is four characters in `robust/`, which this task may not make
+(and one of the two files is under concurrent CDOM edit). So the hook repairs
+them at render time with two **general** regexes — insert a space between a
+strong end-string and a following `(`; escape absolute-value bars — rather
+than patching known strings, so the CDOM effort can reword freely and the hook
+becomes a no-op when the sources are fixed. It **resolves rather than
+suppresses**, which the task asked for, and the rendered HTML is the proof:
+
+```
+<em>Appl. Opt.</em> <strong>48</strong> (35), 6811
+<em>Optics Express</em> <strong>25</strong> (15), 18122
+Hard tanh bound on |δ|. Defaults differ by head ...
+```
+
+Italic journal, bold volume, issue in parens; literal pipes. Raised as **Q4**
+with a recommendation to delete the hook at D2 task 5.
+
+**`napoleon_use_ivar` needed no change — verified, not assumed.** Task 1 set
+it to `True` and the BING lesson holds: **zero** duplicate-object warnings in
+any build of this page. The four pytrees each render one `Variables:` field
+list, not a competing pair of `py:attribute` blocks.
+
+---
+
+#### Gate
+
+**1 — `-W` build clean, no autodoc import errors, no mocking.** From a deleted
+`_build/`:
+
+```
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+grep -cE "WARNING|ERROR"        -> 0
+grep -ci "failed to import"     -> 0
+grep -c  "mock"                 -> 0
+/usr/bin/time -p: real 2.43  user 2.00  sys 0.15
+```
+
+2.43 s against task 4's 1.17 s — autodoc importing and rendering ~5,900 lines
+of `robust/rt` is the whole of the difference. `api.html` is **816 KB**, 273
+documented objects, 298 entries in `objects.inv`.
+
+**2 — the four rendered-HTML spot checks**, all read out of
+`docs/_build/html/`, not inferred:
+
+*(a) `forward()`'s full signature, keyword-only params included.* Rendered
+verbatim:
+
+```
+robust.rt.hybrid.forward(iops, phase_params, geometry, wave=None,
+    mode='hybrid', *, inelastic=None, corrections=None, emulator=None,
+    check_domain=True, on_out_of_domain='warn')[source]#
+```
+
+The bare `*` is there, and `inelastic` and `corrections` are on the correct
+side of it.
+
+*(b) The four pytrees' attribute tables.* Each is one napoleon `Variables:`
+field list:
+
+```
+IOPs         5 attrs   a, bb_w, bb_p, a_ph, a_cdom
+PhaseParams  1 attr    B_p
+Geometry     5 attrs   theta_s, theta_v, dphi, wind, Ed
+Inelastic    5 attrs   phi_C, raman, fluorescence, emission_shape, cdom_fl
+```
+
+(`CDOMFl` renders the same way, 1 attr, `scale`.) Note `IOPs.a_cdom` and
+`Inelastic.cdom_fl` — the concurrent CDOM effort's fields, picked up from the
+working tree exactly as the turn said they would be. Not a bug; recorded so
+nobody reads it as one.
+
+*(c) A `jaxtyping` shape annotation, rendering legibly.* **66** occurrences on
+the page, e.g. on `IOPs`:
+
+```
+Parameters:  a      (Float[Array, '*batch wave'])
+             bb_w   (Float[Array, '*batch wave'])
+             a_ph   (Float[Array, '*batch wave'] | None)
+```
+
+and on `L23Batch`: `Rrs (Float[Array, 'sample wave'])`. That is the DocQ2
+no-mocking decision paying off literally — the shape strings are the ones the
+interpreter holds.
+
+There is a wrinkle worth knowing before D2 writes about types. The annotation
+only reaches the page where the docstring leaves the type slot *empty*. Where
+an author wrote `Rrs : Array` in a NumPy-style Parameters block, napoleon uses
+that word and the real annotation is discarded — so `Rrs_to_rrs`, whose
+signature is `Float[Array, "..."] -> Float[Array, "..."]`, renders as plain
+`Array`. Checked with `sphinx.util.typing.stringify_annotation` that the
+annotation itself is intact (`Float[Array, '...']`), so this is napoleon
+precedence, not a jaxtyping rendering failure. Hand-written types win;
+`jaxtyping` fills the gaps, and it is the auto-generated dataclass
+`__init__`s where it shows.
+
+*(d) A `viewcode` source link that resolves.* `forward`'s `[source]` points at
+`_modules/robust/rt/hybrid.html#forward`; that file exists (937 lines), the
+anchor `id="forward"` is present, the code under it is the real definition
+(`def forward(\n    iops,\n    phase_params,\n    geometry,` ...), and the
+page back-links to `api.html#robust.rt.hybrid.forward`. All twelve modules got
+a `_modules/` page.
+
+---
+
+**Tree state, and JXP committed mid-turn for the third time.** Commit
+`f23de63 "ok"` landed while I was still measuring and swept up an intermediate
+`docs/api.rst` (194 lines of it) alongside a CDOM prompt-doc line. Nothing was
+lost — the two later refinements (`robust.rt` → `:no-members:`, and the
+`cdom_fl` block) are simply still uncommitted, and the finished file builds
+clean. At the end, `git status --short` shows mine as
+`claude_prompts/RT/rt_docs_prompt_1.md`, `docs/api.rst`, `docs/conf.py`; the
+CDOM effort's as `design/rt_cdom_fluorescence_model.md`,
+`design/rt_inelastic_implementation.md`, `robust/rt/__init__.py`,
+`robust/rt/cdom_fl.py`, `robust/tests/test_cdom_validation.py` and the
+untracked `notebooks/RT/rt_cdom_coding_1.ipynb`. **No `robust/` path is mine.**
+
+**What I'd flag for the next turn.** (i) Q4 and Q5 are open; Q4 in particular
+decides whether a workaround ships in `conf.py`. (ii) Task 6 adds a
+`conf.py`-invoked figure-copy hook — it will need to coexist with the
+`setup(app)` this task added; there is now exactly one `setup()` and the new
+hook should register inside it rather than define a second. (iii) The
+concurrent CDOM effort touched `robust/rt/__init__.py`, `cdom_fl.py`,
+`design/` and `robust/tests/` during this turn; the page is built from that
+tree, which is why `a_cdom`, `cdom_fl` and `CDOMFl` appear above.
+
+**Stopping at task 5**, per the turn's instruction: the gate is green, and two
+genuine questions (Q4, Q5) are open, so task 6 was not attempted.
