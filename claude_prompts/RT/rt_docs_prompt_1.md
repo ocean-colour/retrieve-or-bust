@@ -3593,3 +3593,398 @@ file was opened for writing; the concurrent CDOM effort's territory is clean. No
 state-changing git command was run — the three `git show` / `git ls-tree`
 invocations are reads. Working tree at the end: `README.md`, `docs/index.md` and
 this document modified, `docs/figs/` new and untracked (one PNG).
+
+### 2026-08-31 (D2 task 2 — the elastic model chapters; five stubs become 1,155 lines, and the xref grep finds 22 broken roles that are all in `robust/`)
+
+**Branch.** `cdom-rt`, read fresh (`git branch --show-current`). Working tree
+clean at the start — nothing of the concurrent CDOM effort was in flight.
+**Files written: exactly the five stubs the task names**, all under
+`docs/model/`. No `robust/`, `design/`, `notebooks/` or `reports/` path was
+opened for writing, and `docs/api.rst`, `docs/conf.py` and
+`docs/model/overview.md` needed no change — overview's toctree already carried
+all five, so no toctree edit was required either.
+
+```
+ M docs/model/conventions.md   |  216 lines  (was 9)
+ M docs/model/ztt.md           |  285 lines  (was 8)
+ M docs/model/emulator.md      |  275 lines  (was 9)
+ M docs/model/forward.md       |  234 lines  (was 9)
+ M docs/model/ed.md            |  145 lines  (was 8)
+ 5 files changed, 1132 insertions(+), 20 deletions(-)
+```
+
+1,155 lines from 43. Against DocQ9's ~2,000–2,500-line whole-site estimate, D1
+left 1,785 lines with twelve stubs; this task alone adds ~1,110 net, so the
+estimate will be met or passed by the remaining D2 prose tasks.
+
+**Stub check, verified rather than assumed** before writing: all five existed as
+the 8–11-line D1-task-6 stubs, each a title, a one-sentence promise, and the
+identical `Arrives at D2 — until then, {doc}`overview` …` note. The promise
+sentences were treated as the chapters' contracts and each is now delivered.
+
+---
+
+#### What each page covers
+
+**`conventions.md`** (216 lines) — the choices no other module may re-make.
+$R_{rs} \leftrightarrow r_{rs}$ with A = 0.52 / B = 1.7 and *why* they are fixed
+rather than configurable (they must equal `bing.rt`'s, and a test asserts it);
+the non-linearity of the interface with a measured demonstration, and the two
+rules that follow from it (score in `rrs`; `mode='emulator'` is not additive in
+`Rrs`); the pole at $1/B$ and what `check_rrs` catches with it; the 81-point
+350–750 nm grid, why `WAVE` is NumPy and not a device array, and `check_wave`
+with **both of its real error messages pasted** — including the 0.01 nm case
+where the printed values look identical, which is the case the validator exists
+for; `bb_w(λ)`'s provenance (it *is* L23's water model, not an approximation of
+it), its measured λ^-4.2 slope, and its clamping; the three validators and why
+`ValueError` rather than `assert`; and the Raman maps plus `interp_spectrum`,
+kept short with a forward pointer, since the physics is D2 task 3's.
+
+**`ztt.md`** (285 lines) — Equation (12) in display math, then a table mapping
+each symbol to its paper equation and its function. The angle-convention trap
+(the paper's in-water, from-straight-down angles, so nadir is θv = 180°) with
+`geometry_to_paper_angles`'s measured output reproducing the paper's own worked
+example. Equation (10) as the place the explicitness lives, with both phase-
+function inputs: the closed molecular form for $\beta_w(\psi)$ and Sullivan &
+Twardowski's measured particulate shape, including their published $a_3$ typo
+and the 10° nadir extrapolation. Equation (11) and `B_p` as the design's chosen
+parameterisation. $\mu_d$ = (15)×(17) with the unprimed/primed $\mu_w$ subtlety
+that costs 0.79 → 0.573 if you get it wrong. **The missing Equation (8)
+coefficients**, with the TT2017 stand-in and the "report it as *ZTT with the
+TT2017 µ∞*" warning stated as the report's own may-not-claim item 6. $f_L$, and
+the `F_psi` conditioning hazard (five terms cancelling by ~78,000) as a warning
+admonition, because it is a trap for whoever rewrites that line. Closes with the
+report's five-model ladder.
+
+**`emulator.md`** (275 lines) — organised around the module docstring's four
+numbered decisions, because they are the page. Why the correction is *relative*
+(four decades of dynamic range; measured residual mean +2.20 %, sd 5.52 %); the
+seven features as the *complete* scale-free state rather than a guess, with the
+scale-invariance proof and the explicit warning that `cos_theta_v`/`cos_dphi`
+are constant in L23 so **nothing here is evidence about view geometry**; the
+measured architecture (417 parameters, 6,678 bytes); the four structural choices
+(`tanh` not `relu`, the hard `tanh` bound, the zero-initialised output layer, and
+full-batch unshuffled training) as a definition list; the linear baseline as a
+first-class citizen with its 2.54 % against the MLP's 0.30 %; the domain guard
+with the **packaged emulator's actual per-feature ranges read off the weights**;
+both thresholds with the measurements that chose them (3.7e-4 grazing versus
+48 % genuine breach); and the unseen-zenith cliff (4.74–12.24 %, median 7.75 %,
+against O25's deterministic 4.63 %) as a warning, with the seed/architecture
+confounding story kept because that lesson generalises.
+
+**`forward.md`** (234 lines) — the entry point's *behaviour*, with the signature
+deliberately **not** restated (a one-line pointer to `{func}`robust.rt.hybrid.forward``
+instead, per the task). The two entry points and which to use for what; the three
+modes as a definition list with the real `ValueError` for a typo'd mode; **which
+space the arithmetic happens in**, with a four-column measured table at 440 nm
+showing the `rrs` identity bitwise exact and the `Rrs` sum off by 0.38 %, plus
+the whole-grid worst case (0.57 % at 350 nm) and a warning never to reconstruct
+the hybrid from two `forward()` calls; `inelastic=None`'s bit-identity as
+*construction, not cancellation*; the two fail-fast guards with their real
+messages; and the domain guard split into the two switches that are genuinely
+different — `check_domain` (the warning, **skipped under `jit` and `grad`**,
+measured: zero warnings both ways at a geometry that warns eagerly) versus
+`on_out_of_domain` (the policy, **traceable, so it holds under `jit`**).
+
+**`ed.md`** (145 lines) — what is packaged and the two assertions that make one
+spectrum per zenith legitimate (scene-independence, scenario-identity); the two
+clamped interpolation axes, verified at a midpoint and beyond the anchors; **the
+ratio the Raman term actually consumes**, measured per zenith over 400–750 nm,
+which is the number that justifies the module existing at all (a factor ~3.6
+across the band, nearly zenith-independent, against the +60 %/−50 % flat-Ed
+error); the `Geometry.Ed` override's deliberately absolute semantics; and the
+inherited-solar-model caveat with the seam where it gets revisited. Opens by
+saying plainly that the elastic model never calls this module, since it is
+shelved among the elastic chapters as infrastructure rather than physics.
+
+---
+
+#### Every equation and constant, and where it was checked
+
+The house rule is that a number is traced or it is not written. **Two scripts
+were run in `ocean14` before any prose**, one measuring `conventions`/`ztt`/`ed`/
+`emulator` in isolation and one measuring `hybrid` on the committed 50-scene
+`l23_small.npz` fixture. Everything in the tables below was produced there.
+
+*Checked against the source code (`robust/rt/*.py`) — the equation as written on
+the page against the expression as coded:*
+
+| Page | Equation / constant | Verified against |
+|---|---|---|
+| conventions | `rrs = Rrs/(A+B·Rrs)`, `Rrs = A·rrs/(1−B·rrs)` | `Rrs_to_rrs` / `rrs_to_Rrs` bodies; round trip closes to 4.66e-10 (float32) |
+| conventions | **A = 0.52, B = 1.7** | `A_RRS`/`B_RRS` literals — *checked in the code, not copied from the task text* |
+| conventions | `RRS_POLE = 1/B = 0.5882…` | printed |
+| conventions | grid 350–750 / 5 nm / 81 | `WAVE_MIN/MAX/STEP/N_WAVE` and `WAVE.shape` |
+| conventions | `bb_w` λ^-4.2 | log-log fit of the embedded table gives **−4.2146**; docstring says "-4.2 (fitted)" |
+| conventions | Raman maps `1/λ' = 1/λ + Δν̃` | 400 → 352.11 nm, 488 → 418.55 nm, 488 → 585.08 nm emission, 685 → 555.60 nm |
+| ztt | Equation (12) master expression | term by term against `rrs_ZTT`'s body, incl. the `cos θv Ψ/µ∞` sign |
+| ztt | Snell, n = 1.34 | `REFRACTIVE_INDEX`; `in_water_zenith(60) = 40.2623°` |
+| ztt | Eq. (10), (11), (6), (14), (31) forms | `backward_phase_over_bb`, `bb_tilde`, `psi_KLu`, `mu_d`, `f_L` bodies |
+| ztt | `βw(ψ)/bbw` closed form, δ = 0.039 | `beta_w_over_bb_w(180°) = 0.23417 sr⁻¹` |
+| ztt | `P_bb_sullivan` | 0.2323 / 0.1352 / 0.1529 sr⁻¹ at 90/140/180° |
+| ztt | `f_L(139.74°, 550 nm)` | 1.0787 |
+| ed | ZENITH_ANCHORS, table shape, grid identity | `(0,30,60)`, `(3,81)`, `wave == conventions.WAVE` |
+| ed | clamped/linear in θs | `Ed(15) == mean(Ed(0),Ed(30))`, `Ed(75) == Ed(60)` both `True` |
+| ed | peak `Ed(0°)` | **1.8133 W m⁻² nm⁻¹ at 480 nm** |
+| ed | `Ed(λ')/Ed(λ)` over 400–750 nm | 0.445→1.579 (×3.55) at 0°, 0.440→1.588 (×3.61) at 30°, 0.424→1.619 (×3.82) at 60° |
+| emulator | `Δrrs = δ·rrs_ZTT` | `delta_rrs` body |
+| emulator | 417 parameters, 6,678 bytes | counted from `load_default()`'s pytree and `stat()` |
+| emulator | the domain table | read off `Emulator.domain` — **all seven rows are measured, not quoted** |
+| emulator | `DOMAIN_TOL`, `delta_max`, config | printed from the loaded object |
+| forward | `rrs` additivity **bitwise exact** | `rrs_forward(hybrid) == ztt + emulator` → `True` |
+| forward | `Rrs` additivity **fails** | at 440 nm sum 8.560636e-03 vs hybrid 8.527968e-03, **+0.38 %**; worst 6.22e-05 sr⁻¹ (0.57 %) at 350 nm |
+| forward | `mode='ztt'` == `ztt.rrs_ZTT` | bitwise `True` |
+| forward | `Rrs_ZTT` == `rrs_to_Rrs(rrs_ZTT)` | bitwise `True` |
+| forward | the two `ValueError`s | messages pasted from the raises |
+| forward | `DomainWarning` text | pasted from a real 75° call |
+| forward | `on_out_of_domain='ztt'` | at 75°, hybrid **bitwise equal** to `mode='ztt'` |
+| forward | guard skipped under `jit`/`grad` | 0 warnings from a jitted call, 0 from `jax.grad`, same geometry |
+| forward | batched shape | `(150, 81)` |
+
+*Quoted from a document, with the citation on the page itself:* the five-model
+rRMS ladder and the 4–6 %/12 % Gordon-degradation sentence, the 5.95/5.93/8.11 %
+backbone row, the 2.57/2.54 % linear-emulator row, the 0.30 % hybrid, the
+4.74–12.24 % seed spread, the linear model's 6.16 %, O25's 4.63 %, and the
+≤ 5×10⁻⁹ gradient agreement — all `reports/report_rt_elastic_model.md` §4/§5.
+The +2.20 %/5.52 % residual statistics, 83.9 %, the 8.8e-15 scale-invariance
+figure, the −2/+2/+8 % zenith offsets, the 11.57 %/5.40 %/9.20 % skip-path
+story, and every "measured at M2/M3" number — the `emulator.py` module
+docstring. The +60 %/−50 % flat-Ed error — `design/rt_inelastic_model.md`; the
+0.44/1.59 ratio it rests on — `design/rt_inelastic_implementation.md` §3, and
+**re-measured here** (0.440 at 445 nm, 1.588 at 720 nm at θs = 30°, so the
+record's figures are the 30° row).
+
+Two places the source disagreed with itself, resolved by measuring:
+
+1. The elastic report writes the scale-invariance check as **9×10⁻¹⁵** and the
+   module docstring as **8.8e-15**. The pages quote the docstring's figure, which
+   is the one the test pins.
+2. `emulator.DEFAULT_WEIGHTS` is **6,678 bytes** on disk; the report and the
+   docstring both say "6.5 kB", which is 6,678/1024 = 6.52 — consistent, but the
+   page prints the byte count so no reader has to guess the unit.
+
+---
+
+#### The cross-reference spot-check (the reworded gate), verbatim
+
+`nitpicky` is **off** (Q3's option-3 fallback, decided at D1 task 5), so a
+typo'd `{func}`/`{class}` role renders as plain text and passes `-W` silently.
+The gate therefore asks for the built HTML to be grepped for roles that fell
+back. What I grepped for, exactly: every
+`<code … class="… xref …">…</code>` in every built page outside `_modules/`, then
+whether an `<a …>` opening tag immediately precedes it. A resolved role is
+wrapped in an anchor; an unresolved one is a bare `<code class="xref …">`.
+
+```
+$ python <scratchpad>/xrefcheck.py
+api.html                          373 xref roles, 22 unresolved
+index.html                          1 xref roles,  0 unresolved
+model/conventions.html             36 xref roles,  0 unresolved
+model/ed.html                      23 xref roles,  0 unresolved
+model/emulator.html                46 xref roles,  0 unresolved
+model/forward.html                 37 xref roles,  0 unresolved
+model/overview.html                54 xref roles,  0 unresolved
+model/ztt.html                     51 xref roles,  0 unresolved
+py-modindex.html                   14 xref roles,  0 unresolved
+TOTAL 635 xref roles, 22 unresolved
+```
+
+**All 193 roles on the five new pages resolve**, and — stated precisely,
+because "I fixed three" would be a nicer sentence than the true one — **one was
+written and then corrected, and two were never written**, because the legal
+targets were enumerated from `objects.inv` *before* the prose rather than
+guessed and then hunted. That is the technique worth keeping: it turns the gate
+from a search into a lookup.
+
+```python
+from sphinx.util.inventory import InventoryFile
+inv = InventoryFile.load(open("docs/_build/html/objects.inv","rb"), "", lambda a,b: b)
+```
+
+That listed 17 legal `conventions` targets, 34 `ztt`, 42 `emulator`, 6 `hybrid`,
+5 `ed`, 34 `types`. The one I wrote and had to correct: a `{data}` role on
+`ztt.MU_INF_TT2017_BB_OVER_A_RANGE`, which is **not** in `ztt.__all__` and so
+never reaches the page; both range constants are now plain literals with the
+module named in prose. The two the lookup let me avoid up front:
+`emulator.SUPPORTED_THETA_S` (also absent from `__all__`) and
+`conventions.B_RRS` (the D1-task-5 `#:` coverage gap — it shares a doc comment
+with `A_RRS`, so only `A_RRS` is emitted). Both are written as literals, and
+`A_RRS`, which *is* emitted, is a role. Two useful confirmations in the same
+pass:
+attribute targets **do** exist despite `napoleon_use_ivar` rendering them as a
+`Variables:` field list (`types.Geometry.Ed`, `emulator.Emulator.domain` are both
+in the inventory), so `{attr}` roles are safe; and `{meth}` roles on
+`Emulator.relative_delta` / `.delta_rrs` / `.out_of_domain` /
+`.out_of_domain_mask` all resolve.
+
+**One detector fix, recorded because it produced a false positive I nearly
+wrote down.** My first pass required the preceding anchor to carry
+`class="…reference…"`, and reported the 14 module-index entries on
+`py-modindex.html` as broken. They are not: the theme emits
+`<a href="api.html#module-robust.rt.ztt"><code class="xref">…` with **no class
+on the anchor**. Relaxing the test to "any `<a>`" clears all fourteen, and I
+checked the raw markup by hand before believing either answer.
+
+**The 22 that remain are all on `api.html` and all come from docstrings inside
+`robust/`, which this task has no sanction to edit.** Each was traced to its
+source line rather than assumed:
+
+| Count | Role | Source | Class |
+|---|---|---|---|
+| 8 | `:func:`robust.rt.forward`` | `baselines.py` ×2, `types.py` ×3, `inelastic.py`, `emulator.py`, `data/l23.py` | the **deliberate** `:no-members:` trade made at D1 task 5 — `robust.rt` is documented without members so that every `:class:`IOPs`` is unambiguous, and the stated cost was "eight docstrings lose their link to `robust.rt.forward`". Exactly eight. |
+| 2 | `:attr:`Geometry.Ed`` | `ed.py:28`, `ed.py:114` | Q4 class 3: unqualified target |
+| 2 | `:data:`MU_INF_TT2017_*_RANGE`` | `ztt.py:700`, `:704` | not in `__all__` |
+| 2 | `:func:`_network`` | `emulator.py:102` (the module docstring) and `:483` | private helper, never emitted; the third occurrence, `:390`, is a closure docstring and is not rendered at all |
+| 2 | `SUPPORTED_THETA_S` | `emulator.py:591` (unqualified), `hybrid.py:79` (module-qualified) | not in `__all__` |
+| 4 | `WAVE_MIN`, `G2_GORDON` ×2, `INELASTIC_GATE_SPEED`, `CDOM_EX_STEP` | `conventions.py:228`, `baselines.py:84` (**one** docstring, rendered twice — the `g1, g2` parameter entry reaches both Gordon functions, and `G1_GORDON` beside it resolves while `G2_GORDON` does not), `validation.py:552`, `cdom_fl.py:157` | the D1-task-5 **`#:` coverage gap** — a constant sharing a doc comment with its neighbour is not emitted, so 23 of 198 `__all__` names have no anchor to point at |
+
+So the gate's "fix each" is satisfied for everything this task wrote and
+everything it is allowed to touch; the residue is Q4's, whose answer is already
+*"Yes, that is fine. Fold into D2 task 5."* I did **not** edit `robust/` to
+close them, and I did not add `nitpick_ignore` entries to hide them —
+either would have been the wrong shape of fix. **No new Q&A question**: Q4
+already covers this and its answer stands.
+
+**One genuinely new finding for D2 task 5's list, though**, which the grep
+turned up and Q4's three classes do not name:
+`robust/rt/inelastic_corr.py:392–393` writes a role **split across a line
+break** —
+
+```python
+    config static), for the same reasons as :class:`robust.rt.emulator
+    .Emulator`: ``grad`` w.r.t. a head gives parameter gradients, and
+```
+
+A reStructuredText role broken over two lines never resolves, whatever nitpick
+is set to; the fix is to move the whole role onto one line. It renders today as
+the literal text `robust.rt.emulator\n.Emulator`. That file is under concurrent
+CDOM development, which is one more reason to leave it to task 5 rather than
+touch it here.
+
+---
+
+#### Gate
+
+**1 — `-W` build clean, from a genuinely clean tree** (`docs/_build/` removed
+*and* `docs/_static/fig_*.png` deleted, so the `conf.py` figure hook had to
+produce the hero again rather than find a stale copy):
+
+```
+$ rm -rf docs/_build && rm -f docs/_static/fig_*.png
+$ ls -a docs/_static      ->   .  ..  .gitkeep            (no PNG)
+$ /usr/bin/time -p python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+stdout: grep -cE "WARNING|ERROR"  ->  0
+stderr: the three /usr/bin/time lines and nothing else
+real 2.86   user 2.40   sys 0.18
+$ ls docs/_static         ->   fig_inelastic_architecture.png   (regenerated)
+$ find docs/_build/html -name '*.html' -not -path '*_modules*' | wc -l   ->   25
+```
+
+Warnings go to **stderr**, so the two streams are captured separately rather
+than grepped from one log. 2.86 s against D2 task 1's 2.83 s — five prose pages
+cost essentially nothing next to autodoc.
+
+**2 — every equation checked against the module or design doc it came from,
+cited.** The two tables above are that check. Each page also carries an
+italicised *Sources for this page* block naming its module docstrings, the
+design sections and the report sections, and a closing statement that the
+printed numbers were re-measured in this environment.
+
+**3 — every `:func:`/`:class:` cross-reference spot-checked in the rendered
+HTML.** Above: 193 roles on the five pages, zero unresolved; 22 residual, all
+`robust/`, all traced, all Q4's.
+
+**Additional rendered-HTML checks**, because "exit 0" is not "the page is
+right". Read out of `docs/_build/html/model/`: MathJax present on all five and
+the display-math count per page (21 / 71 / 30 / 18 / 13); 12 admonitions
+rendered across the five, counted by CSS class — **7 `warning`, 3 `note`, 2
+`important`**; 10 tables; all `<pre>` blocks present; every section heading with
+a clean slug — including the two math headings on `ztt.md`, whose ids are
+`mu-d-and-the-missing-coefficients-of-mu-infty` and
+`f-l-and-one-conditioning-hazard` and whose right-hand-ToC entries carry the
+`<span class="math">` markup, so MathJax typesets them in the sidebar too; and
+**zero broken internal hrefs** across the five pages (each `*.html` target
+stat'd on disk) — a check that matters here specifically because
+`suppress_warnings = ["myst.xref_missing"]` means a broken Markdown link would
+not have failed `-W`.
+
+The outbound `gh:` links, counted from the rendered HTML: **33 anchor
+occurrences over 5 distinct URLs** — 10 of them the repo root, which is the
+theme's navbar/sidebar GitHub icon (2 per page) and not mine, leaving **23
+content links over 4 distinct document paths** (`design/rt_elastic_model.md` ×9,
+`reports/report_rt_elastic_model.md` ×10, `design/rt_inelastic_model.md` ×2,
+`design/rt_inelastic_implementation.md` ×2). All four render as
+`…/blob/main/…` and all four **exist on this branch**; per Q6 they 404 until the
+merge, which is the accepted and already-documented cost.
+
+**No `pytest` and no `ruff` run**, and that is deliberate rather than an
+omission: this task touched no `robust/` path and no Python file at all, so
+there is nothing it could have broken. The two machine-anchored strict-hash
+failures Q1 settled are unchanged by construction.
+
+---
+
+#### Scope framing, checked against the prompt-8/9 rescoping
+
+Every page is scoped to `robust.rt` or to a named module, never to
+"retrieve-or-bust" or to "this package". The only project-level sentence in the
+1,155 lines is a deliberate one, a `note` at the end of `forward.md`'s gradient
+section: *"The retrieval itself does not exist. `robust.rt` is a forward model —
+retrieve-or-bust's first major contribution — and the inversion from a measured
+spectrum back to IOPs is a separate component that has not been built. This
+interface is shaped for it, which is not the same as containing it."* It sits
+there and not on the front matter of every chapter because `forward.md` is the
+one page whose subject (gradients as the point of the API) invites the
+misreading. Wording taken from JXP's Q9 answer ("the first major contribution of
+RoB") rather than from my earlier "first component".
+
+Where a limit belongs to the model rather than to the chapter, the page states
+it as the report's own may-not-claim item and says so: the TT2017 µ∞ (item 6) on
+`ztt.md`, geometry generalization (item 3) and the off-nadir/unidentified-feature
+point (item 5) on `emulator.md`. The full unbowdlerized list is D2 task 5's page,
+which these do not pre-empt.
+
+---
+
+#### Deviations, all mine to own
+
+1. **The `Ed` chapter is filed among the elastic pages, and opens by saying it
+   is not elastic.** `ed.py` is an inelastic-era module (M1) that the elastic
+   model never calls; the task nonetheless lists `ed.md` in D2 task 2. Rather
+   than quietly imply otherwise, the page's second paragraph states that the
+   elastic model never calls it and that it lives here as *infrastructure — a
+   sky, an interpolation rule and a seam — rather than physics of either kind*.
+2. **Its sources are inelastic documents.** The task names elastic design §§2–4
+   and elastic report §2 as the source material; neither mentions `Ed`, because
+   the module postdates both. So `ed.md` cites the module docstring,
+   `design/rt_inelastic_model.md` §4.2 and the inelastic implementation record
+   §3, and says so in its sources block.
+3. **`forward.md` names the arguments without restating the signature.** The
+   task says to cross-link the API anchor "rather than a restatement of the
+   signature", so the page describes what the three pytrees and the keyword-only
+   switches *do* and links `{func}`robust.rt.hybrid.forward``, but prints no
+   parameter list. The full signature is one click away on `api.rst`, which is
+   where it is generated from the real interpreter.
+4. **Two math headings on `ztt.md`.** `$\mu_d$` and `$f_L$` in `##` headings is a
+   small risk (slug generation, sidebar typesetting); both were checked in the
+   rendered HTML rather than assumed, and both are fine. Recorded so the next
+   person knows it was a decision and not an accident.
+5. **`{doc}` links to four pages that are still D2 stubs** (`inelastic`,
+   `fluorescence`, `corrections`, and `overview` which is written). Those are
+   forward references to chapters D2 task 3 writes; the documents exist, so the
+   roles resolve and the build is clean, but a reader clicking through today
+   lands on an "arrives at D2" note. Correct rather than dangling, and it
+   self-resolves at the next task.
+
+**Tree state at the end.** `git status --short` shows six paths: the five
+`docs/model/*.md` pages and this document. **Nothing under `robust/`,
+`design/`, `notebooks/` or `reports/`** — the concurrent CDOM effort's territory
+is untouched, and no state-changing git command was run.
+
+**Stopping at D2 task 2**, per the turn's instruction: the gate is green and no
+new blocking question arose, so **task 3 (the inelastic chapters) was not
+attempted**. The one new finding above — the line-split role in
+`inelastic_corr.py` — is recorded here for D2 task 5 rather than raised as a
+Q&A question, because Q4 already carries the decision it would ask for.
