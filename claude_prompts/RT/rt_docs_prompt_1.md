@@ -3988,3 +3988,537 @@ new blocking question arose, so **task 3 (the inelastic chapters) was not
 attempted**. The one new finding above — the line-split role in
 `inelastic_corr.py` — is recorded here for D2 task 5 rather than raised as a
 Q&A question, because Q4 already carries the decision it would ask for.
+
+### 2026-08-31 (D2 task 3 — the inelastic chapters; the Raman arithmetic re-derived and 585.08 nm confirmed against bing's wrong docstring)
+
+**Branch.** `cdom-rt`, read fresh (`git branch --show-current`; the turn's brief
+named it and it matched). Working tree **clean** at the start — nothing of the
+concurrent CDOM effort was in flight. **Files written: exactly the four stubs the
+task names**, all under `docs/model/`. No `robust/`, `design/`, `notebooks/` or
+`reports/` path was opened for writing; `docs/api.rst`, `docs/conf.py` and
+`docs/model/overview.md` needed no change — overview's toctree already carried
+all nine model chapters, so no toctree edit was required.
+
+```
+ M docs/model/inelastic.md      |  303 lines  (was 9)
+ M docs/model/fluorescence.md   |  271 lines  (was 8)
+ M docs/model/corrections.md    |  324 lines  (was 9)
+ M docs/model/baselines.md      |  259 lines  (was 9)
+ 4 files changed, 1141 insertions(+), 19 deletions(-)
+```
+
+1,157 lines from 35. With task 2's 1,155, the two prose tasks have added ~2,250
+net; D1 left 1,785 lines, so the site is now well past DocQ9's
+~2,000–2,500-line estimate with tasks 4–6 still to come. Reporting the actual,
+per the standing instruction, rather than the estimate.
+
+**Stub check, verified rather than assumed** before writing: all four existed as
+the 8–9-line D1-task-6 stubs, each a title, a one-sentence promise and the
+identical `Arrives at D2 — until then, {doc}`overview` …` note. The promise
+sentences were treated as the chapters' contracts. **Three of the four are
+delivered as written; one had to be corrected** — see the PR05 note below.
+
+---
+
+#### What each page covers
+
+**`inelastic.md`** (303 lines) — Raman. The 3400 cm⁻¹ shift with its
+attribution, the unit bridge spelled out, and the 488 nm case worked by hand in
+two independent ways (§ below). The excitation grid as something
+{func}`raman_factor` *builds* rather than takes, with its measured non-uniformity
+(3.179–3.987 nm spacing — a fixed wavenumber step is a varying wavelength step)
+and the ten-of-eighty-one clamp that *is* the reason
+`RAMAN_WAVE_MIN_OFFICIAL` = 400. `raman_bb` and its three constants in a
+provenance table, including why 2.6e-4 (HydroLight, i.e. the truth's generator)
+beats Bartlett's measured 2.7e-4. `raman_factor`'s inputs/outputs, what it
+deliberately ignores (`a_ph`), the four S&P98 terms in an equation-number table,
+and the Ed ratio as a first-order dependence with its measured ×3.6–3.8 swing.
+Then the composition into `forward()` and the report's per-process error table.
+
+**`fluorescence.md`** (271 lines) — the φ_C-linear kernel, with the linearity
+measured over a factor of ten in φ_C and the gradient identity closing exactly;
+a warning that linearity-by-construction is **not** linearity verified, since
+L23 has truth at one yield. The five assembled terms including the
+`L_u = E_u/π` ×3 lesson and the point that, unlike Raman, **nothing divides out
+here** — every normalization is load-bearing. The 65-node fixed quadrature and
+the three things fixedness buys, plus the 6.3× → 1.59× fusion story. The
+`a_ph` `ValueError` pasted verbatim. `emission_line` with both shapes measured
+(both integrate to 1.000000), and `'single'` vs `'double'` given its own warning
+admonition carrying the −23.6 % with attribution.
+
+**`corrections.md`** (324 lines) — the two composition forms written as the
+structural guarantees they are (δ_R rescales the *increment*, so `f_R → 1`
+wherever Raman vanishes no matter what the network does; δ_F's features exclude
+φ_C, so the yield stays a clean handle). `HeadConfig` field by field with the
+per-head `delta_max` sized against measured errors. The tanh bound as one line
+of arithmetic, with the zero-init identity measured at exactly 0.0 and the
+trained heads measured at 90.3 % / 58.7 % of their bounds. The features table
+with the log10 floor and the refuse-on-mismatch rule. The packaged weights with
+byte counts, provenance and training targets. `corrections=None` vs `False`
+measured through `forward()`. Closing with the interpolator/no-domain-guard
+warning.
+
+**`baselines.md`** (259 lines) — Gordon and O25-refit: what they are, what each
+is blind to, and the fairness machinery (train-mask *required*; the relatively
+weighted objective worth ~4× to O25; "O25 form, refit on L23" mandatory on every
+table). The node-kink warning. Then their role in the validation story: the
+elastic report's five-row ladder quoted whole, the inelastic report's three-row
+one, and an in-environment re-measurement whose real purpose is a trap.
+
+---
+
+#### The Raman wavelength arithmetic, re-derived in this task
+
+The gate demands this be re-derived and shown to match, not copied, so here is
+the whole chain. **Three independent paths to the same number.**
+
+*(1) Exact rational arithmetic, from the physics.* Raman is a Stokes shift, so
+the scattered photon is lower in energy: `nu_em = nu_ex − 3400 cm⁻¹`.
+Equivalently, for a given emission wavelength, `1/λ' = 1/λ + 3400 cm⁻¹` — the
+form the task text gives. The unit bridge is the only place to go wrong: 1 cm =
+10⁷ nm, so 3400 cm⁻¹ = 3400/10⁷ nm⁻¹ = **3.4e-4 nm⁻¹**, which is exactly the
+`shift * 1e-7` in `conventions.raman_excitation`/`raman_emission`. Run in
+`fractions.Fraction`, so no floating point is involved at all:
+
+```
+1/488 nm                    = 0.0020491803 nm^-1
+minus 3.4e-4 nm^-1          = 0.0017091803 nm^-1
+reciprocal                  = 585.075772 nm   (exact rational 3050000/5213)
+rounded to 2 dp             = 585.08 nm
+```
+
+*(2) The cm⁻¹ form, as an independent route:* 10⁷/488 = 20491.8033 cm⁻¹, minus
+3400 = 17091.8033 cm⁻¹, and 10⁷/17091.8033 = **585.075772 nm**. Same answer by
+different algebra.
+
+*(3) Against the code `robust/rt` actually runs:*
+
+```
+raman_emission(488.0)   = 585.075772108 nm  (float64)
+exact rational          = 585.075772108 nm
+difference              = 0.000e+00     nm      <- exact agreement
+raman_emission(488.0)   = 585.075806     nm  (float32, the default dtype)
+raman_excitation(488.0) = 418.553589     nm
+round trip raman_emission(raman_excitation(488)) = 488.000000000 nm
+```
+
+**So the task text's 585.08 nm is right, and no correction was needed** — but it
+was established here rather than accepted, which was the point of the gate line.
+Two neighbouring numbers were re-derived at the same time because pages depend
+on them: `raman_excitation(400) = 352.113 nm` (just inside `WAVE_MIN` = 350,
+which is the entire justification for the 400 nm domain floor) and
+`raman_excitation(685) = 555.601 nm` (the fluorescence peak's Stokes partner,
+the number D1 task 4's gradient investigation landed on).
+
+**bing's docstring: the error is real, and it is narrower than "bing gets it
+wrong".** Located rather than assumed —
+`/Users/xavier/Oceanography/python/bing/bing/rt/raman.py`, lines 239–242:
+
+```
+    >>> excitation_to_emission_wavelength(488)
+    583.0  # approximately
+    >>> excitation_to_emission_wavelength(400)
+    463.0  # approximately
+```
+
+The **code** immediately below it (lines 244–249) is correct — it computes
+585.076 nm — and the second example is correct too (the true value is 462.963,
+so 463.0 is fine). Only the 488 nm example is wrong, by 2 nm. So this is a
+docstring defect in one line of one example in a *different repository*, not a
+physics error anywhere. `robust.rt`'s own docstrings carry 585.08 nm and
+418.55 nm and are right (`conventions.py:258` and `:272`, both read). Recorded
+here because it is exactly the kind of number that propagates by copying, and
+this effort's rule is that a number is derived or it is not written.
+
+---
+
+#### Every number, and where it was checked
+
+Two things were run in `ocean14` before any prose: a ~250-line measurement
+script over the committed 50-scene fixture (all four pages' "measured" figures
+came from it) and the exact-rational derivation above. Then, after writing, a
+**mechanical** trace of every quoted figure back to the file it is attributed to
+— 63 needles grepped against the two reports, the inelastic design, the
+implementation record and the three module sources: **63 checks, 0 failures.**
+The report tables were additionally diffed cell-by-cell rather than eyeballed:
+
+```
+elastic ladder — report rows: 5   page rows: 5   identical: True
+  ['standard Gordon (1988)', '7.21', '7.21', '9.01']
+  ['ZTT backbone alone', '5.95', '5.93', '8.11']
+  ['O25 form, refit on L23 (12 fitted numbers)', '0.70', '0.69', '0.71']
+  ['hybrid, linear emulator (8 parameters)', '2.57', '2.54', '2.48']
+  ['hybrid, MLP emulator (417 parameters)', '0.30', '0.30', '0.32']
+
+report §4 per-process table vs the three pages that quote it: every cell matches
+  Raman 550–700 nm : −38.6 → −0.14 | +1.2 → −0.10 | −4.2 → −0.21
+  Raman 490 nm     : −3.6 → +1.03  | +30.8 → +0.82 | +32.5 → +0.58
+  fluorescence 685 : +0.3 → +0.08  | −5.2 → +0.07  | −13.7 → +0.10
+```
+
+*Quoted from a document, with the citation on the page itself:*
+`reports/report_rt_inelastic_model.md` §1 (Raman 5–15 % over 520–750 nm, ~20 %
+at 0°, fluorescence ~35 % at 685 nm; the ×3 π defect and the flat-Ed defect),
+§2 (129 parameters per head against the emulator's 417), §4 (the three-row
+ladder 16–19 % / 2–4 % / 0.34 %; 48 % at the peak; the per-process table above;
+the −74 % and −9.2 % zenith holdout; the trophic deciles −11 %→+11 % against
+≤ 0.62 %; φ_C identical to < 10⁻⁴; 13 % at 350 nm; 1.59× and the 6.3× first
+measurement) and §5 (may-not-claim items 1–5, including the −23.6 % double
+Gaussian and the "no domain guard" clause); `report_rt_elastic_model.md` §§3–5
+(the five-row ladder, the 2.3 × margin, O25's deterministic 4.63 % against the
+MLP's 4.74–12.24 %/median 7.75 %, the four speeds, the refit-fairness
+paragraph); `design/rt_inelastic_model.md` §2/§3/§4.2–4.6 (the composition law,
+the internal excitation grid, the +60 %/−50 % flat-Ed error, the 1.00/0.95/0.86
+zenith drift, the O(10²–10³) parameter budget, the unvalidatable-shoulder
+judgement); `design/rt_inelastic_implementation.md` §§5.2–5.3 (δ_R needing
++0.64 and δ_F ~+0.18, which is *why* the bounds are 1.0 and 0.5; the training
+fits 24.8 → 1.69 % and 5.6 → 0.77 %; |δ|rms 30.6 % and 7.1 %; max |δ_R| 0.905;
+the 4.2/4.3 kB files; ~60 s per head; the ≤ 5 % gates beaten ~25×). Module
+docstrings supplied the constants' provenance, `f_phys`'s 1.0076–2.5 release
+range, and `baselines.py`'s 5.1 % median zenith fall, 0.68–0.73 % vs 2.5–2.7 %
+weighting cost, 69 %-at-30° gradient kink and 2.7e-10-at-45° agreement.
+
+*Measured in this environment (fixture-scale; every such figure is labelled as
+such on the page, and the pages say the reports' numbers are the citable ones):*
+
+| Page | Measured | Value |
+|---|---|---|
+| inelastic | the excitation grid over the canonical 81 | λ′ 312.779–597.610 nm, spacing 3.179–3.987 nm |
+| inelastic | excitation points below `WAVE_MIN` | **10 of 81**, i.e. every λ_em ≤ 395 nm |
+| inelastic | `raman_bb(488)`, and the λ′⁻⁵·⁵ span | 1.300000e-04 m⁻¹; 7.83e-04 at 352 nm vs 6.37e-05 at 555.6 nm (×12) |
+| inelastic | `f_phys` on the fixture | min 1.020783, median 1.1228, max 1.2888 |
+| inelastic | `Ed(λ′)/Ed(λ)` over 400–750 nm | 0.445→1.579 (×3.55) at 0°; 0.424→1.619 (×3.82) at 60° |
+| fluorescence | the quadrature | 65 nodes, 370–690 nm, 5 nm; **every node on a canonical grid point: True** |
+| fluorescence | both emission lines | integral 1.000000 each; FWHM 24.96 / 49.92 nm from σ = 10.6 / 21.2 |
+| fluorescence | φ_C linearity at 685 nm | increment/φ_C = 1.482279e-03 at φ_C = 0.01/0.02/0.04/0.10, **identical to every printed digit** |
+| fluorescence | the gradient identity | `φ_C·∂Rrs/∂φ_C` = 2.964558e-05 = `Rrs(0.02) − Rrs(0)` |
+| fluorescence | `'double'` vs `'single'` at 685 nm | 1.090167e-03 vs 1.428532e-03 = **−23.7 %** (report: −23.6 %) |
+| corrections | packaged weights | `raman_corr_l23.npz` **4330 bytes**, `fl_corr_l23.npz` **4366 bytes**; 129 parameters each, counted from the loaded pytrees |
+| corrections | the configs, read off the files | hidden (16,), `delta_max` 1.0 / 0.5, lr 3e-3, 3000 steps, seed 23 |
+| corrections | zero-init head | max\|δ\| = **0.0** exactly |
+| corrections | trained δ on the fixture | δ_R −0.3403…+0.9032 (**90.3 %** of its 1.0 bound); δ_F −0.1550…+0.2936 (58.7 % of 0.5) |
+| corrections | `None` vs `False` through `forward()` | **not bitwise equal**; 11.56 % max rel diff full grid, 9.13 % over 400–700 nm, **+7.84 % at 685 nm** |
+| corrections | `None` vs explicit `load_default()` | bitwise equal (True); `False` vs `CorrectionHeads()` bitwise equal (True) |
+| corrections | elastic path never resolves corrections | `forward(inelastic=None)` raises **zero** warnings |
+| corrections | `heads.cdom` | `None` — δ_C is defined, untrained, unwired |
+| baselines | Gordon ignores its last three arguments | `rrs_gordon(iops)` **bitwise identical** to the four-argument call |
+| baselines | `o25_coefficients` | 45° → (0.05485377, 0.03341322, 0.03972202, 0.17946824); 75° → the 60° row, clamped (True) |
+| baselines | `Rrs_o25(geometry=None)` | `ValueError`, message pasted |
+| baselines | fixture brightness vs the O25 ceiling | max `Rrs_x4` 0.0164 against 0.06 |
+
+**Three things the measurements changed or sharpened, recorded because the wrong
+version was the more plausible one in each case.**
+
+1. **The `delta_max` default is not what a reader would guess.**
+   `HeadConfig('raman')` on its own gives `delta_max=0.5`; it is
+   `init_head`, not the dataclass, that supplies the per-kind 1.0. I had written
+   "δ_R's bound defaults to 1.0" and it is only true through one of the two
+   construction paths. The page now states both, and notes that the packaged
+   weights carry their own bound so a loaded head is never guessing.
+2. **The report's `−23.6 %` and my `−23.7 %` are the same claim at two scales**,
+   not a discrepancy. The page quotes the report's figure as the citable one and
+   reports the fixture re-measurement beside it as agreeing to 0.1 percentage
+   points. Saying only "−23.7 %" would have invented a number; saying only
+   "−23.6 %" would have skipped the check.
+3. **`f_phys` on the fixture (max 1.2888) does not reach the docstring's
+   1.0076–2.5.** The fixture is 50 of L23's 3,320 water bodies, so the narrower
+   spread is a subset and the page says so explicitly rather than letting a
+   reader read it as a contradiction of the docstring.
+
+---
+
+#### The one place the task text had to be corrected: **PR05**
+
+Both D2 task 3's own text and the D1-task-6 stub describe the page as covering
+"the Gordon and **PR05/O25** baseline models in `robust/rt/baselines.py`". There
+is no PR05 in `robust/rt/baselines.py`, and its absence is deliberate and
+documented: the module docstring's third paragraph is titled **"PR05 is
+deliberately absent"** — its coefficients are a 4-D
+`(theta_s, theta_v, dphi, gamma_b)` lookup table the paper does not print, which
+lives behind a 2005 institutional URL or inside POLYMER, and because L23 is
+nadir-only a refit here could not populate the two sensor-geometry axes, so the
+result would be "a different object wearing the same name". Recorded as a gap
+rather than approximated, per prompt 5 Q8; both reports say the same where the
+ladder is presented.
+
+So the page carries a short **"PR05 is deliberately absent"** section stating
+exactly that, rather than documenting a model that does not exist. This is a
+correction to the task text, not a deviation from it — writing the page as
+worded would have been the defect. Flagging it here so the stub's wording is not
+mistaken for a missing feature later.
+
+---
+
+#### Q5's open item, decided
+
+"Status entering D2" lists as an open item: *"Q5 keeps `cdom_fl` on the API
+page. D2 task 3 must still decide whether the inelastic prose gains a CDOM
+paragraph or whether the limitations page states explicitly that
+`robust.rt.cdom_fl` is in the API and unvalidated."* Decided as **both, split by
+subject**, and the split is not a hedge:
+
+- **`corrections.md` gains a CDOM paragraph**, because δ_C genuinely lives in
+  `inelastic_corr.py` and a reader meeting `KINDS = ('raman', 'fl', 'cdom')`,
+  `CDOM_FEATURES`, `corrected_cdom` and `CorrectionHeads.cdom` on the API page
+  needs to know what they are. It says δ_C is defined on the δ_F pattern and
+  ships **untrained and unwired** — `train_cdom_corr` raises, `load_default`
+  looks for no CDOM weights (`heads.cdom is None`, measured), and the shipped
+  term is `scale · K_cdom`, bit-for-bit what a zero-init head would produce.
+- **The `cdom_fl` *term* is not documented on these four pages.** D2 task 3
+  names four chapters and none of them is a CDOM chapter; `overview.md` already
+  carries the note flagging {mod}`robust.rt.cdom_fl` as present, off by default,
+  analytic-only and unvalidated, and `corrections.md` links to it rather than
+  restating it. That module is also under concurrent CDOM development, which is
+  a second reason not to write prose against it from here.
+- **D2 task 5's limitations page should still carry the explicit sentence.**
+  Nothing here pre-empts it, and the honest scope statement — that
+  `robust.rt.cdom_fl` is in the API and unvalidated — belongs on the page whose
+  job is scope. Recording the decision rather than asking, since Q5's answer
+  ("leave it in; I am developing the CDOM code in parallel") settles the part
+  that needed JXP.
+
+---
+
+#### The cross-reference spot-check (the reworded gate)
+
+Same detector as task 2, including its relaxed "any `<a>` immediately preceding"
+test (the task-2 false positive on `py-modindex.html` stays fixed). Legal
+targets were again **enumerated from `objects.inv` before the prose** rather
+than guessed and hunted afterwards — the technique that turns this gate from a
+search into a lookup:
+
+```
+$ python <scratchpad>/xrefcheck.py
+api.html                            373 xref roles,  22 unresolved
+index.html                            1 xref roles,   0 unresolved
+model/baselines.html                 31 xref roles,   0 unresolved
+model/conventions.html               36 xref roles,   0 unresolved
+model/corrections.html               54 xref roles,   0 unresolved
+model/ed.html                        23 xref roles,   0 unresolved
+model/emulator.html                  46 xref roles,   0 unresolved
+model/fluorescence.html              39 xref roles,   0 unresolved
+model/forward.html                   37 xref roles,   0 unresolved
+model/inelastic.html                 43 xref roles,   0 unresolved
+model/overview.html                  54 xref roles,   0 unresolved
+model/ztt.html                       51 xref roles,   0 unresolved
+py-modindex.html                     14 xref roles,   0 unresolved
+TOTAL 802 xref roles, 22 unresolved
+```
+
+**All 167 roles on the four new pages resolve** (43 + 39 + 54 + 31). The total
+moved 635 → 802, i.e. **+167, all of them resolving**, and `api.html`'s residue
+is **still exactly 22, with the identical set of twelve distinct targets task 2
+enumerated** — `robust.rt.forward()` ×8 (the deliberate `:no-members:` trade),
+`Geometry.Ed` ×2, `MU_INF_TT2017_*_RANGE` ×2, `_network()` ×2,
+`SUPPORTED_THETA_S` ×2, the `#:`-gap constants (`WAVE_MIN`, `G2_GORDON` ×2,
+`INELASTIC_GATE_SPEED`, `CDOM_EX_STEP`), and the line-split
+`robust.rt.emulator\n.Emulator`. **No new breakage**, and nothing was
+re-litigated: Q4's answer already routes all of it to D2 task 5.
+
+Three roles the up-front inventory lookup let me avoid writing, all victims of
+the D1-task-5 `#:` coverage gap — a constant sharing a doc comment with its
+neighbour is not emitted, so it has no anchor. **The gap bites the inelastic
+chapters harder than the elastic ones**, so here is the specific list for D2
+task 5, which is the task that closes it:
+
+```
+inelastic       MU_U, MU_R, SIGMA_FL, SIGMA_FL_SECONDARY,
+                FL_WEIGHT_PRIMARY, FL_EX_MAX, FL_EX_STEP
+baselines       G2_GORDON
+inelastic_corr  DEFAULT_FL_WEIGHTS
+conventions     B_RRS
+```
+
+Every one of those is a constant these pages have natural cause to name. They
+are written as plain literals with the module named in prose, and each page says
+so where it matters (`inelastic.md` and `baselines.md` both point the reader at
+{doc}`../api` with a parenthetical explaining why the neighbour resolves and the
+constant does not). One `#:` line each in `robust/` turns all ten into links.
+
+---
+
+#### Gate
+
+**1 — `-W` clean, from a genuinely clean tree** (`docs/_build/` removed *and*
+`docs/_static/fig_*.png` deleted, so the `conf.py` figure hook had to produce
+the hero again rather than find a stale copy):
+
+```
+$ rm -rf docs/_build && rm -f docs/_static/fig_*.png
+$ ls -a docs/_static      ->   .  ..  .gitkeep            (no PNG)
+$ /usr/bin/time -p python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+stdout: grep -cE "WARNING|ERROR"  ->  0
+stderr: the three /usr/bin/time lines and nothing else
+real 3.06   user 2.67   sys 0.19
+$ ls docs/_static         ->   fig_inelastic_architecture.png   (regenerated)
+$ find docs/_build/html -name '*.html' -not -path '*_modules*' | wc -l   ->   25
+```
+
+Warnings go to **stderr**, so the two streams are captured separately rather
+than grepped from one log. 3.06 s against task 2's 2.86 s; 25 pages, unchanged
+(these four pages already existed as stubs).
+
+**2 — every quoted number traced to a report section or the implementation
+record, cited on the page.** The 63-needle mechanical trace and the
+cell-by-cell table diffs above are that check. Each page also carries an
+italicised *Sources for this page* block naming its module docstrings and the
+exact design/report/record sections, and stating that "measured" figures were
+measured in this environment on the committed fixture and that the reports'
+numbers are the citable ones.
+
+**3 — the Raman wavelength arithmetic re-derived in this task and shown to
+match.** Three independent derivations, exact-rational agreement with the code
+to 0.000e+00 nm, and bing's docstring defect located to file and line. Section
+above.
+
+**4 — the manual cross-reference spot-check** (the D1-task-5/D2-task-2
+precedent): 167 roles on the new pages, zero unresolved; `api.html`'s 22
+unchanged and untouched.
+
+**Additional rendered-HTML checks**, because "exit 0" is not "the page is
+right". Read out of `docs/_build/html/model/`:
+
+```
+page                math  tables  warn  note  imp  pre  h2  h3
+inelastic.html        18       4     1     0     1    6   7   2
+fluorescence.html     21       3     2     0     0    5   6   3
+corrections.html       8       6     1     0     0    6   8   1
+baselines.html        11       2     2     0     1    5   5   3
+```
+
+MathJax present on all four; 14 display-math blocks across them; **6 warning and
+2 important admonitions** rendered, counted by CSS class; 15 tables; every
+section heading with a clean slug (checked, including `raman_factor: inputs,
+output, and what it assembles` → `#raman-factor-inputs-output-and-what-it-assembles`);
+and **249 internal `href`/`src` targets checked, 0 broken** — a check that
+matters here specifically because `suppress_warnings = ["myst.xref_missing"]`
+means a broken Markdown link would not have failed `-W`.
+
+**One detector fix, recorded because it produced 28 false positives I nearly
+wrote down as broken links.** My first internal-link pass split hrefs on `#`
+only, so every theme asset carrying a cache-busting query string
+(`../_static/pygments.css?v=8f2a1f02`,
+`../_static/styles/theme.css?digest=cb8930…`) was reported missing — 7 per page,
+28 in all. Stripping `?` as well as `#` clears every one. Same failure mode as
+task 2's `py-modindex` false positive, same lesson: check the detector against
+the raw markup before believing either answer.
+
+The outbound `gh:` links from the four pages: **8 repo-root anchors** (the
+theme's navbar/sidebar GitHub icon, 2 per page, not mine) plus **31 content
+links over 4 distinct document paths** —
+`reports/report_rt_inelastic_model.md` ×15, `design/rt_inelastic_model.md` ×10,
+`design/rt_inelastic_implementation.md` ×3, `reports/report_rt_elastic_model.md`
+×3. All four render as `…/blob/main/…` and all four exist on this branch; per
+Q6's answer they 404 until the merge, which is the accepted and already-documented
+cost.
+
+**No `pytest` and no `ruff` run**, deliberately rather than by omission: this
+task touched no `robust/` path and no Python file at all, so there is nothing it
+could have broken, and Q1's two machine-anchored strict-hash failures are
+unchanged by construction.
+
+---
+
+#### Scope framing, checked against the prompt-8/9 rescoping
+
+Swept mechanically: the four pages contain **no occurrence of
+"retrieve-or-bust", "this package", or any sentence equating the project with
+the forward model.** Every page is scoped to `robust.rt` or to a named module,
+and `baselines.md` opens by saying `robust.rt.baselines` is **not part of the
+forward model** — a scope boundary inside the model, which is the same move at
+smaller scale. The only two project-level phrases are `baselines.py`'s own
+("every accuracy claim in this project is relative"; "costs this project
+nothing"), carried across as methodology statements about how claims are made,
+not identity claims about what the project is.
+
+Where a limit belongs to the model rather than the chapter, the page states it
+as the report's own may-not-claim item and says so: sub-400 nm (item 4) on
+`inelastic.md`, the double Gaussian (item 3) and φ_C beyond 0.02 (item 2) on
+`fluorescence.md`, geometry generalization and the missing domain guard (item 1)
+plus the θ_s-anchor kink (item 5) on `corrections.md`. The full unbowdlerized
+list stays D2 task 5's page, which these point at rather than pre-empt.
+
+---
+
+#### The corrections page's honest framing, stated as required
+
+The turn's instruction was that the heads-are-interpolators caveat be **stated
+plainly, not softened**. What the page says, in a `warning` admonition that is
+the last substantive section rather than a footnote: the heads interpolate over
+three zenith anchors and **nothing about them extrapolates**; retrained without
+60° δ_R errs by **−74 %**, an order of magnitude *worse than the −4.2 % analytic
+backbone it is supposed to be correcting*; the mechanical reason is that
+`cos_theta_s` is one of six features and L23 supplies it at exactly three values
+(1.0, 0.866, 0.5); the shipped weights are trained on all three, **so this
+failure is not in the delivered model** — but nothing in the code will tell you
+when you have left the range. That last clause is backed by an attribute check
+in the page, not an assertion:
+
+```
+head('raman')  has 'domain'? False    has 'out_of_domain'? False
+head('fl')     has 'domain'? False    has 'out_of_domain'? False
+Emulator       has 'domain'? True     has 'out_of_domain'? True   (domain set)
+```
+
+which also makes the consequence precise: `forward()`'s `check_domain` /
+`on_out_of_domain` switches guard the **elastic emulator only**, so an
+out-of-range θ_s reaches the heads silently. The page names report §7's
+recommended priority 2 — that the heads gain the emulator's guard until
+denser-zenith runs exist — as the open fix.
+
+---
+
+#### Deviations, all mine to own
+
+1. **PR05.** The page documents its deliberate absence instead of the model the
+   task text and stub named. Reasoned above; the alternative was documenting
+   something that does not exist.
+2. **`baselines.md` carries an in-environment score table the task did not ask
+   for**, with a `warning` saying it is not the reports' numbers. It earns its
+   place for one reason: it makes visible that **both baselines are elastic
+   models, so the truth channel decides whether the comparison means anything.**
+   Against X4, Gordon (14.80 %) apparently "beats" O25 (16.78 %) — both are
+   simply missing the inelastic physics — and the *corrected inelastic* model
+   scored against elastic truth X1 gives **25.40 %**, which is not a failure of
+   the model but a failure to pick the reference. A reader who runs
+   `score_models` will hit exactly that, and no other page warns them.
+3. **`{doc}` links to three pages that are still stubs** (`../using/data`,
+   `../using/validation`, `../using/limitations`). The documents exist so the
+   roles resolve and the build is clean, but a reader clicking through today
+   lands on an "arrives at D2" note. Same situation as task 2's deviation 5;
+   D2 tasks 4 and 5 fill exactly those three files.
+4. **`corrections.md` reaches into `emulator.py` for two facts** — the
+   `δ = delta_max · tanh(raw)` line and the zero-initialised output layer —
+   because that is where the heads' machinery physically lives (they duck-type
+   on it rather than reimplementing it). The page says so and links
+   {doc}`emulator` rather than pretending the code is local.
+5. **`fluorescence.md` mentions that both heads were trained with
+   `'single'`**, which no source states in those words; it is an inference from
+   the record's §5.3 training description plus the design's "off everywhere in
+   v1 training/validation". It is flagged on the page as a consequence to know,
+   not as a measured result.
+
+**Tree state at the end.** `git status --short` shows **four paths**, all the
+task's own, plus this document once the log lands:
+
+```
+ M docs/model/baselines.md
+ M docs/model/corrections.md
+ M docs/model/fluorescence.md
+ M docs/model/inelastic.md
+```
+
+`git diff --stat` → `4 files changed, 1141 insertions(+), 19 deletions(-)`.
+**Nothing under `robust/`, `design/`, `notebooks/` or `reports/`** — the
+concurrent CDOM effort's territory is untouched, and no state-changing git
+command was run (the `git status`/`branch`/`diff` calls are reads).
+
+**Stopping at D2 task 3**, per the turn's instruction: the gate is green and
+**no new blocking question arose, so no Q&A entry was added and task 4 (Data and
+Validation) was not attempted.** The three findings this turn produced — bing's
+one-line docstring defect in a different repo, the ten-constant `#:` list for
+task 5, and the `HeadConfig` per-kind-default asymmetry — are recorded above
+rather than raised as questions, because each is either already answered (Q4) or
+already known to JXP (the bing docstring, named in the task text itself).
