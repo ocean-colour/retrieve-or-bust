@@ -545,20 +545,21 @@ sufficient. See **Q7**.
     Retrieve or Bust.  It is only one piece, and the first.  Please see
     the README.md file for a better understanding of the project.  Then 
     modify the design document and any following tasks to reflect this.  Use Opus. Log your work.
-9. Read this doc and the "Status entering D2" section. Execute the 1st task in
+9. Please read my answer to Q9 in Q&A and react accordingly, i.e. re-edit the README.md file.  And understand the scope for `docs/` in this effort.  Use Opus. Log your work.
+10. Read this doc and the "Status entering D2" section. Execute the 1st task in
    the "D2" section — the quickstart notebook and the development record.
    Check my answers in Q&A. Use Opus. Log your work.
-10. Read this doc. Execute D2's 2nd task — the elastic model chapters. Use
+11. Read this doc. Execute D2's 2nd task — the elastic model chapters. Use
    Opus. Log your work.
-11. Read this doc. Execute D2's 3rd task — the inelastic chapters. Use Opus.
+12. Read this doc. Execute D2's 3rd task — the inelastic chapters. Use Opus.
     Log your work.
-12. Read this doc. Execute D2's 4th task — Data and Validation. Use Opus. Log
+13. Read this doc. Execute D2's 4th task — Data and Validation. Use Opus. Log
     your work.
-13. Read this doc. Execute D2's 5th task — Scope and limitations, plus the
+14. Read this doc. Execute D2's 5th task — Scope and limitations, plus the
     docstring fills. Use Opus. Log your work.
-14. Read this doc. Execute D2's 6th task — the figures script and the Reports
+15. Read this doc. Execute D2's 6th task — the figures script and the Reports
     section. Use Opus. Log your work.
-15. Read this doc. Execute D2's 7th task — the review pass and the wrap-up.
+16. Read this doc. Execute D2's 7th task — the review pass and the wrap-up.
     Use Opus. Log your work.
 
 **No "modify the next prompt doc" turn.** The coding effort needed one because
@@ -1437,6 +1438,47 @@ proposal and carrying no forward-looking commitments. Also worth your call:
 whether the retrieval, when it exists, is documented **on this same site** (a
 sixth navbar section) or on its own — that decides whether `docs/` should be
 restructured now, while it is cheap, or left flat. I have left it flat.
+
+>A. I'm not sure why the README you saw was so simple.  Look at the one currently on `main` on GitHub: `https://github.com/ocean-colour/retrieve-or-bust/blob/main/README.md`.  Please merge that one with the one you just edited (and I committed).  As for the docs, have the front page of RTD be similar to our README, but otherwise we are writing the detailed docs for the first major contribution of RoB.
+
+Question from Claude (2026-08-31, model: Opus), raised at the prompt-9 README
+merge. It did not block the turn — the merge is done and the `-W` gate is green —
+but it is about which URL the project's front door advertises, and you are the
+one who decides when the merge happens.
+
+**Q10 (The site is live, but only at the branch URL; the merged `README.md`
+points at the canonical root, which 404s until `cdom-rt` reaches `main`).**
+Measured today through Read the Docs' public API and by fetching the pages, not
+recalled:
+
+```
+https://retrieve-or-bust.readthedocs.io/            -> 404
+https://retrieve-or-bust.readthedocs.io/en/latest/  -> 404
+https://retrieve-or-bust.readthedocs.io/en/cdom-rt/ -> 200  (26.7 KB, both heroes render)
+builds: 3 — cdom-rt 2026-08-31T08:59Z success, cdom-rt 2026-08-30T18:07Z success,
+        latest 2026-08-29T13:02Z FAILED (the empty project-creation build)
+```
+
+So your activation worked and **Q7 is closed**: the site has built twice from
+`cdom-rt` and the second build carries everything through the prompt-8 rescoping.
+The root URL still 404s for one reason only — the active `latest` version tracks
+`default_branch: main`, and `main` has no `.readthedocs.yaml` yet.
+
+Both the merged `README.md` and the new front page name the **canonical root**,
+`https://retrieve-or-bust.readthedocs.io/`, which is a link that is wrong today
+and right the moment `cdom-rt` merges. That is the same dial `conf.py`'s
+`github_url_base` already sets (Q6: link `main`, accept the pre-merge 404s
+rather than baking a branch name into the repo), so the two are at least
+consistent.
+
+My recommendation: **leave it pointing at the root** and change nothing —
+branch-named URLs rot at the merge, which is worse than a link that is broken
+only for readers of an unmerged branch. If you want a working link *now* (to
+show the site to the team before the merge), the one-line alternative is to send
+people `https://retrieve-or-bust.readthedocs.io/en/cdom-rt/` by hand rather than
+committing it. The durable fix is yours and is a merge, not an edit: once
+`cdom-rt` lands on `main`, `latest` builds and every link in the repo becomes
+correct at once. Do you want it left as is?
 
 ## Next
 
@@ -3139,3 +3181,415 @@ task 2 was not attempted.
 
 Six paths, five of them `docs/`. Nothing under `robust/`, `design/`,
 `notebooks/` or `reports/`.
+
+### 2026-08-30 (prompt 8 — the rescoping turn: retrieve-or-bust is the project, `robust.rt` is its first component)
+
+A corrective turn, not a numbered D-task. Prompt 8 in the list above:
+
+> I see now that you thought the radiative transfer model was all there would
+> be for Retrieve or Bust. It is only one piece, and the first. Please see the
+> README.md file for a better understanding of the project. Then modify the
+> design document and any following tasks to reflect this.
+
+This is Q8 (raised at D2 task 1) being answered by action. It ran before D2
+task 2, which was the point: the model chapters had not been written yet, so
+reframing cost five paragraphs instead of five pages.
+
+**What I read, and what the project actually is.** Four primary sources, in the
+order I trusted them:
+
+- **`README.md`** — the file JXP named. 23 lines: CI badge, the tagline "Our
+  last best effort at IOP Retreivals", the pip dance, the `$OS_COLOR` note, and
+  a pointer to `robust/rt/` as "the elastic radiative-transfer forward model".
+  It contains **no statement of project scope** — no retrieval, no IOPs, no
+  priors, no mention that the RT model is one piece of anything. Untouched since
+  `f7ec063`. The file I was pointed at could not do the job I was pointed at it
+  for. I edited it; see below and Q9.
+- **`proposals/Claude_Science/anthropic_application.md`** (375 lines) — *the*
+  statement of scope, and the one that changed my picture. Subtitle:
+  "retrieve-or-bust: AI-driven retrieval of phytoplankton and inherent optical
+  properties from hyperspectral ocean color". "Project description" gives the
+  question (can AI recover more than ~4 independent IOP parameters from
+  hyperspectral `Rrs`, which the field holds to be impossible because `Rrs`
+  constrains essentially `u = bb/(a+bb)`), the method (priors from in-situ,
+  environmental and spatiotemporal context; Claude searching Bayesian /
+  deep-learning / hybrid method space; BING as the point of departure, not the
+  destination), the truth sets (L23, PANGAEA/Valente 2022, GLORIA/Lehmann 2023),
+  and five deliverables ending in a PACE demonstration and a methods paper.
+  Three-month timeline, M1–M3. **The radiative-transfer forward model is not
+  named as a deliverable at all** — it is infrastructure, which is exactly JXP's
+  point.
+- **`proposals/Claude_Science/TODO.md`** — nothing about the model or a wider
+  roadmap; it tracks the application submission (title, credits eligibility,
+  word caps). No new scope items. Skimmed and set aside.
+- **`context/context_summary.md`** — the physics case for why the inversion is
+  hard: ill-posed, not merely difficult; only external information cures the
+  degeneracy. Useful as the README's second link and as the reason the retrieval
+  needs priors rather than a better optimiser.
+- **`CLAUDE.md`** (repo root) — already had it right, in one sentence:
+  "retrieve-or-bust is our last best effort at solving the IOP inversion problem
+  with AI. The goal is to develop and evaluate methods that retrieve IOPs from
+  ocean color / remote-sensing reflectance." No mention of a forward model. The
+  self-description I had been overriding with what I happened to be building.
+
+**The corrected identity I settled on**, and used verbatim-ish everywhere:
+
+> **retrieve-or-bust** is an AI-driven effort to retrieve phytoplankton and
+> inherent optical properties (IOPs) from hyperspectral ocean colour — an
+> inversion the literature holds to be fundamentally degenerate, attacked by
+> systematically injecting the external information the physics demands.
+> `robust.rt`, the differentiable radiative-transfer forward model this site
+> documents, is its **first component**: the physics the retrieval will be built
+> on. The retrieval itself is a **separate component and does not exist yet**.
+
+The load-bearing distinction is small and easy to miss: the site was already
+honest that there is no inversion, but it said so as *a hole in this model*
+("this is a forward model, and only a forward model"). The correct framing is *a
+scope boundary between components* — the model is complete as what it is; the
+retrieval is a different, unbuilt thing. Every edit below is that one move.
+
+**Site edits — before → after.**
+
+`docs/index.md`, the opening sentence (the one JXP was reacting to):
+
+- was: "**retrieve-or-bust** is a differentiable radiative-transfer forward
+  model for ocean colour, written in JAX."
+- now: a first paragraph defining **retrieve-or-bust** as the AI-driven
+  IOP-retrieval project, then "**This site documents its first component:
+  `robust.rt`, a differentiable radiative-transfer forward model** for ocean
+  colour, written in JAX." Everything downstream in that paragraph (the
+  `forward()` entry point, the pitch, the architecture) is unchanged.
+
+`docs/index.md`, end of the pitch paragraph:
+
+- was: "That is the point of the package: gradients are what an inversion will
+  need."
+- now: "That is the point of this component: gradients are what the retrieval
+  will need."
+
+`docs/index.md`, "What exists, and what does not":
+
+- was: "**This is a forward model, and only a forward model. The inversion — the
+  retrieval of IOPs from a measured spectrum, the thing the project is named
+  after — does not exist yet.**"
+- now: "**`robust.rt` is a forward model, and only a forward model. The
+  retrieval itself — the inversion from a measured spectrum back to IOPs, the
+  thing the project is named after — is a separate component of retrieve-or-bust
+  and does not exist yet.**" Same bluntness, correct referent. The rest of the
+  section — every measured number, every limit — is untouched.
+
+`docs/development_record.md` (written yesterday, at D2 task 1):
+
+- was: "The forward model was built in ten milestones, each written up as a
+  notebook…"
+- now: "`robust.rt` — the forward model, and retrieve-or-bust's first component
+  — was built in ten milestones, each written up as a notebook…" The page is
+  titled "Development record", which without that clause reads as *the
+  project's* record; it is the model's.
+
+`docs/references.md`: "the project's two reports" → "the forward model's two
+reports". `docs/api.rst`: "the shortest complete description of what this
+package computes" → "…of what ``robust.rt`` computes".
+
+**What I checked and deliberately did not change.** `docs/model/overview.md`
+(scoped to `robust.rt` throughout — "Everything `robust.rt` computes is one
+function"; its CDOM note and its inversion-affordance line are both correct as
+written); `docs/quickstart.md` and `docs/quickstart_nb.ipynb`'s markdown cells
+(both scoped to the model, no project-level claim in either); `docs/conf.py`
+(`project` and `html_title` are "retrieve-or-bust", which is right — it is the
+project's site, and the front page now positions the content within it);
+`docs/installation.md` (its "the package" is the installable `retrieve-or-bust`
+distribution, which is a package fact, not a scope claim). The twelve remaining
+`docs/using/` and `docs/model/` stubs carry no framing yet — D2 writes them
+under the corrected Goals. I also left the **D1** task descriptions alone: D1 is
+executed, its wording is the historical record of what was asked, and rewriting
+it would falsify that. D1 task 6's "*no inversion yet*" phrasing is where the
+front-page sentence came from; the Goals section now overrides it globally, and
+the corrected page is the artefact that matters.
+
+**Prompt-document edits.** The `## Goals` section gained a bold paragraph
+("What the site's subject is, and is not") carrying the corrected identity, the
+three sources, and an explicit fence: *this does not widen the site's content* —
+D1/D2 document `robust.rt` and nothing else, and no page describes unbuilt
+components beyond saying they do not exist. The first Goals bullet's "states
+plainly that the inversion does not exist yet — this is a forward model" became
+"…that the retrieval/inversion does not exist yet — what is documented here is a
+forward model, retrieve-or-bust's first component". `## Context` gained a first
+reading item ("What the project is") naming the README, the proposal and the
+context summary, to be read before writing any sentence that positions the
+model.
+
+Two D2 tasks were reworded, both being the places that would have hard-coded the
+misframing into prose:
+
+- **Task 5** (Scope and limitations): "a plain statement that **there is no
+  inversion**" → "a plain statement that **the retrieval does not exist**:
+  `robust.rt` is a forward model, retrieve-or-bust's *first* component, and the
+  retrieval (inversion) is a separate component that has not been built… State
+  it as a scope boundary, not as a hole in this model."
+- **Task 7** (review pass): the proofreading criterion "check that a newcomer
+  meets the 'this is a forward model, there is no inversion' statement before
+  any claim of accuracy" → the three-clause scope statement (project → this site
+  documents its first component → the retrieval does not exist yet), plus a new
+  instruction to sweep for the old conflation: *any sentence that makes
+  retrieve-or-bust and the forward model the same thing is a finding*.
+
+Tasks 2, 3, 4 and 6 were read and left alone — each is scoped to named modules
+or named files and makes no project-level claim. The `## Next` section's
+"**The inversion**, whenever it exists" became "**The retrieval —
+retrieve-or-bust's next component**", with the open question of whether it even
+shares this site.
+
+**`README.md` — a real edit to the project's front door, flagged loudly.** JXP
+pointed at it as the scope reference and it did not contain the scope. Rather
+than leave the corrected Goals section pointing at an inadequate file, I added a
+"What this is" section — the retrieval goal, the `u = bb/(a+bb)` degeneracy, the
+priors-and-AI-search approach, links to the proposal and the context summary,
+and a bold "only the first component exists today; the retrieval does not exist
+yet". Every clause is drawn from `anthropic_application.md` or
+`context_summary.md`; I added no claim of my own. Two further factual repairs in
+the same edit: the pointer section is now titled "The forward model — the first
+component", its stale adjective **elastic** is gone (the model has carried Raman
+and fluorescence since the inelastic milestones), and its link list — which
+named only the four *elastic* documents — is now an elastic/inelastic table of
+design, coding plan, implementation record and report, plus a `docs/` pointer.
+The tagline, the CI badge and the development commands are untouched. 46 lines
+changed. **This is the one edit in this turn that is not documentation-effort
+territory, and Q9 asks JXP to read it** — I wrote prose in his voice from his
+proposal, and the sentence "the project is being built in components, and only
+the first exists today" is an inference from the repo, not something he told me.
+
+**Q9 added to the D2 Q&A**, in two halves: (i) please check that README edit;
+(ii) how much of the wider vision belongs on the site — positioning only (what I
+did), a short "The project" page at task 7 if the site still reads as a model
+with no context, or a roadmap page (which I argue against: it is a promise page
+and it dates fast). It also asks whether the retrieval, when it exists, is
+documented on this site or its own, since that decides whether `docs/` should be
+restructured now while it is cheap. Q8 gained a status note saying it was
+answered by this turn. Per the parent instruction I did not block on Q9 — the
+corrections are made.
+
+**Gate.** From a clean tree (`docs/_build/` and `docs/_static/fig_*.png` deleted
+first, so the `conf.py` figure hook had to produce the hero again):
+
+```
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0     zero WARNING/ERROR lines on stdout *or* stderr
+```
+
+Rendered `index.html` re-read as text to confirm the new opening survives MyST
+and reads correctly in order: project → "This site documents its first
+component: robust.rt" → the pitch. No `robust/`, `design/`, `notebooks/` or
+`reports/` file was touched; the concurrent CDOM effort's territory is untouched.
+
+**One process note.** JXP committed mid-turn again (as in Q2) — `42aab38 "docs
+continue"` carries every edit above except this log entry, so `git status` was
+*clean* when I went to report it. Nothing was lost; the commit's diffstat is
+`README.md +46`, `rt_docs_prompt_1.md`, `docs/{api.rst,conf.py,
+development_record.md,index.md,quickstart.md,quickstart_nb.ipynb,references.md}`.
+This entry is the only working-tree change left after it.
+
+**What I got wrong, and why it is worth recording.** Nothing in the D1 material
+was *false* — the site never claimed an inversion existed, and the limitations
+framing was already blunt. The defect was subtler and more expensive: I inferred
+the project's identity from the artefact I was handed (a `robust/rt/` package
+and two RT reports) instead of from the project's own statements, three of which
+were sitting in the repo — `CLAUDE.md`'s first paragraph, the proposal, and the
+context summary — and one of which (`CLAUDE.md`) I had read at the start of
+every single turn. Reading the code tells you what exists; it does not tell you
+what the effort is *for*. That is the generalisable lesson, and it is the reason
+`## Context` now opens with "What the project is" rather than "What is being
+documented".
+
+### 2026-08-31 (prompt 9 — Q9 answered: `main`'s README merged into this branch's, and the RTD front page rebuilt to match)
+
+Branch `cdom-rt`, read fresh; working tree carried only this document's prompt-8
+edits when the turn started. A second corrective turn, not a numbered D-task.
+
+**What JXP's answer to Q9 said, and what it changed.**
+
+> A. I'm not sure why the README you saw was so simple. Look at the one
+> currently on `main` on GitHub. Please merge that one with the one you just
+> edited (and I committed). As for the docs, have the front page of RTD be
+> similar to our README, but otherwise we are writing the detailed docs for the
+> first major contribution of RoB.
+
+Two things I had wrong at prompt 8, both now fixed. First: the 23-line README I
+called inadequate was **this branch's**, and `main` carries a much fuller one
+that this lineage never had. `main` is not an ancestor of `cdom-rt` (the "Status
+entering D2" section already records this: five commits, PR #6 "websites"),
+and the richer README arrived in exactly those commits. So prompt 8's "see the
+README" was never pointing at a thin file — it was pointing at a file I could
+not see from where I was standing. **The lesson is one command wide**: when a
+document I am told to read looks wrong for the job, check `git show main:<path>`
+before concluding the document is deficient. I inferred the project's identity
+from the proposal instead, got a defensible answer, and still missed the
+authoritative one that was two keystrokes away.
+
+Second: "the detailed docs for the **first major contribution** of RoB" is
+JXP's own phrase for what this site is, and it is sharper than the "first
+component" I had been using — it says the model matters in its own right rather
+than merely being early. It is now the front page's section heading.
+
+**Getting `main`'s README without network access.** `git show main:README.md` —
+read-only, allowed. 92 lines: a centered header (the Sea Meets the Stars logo,
+the title, the tagline "Our last, best effort at solving the ocean-color IOP
+inversion — with AI as the accelerant"), a hero image at
+`docs/figs/rob_graphic_readme.png`, then Overview, Why this is hard, The bet,
+Point of departure: BING, Related work, Team (seven people), Package layout,
+License. It knows nothing of `robust/rt/`, of the install dance, of `$OS_COLOR`
+or of the docs site — all of which exist only on this branch.
+
+**The merge, section by section.** The result is 145 lines. What came from
+where, and what moved:
+
+| Section | Source | Note |
+|---|---|---|
+| Centered header + tagline + hero | `main` | verbatim |
+| CI badge | this branch | moved into `main`'s centered header block as a `<p align="center">` |
+| Overview | `main` | verbatim, **plus** this branch's two scope links (the proposal, the context summary) appended as a third paragraph |
+| Why this is hard | `main` | verbatim |
+| The bet | `main` | verbatim |
+| Point of departure: BING | `main` | verbatim |
+| **What exists today** | this branch, rewritten | the "built in components, only the first exists, the retrieval does not exist yet" statement, cut from three sentences to two and re-pointed at `robust/rt/` and the docs site |
+| Related work | `main` | verbatim, **plus** a first bullet for the ReadTheDocs site |
+| Team | `main` | verbatim |
+| Package layout | `main`, expanded | see below |
+| The forward model's working documents | this branch | the elastic/inelastic table, kept whole, demoted to an `###` under Package layout |
+| Development | this branch | verbatim (pip dance, `$OS_COLOR` note) |
+| License | `main` | verbatim |
+
+**Package layout is where the two documents actually had to be reconciled**, and
+it is the one place I exercised judgment beyond "keep both". `main` lists three
+bullets; this branch had no such section but did have a whole top-level "The
+forward model — the first component" section. Per the turn's instruction I did
+**not** keep that as a sibling of Overview/The bet — it would have fought
+`main`'s structure, putting one component's build documents at the same level as
+the project's mission. Instead `robust/` gained a nested bullet describing
+`robust/rt/` in one sentence with the docs link, and three real directories this
+branch has and `main` does not — `design/`, `reports/`, `notebooks/RT/` — were
+added as siblings, since the working-documents table below references all three.
+`main`'s `docs/` bullet said "Read the Docs site, forthcoming"; it is no longer
+forthcoming, so it links the site.
+
+**What I dropped, and why** — two things, both deliberate:
+
+- **This branch's tagline**, "Our last best effort at IOP Retreivals" (with the
+  typo). `main`'s "Our last, best effort at solving the ocean-color IOP
+  inversion — with AI as the accelerant" is the same sentence finished, so
+  keeping both would have been a stutter.
+- **The prompt-8 "What this is" section** I wrote from the proposal at the last
+  turn — the degeneracy paragraph, the priors-and-AI-search paragraph. Every
+  claim in it survives, but in `main`'s words: Overview, Why this is hard and
+  The bet say all of it, first-hand and better. This is the half of Q9(i) JXP
+  was answering — my prose in his voice is now replaced by his prose. Its two
+  *links* (the proposal, the context summary) were the part `main` lacked, and
+  those were carried over.
+
+Nothing else was lost: every link, table row and command from either side is in
+the merged file. Verified mechanically rather than by eye — a script extracted
+all 14 repo-relative link targets and `src=` paths and stat'd each; **zero
+missing**.
+
+**The hero image made it in, byte-identically.** `git show
+main:docs/figs/rob_graphic_readme.png > docs/figs/rob_graphic_readme.png`
+(226,563 bytes; SHA-256 `e5d0f3d6…5e9c` on both sides, checked, so the eventual
+merge sees an identical add/add and cannot conflict). `.gitignore` does not
+touch `docs/figs/` — the only docs image patterns it carries are
+`docs/_static/fig_*.png`, which this file's name does not match, so it is a
+normal committed asset and the `make_docs_figures.py` supply chain is untouched
+(that script stays scoped to the seven `reports/fig_*.png`). `main` also carries
+`docs/figs/rob_graphic_talk.png` and `docs/scripts/rob_graphic.py`, the
+generator; I extracted **neither** — nothing here references them, and both
+arrive on their own at the merge. If the graphic ever needs regenerating before
+then, the script is one `git show` away.
+
+**`docs/index.md` — the front page now carries the mission, not a pointer to
+it.** This supersedes the Q9(ii) plan I proposed ("positioning only, one
+paragraph"): JXP asked for the front page to *be similar to our README*, so it
+mirrors the README's framing in the README's own words, condensed. New shape,
+top to bottom:
+
+1. **The mission graphic** (`/figs/rob_graphic_readme.png`) as the hero, with a
+   caption that does the scope work: "The project in four steps, as the README
+   tells it. This site documents the physics the middle two will be built on —
+   the forward model — and not the retrieval, which does not exist yet." The
+   graphic depicts Observe → break the degeneracy → Retrieve → Validate, i.e.
+   mostly things that are **not built**, so it could only go on the page with a
+   caption that says so in the same breath.
+2. **`## Overview`** — the no-hedging attempt to crack the IOP inversion, and
+   the outcome definition of success. Condensed from the README's two
+   paragraphs, with `a(λ)`/`b_b(λ)`/`R_rs(λ)` in MathJax rather than backticks.
+3. **`## Why this is hard`** and **`## The bet`**, folded into that section as
+   bold lead-ins: the $u = b_b/(a+b_b)$ degeneracy; priors plus a wider method
+   search with AI as accelerant, Claude in the near term, BING as the point of
+   departure (with the Prochaska & Frouin 2025 citation from the README, not
+   invented here). Three links out, through the existing `gh:` scheme so they
+   move with `github_url_base`: the README, the proposal, the context summary.
+4. **`## This site: the first major contribution`** — the hinge, in JXP's
+   phrase. The old opening sentence ("This site documents its first component…")
+   became "**What is documented here is `robust.rt`, a differentiable
+   radiative-transfer forward model** … retrieve-or-bust's first major
+   contribution, and the physics the retrieval will be built on."
+5. The unchanged ocean-colour pitch paragraph, then **the architecture figure**,
+   moved down from the top of the page to sit exactly where the technical
+   content begins — mission graphic first, architecture second, which is the
+   sequencing the turn asked for.
+6. **`## What exists, and what does not`** — untouched. Every measured number
+   (0.34 % / 0.30 % rRMS, 2.3× vs O25, −74 % unseen zenith, φ_C = 0.02, the
+   ≤ 5.9e-9 gradient agreement, 1.59× runtime) and every limit is as D1 task 6
+   and prompt 8 left it. No number was added, moved or re-rounded in this turn.
+7. The card grid and the four toctrees — untouched.
+
+`docs/index.md` 152 → 188 lines (`README.md` 59 → 145). **No other page changed**: `docs/model/`,
+`docs/using/`, `docs/api.rst` and the D2 task list keep their scope exactly, per
+the turn's instruction and Q9's own fence. No "The project" page, no roadmap
+page, no retrieval page — none of it is built, and the standing rule holds.
+
+**Gate — the `-W` build, from a genuinely clean tree** (`docs/_build/` and
+`docs/_static/fig_*.png` deleted first, so the `conf.py` figure hook had to
+produce the architecture PNG again):
+
+```
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0     zero WARNING/ERROR lines on stdout *or* stderr
+/usr/bin/time -p: real 2.53  user 2.16  sys 0.17
+```
+
+`copying images...` lists three: `figs/rob_graphic_readme.png`,
+`_static/fig_inelastic_architecture.png`, and the notebook's plot. Sphinx picks
+the new hero up from `docs/figs/` with no `html_static_path` or
+`exclude_patterns` change — a source-tree image referenced as `/figs/…` is
+copied to `_images/` like any other. The rendered `index.html` was re-read as
+text to confirm order and link targets: both `<img>` tags resolve to `_images/`,
+and the three `gh:` links render as
+`https://github.com/ocean-colour/retrieve-or-bust/blob/main/{README.md,
+proposals/Claude_Science/anthropic_application.md, context/context_summary.md}`
+— all three of which **exist on `main` today**, checked with `git ls-tree -r
+main`, unlike the `design/`/`reports/`/`notebooks/` links Q6 is about.
+
+**A real piece of new status, measured today: the site is live.** Fetched, not
+assumed:
+
+```
+https://retrieve-or-bust.readthedocs.io/en/cdom-rt/  -> 200, 26.7 KB
+   title "retrieve-or-bust", hero figure present, "first component" present
+builds: cdom-rt 2026-08-31T08:59Z success | cdom-rt 2026-08-30T18:07Z success
+        latest  2026-08-29T13:02Z FAILED (the empty project-creation build)
+```
+
+**Q7 is closed** — JXP's activation worked and the branch has built twice, the
+second time carrying the prompt-8 rescoping. The bare root URL and `/en/latest/`
+still 404, because `latest` tracks `default_branch: main` and `main` has no
+`.readthedocs.yaml`; that is a merge away, not an edit away. Both the merged
+README and the new front page name the canonical root anyway, consistent with
+`conf.py`'s `main`-by-default `github_url_base`. **Q10** asks JXP to confirm that
+choice rather than committing a branch-named URL.
+
+**Untouched, as required:** no `robust/`, `design/`, `notebooks/` or `reports/`
+file was opened for writing; the concurrent CDOM effort's territory is clean. No
+state-changing git command was run — the three `git show` / `git ls-tree`
+invocations are reads. Working tree at the end: `README.md`, `docs/index.md` and
+this document modified, `docs/figs/` new and untracked (one PNG).
