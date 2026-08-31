@@ -79,6 +79,50 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 3  # let pages link to each other's subsections
 
+# -- Outbound GitHub links: one constant, one place ---------------------------
+#
+# Several pages (the development record today; the generated report copies at
+# D2 task 6) link out to files that live in the repository but are never
+# rendered by the site -- the design docs, the coding plans, the implementation
+# records, and the ten milestone notebooks. Those links have to name a git ref.
+#
+# `main` is the ref the site describes and the ref these URLs will be correct
+# against, so it is the default. It is *not* correct today: the docs work lives
+# on an unmerged branch, and `main` carries no ``reports/``, ``design/`` or
+# ``notebooks/`` directory at all, so every link below 404s until the merge.
+# That is a known, accepted state (prompt-doc Q&A Q6: "I will not merge
+# cdom-rt into main until we are all done"), not an oversight -- and the reason
+# the ref is a single constant rather than fifteen hardcoded strings is so the
+# whole site moves in one edit, or one environment variable, when it changes:
+#
+#     export ROBUST_GITHUB_URL_BASE=\
+#         "https://github.com/ocean-colour/retrieve-or-bust/blob/cdom-rt/"
+#     python -m sphinx -b html docs docs/_build/html
+#
+# Hardcoding a branch name here would be worse than the 404: the working
+# agreements forbid treating a branch name as fact, and those URLs would rot at
+# the merge instead of before it.
+github_repo_url = "https://github.com/ocean-colour/retrieve-or-bust"
+github_url_base = os.environ.get(
+    "ROBUST_GITHUB_URL_BASE", f"{github_repo_url}/blob/main/"
+)
+
+# Pages use it through a MyST URL scheme, so a link is written as its
+# repo-relative path and nothing else:  [text](gh:notebooks/RT/foo.ipynb).
+# Listing the standard schemes alongside is required -- assigning
+# `myst_url_schemes` replaces the default set rather than extending it.
+myst_url_schemes = {
+    "http": None,
+    "https": None,
+    "mailto": None,
+    "ftp": None,
+    "gh": {
+        "url": github_url_base + "{{path}}",
+        "title": "{{path}} on GitHub",
+        "classes": ["github"],
+    },
+}
+
 # The two reports and the design docs are authored as standalone GitHub
 # documents carrying repo-relative links (``design/...``, ``robust/...``).
 # Those are not Sphinx cross-reference targets, and CI builds with -W, so a

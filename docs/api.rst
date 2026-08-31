@@ -43,7 +43,7 @@ The top-level package. It carries the version literal that ``setup.py`` and
    :show-inheritance:
 
 The forward model itself: the module docstring below is the shortest complete
-description of what this package computes and which submodule owns each term.
+description of what ``robust.rt`` computes and which submodule owns each term.
 
 ``robust.rt``'s own ``__all__`` is entirely **re-exports** -- the submodules,
 ``forward``, and the five input types -- whose canonical definitions are the

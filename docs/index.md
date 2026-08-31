@@ -12,9 +12,16 @@ correction. Reproduced from `reports/report_rt_inelastic_model.md` §2.
 
 ## What this is
 
-**retrieve-or-bust** is a differentiable radiative-transfer forward model for
-ocean colour, written in [JAX](https://docs.jax.dev/en/latest/). Its public
-entry point, {func}`robust.rt.forward() <robust.rt.hybrid.forward>`, maps
+**retrieve-or-bust** is an AI-driven effort to retrieve phytoplankton and
+inherent optical properties (IOPs) from hyperspectral ocean colour — an
+inversion the literature holds to be fundamentally degenerate, and which the
+project attacks by systematically injecting the external information the physics
+demands.
+
+**This site documents its first component: `robust.rt`, a differentiable
+radiative-transfer forward model** for ocean colour, written in
+[JAX](https://docs.jax.dev/en/latest/). Its public entry point,
+{func}`robust.rt.forward() <robust.rt.hybrid.forward>`, maps
 inherent optical properties —
 absorption, backscattering, and an *explicit* phase-function descriptor — plus
 a viewing and illumination geometry to a remote-sensing reflectance spectrum
@@ -33,13 +40,14 @@ express — **Raman scattering by water** and **chlorophyll-a fluorescence** —
 each as analytic physics with a small bounded learned correction. Because the
 whole chain is JAX, every output is exactly differentiable with respect to
 every input, including the fluorescence quantum yield $\varphi_C$. That is the
-point of the package: gradients are what an inversion will need.
+point of this component: gradients are what the retrieval will need.
 
 ## What exists, and what does not
 
-**This is a forward model, and only a forward model. The inversion — the
-retrieval of IOPs from a measured spectrum, the thing the project is named
-after — does not exist yet.** What is documented here is the map from IOPs to
+**`robust.rt` is a forward model, and only a forward model. The retrieval
+itself — the inversion from a measured spectrum back to IOPs, the thing the
+project is named after — is a separate component of retrieve-or-bust and does
+not exist yet.** What is documented here is the map from IOPs to
 $R_{rs}$: its accuracy against the Loisel et al. (2023) synthetic archive, its
 speed, its gradients, and — at least as prominently — the places where it is
 not yet trustworthy. Held out from training, the complete model reaches
@@ -111,6 +119,7 @@ signatures — no mocked imports.
 
 installation
 quickstart
+quickstart_nb
 ```
 
 ```{toctree}
@@ -138,5 +147,6 @@ using/limitations
 
 api
 references
+development_record
 Team <member_policy>
 ```

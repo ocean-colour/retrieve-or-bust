@@ -1,7 +1,7 @@
 # References
 
 The bibliography the model rests on. Every entry below is taken from the
-References section of one or both of the project's two reports —
+References section of one or both of the forward model's two reports —
 `reports/report_rt_elastic_model.md` and
 `reports/report_rt_inelastic_model.md` — rather than composed for this page,
 and each was checked against its source before being copied here. The

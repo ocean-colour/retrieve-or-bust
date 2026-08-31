@@ -8,13 +8,30 @@ and its composition law, Ed, the Raman and chlorophyll-a fluorescence terms,
 the correction heads, the baselines, the data and validation protocol — at
 `https://retrieve-or-bust.readthedocs.io/`.
 
+**What the site's subject is, and is not (added at the prompt-8 rescoping turn,
+2026-08-30).** `robust.rt` is **not** the whole of retrieve-or-bust. The project
+is an **AI-driven effort to retrieve phytoplankton and inherent optical
+properties (IOPs) from hyperspectral ocean colour** — an inversion the
+literature holds to be fundamentally degenerate, to be attacked by
+systematically injecting external information (in-situ, environmental and
+spatiotemporal priors) and by using AI to search the space of candidate
+retrieval methods. See `README.md`,
+`proposals/Claude_Science/anthropic_application.md` (the full statement of
+scope) and `context/context_summary.md`. The forward model is the project's
+**first component**: the differentiable physics the retrieval will be built on.
+The retrieval itself is a **separate, not-yet-built component** — not a missing
+half of this model. Every page must position itself that way. This does **not**
+widen the site's content: D1/D2 document `robust.rt` and nothing else, and no
+page describes unbuilt components beyond saying they do not exist yet.
+
 Per the Q&A/Docs answers (DocQ1–DocQ9 in
 `claude_prompts/RT/rt_inelastic_prompts.md`), the site:
 
 - documents the **whole forward model**, with the inelastic material as the
   deepest chapters rather than the whole site; excludes the stub `rob/`
   package (`__init__.py` + `data/Dutkiewicz2015` only); and **states plainly
-  that the inversion does not exist yet** — this is a forward model;
+  that the retrieval/inversion does not exist yet** — what is documented here is
+  a forward model, retrieve-or-bust's first component;
 - is written for ocean-colour researchers who might use or check the model
   (plus Frouin and future sessions) but **opens with a basic introduction**,
   so a reader who has never seen this repo can follow page one (DocQ1);
@@ -125,6 +142,13 @@ deciding what a page should *not* claim, `code-review` for the D2 review task.
 
 Read before writing:
 
+- **What the project is** (added at the prompt-8 rescoping turn) — `README.md`
+  for the short version, `proposals/Claude_Science/anthropic_application.md`
+  ("Project description" and "How Claude is used") for the real statement of
+  scope, and `context/context_summary.md` for the degeneracy physics the
+  retrieval has to beat. Read these before writing any sentence that positions
+  the forward model, so the site never again equates `robust.rt` with
+  retrieve-or-bust.
 - **The answers that are the spec** — `claude_prompts/RT/rt_inelastic_prompts.md`,
   `## Q&A` → `### Docs`: DocQ1–DocQ9 with JXP's answers (≈ lines 78–278 as of
   2026-08-29; find the section by heading, the file is edited concurrently).
@@ -227,6 +251,280 @@ Verified fresh, 2026-08-29, on this checkout:
   edit to `robust/` so a docs-side change can never be blamed for a
   pre-existing failure.
 
+## Status entering D2
+
+Written at D1 task 7. **Everything below was re-run on 2026-08-30 in that
+task**, not copied forward from the logs — where a task's log recorded a
+number, it was re-measured and is quoted here only if it still holds.
+
+### Branch, tree, and what is pushed
+
+`cdom-rt`, read fresh (`git branch --show-current`). Task 1 was written on
+**`inelastic-rt`**; JXP committed and moved the checkout to **`cdom-rt`**
+partway through task 2 (Q&A Q2), and tasks 3–7 were written there. This is not
+the "fresh branch off `main` once `inelastic-rt` merges" DocQ8 anticipated —
+the docs commits will land together with the CDOM commits, which is Q2's
+answer ("we are using cdom-rt for the rest").
+
+At the end of task 7: `git status` clean, **`cdom-rt` up to date with
+`origin/cdom-rt`** — the branch is already pushed. The only working-tree change
+task 7 itself makes is to this prompt document.
+
+`main` is **not** an ancestor of this branch: it carries five commits this
+lineage does not have (`a6acd35` merge of PR #6 "websites" and its four
+parents), three of which created `docs/figs/` and `docs/scripts/rob_graphic.py`.
+So `git diff main` displays those as deletions — they were *added on `main`
+after the branch point*, not removed here — and the eventual merge is a real
+merge, not a fast-forward. 92 commits on this branch are absent from `main`.
+
+### Toolchain, as actually installed
+
+`ocean14` is **Python 3.14.6**. Read from `importlib.metadata` today:
+
+```
+sphinx 9.1.0          pydata-sphinx-theme 0.21.0   myst-nb 1.4.0
+myst-parser 5.1.0     sphinx-design 0.7.0          sphinx-copybutton 0.5.2
+docutils 0.22.4       jupyter-cache 1.0.1          mdit-py-plugins 0.6.1
+jax 0.11.0            jaxlib 0.11.0                jaxtyping 0.3.11
+numpy 2.4.6           flax 0.12.8                  optax 0.2.8
+ruff 0.16.0
+```
+
+`myst-parser` is present because `myst-nb` depends on it; it is **not** in
+`extensions` and must not be — loading both conflicts. The theme fallback to
+`sphinx-book-theme` named in "The theme (decided)" above was **not needed and
+not taken**: `pydata-sphinx-theme` 0.21.0 built clean on the first attempt.
+
+### The build command, and its timing
+
+```
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0     zero WARNING/ERROR lines on stdout *or* stderr
+/usr/bin/time -p: real 2.63  user 2.16  sys 0.18
+```
+
+Run today from a genuinely clean tree — `docs/_build/` removed and
+`docs/_static/fig_*.png` deleted first, so the `conf.py` figure hook had to
+produce the hero rather than find a stale copy; it did. Output: **23 HTML
+pages** excluding `_modules/`, plus 13 `_modules/` source pages (all twelve
+`robust/rt` modules and `data/l23`). `api.html` is **798 KB**; `objects.inv`
+carries **310 entries**. The whole-milestone trajectory, each measured at its
+own task: 1.38 s (task 1, 7 pages) → 1.17 s (task 4) → 2.43 s (task 5, when
+autodoc arrives) → 2.57 s (task 6) → 2.63 s today. Autodoc importing and
+rendering `robust/rt` is essentially the entire cost.
+
+### What the RTD rehearsal established (task 2)
+
+A throwaway clean venv on **Python 3.12.14** — there is no `python3.12` on this
+Mac, so the interpreter came from a disposable conda prefix and the venv was
+made from *that*; only the provenance of the binary differs from the letter of
+the gate. Then the two install steps `.readthedocs.yaml` declares, in order:
+`pip install .` → 49 packages, `pip install -r docs/requirements.txt` → 78 more
+(**128 total**), then the build both lenient and `-W`: both `build succeeded.`,
+zero warnings. Four things it taught, none of which a grep could have:
+
+1. **`import robust.rt` succeeds with no `ocpy` in the environment, no
+   `$OS_COLOR`, and no L23 data.** `ocpy` is nowhere in the 128-package list.
+   That is the DocQ2 no-mocking decision validated on an RTD-shaped
+   environment; `autodoc_mock_imports = []` is safe on RTD, not just locally.
+2. **`pip install .` does not pull the JAX stack** (`setup.py`'s
+   `install_requires` omits it), so jax arrives only via
+   `docs/requirements.txt`. The two install steps are complementary; dropping
+   either breaks the build.
+3. **`setup.py` must parse rather than import the version.** pip builds in an
+   isolated environment with no jax, so `import robust` at build time would
+   have broken `pip install .` — the rehearsal is where that would have
+   surfaced. The wheel filename `retrieve_or_bust-0.0.dev0` is the proof the
+   regex ran inside that isolated build.
+4. **Version numbers differ between the venv and `ocean14` without
+   consequence**: the venv resolved jax/jaxlib 0.11.1 and numpy 2.5.2 against
+   `ocean14`'s 0.11.0 / 2.4.6, and both builds are byte-clean. The docs build
+   touches neither numerically.
+
+### Page inventory — actual, listed today
+
+**19 source pages** (18 `.md` + 1 `.rst`), plus the machinery. Line counts from
+`wc -l` today:
+
+| Section | Pages |
+|---|---|
+| Getting started | `index.md` 142, `installation.md` 266, `quickstart.md` 335 |
+| The model | `model/overview.md` 171; nine D2 stubs — `conventions` 9, `ztt` 8, `emulator` 9, `forward` 9, `ed` 8, `inelastic` 9, `fluorescence` 8, `corrections` 9, `baselines` 9 |
+| Using it | three D2 stubs — `data` 11, `validation` 10, `limitations` 11 |
+| Reference | `api.rst` 213, `references.md` 70, `member_policy.md` 9 (rendered as **Team**, never moved or edited) |
+| Machinery | `conf.py` 215, `requirements.txt` 33, `Makefile` 31, `figures/make_docs_figures.py` 149, root `.readthedocs.yaml` 41 |
+
+**1,785 lines across pages and machinery. The nineteen pages are 1,316 of
+that; the seven substantive ones are 1,206, and the twelve D2 stubs 110.**
+Against DocQ9's "~2,000–2,500 lines across ~15 pages": the page count is
+already over and the line count well under, precisely because twelve of the
+nineteen are 8–11-line stubs waiting on D2.
+`docs/reports/` is still an empty (`.gitkeep`) directory — D2 task 6 fills it.
+There is no notebook yet; `nb_execution_mode = "off"` is configured but has
+never been exercised, which is why D2 task 1 is the notebook.
+
+### `conf.py`: what changed from the plan above, and why
+
+Five deviations, each measured rather than assumed:
+
+1. **`linkify` dropped** (task 1). It needs the separate `linkify-it-py`
+   package and `myst-nb` *raises* at build start without it. The enabled set is
+   `dollarmath`, `amsmath`, `colon_fence`, `deflist` — the spec's minimum
+   (`dollarmath` + `colon_fence`) is met, and `conf.py` carries a comment
+   saying why `linkify` is absent.
+2. **`myst_heading_anchors = 3` added** (task 1, not in the plan) so D2's long
+   chapters can link to each other's subsections.
+3. **`nitpicky` was tried at task 5 and is OFF** — Q3's hard fallback to option
+   3, taken on the arithmetic Q3 itself asked for. A nitpicky build leaves
+   **490** cross-reference warnings; **454** are annotation nouns
+   (`Array` ×238, `jaxtyping.Float` ×66, napoleon's
+   `optional`/`callable`/`sequence`/`array_like` ×112, quoted shape strings
+   ×38) and collapse into **three** readable `nitpick_ignore_regex` entries.
+   The blocker is the 36-line residue: **24 distinct ignore entries, 23 of
+   which would be silencing real malformed docstrings in `robust/`** (literal
+   entries like `("py:class", "O25's stated validity ceiling")`). D2 task 2's
+   gate was reworded at task 5 to "spot-check the rendered HTML" and carries
+   the reason inline. **The way back is cheap**: once Q4's docstring fixes land
+   at D2 task 5 the residue collapses to those three regexes — revisit it
+   there. No dead config was added speculatively.
+4. **A six-line `autodoc-process-docstring` hook plus `setup(app)`** (task 5),
+   repairing four docstrings in `robust/` that docutils cannot parse and that
+   are therefore hard `-W` failures with nitpick off: `ztt.py`'s two `**48**(35)`
+   / `**25**(15)` citations (a strong end-string may be followed only by
+   whitespace or closing punctuation) and `inelastic_corr.py`'s two `|δ|`
+   absolute-value bars (read as an undefined substitution). The hook carries
+   two *general* regexes, not text-keyed patches, so the CDOM effort can reword
+   freely and it becomes a no-op the moment the sources are fixed. **It is a
+   workaround in the docs config for a bug in the package** — Q4's answer is to
+   fold the fix into D2 task 5's docstring pass and delete the hook in the same
+   change. Do not let it become permanent by inattention.
+5. **The figure-copy import** (task 6): `sys.path.insert(0,
+   os.path.abspath("figures"))` then `from make_docs_figures import
+   copy_figures; copy_figures()` at conf.py **import time**, not from a Sphinx
+   event — the copies must exist before the read phase, because a document
+   referencing a missing image is a warning and a warning is a failure. There
+   is still exactly one `setup()`, doing one thing; the figure hook is
+   deliberately not registered inside it.
+
+Three further facts about the API page that D2 will need and that are not in
+the plan above: **`robust.rt` is documented with `:no-members:`** (its `__all__`
+is all re-exports; with `:members:` the build emits six real `-W` failures of
+the form `more than one target found for cross-reference 'IOPs'`);
+**`__all__` is honoured** and bare `:members:` follows it by default, verified
+module by module; and **autodoc emits module-level data only if it carries its
+own `#:` comment**, so **23 of 198 public `__all__` names never reach the page**
+(`G2_GORDON`, `WAVE_MIN`, `FL_EX_STEP` and 20 others — constants that share a
+`#:` block with a neighbour). That is a one-line-each fix in `robust/`, Q4's
+territory, and it is why the overview page's concept→API table points at
+functions and classes rather than constants.
+
+### The gate, re-run at task 7
+
+- **Strict build**: as above — `EXIT=0`, zero warnings, 2.63 s.
+- **`pytest -q -ra`**: **`2 failed, 483 passed, 1 skipped in 67.39s`**. Per
+  Q1's answer ("Yes and no repin") this is read as **green modulo the two
+  machine-anchored strict-hash tiers**, not as an unqualified green suite. The
+  two are `test_inelastic_types.py::test_elastic_hash_regression_strict` and
+  `test_inelastic_validation.py::test_gate_4_pre_change_pins` — the same
+  `sha256_of(Rrs) != PRE_CHANGE_SHA256_RRS_ABOVE` assertion, whose pins were
+  anchored on the tank server rather than this Mac. Re-measured against
+  `robust/tests/files/elastic_reference_outputs.npz` **today**, on jax 0.11.0 /
+  numpy 2.4.6:
+
+  ```
+  Rrs: differ 2742/12150 (22.6%), max rel 3.326e-07, max ULP 3
+  rrs: differ 2862/12150 (23.6%), max rel 1.642e-07, max ULP 2
+  ```
+
+  Identical to tasks 2 and 4. `test_elastic_regression_close_everywhere` (rtol
+  5e-7, ≈4 ULP) **passes**, and the strict tier is `skipif(CI)`, so GitHub
+  Actions is unaffected — this is a dev-machine gate only. The pass count has
+  moved 451 → 480 → 483 across the milestone as the concurrent CDOM effort
+  added tests; the durable facts are the *shape* (two named failures, one
+  pre-existing skip), not the count.
+- **`ruff check robust/`** → `All checks passed!`;
+  **`ruff format --check robust/`** → `35 files already formatted`. ruff 0.16.0.
+
+### Summary for JXP
+
+**New files, all this effort's:** `.readthedocs.yaml` (root); under `docs/` —
+`conf.py`, `Makefile`, `requirements.txt`, `index.md`, `installation.md`,
+`quickstart.md`, `references.md`, `api.rst`, `figures/make_docs_figures.py`,
+`model/overview.md` and nine model stubs, three `using/` stubs, and `.gitkeep`
+placeholders in `_static/`, `_templates/`, `reports/`, `using/`, `figures/`.
+
+**Modified:** `.github/workflows/ci.yml` (a third job, `docs` / `sphinx (-W)`,
+every step commented); `.gitignore` (`docs/_static/fig_*.png` and
+`docs/reports/report_rt_*.md`, both byte-derived from committed files);
+`setup.py` (a `get_version()` that regex-parses the literal instead of
+repeating it).
+
+**`robust/` — one edit in the whole milestone**, made at task 2:
+`robust/__init__.py` gained `__version__ = "0.0.dev0"` plus the comment block
+naming its two consumers (8 added lines; one is the assignment). **Tasks 3–7
+made no `robust/` edit at all** — every other `robust/` change on this branch
+is the concurrent CDOM effort's. `docs/member_policy.md` was never moved or
+rewritten.
+
+**The site is ready to push — and is already pushed.** Working tree clean,
+branch level with `origin/cdom-rt`.
+
+### The live RTD build has not happened, and needs an action of yours
+
+Checked today through Read the Docs' public API, since task 7 cannot trigger a
+build:
+
+```
+https://retrieve-or-bust.readthedocs.io/          -> 404 (redirects to /en/latest/)
+project retrieve-or-bust: created 2026-08-29, default_branch "main",
+                          default_version "latest", readthedocs_yaml_path null
+builds: count = 1 — id 34289779, version "latest", commit null,
+        created 2026-08-29T13:02:33Z, duration 1s, success = FALSE
+versions: 11 known, including "cdom-rt" and "inelastic-rt";
+          only "latest" is active=True, and nothing is built=True
+```
+
+So: the project has still never built successfully (its one build is the empty
+one RTD makes at project creation, before any config existed); the active
+version `latest` tracks `default_branch: main`, which has no
+`.readthedocs.yaml`; and although RTD **has seen `cdom-rt`** as a branch
+version — the push registered — that version is `active=False`, and RTD does
+not build inactive versions. Pushing the branch is therefore necessary but not
+sufficient. See **Q7**.
+
+### Open items carried into D2
+
+- **Q6 is unanswered and it constrains two D2 tasks.** `main` contains no
+  `reports/`, no `design/` and no `notebooks/`, so every
+  `blob/main/…` URL is a 404 today. D2 task 1's gate as worded — "every GitHub
+  link in the development record resolves… use `main`, not a branch name" —
+  cannot be satisfied until the merge, and D2 task 6 rewrites the reports'
+  repo-relative links to exactly those URLs. Q6's options stand: merge first,
+  or add a single `github_url_base` to `conf.py` so the whole site's outbound
+  links move in one edit. The front page currently names the two evidence files
+  as literal paths rather than linking them.
+- **Q7 (new, below)**: `cdom-rt` is a registered but inactive RTD version, so
+  no build will run against it.
+- **Q4's docstring fixes are D2 task 5's work** and three other things depend
+  on them: deleting the `conf.py` repair hook, revisiting `nitpicky`, and
+  closing the 23-of-198 `__all__` coverage gap (each of those constants needs
+  its own `#:` line).
+- **Q5 keeps `cdom_fl` on the API page.** D2 task 3 must still decide whether
+  the inelastic prose gains a CDOM paragraph or whether the limitations page
+  states explicitly that `robust.rt.cdom_fl` is in the API and unvalidated.
+- **The navbar does not show the site's five parts as tabs** (task 6's note):
+  pydata flattens top-level toctree *entries*, and with hidden captioned
+  toctrees those are individual pages. Correct and fully reachable, just not
+  the structure DocQ2's reasoning described. A `conf.py` change; unclaimed by
+  any D2 task.
+- **Desiderio (2000) has no bibliography entry** in either report (task 4); the
+  references page records the gap rather than inventing a citation.
+- `docs/using/.gitkeep` and `docs/figures/.gitkeep` are now redundant — both
+  directories carry real files. Removing them is a git operation, JXP's.
+- `docs/reports/` is empty and `nb_execution_mode = "off"` has never been
+  exercised; D2 tasks 1 and 6 are where both are first tested.
+
 ## Prompts
 
 1. Read this doc. Execute the 1st task in the "D1" section below. If you have
@@ -242,20 +540,25 @@ Verified fresh, 2026-08-29, on this checkout:
 7. Read this doc. Execute the 7th task — the D1 wrap-up. I will push the
    branch and confirm the site renders on ReadTheDocs before we start D2.
    Use Opus. Log your work.
-8. Read this doc and the "Status entering D2" section. Execute the 1st task in
+8. I have activated the cdom-rt version on ReadTheDocs.  I see now that you 
+    thought the radiative transfer model was all there would be for 
+    Retrieve or Bust.  It is only one piece, and the first.  Please see
+    the README.md file for a better understanding of the project.  Then 
+    modify the design document and any following tasks to reflect this.  Use Opus. Log your work.
+9. Read this doc and the "Status entering D2" section. Execute the 1st task in
    the "D2" section — the quickstart notebook and the development record.
    Check my answers in Q&A. Use Opus. Log your work.
-9. Read this doc. Execute D2's 2nd task — the elastic model chapters. Use
+10. Read this doc. Execute D2's 2nd task — the elastic model chapters. Use
    Opus. Log your work.
-10. Read this doc. Execute D2's 3rd task — the inelastic chapters. Use Opus.
+11. Read this doc. Execute D2's 3rd task — the inelastic chapters. Use Opus.
     Log your work.
-11. Read this doc. Execute D2's 4th task — Data and Validation. Use Opus. Log
+12. Read this doc. Execute D2's 4th task — Data and Validation. Use Opus. Log
     your work.
-12. Read this doc. Execute D2's 5th task — Scope and limitations, plus the
+13. Read this doc. Execute D2's 5th task — Scope and limitations, plus the
     docstring fills. Use Opus. Log your work.
-13. Read this doc. Execute D2's 6th task — the figures script and the Reports
+14. Read this doc. Execute D2's 6th task — the figures script and the Reports
     section. Use Opus. Log your work.
-14. Read this doc. Execute D2's 7th task — the review pass and the wrap-up.
+15. Read this doc. Execute D2's 7th task — the review pass and the wrap-up.
     Use Opus. Log your work.
 
 **No "modify the next prompt doc" turn.** The coding effort needed one because
@@ -776,6 +1079,74 @@ name as fact, and those URLs would rot at the merge instead of before it.
 Which — and is the merge to `main` expected before or after the docs effort
 finishes?
 
+>A. I will not merge `cdom-rt` into `main` until we are all done.  Act accordingly
+
+Question from Claude (2026-08-30, model: Opus), raised at D1 task 7. It does
+not block task 7 — the gate ran and passed as written, and the live RTD build
+is explicitly yours to confirm, not mine — but the check turned up a reason the
+build will not happen on its own, which is worth knowing before you go looking
+for it.
+
+**Q7 (`cdom-rt` is a *registered but inactive* Read the Docs version, so
+pushing the branch will not produce a build).** The task text says you push the
+branch and confirm the site renders. I checked what RTD currently thinks, via
+the public API v3 (read-only, no auth needed for a public project):
+
+```
+$ curl https://retrieve-or-bust.readthedocs.io/
+404   (redirects to /en/latest/)
+
+$ curl .../api/v3/projects/retrieve-or-bust/
+default_branch "main" | default_version "latest" | readthedocs_yaml_path null
+created 2026-08-29T13:02:33Z
+
+$ curl .../api/v3/projects/retrieve-or-bust/builds/
+count = 1 — id 34289779, version "latest", commit null,
+            created 2026-08-29T13:02:33Z, duration 1 s, success = FALSE
+
+$ curl .../api/v3/projects/retrieve-or-bust/versions/
+11 versions, including cdom-rt, inelastic-rt, inelastic-rt-staging, main, latest
+only "latest" has active = True; every version has built = False
+```
+
+Three facts fall out. (i) The project's single build is the empty one RTD
+makes at project creation, a second long and unsuccessful, from before any
+config existed — consistent with "Status entering D1"'s "never had a successful
+build". (ii) The one active version, `latest`, resolves to
+`default_branch: main`, and `main` has no `.readthedocs.yaml` — it is on this
+branch only — so a build of `latest` today would find no configuration. (iii)
+RTD **has** seen `cdom-rt` (the push registered it as a branch version), but it
+is `active=False`, and RTD does not build inactive versions. `readthedocs_yaml_path`
+is `null`, which means RTD looks for `.readthedocs.yaml` at the repository
+root — which is exactly where task 2 put it, so the config will be found the
+moment something builds.
+
+So the first real RTD build needs one of three things from you, and none of
+them is something I can or should do:
+
+1. **Activate the `cdom-rt` version** in the RTD project (Versions → activate),
+   which builds `https://retrieve-or-bust.readthedocs.io/en/cdom-rt/` and
+   exercises task 2's YAML now, on the branch as it stands. Cheapest, and it is
+   the actual gate the task wants run. `latest` stays 404 until the merge.
+2. **Merge to `main`.** `latest` then builds and the canonical URL works — and
+   it also resolves Q6 in one move, since every `blob/main/…` link D2 wants
+   becomes correct at the same instant. Note that `main` is *not* an ancestor
+   of this branch (it carries five commits from PR #6 "websites" that this
+   lineage never had, including `docs/figs/` and `docs/scripts/rob_graphic.py`),
+   so it is a real merge, not a fast-forward.
+3. **Point `default_version` / `default_branch` at `cdom-rt`** — I would *not*
+   recommend this one: it makes a working branch the project's canonical
+   version and has to be undone at the merge.
+
+My recommendation: **(1) now, (2) when the branch is ready**. Doing (1) today
+is what turns "the YAML is written and rehearsed in a clean venv" into "the
+YAML is proven on RTD's own builders", which is the one thing the rehearsal
+cannot establish and the one thing D1 task 7's gate defers to you. If the build
+fails, D2 task 1 is the place to fix it, ahead of the notebook — the task text
+already says so.
+
+>A. (1) is done and looks fine, although I will have some edits to suggest.  See my answer to Q6 for the rest.
+
 ## D2
 
 Goal: the prose, the provenance and the figures — the site as a manual.
@@ -875,9 +1246,13 @@ Goal: the prose, the provenance and the figures — the site as a manual.
    unseen-zenith cliff, φ_C truth at 0.02 only, `emission_shape='double'` at
    −23.6 % and unvalidatable, λ ≥ 400 nm (13 % at 350 nm), the θ_s-anchor
    derivative kink, and the inherited elastic caveats — plus the elastic
-   report's §5 for the backbone, and a plain statement that **there is no
-   inversion**. Same bluntness as the reports; no softening verbs. Where a
-   caveat is quoted, say so and link the source.
+   report's §5 for the backbone, and a plain statement that **the retrieval does
+   not exist**: `robust.rt` is a forward model, retrieve-or-bust's *first*
+   component, and the retrieval (inversion) is a separate component that has not
+   been built — so nothing on this site may be read as a retrieval result. State
+   it as a scope boundary, not as a hole in this model. Same bluntness as the
+   reports; no softening verbs. Where a caveat is quoted, say so and link the
+   source.
 
    Then fill the missing docstrings: the **7** in `robust/rt/*.py` that DocQ4
    named and the **2** in `robust/rt/data/l23.py` that its scan missed (see
@@ -928,8 +1303,12 @@ Goal: the prose, the provenance and the figures — the site as a manual.
 7. **Review pass and wrap-up.** Run a review over the full branch diff (the
    `code-review` skill at high effort), and separately proofread the rendered
    site as a reader: click every toctree entry, read the front page cold, and
-   check that a newcomer meets the "this is a forward model, there is no
-   inversion" statement before any claim of accuracy. Fix or explicitly
+   check that a newcomer meets the scope statement — "retrieve-or-bust is the
+   AI-driven IOP-retrieval project; this site documents `robust.rt`, its first
+   component, which is a forward model; the retrieval does not exist yet" —
+   before any claim of accuracy. Sweep for the old conflation while you are
+   there: any sentence that makes **retrieve-or-bust** and the forward model the
+   same thing is a finding. Fix or explicitly
    decline every finding with a reason in the log. JXP's per-milestone pattern
    is a PR plus `@cursor review` (M0's PR #14, M3's PR #18 — the Bugbot
    findings were real both times); when that PR appears, address those
@@ -947,12 +1326,122 @@ Goal: the prose, the provenance and the figures — the site as a manual.
 
 ### Q&A
 
-*(Empty — to be filled turn by turn.)*
+Question from Claude (2026-08-30, model: Opus), raised at D2 task 1. It did not
+block the task — the gate ran and passed in full — but it is about a turn in the
+prompt list that appears never to have happened, and the longer that goes
+unnoticed the more prose gets written against the wrong scope.
+
+**Q8 (Prompt 8 — the "retrieve-or-bust is bigger than the RT model" rescoping
+turn — has no log entry, and this document still describes the RT model as the
+whole project).** The turn I was given for this task was worded as "execute the
+1st task in the D2 section", which is **prompt 9** in the list above. **Prompt
+8** reads:
+
+> I have activated the cdom-rt version on ReadTheDocs. I see now that you
+> thought the radiative transfer model was all there would be for Retrieve or
+> Bust. It is only one piece, and the first. Please see the README.md file for a
+> better understanding of the project. Then modify the design document and any
+> following tasks to reflect this.
+
+Checked rather than assumed: the `## Logs` section holds seven entries, D1 tasks
+1–7, and nothing between task 7 and this one. The Goals section still opens
+"Build and publish the ReadTheDocs site for **`robust.rt` as one complete
+forward model**", and no D2 task text mentions a wider project. So prompt 8's
+edit has not been made in this file. (`README.md` itself has not been touched
+since `f7ec063`, so if there is a fuller description of the project's other
+pieces, it is not there yet either — the current README describes the RT model
+and the development commands.)
+
+This matters for what is on the site *now*. `docs/index.md` opens
+"**retrieve-or-bust** is a differentiable radiative-transfer forward model for
+ocean colour" — i.e. it equates the package with the RT model, which is
+precisely the misreading prompt 8 corrects. Today's task inherits that framing:
+`development_record.md` says "the forward model was built in ten milestones",
+which is true of the RT model and silent about everything else.
+
+My recommendation: **run prompt 8 as its own turn before D2 task 2**, not folded
+into a prose task. Its output is edits to the Goals section, to `docs/index.md`'s
+first paragraph and to the scope statements in D2 tasks 3 and 5 — all places
+where "this package is a forward model" should become "this is the project's
+first piece, and it is a forward model". Doing it before the model chapters are
+written is much cheaper than after. I have deliberately **not** made those edits
+here: rescoping the site is a decision about the project, not a docs mechanic,
+and prompt 8 asks for the design document to be modified, which is your
+instruction to give rather than mine to infer. What I need from you is (i)
+whether prompt 8 was run somewhere else and I am looking in the wrong file, and
+(ii) if not, whether it should run next, and where the "better understanding of
+the project" lives if it is not in `README.md` as it stands today.
+
+*Status (not JXP's answer — a note from the next turn): prompt 8 was run as its
+own turn on 2026-08-30, before D2 task 2, exactly as this question recommended.
+Both halves of (i) and (ii) are settled by that turn; see the log entry at the
+end of this file. Q9 below is what it raised in return.*
+
+Question from Claude (2026-08-30, model: Opus), raised at the prompt-8 rescoping
+turn. It did not block that turn — the corrections were made — but it is a
+judgment call about the site that only you can settle.
+
+**Q9 (I edited `README.md`, and I need you to check it; and how much of the
+wider retrieve-or-bust vision belongs on the docs site?).** Two halves.
+
+**(i) The README edit — a real `robust/`-adjacent-file change, flagged
+deliberately.** Prompt 8 says "see the `README.md` file for a better
+understanding of the project", but `README.md` as it stood was 23 lines: a CI
+badge, the one-line tagline "Our last best effort at IOP Retreivals", the pip
+dance, the `$OS_COLOR` note, and a pointer to `robust/rt/` as "the elastic
+radiative-transfer forward model". It contained **no statement of the project's
+scope at all** — nothing about retrieval, IOPs, priors, or the fact that the RT
+model is one component of something larger. So the file you pointed me at could
+not do the job you pointed me at it for. The real statement of scope is
+`proposals/Claude_Science/anthropic_application.md` ("Project description") and
+`context/context_summary.md`.
+
+Rather than leave the site's Goals section pointing at a file that
+under-describes the project, I made a **small, factual** README edit, drawn
+entirely from those two in-repo documents and adding no claim of my own: a
+"What this is" section (the retrieval goal, the `u = bb/(a+bb)` degeneracy, the
+priors-and-AI-search approach, links to the two scope documents, and a bold
+statement that only the first component exists today); and the RT pointer
+retitled "The forward model — the first component", with its stale word
+"**elastic**" dropped (the model has had Raman and fluorescence since the
+inelastic milestones) and its link list — which named only the four elastic
+documents — completed into an elastic/inelastic table plus a `docs/` pointer.
+The tagline, the badge and the development commands are untouched.
+
+**Please read it.** It is your project's front door and I wrote prose in your
+voice from your proposal; if any of it overstates or misframes the plan, say so
+and I will cut it back. In particular I asserted "the project is being built in
+components, and only the first exists today" — true of this repo as I can read
+it, but you know the plan and I am inferring it.
+
+**(ii) How much of the wider vision belongs on the docs site?** I have kept the
+site to *positioning* only — the front page now opens with what retrieve-or-bust
+is, then says plainly that the site documents `robust.rt`, its first component —
+and I deliberately did **not** add any page describing the retrieval, the
+priors, or the roadmap, because none of it is built and the site's standing rule
+is that nothing may be stated that was not measured. Three options for later:
+
+1. **Positioning only (what I did).** One paragraph on the front page; the
+   inversion appears only as a scope boundary. Cheapest, nothing to rot.
+2. **A short "The project" page** under Getting started: the degeneracy, why the
+   forward model comes first, what the retrieval will need from it (gradients,
+   φ_C-linearity), and an explicit "not built yet". ~40 lines, drawn from the
+   proposal, no numbers. Makes the site legible to a reader who arrives from the
+   proposal or the Claude Science cohort rather than from ocean-colour code.
+3. **A roadmap page.** I would not: it is a promise page, it dates fast, and it
+   is the kind of thing this effort's own rules exist to prevent.
+
+My recommendation: **(1) now, and (2) at D2 task 7's review pass if the site
+still reads as "a model with no context"** — with the page written from the
+proposal and carrying no forward-looking commitments. Also worth your call:
+whether the retrieval, when it exists, is documented **on this same site** (a
+sixth navbar section) or on its own — that decides whether `docs/` should be
+restructured now, while it is cheap, or left flat. I have left it flat.
 
 ## Next
 
-After D2 the forward model is documented and published. Open follow-ons, none
-of them in scope here:
+After D2 the forward model — retrieve-or-bust's first component — is documented
+and published. Open follow-ons, none of them in scope here:
 
 - **The CDOM-fluorescence work** (`Q&A/CDOM` in
   `rt_inelastic_prompts.md`) will add a term to the model; the inelastic
@@ -960,8 +1449,12 @@ of them in scope here:
 - **A paper-facing report site** (PAB's `report_site/` pattern) if the results
   ever need a separate community-facing target — not proposed, not needed for
   v1.
-- **The inversion**, whenever it exists: the site is deliberately written so
-  that adding it is a new section, not a rewrite of the claims.
+- **The retrieval — retrieve-or-bust's next component**, whenever it exists:
+  the AI-driven inversion from `Rrs` to IOPs with injected priors, which is what
+  the project is actually for and what this forward model is the physics for.
+  The site is deliberately written so that documenting it is a new section
+  alongside the model's, not a rewrite of the model's claims. Whether it even
+  shares this site is an open question (see Q9).
 - A purpose-drawn hero graphic, if `fig_inelastic_architecture.png` ever stops
   earning the front page (DocQ7 chose reuse for v1).
 
@@ -2177,3 +2670,472 @@ do today (paths, not links) and it will bite D2 task 1's gate as worded.
 
 **Stopping at task 6**, per the turn's instruction: the gate is green and task 7
 (the D1 wrap-up) was not attempted.
+
+### 2026-08-30 (D1 task 7 — the wrap-up; the gate re-run from scratch, and RTD says the branch alone will not build)
+
+**Branch.** `cdom-rt`, read fresh (`git branch --show-current`), working tree
+clean at the start and **already up to date with `origin/cdom-rt`** — JXP had
+pushed. **Files edited: one.** This document, three times: the new
+"## Status entering D2" section (placed immediately after "Status entering D1"
+and before "## Prompts", so the two counterparts sit together and both precede
+the prompt list that refers to them), a new **Q7** appended after Q6 in the D1
+Q&A, and this log entry. **No `robust/`, `design/` or `notebooks/` path was
+opened for writing**; task 7 sanctions no code edit, and the CDOM effort is
+live in all three.
+
+**The whole point of this task was to re-measure, not to summarize.** Every
+figure in the new section was produced today, in this turn. Where a figure
+matched an earlier log I say so; where it moved I say what moved and why.
+
+---
+
+#### Gate, re-run in full
+
+**1 — `-W` build, from a genuinely clean tree.** `docs/_build/` removed *and*
+`docs/_static/fig_*.png` deleted first, so the `conf.py` figure hook had to
+produce the hero rather than find yesterday's copy:
+
+```
+$ rm -rf docs/_build && rm -f docs/_static/fig_*.png
+$ ls -a docs/_static      ->   .  ..  .gitkeep            (no PNG)
+$ /usr/bin/time -p python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+real 2.63   user 2.16   sys 0.18
+stdout: grep -cE "WARNING|ERROR"  ->  0
+stderr: the three /usr/bin/time lines and nothing else
+$ ls docs/_static      ->   .gitkeep  fig_inelastic_architecture.png
+```
+
+Warnings go to **stderr**, so capturing the two streams separately is a
+stronger check than grepping the log: the stderr file contains the timing lines
+and nothing else. 23 HTML pages excluding `_modules/`, 13 `_modules/` pages,
+`api.html` 798 KB, `objects.inv` 310 entries.
+
+**2 — `pytest -q -ra`:**
+
+```
+2 failed, 483 passed, 1 skipped in 67.39s
+FAILED robust/tests/test_inelastic_types.py::test_elastic_hash_regression_strict
+FAILED robust/tests/test_inelastic_validation.py::test_gate_4_pre_change_pins
+SKIPPED [1] test_inelastic_corr.py:405: trained weights are committed; the fallback path is gone
+```
+
+Exactly the two failures Q1 established, and **Q1's answer is "Yes and no
+repin"**, so this turn's gate is recorded as *green modulo the machine-anchored
+strict tiers* — not as a green suite. I re-derived the evidence rather than
+citing it, loading the committed fixture through the real loader and comparing
+against `robust/tests/files/elastic_reference_outputs.npz` on jax 0.11.0 /
+numpy 2.4.6:
+
+```
+Rrs: differ 2742/12150 (22.6%), max rel 3.326e-07, max ULP 3
+rrs: differ 2862/12150 (23.6%), max rel 1.642e-07, max ULP 2
+```
+
+Byte-for-byte the same numbers tasks 2 and 4 measured, which is itself worth
+knowing: the drift is stable, not creeping. The closeness tier
+`test_elastic_regression_close_everywhere` passes (`-k "close or strict"` →
+`1 failed, 3 passed`), and the strict tier is `skipif(CI)`, so GitHub Actions
+never sees it. The pass count is now **483**, up from 451 at task 2 and 480 at
+task 4, as the concurrent CDOM effort added tests — recorded as a moving number
+rather than a fact about this effort.
+
+**3 — ruff, on `robust/`:**
+
+```
+$ ruff check robust/           All checks passed!            EXIT=0
+$ ruff format --check robust/  35 files already formatted    EXIT=0
+                               (ruff 0.16.0)
+```
+
+35 files, up from task 2's 32 — again the CDOM effort's, not mine.
+
+---
+
+#### What the wrap-up section says, and the three things I had to correct while writing it
+
+The section carries: the branch history (`inelastic-rt` → `cdom-rt`, Q2) and
+the push state; the toolchain versions read from `importlib.metadata` today;
+the build command with today's timing and the whole-milestone trajectory
+(1.38 → 1.17 → 2.43 → 2.57 → 2.63 s, the step at task 5 being autodoc's
+arrival); what the task-2 clean-venv rehearsal proved that a grep could not (no
+`ocpy` anywhere in 128 packages, `pip install .` not pulling JAX, the version
+regex surviving pip's isolated build); the page inventory listed from disk; the
+five `conf.py` deviations with their measured reasons; the gate above; a
+files-changed summary for JXP; the RTD API findings; and the open items.
+
+Three corrections the re-measurement forced, each of which would otherwise have
+been a number written before it was measured:
+
+1. **The page inventory is 19 pages, not DocQ9's ~15.** Listed from disk, not
+   from the plan: 18 `.md` + 1 `.rst`. Line counts: 1,785 total across pages
+   and machinery, of which the pages are 1,316 — 1,206 in the seven substantive
+   ones and 110 in the twelve 8–11-line D2 stubs. So the page count is already
+   *over* the estimate while the line count is well *under* it, and both facts
+   have the same cause. My first draft of that sentence attributed 1,317 lines
+   to "the seven real pages"; the arithmetic (142+266+335+171+213+70+9) is
+   1,206. Fixed before it shipped, but it is exactly this document's recurring
+   defect and I am recording that I made it.
+2. **`robust/` changed by one line, not two.** The task text says "which two
+   `robust/` lines changed". There is one: `__version__ = "0.0.dev0"` in
+   `robust/__init__.py` (task 2), inside an 8-line comment block. The other
+   half of the plan's "two sanctioned edits" is the docstring pass, which is
+   **D2 task 5** and has not happened. The section says one edit, not two.
+3. **`main` has diverged; this branch does not "delete" `docs/figs/`.**
+   `git diff main` shows `docs/figs/*.png` and `docs/scripts/rob_graphic.py`
+   as deletions, which reads like the docs effort removed them. It did not:
+   `git merge-base main HEAD` is `ddadc0d`, and `main` carries five commits
+   this lineage never had (`a6acd35`, the PR #6 "websites" merge, and its four
+   parents), three of which *added* those files after the branch point. 92
+   commits exist here that `main` lacks. So the eventual merge is a real merge,
+   not a fast-forward, and nothing of `main`'s is lost by it. I checked this
+   because `git log --diff-filter=D` found no commit deleting those paths,
+   which is the kind of contradiction worth chasing rather than rounding off.
+
+---
+
+#### The live RTD check — what I found, and what it does not license me to claim
+
+The task text is explicit that confirming the published site is **JXP's**, not
+mine, and that a failure to check here is not a gate failure. I checked anyway,
+read-only, and it turned up something that changes what JXP should expect:
+
+```
+https://retrieve-or-bust.readthedocs.io/    -> 404 (redirects to /en/latest/)
+project: default_branch "main", default_version "latest",
+         readthedocs_yaml_path null, created 2026-08-29T13:02:33Z
+builds:  count = 1 — id 34289779, version "latest", commit null,
+         duration 1 s, success = FALSE
+versions: 11 known (cdom-rt, inelastic-rt, main, latest, ...);
+          only "latest" is active; nothing is built
+```
+
+The project is reachable and public (API v3 answers without auth); its one
+build is the empty one RTD makes at project creation. The active version
+`latest` follows `main`, which has no `.readthedocs.yaml`; `cdom-rt` **is**
+registered — so the push reached RTD — but is `active=False`, and RTD does not
+build inactive versions. **Pushing the branch is necessary but not
+sufficient**, which is not what the task text assumes, so it is **Q7** with
+three options and a recommendation (activate the `cdom-rt` version now; merge
+when ready; do not repoint `default_version`). One genuinely good sign in
+there: `readthedocs_yaml_path` is `null`, meaning RTD looks for the config at
+the repository root, which is where task 2 put it.
+
+I did **not** fetch or render the site — there is nothing published to fetch —
+and I am not claiming the YAML works on RTD's builders. What is established is
+that it works in a clean 3.12 venv running the same two install steps, which is
+task 2's rehearsal and is the strongest thing available from here.
+
+---
+
+#### Deviations, and what I did not do
+
+- **No `robust/` fix, deliberately.** Nothing in the gate wanted one — ruff is
+  clean and the two test failures are Q1's answered non-issue — but had
+  something turned up, the turn's instruction was to report rather than fix,
+  since the CDOM effort is live in that tree.
+- **The section's placement is a judgement call.** The task says only "fill
+  this document's *Status entering D2* section"; the section did not exist. I
+  put it directly after "Status entering D1", which puts both status sections
+  ahead of "## Prompts" — and prompt 8 reads "Read this doc and the *Status
+  entering D2* section", so it needs to be findable before the D2 tasks. The
+  alternative, immediately before "## D2", would have separated it from its
+  counterpart.
+- **One new question (Q7) rather than a deferral.** This is the last D1 turn,
+  so the wrap-up is complete as written; Q7 does not block anything in it. Q6
+  is carried forward verbatim as an open item — it is D2's problem, not
+  task 7's, and I neither re-asked nor tried to resolve it.
+
+**Tree state at the end.** `git status --short` shows exactly one path,
+`claude_prompts/RT/rt_docs_prompt_1.md`. No `docs/` file changed in this task
+(the build's outputs are gitignored, and `docs/_static/fig_inelastic_architecture.png`
+is regenerated and ignored by the pattern task 1 added). **D1 is complete.**
+
+### 2026-08-30 (D2 task 1 — the quickstart notebook and the development record; notebook rendering exercised at last, and the GitHub links get one dial)
+
+**Branch.** `cdom-rt`, read fresh (`git branch --show-current`). Working tree at
+the start held exactly one modified path — this document, from task 7 — so
+nothing of the concurrent CDOM effort was in flight and **no `robust/`,
+`design/`, `notebooks/` or `reports/` path was opened for writing**.
+
+**Files: two new, three modified, all under `docs/` plus this document.** New:
+`docs/quickstart_nb.ipynb` (12 cells, 5 of them code, executed and committed
+with outputs) and `docs/development_record.md` (67 lines). Modified:
+`docs/conf.py` (+44 lines, the `github_url_base` mechanism), `docs/index.md`
+(two toctree entries), `docs/quickstart.md` (its forward-reference to the
+notebook was a promise that this task keeps, so it became two links).
+
+---
+
+#### First, the thing the task says to check first: the RTD build is **green**
+
+Q7's answer says the activation is done; the task text says that if the first
+live build failed, the fix belongs here, ahead of the notebook. It did not fail.
+Read from the public API before writing anything:
+
+```
+$ curl .../api/v3/projects/retrieve-or-bust/builds/?version=cdom-rt
+id 34301173 | version cdom-rt | commit 119058e | created 2026-08-30T18:06:57Z
+state {"code": "finished"} | success TRUE | duration 84 s | error ""
+$ curl -o /dev/null -w "%{http_code}" https://retrieve-or-bust.readthedocs.io/en/cdom-rt/
+200
+```
+
+So `.readthedocs.yaml` is now proven on RTD's own builders and not merely
+rehearsed in a clean venv — which is the one thing D1 could not establish from
+here. The project's build list is two entries: this one, and the empty
+`latest` build from project creation that "Status entering D1" recorded. Nothing
+to fix; on to the notebook.
+
+---
+
+#### `docs/quickstart_nb.ipynb`
+
+Deliberately short (DocQ6) and deliberately *not* a second copy of
+`quickstart.md`: the prose page keeps the seven-section argument, the notebook
+is the executed five-step version that ends in a picture. Cells, in order: the
+environment; one L23 scene from the committed 50-scene fixture; `forward()`
+elastic then `forward(..., inelastic=Inelastic())`; one `jax.grad` plus the
+φ_C-linearity identity; one two-panel figure; a scope note and three onward
+links.
+
+**Every number in it came out of a kernel.** The notebook was assembled
+unexecuted, each code cell was `ast.parse`d, the whole thing was smoke-tested as
+a flat script first, and only then executed with
+`jupyter nbconvert --to notebook --execute --inplace
+--ExecutePreprocessor.kernel_name=ocean14` — under **`env -u OS_COLOR`**, so the
+committed outputs are themselves the evidence for the page's claim that no
+`$OS_COLOR` is needed. Verified afterwards from the JSON rather than from the
+exit code, which is the check that actually distinguishes a run from a
+non-run: `execution_count` 1, 2, 3, 4, 5 in order, five outputs, **zero
+`output_type == "error"`**, `kernelspec.name == "ocean14"`,
+`language_info.version == "3.14.6"`.
+
+The printed values reproduce `quickstart.md`'s task-4 run digit for digit —
+`8.527968e-03 -> 9.241643e-03` at 440 nm, `+68.17 %` at 685 nm,
+`dRrs(685)/dphi_C = +1.482279e-03`, and `phi_C * dRrs/dphi_C =
+Rrs_fl(685) - Rrs(685) = 2.964558e-05` — which is worth stating because it is a
+cross-check on both pages at once, not a coincidence to be assumed.
+
+**The figure** follows the house style lifted from
+`notebooks/RT/rt_inelastic_coding_1.ipynb`: recessive frame (top and right
+spines off, muted `#5c5c5c` edges and ticks), ink `#1a1a1a` text, the
+CVD-checked `#D55E00`/`#0072B2` pair, no legend — the two curves are labelled
+directly, stacked in the same order they appear on the axes. Two panels: the
+elastic and total spectra on a log axis, and beneath them the increment in
+percent, with the 550–700 nm Raman band shaded and 685 nm marked. It carries a
+hand-written **alt text** through `mystnb.image.alt` cell metadata, because
+myst-nb's default alt for a plot output is the hashed PNG filename, which is
+useless to a screen reader.
+
+One small edit worth recording since it changed a committed output: the
+environment cell first printed the absolute repository path, which on a public
+site is a home directory and nothing a reader needs. It prints `REPO.name` now,
+and the notebook was **re-executed** rather than hand-edited — the outputs and
+the sources have never disagreed.
+
+---
+
+#### `github_url_base` — Q6's option 2, implemented
+
+Q6's answer is "I will not merge `cdom-rt` into `main` until we are all done",
+which is exactly the case its option 2 was written for. `docs/conf.py` gains one
+constant and one wiring:
+
+```python
+github_repo_url = "https://github.com/ocean-colour/retrieve-or-bust"
+github_url_base = os.environ.get(
+    "ROBUST_GITHUB_URL_BASE", f"{github_repo_url}/blob/main/"
+)
+
+myst_url_schemes = {
+    "http": None, "https": None, "mailto": None, "ftp": None,
+    "gh": {"url": github_url_base + "{{path}}",
+           "title": "{{path}} on GitHub", "classes": ["github"]},
+}
+```
+
+Pages then write a link as its repo-relative path and nothing else —
+`[text](gh:notebooks/RT/rt_elastic_coding_1.ipynb)`. The default is **`main`**,
+not the branch: the working agreements forbid treating a branch name as fact,
+and a `blob/cdom-rt/…` URL would rot *at* the merge instead of before it. The
+comment block above the constant says all of this, names Q6 as the decision, and
+gives the override command.
+
+Three things measured rather than assumed. (i) Assigning `myst_url_schemes`
+**replaces** the default scheme set rather than extending it, so `http`,
+`https`, `mailto` and `ftp` have to be listed alongside; leaving them out breaks
+every ordinary link on the site. (ii) The scheme resolves at render time, so the
+override is a rebuild and not an edit — proven by building the identical tree
+with `ROBUST_GITHUB_URL_BASE=…/blob/cdom-rt/` and finding all 18 links
+repointed and **zero** still saying `/blob/main/`. (iii) D2 task 6 needs the
+same base for its generated report copies; it can import it from `conf.py` or
+read the same environment variable, and either way there is one place to change.
+
+---
+
+#### `docs/development_record.md`
+
+One framing line and three tables: the five elastic milestone notebooks, the
+five inelastic ones, and the eight documents behind them (two design docs, two
+coding plans, two implementation records, two reports). Every entry links out
+through `gh:` and nothing is rendered in-site, per DocQ5. The page says in its
+own voice that the notebooks are a **chronological build record, not a
+tutorial**, and are not maintained against the current API, and it points a
+reader who wants a tutorial at the Quickstart, the notebook, the overview and
+the API page instead.
+
+The per-milestone descriptions are **read out of each notebook's first heading**
+(`M0 — Environment & Scaffold…`, `M2 — The ZTT Analytic Backbone`, …), not
+recalled — the ten titles were extracted from the JSON in this task.
+
+A `note` admonition on the page states plainly that the links point at `main`,
+that `main` does not yet carry `notebooks/`, `design/` or `reports/`, and that
+they **will 404 until the merge** — with the reason (Q6) and the one setting
+that moves them. A reader meeting a 404 should be able to find out why from the
+page, not from this document.
+
+`docs/index.md` gained `quickstart_nb` under *Getting started* and
+`development_record` under *Reference*. `docs/quickstart.md`'s last bullet
+promised "an executed notebook version … not part of the site yet"; it now links
+the notebook and the record. That is a modification to a page D1 wrote, made
+because leaving it would have been a false statement on a live page, and it is
+two lines.
+
+---
+
+#### Gate
+
+**1 — `-W` build clean with the notebook rendered, from a genuinely clean tree**
+(`docs/_build/` removed *and* `docs/_static/fig_*.png` deleted, so the conf.py
+figure hook had to work too):
+
+```
+$ rm -rf docs/_build && rm -f docs/_static/fig_*.png
+$ ls -a docs/_static   ->   .  ..  .gitkeep
+$ /usr/bin/time -p python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+stdout: grep -cE "WARNING|ERROR"  ->  0
+stderr: the three /usr/bin/time lines and nothing else
+real 2.83   user 2.43   sys 0.19
+```
+
+**25 HTML pages** excluding `_modules/`, up from task 7's 23 — the two new ones.
+2.83 s against 2.63 s at task 7; the notebook page is the difference.
+
+**2 — outputs visible in the HTML.** Five `cell_output` blocks on
+`quickstart_nb.html`, extracted and read back as text, not counted:
+
+```
+repo    retrieve-or-bust/ | robust 0.0.dev0 | jax 0.11.0 | $OS_COLOR set? False
+batch     150 samples x 81 wavelengths, 350-750 nm
+Rrs shape (81,), dtype float32 ... 685 nm 7.285256e-05 -> 1.225158e-04 (+68.17 %)
+dRrs(685)/dphi_C  +1.482279e-03 sr^-1 ... 2.964558e-05 both ways
+<img alt="Two stacked panels over 350-750 nm...">  ->  _images/a5de8aac....png
+```
+
+The figure is extracted to a real file under `_images/` rather than inlined as
+base64 — worth knowing, since a grep for `data:image` finds nothing and could be
+misread as a missing plot. The page's six section headings and the `note`
+admonition all render, and an internal-link sweep over the four affected pages
+(`quickstart_nb`, `development_record`, `quickstart`, `index`) finds **131
+internal targets, 0 missing** — a check that matters here specifically because
+`suppress_warnings = ["myst.xref_missing"]` means a broken Markdown link would
+not have failed `-W`.
+
+**3 — no execution attempted at build time, proven with the kernel unavailable
+*and* proven to have teeth.** The `ocean14` kernelspec was hidden by pointing
+`JUPYTER_DATA_DIR`/`JUPYTER_PATH` at an empty directory (`jupyter kernelspec
+list` then shows only `python3`), and the same tree built twice:
+
+```
+A  as configured (nb_execution_mode = "off")
+   EXIT=0   warnings=0   "Executing notebook" lines: 0
+   outputs still in the HTML: yes    figure still in the HTML: yes
+   no .jupyter_cache created anywhere
+
+B  identical, but  -D nb_execution_mode=force
+   EXIT=2
+   quickstart_nb.ipynb: Executing notebook using local CWD [mystnb]
+   jupyter_client.kernelspec.NoSuchKernel: No such kernel named ocean14
+```
+
+B is the half that makes A mean something: with the kernel genuinely absent,
+forcing execution fails loudly, so A's success is evidence that execution was
+never attempted rather than evidence that it quietly succeeded. RTD and CI, which
+have no `ocean14` kernel and no L23 data, are in situation A.
+
+**4 — every GitHub link, and what "resolves" honestly means here.** The gate as
+originally worded wants each link to resolve and to use `main`; Q6 establishes
+that those two cannot both be true until the merge. So I checked the two things
+that *can* be true and am naming the one that cannot, rather than redefining the
+gate silently. All **18** links were extracted from the rendered HTML and each
+path checked against the git tree:
+
+```
+exists in this branch (HEAD): 18/18      exists on main: 0/18
+```
+
+Every one of the eighteen is a real file here; none is on `main`, exactly as Q6
+predicted. The URL *shape* is right, and that is demonstrable rather than
+asserted — rebuilding with the override and fetching two of the resulting URLs:
+
+```
+200  .../blob/cdom-rt/notebooks/RT/rt_elastic_coding_1.ipynb
+200  .../blob/cdom-rt/reports/report_rt_inelastic_model.md
+404  .../blob/main/notebooks/RT/rt_elastic_coding_1.ipynb
+```
+
+Same page, same generator, one setting apart. **So: the links 404 today, on
+purpose, and will be correct the moment `cdom-rt` merges** — the accepted cost
+of Q6's answer, stated on the page itself and not papered over.
+
+`ruff check docs/conf.py` and `ruff format --check docs/conf.py` are clean (one
+E501 in my comment block, found and fixed). No `pytest` run: this task touches
+no `robust/` path, so there is nothing it could have broken, and the two
+machine-anchored failures Q1 settled are unchanged by construction.
+
+---
+
+#### Deviations, all three of them mine to own
+
+1. **Two pages D1 wrote were modified** — `docs/index.md` (two toctree lines,
+   without which the new pages are orphan warnings and a warning is a build
+   failure) and `docs/quickstart.md` (its "arrives at D2, not part of the site
+   yet" bullet, which this task made false). Both are the minimum that keeps the
+   site truthful.
+2. **`myst_url_schemes` is a mechanism the plan did not name.** Q6's option 2
+   said "a single `github_url_base` constant in `conf.py`" and left the wiring
+   open. I considered `sphinx.ext.extlinks` (a role, `{gh}`path``) and MyST
+   substitutions; the scheme wins because a link stays ordinary Markdown, which
+   matters for D2 task 6, whose generated report copies rewrite *existing*
+   Markdown links and would otherwise have to synthesise roles.
+3. **No `pytest` run**, as above. Recording it because the D1 gates ran it and a
+   silent omission would look like an oversight.
+
+**One new question, Q8**, in the D2 Q&A: **prompt 8 — the turn that rescopes the
+effort from "the RT model is the project" to "the RT model is the project's
+first piece" — has no log entry and its edits are not in this document.** The
+Goals section and `docs/index.md`'s opening sentence still equate the package
+with the forward model, and this task's own `development_record.md` inherits
+that framing. It blocked nothing today, but the model chapters are next and they
+are exactly the prose that would have to be rewritten afterwards.
+
+**Stopping at D2 task 1**, per the turn's instruction: the gate is green, and
+task 2 was not attempted.
+
+**Tree state at the end.** `git status --short`:
+
+```
+ M claude_prompts/RT/rt_docs_prompt_1.md      (task 7's edits, plus this log and Q8)
+ M docs/conf.py                               (+44)
+ M docs/index.md                              (+2)
+ M docs/quickstart.md                         (+7/-4)
+?? docs/development_record.md                 (new, 67 lines)
+?? docs/quickstart_nb.ipynb                   (new, 12 cells, executed)
+```
+
+Six paths, five of them `docs/`. Nothing under `robust/`, `design/`,
+`notebooks/` or `reports/`.

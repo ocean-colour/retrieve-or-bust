@@ -329,7 +329,8 @@ Identical to every printed digit, as linearity requires.
   term is, and which module owns it.
 - [API reference](api.rst) — `forward`'s full signature, the three `mode`
   values, and the four pytrees.
-- An **executed notebook version** of this page, with the spectra plotted,
-  arrives as `docs/quickstart_nb.ipynb`. It is written at the D2 milestone and
-  is not part of the site yet; until then this page is the runnable
-  introduction.
+- [Quickstart notebook](quickstart_nb.ipynb) — the same walk-through as an
+  executed notebook, with the two spectra and their difference plotted. Its
+  outputs are committed, so the rendered page is a real run.
+- [Development record](development_record.md) — the ten milestone notebooks the
+  model was built in, and the design documents behind them.
