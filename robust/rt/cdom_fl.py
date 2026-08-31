@@ -113,19 +113,22 @@ HAWES_A0 = 1e-5 * np.array(
     [5.81, 6.34, 8.00, 9.89, 9.39, 10.48, 12.59, 13.48, 13.61, 9.24]
 )
 
-#: FA7 emission-center parameters: peak emission wavenumber is
-#: ``A1/λ_e + B1`` (nm⁻¹). A1 dimensionless, B1 in nm⁻¹. Provenance as above.
+#: float: Slope term of the FA7 emission centre -- the peak emission
+#: wavenumber is ``A1/λ_e + B1`` (nm⁻¹), with A1 dimensionless. Provenance as
+#: above.
 HAWES_A1 = 0.470
+#: float: Offset term of that same emission centre, nm⁻¹.
 HAWES_B1 = 8.077e-4
 
-#: FA7 emission-width parameters: the Gaussian denominator is
-#: ``0.6 · (A2/λ_e + B2)`` (nm⁻¹). A2 dimensionless, B2 in nm⁻¹ (negative).
-#: Provenance as above.
+#: float: Slope term of the FA7 emission width -- the Gaussian denominator is
+#: ``0.6 · (A2/λ_e + B2)`` (nm⁻¹), with A2 dimensionless. Provenance as above.
 HAWES_A2 = 0.407
+#: float: Offset term of that same emission width, nm⁻¹ (negative).
 HAWES_B2 = -4.57e-4
 
 #: Support of the excitation gate ``g_Y`` (Zhai et al. Eq. 8), nm.
 GY_EX_MIN = 310.0
+#: float: Upper edge of that ``g_Y`` support, nm.
 GY_EX_MAX = 490.0
 
 # ------------------------------------------------------- excitation quadrature
@@ -138,7 +141,10 @@ GY_EX_MAX = 490.0
 #: canonical grid points and the excitation IOPs interpolate losslessly —
 #: the same convention as the Chl-fl grid (``FL_EX_STEP``).
 CDOM_EX_MIN = 350.0
+#: float: Red edge of that CDOM-fluorescence excitation band (nm) --
+#: ``g_Y``'s own cutoff.
 CDOM_EX_MAX = 490.0
+#: float: Quadrature step across it (nm), matching the canonical grid spacing.
 CDOM_EX_STEP = 5.0
 
 

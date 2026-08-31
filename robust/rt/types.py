@@ -1,7 +1,7 @@
 """
 Input pytrees for the forward model.
 
-The arguments of :func:`robust.rt.forward` — the elastic three plus the
+The arguments of :func:`~robust.rt.hybrid.forward` — the elastic three plus the
 :class:`Inelastic` configuration (inelastic coding plan, M0) — as registered JAX
 pytrees so ``jit`` / ``vmap`` / ``grad`` traverse them, with light ``jaxtyping``
 annotations on the public signatures.
@@ -255,7 +255,7 @@ class PhaseParams:
     M5 the fuller ZTT backward-VSF parameters join it as *additional optional
     fields defaulting to ``None``* -- which is why the design insists the phase
     function be a container rather than a bare array. Adding a field changes
-    neither :func:`robust.rt.forward`'s signature nor any existing call site.
+    neither :func:`~robust.rt.hybrid.forward`'s signature nor any existing call site.
 
     Two consequences of the ``None`` default worth knowing. A field left ``None``
     contributes no leaves, so gradients and ``tree_map`` ignore it. But the
@@ -471,7 +471,7 @@ class CDOMFl:
 class Inelastic:
     """Configuration of the inelastic processes (inelastic design §3).
 
-    The fifth argument of :func:`robust.rt.forward`. Passing ``None`` instead of
+    The fifth argument of :func:`~robust.rt.hybrid.forward`. Passing ``None`` instead of
     an instance keeps the elastic path **bit-identical by construction** — the
     ``None`` branch takes the pre-existing code route, it does not multiply by
     one or add zero. Passing an instance raises ``NotImplementedError`` until M2

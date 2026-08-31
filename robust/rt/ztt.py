@@ -55,7 +55,7 @@ not at that address. :func:`mu_infinity` therefore implements Equation (8)'s
 them.
 
 **The stand-in is the authors' own antecedent.** The same pair published
-``µ∞(bb/a, η_bb)`` in Twardowski & Tonizzo (2017), *Optics Express* **25**(15),
+``µ∞(bb/a, η_bb)`` in Twardowski & Tonizzo (2017), *Optics Express* **25** (15),
 18122 — reference [40], the study the 2018 text says Equation (8) "extended ... to
 include near zero bb/a and increased resolution in η_bb". Its Table 1 is
 transcribed here as :func:`mu_infinity_tt2017` and is what :func:`rrs_ZTT` uses
@@ -192,6 +192,8 @@ FL_AVE = np.array(
 
 #: Equation (31) — the ψ-dependent scaling of ``f_L``.
 FL_SIN_COEFF = 0.07762
+#: float: Constant term of the same Equation (31) scaling,
+#: ``FL_SIN_COEFF sin(ψ) + FL_OFFSET`` (see :func:`f_L`).
 FL_OFFSET = 1.0405
 
 #: Depolarization ratio of pure seawater — the default of Zhang et al. (2009), the
@@ -390,8 +392,10 @@ def beta_w_over_bb_w(
 
 #: Sullivan & Twardowski (2009) Table 1 — the measured average particulate backward
 #: phase function ``β̃bp(ψ) = βp(ψ)/bbp`` (sr⁻¹) from several million field VSFs,
-#: with its standard deviation. *Appl. Opt.* **48**(35), 6811. Angles in degrees.
+#: with its standard deviation. *Appl. Opt.* **48** (35), 6811. Angles in degrees.
 P_BB_ST_ANGLES = np.array([90.0, 100, 110, 120, 130, 140, 150, 160, 170])
+#: numpy.ndarray: The nine tabulated ``β̃bp`` means (sr⁻¹) at
+#: :data:`P_BB_ST_ANGLES`, from the same table.
 P_BB_ST_MEAN = np.array([0.233, 0.186, 0.159, 0.145, 0.138, 0.137, 0.138, 0.141, 0.146])
 P_BB_ST_STD = np.array([0.012, 0.007, 0.004, 0.004, 0.005, 0.006, 0.007, 0.007, 0.008])
 
@@ -647,7 +651,7 @@ def mu_d(
 # --------------------------------------------------------------------- mu_inf --
 #: Twardowski & Tonizzo (2017) Table 1 — second-order fits of ``µ∞`` against
 #: ``log10(bb/a)``, one per ``η_bb``: ``µ∞ = p0 + p1 L + p2 L²``.
-#: *Optics Express* **25**(15), 18122, the antecedent (reference [40]) that the
+#: *Optics Express* **25** (15), 18122, the antecedent (reference [40]) that the
 #: 2018 paper's Equation (8) says it "extended". Columns: ``η_bb: (p0, p1, p2)``,
 #: with the paper's quoted %δabs of 0.27, 1.1, 1.8, 2.4, 2.9, 3.6 respectively.
 MU_INF_TT2017_TABLE1 = {
@@ -697,11 +701,11 @@ def mu_infinity_tt2017(bb_over_a, eta_bb):
     Parameters
     ----------
     bb_over_a : Array
-        ``bb / a``. Fitted over :data:`MU_INF_TT2017_BB_OVER_A_RANGE`; larger
+        ``bb / a``. Fitted over ``MU_INF_TT2017_BB_OVER_A_RANGE``; larger
         values extrapolate (L23 reaches ~0.31).
     eta_bb : Array
         ``η_bb = bbw / (bbp + bbw)``. Fitted over
-        :data:`MU_INF_TT2017_ETA_RANGE`; outside it the coefficients clamp.
+        ``MU_INF_TT2017_ETA_RANGE``; outside it the coefficients clamp.
 
     Returns
     -------
@@ -744,8 +748,9 @@ def mu_infinity(bb_over_a, eta_bb, coeffs=None):
     ----------
     bb_over_a, eta_bb : Array
         As :func:`Md_star`.
-    coeffs : sequence of 16 float, optional
-        ``m1..m16``. Supply them if you obtain them; there is no default.
+    coeffs : sequence of float, optional
+        The sixteen coefficients ``m1..m16``. Supply them if you obtain them;
+        there is no default.
 
     Returns
     -------
@@ -776,6 +781,9 @@ def mu_infinity(bb_over_a, eta_bb, coeffs=None):
     L = jnp.log10(jnp.asarray(eta_bb))
 
     def cubic_in_L(c0, c1, c2, c3):
+        """One cubic in ``L = log10(η_bb)`` -- the inner polynomial of
+        Equation (8), evaluated four times to form the coefficients of the
+        outer cubic in ``X = log10(bb/a)``."""
         return c0 * L**3 + c1 * L**2 + c2 * L + c3
 
     return (
@@ -850,9 +858,9 @@ def rrs_ZTT(
         fixed in ψ inverts the modelled solar-zenith trend.
     mu_inf : Array, optional
         ``µ∞`` supplied directly — for sensitivity tests. Overrides everything.
-    mu_inf_coeffs : sequence of 16 float, optional
-        Equation (8) coefficients, if you obtain them; this is the path back to
-        the model exactly as published in 2018.
+    mu_inf_coeffs : sequence of float, optional
+        The sixteen Equation (8) coefficients, if you obtain them; this is the
+        path back to the model exactly as published in 2018.
 
         With neither given, ``µ∞`` falls back to :func:`mu_infinity_tt2017`, the
         same authors' 2017 parameterization, because the 2018 paper omits its own
@@ -881,6 +889,9 @@ def rrs_ZTT(
 
     # Per-sample angles gain a trailing axis so they broadcast against (..., wave).
     def spectral(x):
+        """Give a per-sample angle a trailing length-1 axis so it broadcasts
+        against the ``(..., wave)`` spectral arrays. Scalars pass through
+        unchanged -- they already broadcast."""
         x = jnp.asarray(x)
         return x[..., None] if jnp.ndim(x) else x
 

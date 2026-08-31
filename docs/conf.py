@@ -10,7 +10,6 @@ Full reference: https://www.sphinx-doc.org/en/master/usage/configuration.html
 """
 
 import os
-import re
 import sys
 
 # Make the checkout importable for autodoc. conf.py lives at docs/, so the
@@ -150,41 +149,53 @@ autodoc_typehints = "description"  # built-in; no sphinx-autodoc-typehints dep
 autodoc_mock_imports = []
 
 
-# -- Docstring markup repair (temporary; see prompt-doc Q&A Q4) ----------------
+# -- Docstring markup repair: REMOVED at D2 task 5 -----------------------------
 #
-# Three docstrings in `robust/` carry reStructuredText that docutils cannot
-# parse, and autodoc renders docstrings verbatim, so each is a build failure
-# under -W. The durable fix is a few characters in the source; D1 task 5 has no
-# sanctioned `robust/` edit (and one of the two files is under concurrent
-# development by the CDOM effort), so the defects are repaired here, at render
-# time, and raised as Q&A Q4 for a source fix at D2 task 5.
+# D1 task 5 added a six-line `autodoc-process-docstring` hook here because four
+# docstrings in `robust/` carried reStructuredText docutils cannot parse
+# (`**48**(35)`, and `|delta|` read as a substitution reference), each a hard
+# -W failure. That was a workaround in the docs config for a defect in the
+# package, and Q&A Q4's answer was to fix the sources and delete the hook in
+# the same change. D2 task 5 did exactly that: `ztt.py` now writes
+# `**48** (35)` and `inelastic_corr.py` writes ``|delta|`` as a literal, so the
+# hook was verified to be a no-op and removed. There is no `setup(app)` in this
+# file any more, deliberately -- if one comes back, it should be for something
+# that is not a source bug.
+
+# -- Nitpicky cross-references -------------------------------------------------
 #
-# These are *general* rules, not text-keyed patches: they keep working if the
-# surrounding prose is reworded, and become no-ops once the sources are fixed.
-_DOCSTRING_REPAIRS = [
-    # `**48**(35)` -- docutils requires whitespace or closing punctuation after
-    # a strong end-string; "(" is opening punctuation, so the `**` never
-    # closes. Two journal citations in ztt.py are written this way.
-    (re.compile(r"(\*\*[^*\s][^*]*\*\*)\("), r"\1 ("),
-    # `|delta|` used as mathematical absolute-value bars reads to docutils as a
-    # substitution reference. Escape the bars so they render as literal pipes.
-    (re.compile(r"(?<![\\|])\|(\u03b4[_A-Za-z]*)\|(?![|])"), r"\\|\1\\|"),
+# ON since D2 task 5. Without it, `-W` is strict about documents, toctrees and
+# images but a typo'd Python role (`` :func:`no_such_thing` ``) renders as plain
+# text and passes -- measured at D1 task 3, and the reason D2 task 2's gate had
+# to be reworded to a manual HTML spot-check (Q&A Q3, option-3 fallback).
+#
+# It was measured and *rejected* at D1 task 5: a nitpicky build then left 490
+# warnings, and while 454 collapsed into the three regexes below, the 36-warning
+# residue needed 24 literal `nitpick_ignore` entries, 23 of which would have been
+# silencing real malformed docstrings in `robust/` (targets like
+# ``("py:class", "O25's stated validity ceiling")``). An ignore list whose
+# entries are English sentences is a list of defects promoted to exceptions.
+#
+# D2 task 5 fixed those docstrings at source (Q&A Q4). Re-measured immediately
+# afterwards: 454 warnings, 14 distinct targets, and every one of them belongs to
+# one of the three families below. So nitpick now costs exactly three readable
+# regexes, and a typo'd role is a build failure again -- which is what D2 task
+# 2's gate says it is.
+nitpicky = True
+
+nitpick_ignore_regex = [
+    # `jaxtyping` annotations. `Float[Array, "*batch wave"]` is parsed by the
+    # Python domain into three separate cross-references -- the constructor,
+    # the element type, and the shape string -- none of which is a documentable
+    # object. 304 of the 454.
+    ("py:class", r"(jaxtyping\..*|Array)$"),
+    # napoleon's descriptive type nouns. These are English, not classes, and
+    # the NumPy docstring standard is what asks for them. 112 of the 454.
+    ("py:class", r"(optional|callable|sequence|array_like)$"),
+    # The quoted shape strings themselves (`'wave'`, `'*batch wave'`, and the
+    # bare `'` pair that `Float[Array, "..."]` splits into). 38 of the 454.
+    ("py:class", r"'.*$"),
 ]
-
-
-def _repair_docstring(app, what, name, obj, options, lines):
-    """Apply :data:`_DOCSTRING_REPAIRS` to one autodoc docstring, in place."""
-    for i, line in enumerate(lines):
-        new = line
-        for pattern, replacement in _DOCSTRING_REPAIRS:
-            new = pattern.sub(replacement, new)
-        if new != line:
-            lines[i] = new
-
-
-def setup(app):
-    app.connect("autodoc-process-docstring", _repair_docstring)
-    return {"parallel_read_safe": True, "parallel_write_safe": True}
 
 
 # -- Napoleon ----------------------------------------------------------------

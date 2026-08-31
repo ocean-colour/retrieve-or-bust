@@ -125,7 +125,11 @@ INELASTIC_GATE_BAND = (400.0, 700.0)
 #: contradicting the acceptance test (M4 review finding). Units: total rRMS in
 #: percent; per-process delta as a fraction (0.05 = 5 %); speed as a ratio.
 INELASTIC_GATE_TOTAL_RRMS = 0.5
+#: float: The per-process bar -- the largest acceptable median increment
+#: error, as a fraction (0.05 = 5 %).
 INELASTIC_GATE_DELTA = 0.05
+#: float: The speed bar -- the largest acceptable ratio of all-processes-on to
+#: elastic-only forward-model cost.
 INELASTIC_GATE_SPEED = 2.0
 
 #: Per-variable steps for :func:`inelastic_gradient_report` — the M2/M3 gate's
@@ -951,6 +955,9 @@ def markdown_table(rows: list[list], headers: list[str]) -> str:
     """
 
     def cell(value):
+        """Format one cell: floats to two decimals, everything else via
+        ``str``. Two decimals is the precision the reports quote, so a table
+        written here and a number quoted in prose cannot disagree."""
         return f"{value:.2f}" if isinstance(value, float) else str(value)
 
     lines = [

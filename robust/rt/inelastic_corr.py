@@ -146,6 +146,8 @@ _LOG_FLOOR = 1e-10
 #: The committed trained weights (M3 task 2). Two files — the heads train,
 #: version, and regenerate independently (coding plan M3).
 DEFAULT_RAMAN_WEIGHTS = Path(__file__).parent / "files" / "raman_corr_l23.npz"
+#: pathlib.Path: The committed trained weights of the *fluorescence* head,
+#: δ_F -- the second of that pair.
 DEFAULT_FL_WEIGHTS = Path(__file__).parent / "files" / "fl_corr_l23.npz"
 
 
@@ -179,7 +181,7 @@ class HeadConfig:
         the held-out gate demands it (coding plan M3). ``()`` is the linear
         baseline, as in the elastic effort.
     delta_max : float
-        Hard tanh bound on |δ|. Defaults differ by head because the measured
+        Hard tanh bound on ``|δ|``. Defaults differ by head because the measured
         errors do: δ_R must reach +0.64 to close the −39 % increment gap at
         0° (1/0.61 − 1), so its bound is 1.0; δ_F needs ~+0.18 for the 60°
         drift, so the elastic default 0.5 has ample slack. δ_C also defaults
@@ -389,10 +391,10 @@ class CorrectionHead:
     """One trained (or initialised) correction head: parameters + scaling.
 
     A registered pytree (parameters and standardisation are leaves, the
-    config static), for the same reasons as :class:`robust.rt.emulator
-    .Emulator`: ``grad`` w.r.t. a head gives parameter gradients, and
-    differentiating the composed forward w.r.t. the *inputs* while carrying
-    a head along needs no special handling.
+    config static), for the same reasons as :class:`robust.rt.emulator.Emulator`:
+    ``grad`` w.r.t. a head gives parameter gradients, and differentiating the
+    composed forward w.r.t. the *inputs* while carrying a head along needs no
+    special handling.
 
     Attributes
     ----------
@@ -416,7 +418,7 @@ class CorrectionHead:
         geometry,
         wave: Float[Array, " wave"] | None = None,
     ) -> Float[Array, "*batch wave"]:
-        """The bounded dimensionless correction δ(λ), |δ| < ``delta_max``.
+        """The bounded dimensionless correction δ(λ), ``|δ|`` < ``delta_max``.
 
         Parameters
         ----------

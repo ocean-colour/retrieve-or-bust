@@ -99,8 +99,8 @@ Structural choices that follow from the rest of the milestone:
 ``flax`` and ``optax`` are imported inside the functions that need them, not at
 module scope, so the analytic-only path never pays for the ML stack — the same
 argument that made :mod:`robust.rt.types` use ``jax.tree_util`` over ``flax.struct``.
-The network class is therefore defined inside :func:`_network` rather than at module
-scope, which would need Flax at import time.
+The network class is therefore defined inside the private ``_network()`` factory
+rather than at module scope, which would need Flax at import time.
 """
 
 from __future__ import annotations
@@ -344,8 +344,9 @@ class History:
         the correction*. The design asks for the hybrid's correction to be small and
         bounded, so this is reported as a first-class number rather than left to be
         inferred from the loss curve.
-    eval : dict of str to numpy.ndarray
-        Fit-term rRMS on each named held-out mask, same length as :attr:`step`. The
+    eval : dict
+        Maps each held-out mask's name to a :class:`numpy.ndarray` of fit-term
+        rRMS on it, same length as :attr:`step`. The
         point of recording these *during* training is that M3's honest question is
         not whether the loss went down but whether the held-out splits followed it.
     """
@@ -387,12 +388,18 @@ def _network(config: EmulatorConfig):
     zero = nn.initializers.zeros
 
     class ResidualNet(nn.Module):
-        """Correction network. See :func:`_network`."""
+        """Correction network. See the enclosing ``_network()`` factory."""
 
         hidden: tuple[int, ...]
 
         @nn.compact
         def __call__(self, x):
+            """Map standardised features ``x`` to one raw (unbounded) output.
+
+            ``tanh`` hidden layers, then a linear head whose kernel *and* bias
+            start at zero, so an untrained network returns exactly 0 and the
+            hybrid starts as the analytic backbone.
+            """
             h = x
             for width in self.hidden:
                 h = nn.tanh(nn.Dense(width)(h))
@@ -409,8 +416,8 @@ def features(
 ) -> Float[Array, "*batch wave feature"]:
     """Raw (un-standardised) feature vectors, one per sample **and wavelength**.
 
-    Takes the same arguments as :func:`robust.rt.forward`, so the emulator can be
-    evaluated wherever the forward model can.
+    Takes the same arguments as :func:`~robust.rt.hybrid.forward`, so the
+    emulator can be evaluated wherever the forward model can.
 
     Parameters
     ----------
@@ -480,7 +487,7 @@ class Emulator:
     Attributes
     ----------
     params : dict
-        Flax parameter pytree for the network built by :func:`_network`.
+        Flax parameter pytree for the network built by ``_network()``.
     mean, std : Array
         Per-feature standardisation, shape ``(len(FEATURES),)``, computed on the
         **training split only**.
@@ -588,7 +595,7 @@ class Emulator:
             excursion at all.
         theta_s_limits : tuple of float or None, optional
             Solar-zenith range (degrees) to judge ``cos_theta_s`` against, instead of
-            the trained one. Defaults to :data:`SUPPORTED_THETA_S`, the envelope the
+            the trained one. Defaults to ``SUPPORTED_THETA_S``, the envelope the
             project sanctions. ``None`` uses the trained range, which is the right
             question when asking whether *this fit* is extrapolating.
 
@@ -716,7 +723,7 @@ def _effective_domain(domain, theta_s_limits):
     Splits the two meanings the domain check carries: for the IOP and wavelength
     features the trained range is the right bound, because outside it the network is
     genuinely unconstrained; for the solar zenith the bound is a *project decision*
-    (:data:`SUPPORTED_THETA_S`), so a fit trained on a subset of angles is still
+    (``SUPPORTED_THETA_S``), so a fit trained on a subset of angles is still
     allowed to be used across the whole sanctioned span.
 
     Parameters
@@ -786,9 +793,10 @@ def fit(
         Boolean mask over the sample axis: the training split. Required, and
         deliberately not defaulting to "everything" — training on all of it is a
         mistake that costs a milestone's credibility, so it has to be typed out.
-    eval_masks : dict of str to numpy.ndarray, optional
-        Named held-out masks scored every ``config.eval_every`` steps and recorded
-        in the returned :class:`History`.
+    eval_masks : dict, optional
+        Maps a name to a boolean :class:`numpy.ndarray` mask over the sample
+        axis. Each is scored every ``config.eval_every`` steps and recorded in
+        the returned :class:`History`.
     config : EmulatorConfig, optional
         Defaults to ``EmulatorConfig()``.
     rrs_ztt : Array, optional
@@ -903,6 +911,12 @@ def _make_chunk(model, tx, grad_fn, train_data, config: EmulatorConfig):
     import optax
 
     def one_step(carry, _):
+        """One Adam step, in ``lax.scan`` carry form.
+
+        ``carry`` is ``(params, opt_state)``; the scanned input is unused and
+        no per-step output is stacked, so the loss history is deliberately not
+        recovered from inside a chunk.
+        """
         params, opt_state = carry
         (_, _aux), grads = grad_fn(params, model, *train_data, config)
         updates, opt_state = tx.update(grads, opt_state, params)
@@ -912,6 +926,8 @@ def _make_chunk(model, tx, grad_fn, train_data, config: EmulatorConfig):
     # distinct chunk length compiles once (there are at most two).
     @partial(jax.jit, static_argnums=2)
     def chunk(params, opt_state, n_steps):
+        """Run ``n_steps`` scanned Adam steps and return the new
+        ``(params, opt_state)``. ``n_steps`` is static (argument 2)."""
         (params, opt_state), _ = jax.lax.scan(
             one_step, (params, opt_state), None, length=n_steps
         )
@@ -925,6 +941,10 @@ def _make_eval(model, config: EmulatorConfig):
 
     @jax.jit
     def evaluate(params, x_std, rrs_ztt, rrs_truth):
+        """rRMS (percent) of the hybrid ``rrs_ztt * (1 + δ)`` against
+        ``rrs_truth`` on the rows handed in -- the fit term alone, with no
+        ``|δ|`` penalty, so held-out curves are comparable to the reported
+        accuracy."""
         delta = _delta(model, params, x_std, config)
         return validation.rrms(rrs_truth, rrs_ztt * (1.0 + delta))
 
@@ -1080,7 +1100,8 @@ def load(path) -> Emulator:
         )
 
 
-#: The trained weights shipped with the package: MLP(16,16) fit on L23's elastic
+#: pathlib.Path: The trained weights shipped with the package -- an MLP(16,16)
+#: fit on L23's elastic
 #: X=1 scenes, **``scene_train`` split only**, by ``design/py/train_emulator.py``.
 #: Committed (6.5 KB) so :func:`robust.rt.hybrid.forward` is a *trained* model out of
 #: the box and CI can exercise the real thing, rather than every caller having to

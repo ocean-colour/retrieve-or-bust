@@ -62,11 +62,14 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
 
 
 # --------------------------------------------------------------- Rrs <-> rrs -
-#: Lee et al. (2002) coefficients for the above/below-water conversion. These
-#: must equal ``bing.rt.A_Rrs`` / ``bing.rt.B_Rrs`` -- the two packages
-#: disagreeing about what ``rrs`` means is exactly what fixing them prevents,
-#: and a test asserts the equality rather than trusting this comment.
+#: float: Numerator coefficient of the Lee et al. (2002) above/below-water
+#: conversion, ``Rrs = A rrs / (1 - B rrs)``. Must equal ``bing.rt.A_Rrs`` --
+#: the two packages disagreeing about what ``rrs`` means is exactly what
+#: fixing them prevents, and a test asserts the equality rather than trusting
+#: this comment.
 A_RRS = 0.52
+#: float: Denominator coefficient of the same Lee et al. (2002) conversion.
+#: Must equal ``bing.rt.B_Rrs``, and the same test asserts it.
 B_RRS = 1.7
 
 #: ``rrs`` value at which :func:`rrs_to_Rrs` diverges (``1 - B * rrs -> 0``).
@@ -114,9 +117,16 @@ def rrs_to_Rrs(rrs: Float[Array, "..."]) -> Float[Array, "..."]:
 
 
 # ----------------------------------------------------------- wavelength grid -
+#: float: Blue edge of the canonical grid (nm) -- the L23 grid's own first
+#: band, and the floor every clamp in the package extrapolates from.
 WAVE_MIN = 350.0
+#: float: Red edge of the canonical grid (nm).
 WAVE_MAX = 750.0
+#: float: Spacing of the canonical grid (nm).
 WAVE_STEP = 5.0
+#: int: Number of canonical grid points, ``(WAVE_MAX - WAVE_MIN) / WAVE_STEP
+#: + 1``. Named because it is the shape every spectral array is checked
+#: against by :func:`check_wave`.
 N_WAVE = 81
 
 #: The canonical grid, as NumPy. Deliberately *not* a device array built at

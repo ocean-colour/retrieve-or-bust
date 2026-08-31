@@ -76,7 +76,7 @@ _LEARNED_MODES = ("emulator", "hybrid")
 #: larger angles (or will warn the user)"* (prompt 4, Q6; chosen in prompt 5, Q7). It
 #: is an option rather than the default because switching it on changes numbers, and a
 #: model whose output depends on a flag nobody set is its own kind of trap. The
-#: threshold is :data:`robust.rt.emulator.SUPPORTED_THETA_S` for the solar zenith and
+#: threshold is ``robust.rt.emulator.SUPPORTED_THETA_S`` for the solar zenith and
 #: the trained range for everything else.
 OUT_OF_DOMAIN_POLICIES = ("warn", "ztt")
 

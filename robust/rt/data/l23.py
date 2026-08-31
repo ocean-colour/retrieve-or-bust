@@ -119,7 +119,7 @@ class L23Batch:
     """A stacked L23 batch: model inputs, the reference ``Rrs``, and labels.
 
     Deliberately **not** a registered pytree. It is an analysis container, not an
-    argument of :func:`robust.rt.forward` -- and :attr:`scene` is host-side
+    argument of :func:`~robust.rt.hybrid.forward` -- and :attr:`scene` is host-side
     integer metadata that has no business being traced or differentiated. The
     model inputs it holds (:attr:`iops`, :attr:`phase_params`, :attr:`geometry`)
     are pytrees.
@@ -360,6 +360,8 @@ def npz_reader(path):
     stored_x = int(data["x"])
 
     def read(x: int, zenith: int) -> dict[str, np.ndarray]:
+        """Serve one ``(x, zenith)`` slice of the fixture as a
+        :data:`RAW_FIELDS` dict, raising if the fixture does not hold it."""
         if x != stored_x:
             raise ValueError(
                 f"npz_reader: fixture holds X={stored_x}, was asked for X={x}"
@@ -423,9 +425,12 @@ def load_batch(
     -----
     ``bb_w`` and ``bb_p`` come from **the file itself** (``bb - bbnw`` and
     ``bbnw``), not from :func:`robust.rt.conventions.bb_w`, so a batch is exactly
-    what L23 says with no convention drift. The two agree to ~1e-7 relative (the
-    table in ``conventions`` was derived from this same difference); a test
-    asserts that, closing the loop between the modules.
+    what L23 says with no convention drift. The two agree closely, since the
+    table in ``conventions`` was derived from this same difference: measured,
+    ``bb - bbnw`` reproduces :data:`robust.rt.conventions.BB_W_L23` to 3.1e-09
+    relative at the scene the table was taken from, and to 3.4e-06 across all
+    3320 scenes (float32 storage noise). ``test_bb_w_matches_l23_netcdf``
+    asserts ``rtol=1e-6``, closing the loop between the modules.
     """
     if not zeniths:
         raise ValueError("load_batch: `zeniths` must name at least one angle")
@@ -630,8 +635,8 @@ def _take_geometry(geometry: Geometry, keep) -> Geometry:
 
 
 # ------------------------------------------------------ inelastic scenarios --
-#: The two inelastic L23 scenarios: X=2 adds Raman scattering to the elastic
-#: X=1, X=4 adds Raman *and* chlorophyll-a fluorescence.
+#: tuple: The two inelastic L23 scenarios -- X=2 adds Raman scattering to the
+#: elastic X=1, X=4 adds Raman *and* chlorophyll-a fluorescence.
 INELASTIC_XS = (2, 4)
 
 #: The chlorophyll fluorescence quantum yield HydroLight used for the X=4
@@ -831,6 +836,9 @@ def inelastic_npz_reader(path, elastic_path):
     available = tuple(int(z) for z in sibling["zeniths"])
 
     def read(zenith: int) -> dict[str, np.ndarray]:
+        """Serve one zenith as an :data:`INELASTIC_RAW_FIELDS` dict, joining
+        the sibling fixture to the elastic one and checking that the two
+        describe the same scenes before returning."""
         if int(zenith) not in available:
             raise ValueError(
                 f"inelastic_npz_reader: fixture holds zeniths {available}, "

@@ -388,6 +388,10 @@ Five deviations, each measured rather than assumed:
    the reason inline. **The way back is cheap**: once Q4's docstring fixes land
    at D2 task 5 the residue collapses to those three regexes — revisit it
    there. No dead config was added speculatively.
+   **[Superseded at D2 task 5: the docstrings were fixed, the residue collapsed
+   to exactly those three regexes as predicted (454 warnings, 14 distinct
+   targets, all annotation nouns or shape strings), and `nitpicky = True` is
+   now in `conf.py`. D2 task 2's gate was reworded back to strict enforcement.]**
 4. **A six-line `autodoc-process-docstring` hook plus `setup(app)`** (task 5),
    repairing four docstrings in `robust/` that docutils cannot parse and that
    are therefore hard `-W` failures with nitpick off: `ztt.py`'s two `**48**(35)`
@@ -399,6 +403,10 @@ Five deviations, each measured rather than assumed:
    workaround in the docs config for a bug in the package** — Q4's answer is to
    fold the fix into D2 task 5's docstring pass and delete the hook in the same
    change. Do not let it become permanent by inattention.
+   **[Done at D2 task 5: `ztt.py` now writes `**48** (35)` / `**25** (15)` and
+   `inelastic_corr.py` writes ``|δ|`` as a literal; the hook and its `setup(app)`
+   are deleted from `conf.py`, and the rendered HTML was checked to be unchanged
+   before the deletion. There is no `setup()` in `conf.py` any more.]**
 5. **The figure-copy import** (task 6): `sys.path.insert(0,
    os.path.abspath("figures"))` then `from make_docs_figures import
    copy_figures; copy_figures()` at conf.py **import time**, not from a Sphinx
@@ -1193,17 +1201,20 @@ Goal: the prose, the provenance and the figures — the site as a manual.
 
    **Gate.** `-W` clean; every equation checked against the module or the
    design doc it came from (cite which, in the page or the log); every
-   `:func:`/`:class:` cross-reference **spot-checked in the rendered HTML** —
-   grep the built pages for roles that fell back to plain text (an unlinked
-   `<code class="xref">` where a link was intended) and fix each. *Reworded at
-   D1 task 5 (Q&A Q3, option-3 fallback): `nitpicky` is **off**, so a typo'd
-   Python role renders as plain text and does not fail `-W`. The measured
-   reason is in that task's log — nitpick on today costs a ~28-entry
-   `nitpick_ignore` (24 one-off targets + 3 regexes), 23 of whose entries
-   would silence genuine docstring defects in `robust/` rather than tool
-   noise. Revisit turning it on at D2
-   task 5, once Q4's docstring fixes land: the residue then collapses to three
-   principled regex entries for `jaxtyping`/napoleon annotation nouns.*
+   `:func:`/`:class:` cross-reference resolves — with `-W`, a typo'd role is a
+   build failure, which is the point. *Reworded twice. At D1 task 5 this said
+   "spot-checked in the rendered HTML", because Q3's option-3 fallback had been
+   taken: `nitpicky` was measured there and left **off**, since a nitpicky build
+   then needed 24 literal `nitpick_ignore` entries, 23 of which would have
+   silenced genuine malformed docstrings in `robust/`. **D2 task 5 fixed those
+   docstrings at source and turned `nitpicky` on**, which is the wording above.
+   Re-measured there: 454 nitpick warnings, 14 distinct targets, all of them
+   `jaxtyping`/napoleon annotation nouns and quoted shape strings — three
+   `nitpick_ignore_regex` entries, exactly as Q3 predicted the residue would
+   collapse. Proven strict in the same task: `{func}`robust.rt.no_such_function_whatsoever``
+   added to a page makes the `-W` build exit 1. The manual HTML spot-check is no
+   longer the gate, but it was re-run at task 5 anyway and found **917 xref roles
+   site-wide, 0 unresolved** (was 916 / 22).*
 
 3. **"The model" — the inelastic chapters.** `docs/model/inelastic.md`
    (Raman: the 3400 cm⁻¹ shift and the exact `585.08 nm` from 488 nm
@@ -1479,6 +1490,63 @@ people `https://retrieve-or-bust.readthedocs.io/en/cdom-rt/` by hand rather than
 committing it. The durable fix is yours and is a merge, not an edit: once
 `cdom-rt` lands on `main`, `latest` builds and every link in the repo becomes
 correct at once. Do you want it left as is?
+
+Question from Claude (2026-08-31, model: Opus), raised at D2 task 4. It did not
+block the task — the gate ran and passed in full — but it is about a working
+practice that nearly cost the site three wrong numbers, and the answer changes
+what I do at the start of a turn.
+
+**Q11 (D2 task 4's two pages were already written when the turn started, with no
+log entry, and the turn's brief said no files had been changed).** The brief for
+this turn said an earlier attempt had been interrupted by a rate limit "while
+still reading source material… no files were changed", and instructed me to
+start fresh. Checked rather than assumed, `git status` said otherwise:
+
+```
+$ git status --short
+ M docs/using/data.md          337 lines (the D1 stub was 11)
+ M docs/using/validation.md    440 lines (the D1 stub was 10)
+```
+
+~740 lines of finished, well-organized prose, and **no `## Logs` entry for task
+4** — task 3's log still ended the file and stated in its last paragraph that
+task 4 was not attempted. So the draft was written by a turn that never logged,
+never gated, and never reported. (It is not the concurrent CDOM effort's: that
+one works in `robust/` and `design/`, and both files are `docs/`.)
+
+I took the middle path: **treated the draft as untrusted input with zero
+standing, and verified every number, signature, command and pasted output in it
+against running code or a source document** before keeping a line of it. That is
+the house method for this effort regardless of who typed the draft, so the
+marginal cost was small — and it was worth it. Three numbers **do not
+reproduce** and are now corrected (the `bb_w` agreement, the fixture speed ratio,
+the fixture gradient residual), plus one sentence that attributed the full-grid
+rRMS to the outside-band domain. All four are detailed in the log above. The
+gate-table numbers, both ladders, the delta table and every release- and
+fixture-scale figure *did* reproduce exactly, so the draft was mostly sound —
+which is precisely what makes the three bad ones dangerous.
+
+What I need from you is a rule, because I had to invent one:
+
+1. **Verify and adopt** (what I did). Cheapest when the draft is good, and the
+   verification is work this effort demands anyway. The risk is that a draft
+   arrives 95 % right and the 5 % is invisible without running everything —
+   which is exactly what happened, and only a full re-measure caught it.
+2. **Discard and rewrite from the stub.** Cleanest provenance: every line then
+   traces to a logged, gated turn. Costs a full rewrite of work that was largely
+   correct, and — worse — I would have re-derived the same numbers and might
+   have reproduced the same three errors from the same loose docstring.
+3. **Stop and ask before touching it.** Safest, but it burns a turn on a
+   question whose answer is almost always "carry on".
+
+My recommendation: **(1), with the standing rule made explicit** — *an
+uncommitted working-tree draft with no log entry has no standing; verify every
+claim in it before keeping any of it, and say in the log that you did.* That is
+what happened here and it worked. But I would also ask, separately, that the
+turn briefs stop asserting tree state ("no files were changed") that a `git
+status` can contradict in one second: I checked, and had I not, "start fresh"
+plus a pre-filled file is a good way to ship someone else's unverified numbers
+under my gate. Is (1) the rule you want, and do you know what wrote that draft?
 
 ## Next
 
@@ -4522,3 +4590,874 @@ one-line docstring defect in a different repo, the ten-constant `#:` list for
 task 5, and the `HeadConfig` per-kind-default asymmetry — are recorded above
 rather than raised as questions, because each is either already answered (Q4) or
 already known to JXP (the bing docstring, named in the task text itself).
+
+### 2026-08-31 (D2 task 4 — Data and Validation; the two pages arrived already drafted, and verifying them found three numbers that do not reproduce)
+
+**Branch.** `cdom-rt`, read fresh (`git branch --show-current`). **Files
+written: exactly the two stubs the task names**, both under `docs/using/`. No
+`robust/`, `design/`, `notebooks/` or `reports/` path was opened for writing;
+`docs/api.rst`, `docs/conf.py` and the toctrees needed no change.
+`docs/using/limitations.md` was left as its 11-line stub — that is D2 task 5's.
+
+```
+ M docs/using/data.md         |  337 lines  (was 11)
+ M docs/using/validation.md   |  440 lines  (was 10)
+ 2 files changed, 768 insertions(+), 12 deletions(-)
+```
+
+777 lines from 21. With tasks 2 and 3 the three prose tasks have added ~3,000
+net lines.
+
+---
+
+#### The state I actually found, which is not the state the turn described
+
+The turn's brief said an earlier attempt at this task had been interrupted by a
+rate limit "while still reading source material… no files were changed", and
+told me to start fresh. **That was not true of the working tree.** `git status`
+at the start of this turn showed *both* target files already modified, ~740
+lines of finished prose between them, with no corresponding `## Logs` entry —
+task 3's log still ended the file and explicitly said task 4 was not attempted.
+
+I did not discard it and I did not adopt it. I treated it as **a draft of
+unknown provenance and zero standing**, and verified every number, command,
+signature and pasted output in it against running code or a source document —
+which is the house method for this effort anyway, so the cost of the ambiguity
+was low. That turned out to matter: three numbers in the draft **do not
+reproduce**, and are corrected below. Had the draft been taken at face value
+the site would have shipped them. Raised as **Q11** below, because "what is the
+standing of an unlogged working-tree draft" is a process question I should not
+answer for JXP on my own.
+
+---
+
+#### What each page covers
+
+**`data.md`** (337 lines) — L23 as the single dataset every claim rests on.
+Where it lives (Dryad, not redistributed), the `$OS_COLOR` resolution rule
+`$OS_COLOR/Loisel2023/Hydrolight{X}{Y:02d}.nc`, and a warning that **`ocpy`
+resolves the directory at import time, not call time** — with the real
+`UserWarning`, the real `l23_path = './'`, and the real `FileNotFoundError`
+pasted from a run with the variable unset. The X = 1 / 2 / 4 scenario levels as
+*the same water body under three RT configurations* (elastic-only / +Raman /
++Raman+fluorescence at φ_C = 0.02), which is what makes the truth channels exact
+differences rather than files. The three containers, the one flat sample axis,
+the two loaders and their real argument sets, the by-scene splits and why they
+are by scene, the four committed fixtures with byte counts, and the design
+decision that the fixtures store the loader's **input** rather than its output —
+so `load_batch` itself runs in CI. Closes with a concrete, measured "Without the
+netCDFs" section.
+
+**`validation.md`** (440 lines) — the protocol as *protocol, not target*.
+`rrms` with its equation, and the two load-bearing choices in it (relative, and
+computed in `rrs` not `Rrs`). The breakdowns. **A dedicated section establishing
+that the gated domain is 400–700 nm**, with the two safeguards that make it
+honest. The three increment metrics, the speed pair, the three gradient reports
+and the four rules a caller must respect. The design §6 gate as a six-row table
+with verdicts, the note that the *elastic* §6 has no numeric bars at all, both
+ladders (band and full grid), per-process fidelity, the diagnostics, and a
+"Running it yourself" section that does not pretend the suite is unqualified
+green.
+
+---
+
+#### The 400–700 nm fact, traced to its origin rather than restated
+
+The task text cites "prompt 5 Q&A Q1". That is **not** in this document's D1
+Q&A — it is `claude_prompts/RT/rt_inelastic_coding_prompt_5.md`, `### Q&A`, Q1
+(lines 175–191), the *coding* effort's prompt 5. Read verbatim:
+
+> **Q1 (Claude, 2026-08-26, task 1).** … **the total-rRMS gate (design §6 line 1)
+> is scored over λ ≥ 400 nm** … On that band the held-out corrected model
+> measures **0.352 / 0.339 / 0.349 %** … On the *full* 350–750 nm grid it
+> measures 2.61/2.27/2.28 % … The full-grid number will be *reported* in the
+> metrics table either way (candor, not gating).
+>
+> >A. Right, do not gate on the rms outside the 400-700nm range.
+
+Two things worth recording. First, JXP's answer says **"400-700nm"**, so the
+band is two-sided, not the `λ ≥ 400 nm` the question proposed — and
+`INELASTIC_GATE_BAND = (400.0, 700.0)` implements the answer, not the question.
+Second, Q1's own in-band numbers (0.352/0.339/0.349) are the *task-1*
+measurement and are **not** the committed ones (0.343/0.341/0.340); the page
+quotes the committed figures. Anyone diffing Q1 against the report will find
+that gap, so it is named here.
+
+The page states the band in its own section rather than a footnote, and reports
+the full grid beside it in a second table — which is what the task asked for.
+
+---
+
+#### The gate-table diff — method, not assertion
+
+The gate says the numbers must match the report **and** the implementation
+record exactly, and that they must be diffed rather than eyeballed. I wrote a
+parser rather than reading four documents side by side:
+`<scratchpad>/gatediff2.py` extracts every Markdown table from each of the four
+files, normalizes cells (drops parentheticals, maps `−`→`-`, `5.9×10⁻⁹`→`5.9e-9`,
+bare `10⁻⁶`→`1e-6`, strips `**` and unit-tagged asides), and compares the
+numeric payload cell by cell:
+
+```
+$ python <scratchpad>/gatediff2.py
+=== GATE TABLE — measured value, all four documents ===   18 comparisons
+=== GATE TABLE — the bar ===                              18 comparisons
+=== GATE TABLE — verdict ===                               6 comparisons
+=== LADDERS + DELTAS ===                                  15 comparisons
+FAILURES: ['gate 1 measured page/artifact']
+```
+
+**56 of 57 comparisons match exactly.** The four documents are
+`docs/using/validation.md`, `reports/report_rt_inelastic_model.md` §3,
+`design/rt_inelastic_implementation.md` §6.6, and the generated
+`design/validation/metrics_inelastic.md`.
+
+The single flag is **not a mismatch**: the generated artifact prints gate line 1
+as `0.343 % (worst zenith)` where the page, the report and the record all print
+all three per-zenith values `0.343 / 0.341 / 0.340`. 0.343 *is* the worst of the
+three, so the artifact is an abbreviation of the same fact. Verified rather than
+assumed, and left as is.
+
+Both ladders (18 cells) and the per-process delta table (18 cells) match the
+artifact exactly, and the corrected column matches the report exactly. One
+source-side curiosity the mechanical diff caught and an eyeball would not: the
+report prints the artifact's **+30.85** as **+30.8**, a truncation rather than a
+round-half-up. Both files are the sources, neither is wrong, and the page now
+says so in one clause so a future diff does not read it as drift.
+
+---
+
+#### The function-name grep, run rather than recalled
+
+Every function and constant named on `validation.md`, grepped for an exact
+top-level definition in `robust/rt/validation.py`:
+
+```
+$ for f in rrms rrms_per_wavelength group_rrms bp_bin_labels quantile_bin_labels \
+      median_increment_error peak_ratio_error phi_c_linearity throughput speed_ratio \
+      gradient_report inelastic_gradient_report cdom_gradient_report score_models \
+      markdown_table; do grep -cE "^def ${f}\(" robust/rt/validation.py; done
+   -> 1 for all fifteen
+
+$ for c in INELASTIC_GATE_BAND INELASTIC_GATE_TOTAL_RRMS INELASTIC_GATE_DELTA \
+      INELASTIC_GATE_SPEED GRADIENT_TOL FD_STEPS INELASTIC_FD_STEPS CDOM_FD_STEPS; \
+      do grep -cE "^${c}(:| =)" robust/rt/validation.py; done
+   -> 1 for all eight
+```
+
+**15/15 functions and 8/8 constants exist with that exact spelling.** The task
+text names six functions; the page documents fifteen, because the six do not
+cover the gradient reports or the reporting pair and the page would have been
+lying by omission about what the protocol contains.
+
+---
+
+#### Everything else, and where it was checked
+
+`$OS_COLOR` and the fixtures were checked **fresh this turn**, not carried
+forward:
+
+```
+OS_COLOR = /Users/xavier/Projects/Oceanography/data/Color/
+all nine Hydrolight{1,2,4}{00,30,60}.nc present, 18,304,505 bytes each
+  (17.5 MiB; 9 x = 164.7 MB)
+Hydrolight1{00,30,60}_profile.nc                727,205,283 bytes each
+robust/tests/files/  l23_small.npz 217,744 | l23_inelastic_fixture.npz 291,450
+                     elastic_reference_outputs.npz 90,040
+                     inelastic_default_reference_outputs.npz 89,907   (689,141 total)
+```
+
+*Reproduced at release scale, with `$OS_COLOR` set* — every figure below came
+back **identical** to what the draft claimed:
+
+| Claim | Measured |
+|---|---|
+| `load_batch()` / `load_inelastic_batch()` | 9960 x 81, 350–750 nm, three Rrs channels |
+| `make_splits` | scene 7968/1992, zenith 6640/3320, 664 test scenes |
+| elastic vs inelastic splits identical | True (all five fields) |
+| `truth_raman_factor` | 1.004739–2.514770, ≥ 1 everywhere True; at Y=0, 1.007599–2.514770 |
+| `truth_fluorescence(685)` | 7.09e-06–1.65e-03 sr⁻¹, > 0 everywhere True |
+| `B_p` | [0.01026, 0.01800] over 806,760 values, factor 1.75 |
+| **both ladders, 18 cells** | every cell identical to the artifact |
+| per-λ corrected | median in band 0.33 %, worst in band 0.84 % at 450 nm, 13.0 % at 350 nm |
+
+*Reproduced at fixture scale under `env -u OS_COLOR`* — also all identical:
+150 samples × 81, zeniths [0,30,60], 50 scenes; `a_ph`/`a_cdom` set; splits
+120/30/100/50 with 10 test scenes and identical to the elastic batch;
+`rrms` 0.319 % in band and 2.547 % full grid; `group_rrms` 0.326/0.313/0.318;
+`median_increment_error` −0.141/−0.057/−0.177; `peak_ratio_error`
+−0.264/−0.263/−0.240; `phi_c_linearity` identical across 0.5×–5× to four
+decimals. `INELASTIC_GATE_BAND` covers **61 of 81** grid points, measured.
+
+Suite counts and the drift figures, re-run this turn:
+
+```
+$ pytest -q -ra                       2 failed, 483 passed, 1 skipped in 67.88s
+$ env -u OS_COLOR pytest -q -ra       2 failed, 446 passed, 38 skipped, 1 warning in 59.76s
+   -> 37 converted, tallied from -ra: 23 elastic + 14 (X=2/X=4)
+$ pytest robust/tests/test_inelastic_validation.py -q -ra   1 failed, 6 passed in 11.38s
+   -> the 7 gate test names match the page exactly; needs_l23_inelastic on 1,2,3,6 — confirmed
+$ test_validation.py                  36 tests collected
+Rrs: differ 2742/12150 (22.6%), max rel 3.326e-07, max ULP 3
+rrs: differ 2862/12150 (23.6%), max rel 1.642e-07, max ULP 2
+```
+
+Per Q1's answer this is read as **green modulo the two machine-anchored
+strict-hash tiers**, never as an unqualified green suite, and both pages say so
+in those terms.
+
+---
+
+#### The three numbers that did not reproduce, and what replaced them
+
+This is the part that justifies the verification pass.
+
+1. **`bb_w` "the two agree to ~1e-7 relative".** The draft took this from
+   `load_batch`'s own docstring (`l23.py:426`). Measured, it is two different
+   quantities and neither is 1e-7: against the scene the `conventions` table was
+   derived from, `bb - bbnw` reproduces `BB_W_L23` to **3.11e-09**; across all
+   3,320 scenes the spread is **3.41e-06**, float32 storage noise. And the test
+   that "asserts it" (`test_bb_w_matches_l23_netcdf`) asserts `rtol=1e-6`, not
+   1e-7. The page now states both figures, names the test and its real
+   tolerance, and explains why the two differ. **The docstring in `robust/` is
+   the loose one** — a one-line fix for D2 task 5, recorded here, not made.
+2. **Fixture `speed_ratio` "1.85× (0.36 vs 0.19 ms)".** Not reproducible:
+   successive runs gave 1.89, then a five-trial alternating-order sweep gave
+   2.08 / 2.28 / 2.37 / 2.20 / 2.30. At 30 samples the ratio simply wanders, and
+   it sits **above the 2× gate** — because sub-millisecond timings are mostly
+   dispatch overhead, not because the model is slow. The page now prints the
+   median 2.28× with its range, and says plainly that this is a statement about
+   the batch (release scale is 1.59×). That strengthens the warning the page
+   already carried rather than undercutting it.
+3. **Fixture `inelastic_gradient_report` worst "3.8e-08".** Not reproducible
+   under any natural reading — held-out 30 gives **7.2e-08**, the full 150-sample
+   fixture 1.1e-07, a single sample 2.5e-08. The page now prints 7.2e-08 under
+   exactly the conditions it states (held-out 30, float64, θ_s = 35°) and names
+   `B_p` as the dominant variable, so the claim is checkable.
+
+**A fourth correction, of framing rather than arithmetic.** The draft wrote
+"Outside the band the corrected model degrades to 2.61/2.27/2.28 %". Those are
+the **full-grid** figures, not the outside-band ones. Measured, the twenty
+excluded points score 5.23/4.53/4.56 %, and splitting them is the interesting
+part:
+
+```
+400–700 nm (gated)  61 pts   0.34 / 0.34 / 0.34
+above 700 nm        10 pts   0.40 / 0.33 / 0.40
+below 400 nm        10 pts   7.38 / 6.39 / 6.43
+```
+
+So **the red shoulder is already at the gate standard and the exclusion buys the
+model nothing there** — the entire cost of the full grid is the ten sub-400 nm
+bands. The page carries that as a table, which makes the band look like the
+physics decision it is rather than a convenient window. This is the one place
+the pages say something the reports do not.
+
+Also corrected: the draft's parenthetical listing the report's one-decimal
+analytic column gave **seven** of its nine values.
+
+---
+
+#### Gate
+
+**1 — `-W` clean, from a genuinely clean tree** (`docs/_build/` removed *and*
+`docs/_static/fig_*.png` deleted, so the `conf.py` figure hook had to produce the
+hero again rather than find a stale copy):
+
+```
+$ rm -rf docs/_build && rm -f docs/_static/fig_*.png
+$ ls -a docs/_static      ->   .  ..  .gitkeep            (no PNG)
+$ /usr/bin/time -p python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+stdout: grep -cE "WARNING|ERROR"  ->  0
+stderr: grep -cE "WARNING|ERROR"  ->  0   (only the three /usr/bin/time lines)
+real 3.44   user 2.55   sys 0.20
+$ ls docs/_static         ->   fig_inelastic_architecture.png   (regenerated)
+$ find docs/_build/html -name '*.html' -not -path '*_modules*' | wc -l   ->   25
+```
+
+Warnings go to **stderr**, so the two streams are captured separately rather
+than grepped from one log. 3.44 s against task 3's 3.06 s.
+
+**2 — the gate table's numbers match the report and the implementation record
+exactly, diffed.** `gatediff2.py`, above: 57 comparisons, 56 exact, the 57th the
+artifact's worst-zenith abbreviation. Method and command shown, not asserted.
+
+**3 — every function named on the page exists in `validation.py` with that exact
+spelling.** Grepped, above: 15/15 and 8/8.
+
+**4 — the manual cross-reference spot-check** (the D1-task-5/D2-task-2/task-3
+precedent, `nitpicky` off, same detector including its relaxed "any `<a>`
+immediately preceding" test):
+
+```
+$ python <scratchpad>/xrefcheck.py
+api.html                            373 xref roles,  22 unresolved
+using/data.html                      68 xref roles,   0 unresolved
+using/validation.html                46 xref roles,   0 unresolved
+model/*.html (nine pages)           410 xref roles,   0 unresolved
+index / py-modindex                  15 xref roles,   0 unresolved
+TOTAL 916 xref roles, 22 unresolved
+```
+
+**All 114 roles on the two new pages resolve.** The total moved 802 → 916, i.e.
+**+114, all resolving**, and `api.html`'s residue is **still exactly 22, the
+identical set of twelve distinct targets** tasks 2 and 3 enumerated. **No new
+breakage, and nothing re-litigated** — Q4 already routes every one of those to
+D2 task 5.
+
+Legal targets were again enumerated from `objects.inv` before the prose. One
+role was added during this turn's corrections —
+`{data}`~robust.rt.conventions.BB_W_L23`` — and it was checked for its own `#:`
+doc comment (`conventions.py:161–166`) *before* being written, since a constant
+sharing a neighbour's comment has no anchor; it has one, and it resolves.
+
+**Additional rendered-HTML checks**, because "exit 0" is not "the page is right":
+
+```
+page                    links  broken  math  tables  pre  h2  h3  admonitions
+using/data.html           130       0     0       4   10   7   2  note, warning
+using/validation.html     114       0     8       8    5   9   3  important, warning
+```
+
+**244 internal `href`/`src` targets checked, 0 broken** — stripping both `#` and
+`?` per task 3's detector lesson. MathJax present on `validation.html` and the
+rRMS equation typesets; all eight tables render, including the new
+domain-decomposition table nested inside an ordered list (checked in the markup,
+since MyST tables inside list items are an indentation trap). The four `%`
+MyST comments left as table anchors emit **zero** visible text.
+
+Outbound `gh:` links: 4 repo-root anchors (the theme's navbar/sidebar icon, 2
+per page, not mine) plus **21 content links over 7 distinct document paths**, all
+rendering as `…/blob/main/…` and **all seven existing on this branch** — per Q6
+they 404 until the merge, the accepted and already-documented cost.
+
+**`pytest` and `ruff` were run** this turn — unlike tasks 2 and 3, which touched
+no Python. They were run not because this task edits `robust/` (it does not) but
+because both pages *quote* suite counts, so the counts had to be measured. Both
+runs are above; `robust/` is byte-unchanged.
+
+---
+
+#### Deviations, all mine to own
+
+1. **I verified and repaired a pre-existing draft rather than starting fresh.**
+   The turn said to start fresh and that no files had been changed; the second
+   half was false. Discarding ~740 verified-clean lines to retype them would
+   have been waste, and adopting them unread would have been the real failure.
+   The middle path — treat as untrusted, verify every claim — is what happened,
+   and it is why the three bad numbers were caught. Q11 asks whether that was
+   the right call.
+2. **The page documents fifteen protocol functions where the task names six.**
+   Reasoned above: the gradient reports and `score_models`/`markdown_table` are
+   part of the protocol, and the task's own gate line ("every function named on
+   the page exists") anticipates the page naming more than the task listed.
+3. **`data.md` names `write_fixture`, `select`, `select_inelastic`,
+   `npz_reader` and `inelastic_npz_reader`**, which the task text does not.
+   They are the fixture seam, and the "what can I do without the netCDFs"
+   section is unwritable without them.
+4. **The domain-decomposition table is new analysis, not a quoted number.** It
+   is labelled as re-measured here, sits beside the reports' figures rather than
+   replacing them, and the page still says the reports' numbers are the citable
+   ones. It earns its place because it corrects a wrong sentence and answers the
+   obvious next question ("is the far red bad too?" — no).
+5. **`limitations.md` untouched.** It is D2 task 5's, and both new pages
+   `{doc}`-link it; the roles resolve against the stub, so the build is clean
+   and a reader lands on the "arrives at D2" note today.
+
+**Tree state at the end.** `git status --short` shows **two paths**, plus this
+document once the log lands:
+
+```
+ M docs/using/data.md
+ M docs/using/validation.md
+```
+
+`git diff --stat` → `2 files changed, 768 insertions(+), 12 deletions(-)`.
+**Nothing under `robust/`, `design/`, `notebooks/` or `reports/`** — the
+concurrent CDOM effort's territory is untouched, and no state-changing git
+command was run.
+
+**Stopping at D2 task 4**, per the turn's instruction: the gate is green and
+**task 5 (Scope and limitations, plus the docstring fills) was not attempted.**
+One new question — **Q11** — is raised below, about the unlogged draft. It is a
+process question, not a blocker: the task's gate passed. One new finding for
+task 5's list: **`l23.py:426`'s "~1e-7 relative" is wrong** (3.11e-09 at the
+anchor scene, 3.41e-06 across the release, test tolerance 1e-6) and should be
+corrected in the docstring pass alongside Q4's three classes.
+
+### 2026-08-31 (D2 task 5 — Scope and limitations, and the docstring pass; `nitpicky` is on, the `conf.py` hook is gone, and the AST walk finds a tenth closure)
+
+**Branch.** `cdom-rt`, read fresh at the start of the turn. **Files written:
+three under `docs/`** (`using/limitations.md`, `conf.py`, and this document) and
+**twelve under `robust/`**, all of them docstrings or `#:` doc comments. This is
+the second and last of the two sanctioned `robust/` edits for the whole effort
+(the first was `__version__` at D1 task 2). Verified mechanically rather than
+asserted: `git diff -U0 -- robust/` is **227 changed lines, every one of them
+inside a docstring or a comment**; a scan of the diff for a changed executable
+statement returns nothing. `pytest` and `ruff` say the same thing from the other
+side.
+
+---
+
+#### `robust/rt/inelastic_corr.py` — the concurrency check, run three times
+
+The turn's standing warning is that this file is under active CDOM development
+and can move mid-turn. Checked at three points, all recorded:
+
+```
+before any edit    git status --short robust/rt/inelastic_corr.py  ->  (clean)
+after my 3 edits                                                   ->   M
+after the 4th edit                                                 ->   M
+```
+
+`HEAD` **did** move during the turn — from `08d66ca "4"` to `61fb016 "12"`, the
+CDOM effort committing while I worked — but the file was clean each time I
+touched it and my four hunks are small and anchored (two `|δ|` literals, one
+`#:` line, one role that had been split across a line break). `git diff` on that
+file is 4 hunks, 14 lines. Nothing I wrote would collide with a reword.
+
+---
+
+#### `docs/using/limitations.md` — 11-line stub to 184 lines
+
+The stub was verified to be the D1-task-6 one before it was replaced (11 lines,
+the "Arrives at D2" note). The page has six sections:
+
+1. **A preamble** saying plainly what the page is: the one place on the site
+   where the limits are stated without softening, and that the two §5 sections
+   are quoted verbatim rather than paraphrased, with each quote's source linked.
+2. **"The retrieval does not exist."** The scope boundary, in the prompt-8/9
+   framing: retrieve-or-bust is the AI-driven IOP-retrieval project, `robust.rt`
+   is its **first component** and is a *forward* model, and the inversion is a
+   separate component that has not been built. Then the sentence that closes off
+   the misreading — *nothing on this site may be read as evidence that IOPs can
+   be retrieved from Rrs* — plus the `u = bb/(a + bb)` degeneracy, named as the
+   project's actual subject and as future work. Stated as a boundary, not as a
+   hole in this model.
+3. **"What the forward model may claim"** — the inelastic report's §5 opening
+   paragraph, verbatim, in an `important` admonition that names and links the
+   source.
+4. **"What it may not claim"** — all six items, verbatim, in a `warning`
+   admonition. Then three of them get a pointer to where a reader meets them in
+   this documentation: item 1's −74 % and the heads' absent domain guard
+   ({doc}`../model/corrections`), item 3's `emission_shape='double'`
+   ({doc}`../model/fluorescence`), and item 4's documented-not-enforced 400 nm
+   floor ({doc}`validation`). Those pointers are *around* the quote, never
+   inside it.
+5. **"The elastic backbone's limits, inherited"** — the elastic report's whole
+   §5, verbatim, because item 6 of the inelastic list inherits it and a
+   cross-reference would have let a reader skip it.
+6. **"Also in the API, and not validated"** — the explicit `cdom_fl` sentence
+   D2 task 3 decided this page owes (its log, "Q5's open item, decided").
+   Verified this turn rather than copied: `heads.cdom is None` is `True` on
+   `load_default()`, `KINDS == ('raman', 'fl', 'cdom')`, `cdom_fl` is in
+   `robust.rt.__all__`, `Inelastic.cdom_fl` defaults to `None` ("keeps the
+   process off"), and `train_cdom_corr` raises `NotImplementedError` always,
+   gated on M6 truth runs that do not exist. And a closing section naming the
+   two machine-anchored strict-hash tests, so a reader who clones the repo is
+   not surprised by them — with the drift re-measured this turn (below), and the
+   suite described as green *modulo those two*, never as unqualified green.
+
+No softening verbs anywhere: the quoted material is untouched, and the prose
+around it says "has not been built", "is not validated", "returns numbers",
+"can be worse than having no head at all".
+
+---
+
+#### The verbatim quotes, diffed character for character
+
+Not eyeballed. Three `diff` runs against the report files, each comparing the
+report's own line range to the page's:
+
+```
+$ diff <(sed -n '290,296p' reports/report_rt_inelastic_model.md) \
+       <(sed -n  '55,61p'  docs/using/limitations.md)          -> no output
+$ diff <(sed -n '298,324p' reports/report_rt_inelastic_model.md) \
+       <(sed -n  '75,101p' docs/using/limitations.md)          -> no output
+$ diff <(sed -n '201,224p' reports/report_rt_elastic_model.md) \
+       <(sed -n '136,159p' docs/using/limitations.md)          -> no output
+```
+
+**All three identical, byte for byte.** The reason this is possible at all is a
+formatting choice: the quotes sit inside MyST `:::{important}` / `:::{warning}`
+colon-fences, whose content needs **no line prefix**, so the page's lines are
+literal copies of the report's lines. A `> ` blockquote would have made every
+line differ and turned the gate into "diff modulo a prefix".
+
+Checked in the rendered HTML too, because verbatim markdown is not verbatim
+rendering: the reports' `<sub>` tags come through as real subscripts
+(`φ<sub>C</sub>` renders as a subscript, **0** occurrences of escaped
+`&lt;sub&gt;`), and `**−74%**` renders as `<strong>−74%</strong>`.
+
+---
+
+#### The nine missing closure docstrings — which turned out to be ten
+
+"Status entering D1" names nine. The AST walk re-run at the start of this turn
+found **ten**:
+
+```
+robust/rt/data/l23.py:833   inelastic_npz_reader::read
+robust/rt/data/l23.py:362   npz_reader::read
+robust/rt/emulator.py:927   _make_eval::evaluate
+robust/rt/emulator.py:905   _make_chunk::one_step
+robust/rt/emulator.py:914   _make_chunk::chunk
+robust/rt/emulator.py:395   _network::ResidualNet::__call__     <- the tenth
+robust/rt/inelastic.py:305  emission_line::gaussian
+robust/rt/validation.py:953 markdown_table::cell
+robust/rt/ztt.py:883        rrs_ZTT::spectral
+robust/rt/ztt.py:778        mu_infinity::cubic_in_L
+```
+
+The tenth is `ResidualNet.__call__`, a method of a class defined *inside* a
+function. The D1 count is not wrong about the nine it names; its walk evidently
+did not descend into a nested `ClassDef`'s methods. I filled all ten. The line
+numbers had also drifted (`l23.py` 826 → 833, `validation.py` 818 → 953) — the
+concurrent CDOM effort's work — so each was re-located by name, as the turn
+said to.
+
+**This is a readability edit, not a rendering fix.** All ten are closures or
+members of a closure-local class; none is emitted by autodoc, and the API page
+looks identical before and after. Nobody reading the site benefits; somebody
+reading `emulator.py` does.
+
+Each docstring says something the code does not already say. `one_step` records
+that no per-step output is stacked, so the loss history cannot be recovered from
+inside a chunk. `evaluate` records that it is the fit term alone with no `|δ|`
+penalty, which is why held-out curves are comparable to the reported accuracy.
+`gaussian` records that unit area is what makes the line an emission *shape*.
+`spectral` records why a scalar passes through untouched. `cell` records that
+two decimals is the reports' precision, so a generated table and a quoted number
+cannot disagree.
+
+**After: zero.**
+
+```
+$ python <scratchpad>/astwalk.py
+modules scanned:            15
+modules missing docstring:  0 []
+defs (all, incl. nested):   173
+defs with no private part:  145
+MISSING docstrings:         0        (was 10)
+```
+
+---
+
+#### Q4's defects: measured before, fixed, measured after
+
+The starting point was re-measured rather than taken from the D1 log, and it
+reproduced it exactly: a nitpicky build (`-n --keep-going`) gave **490** warnings,
+**454** of them the three tool-noise families and **37** the residue over **24
+distinct targets** — the same shape D1 task 5 recorded (it counted 36 lines; the
+extra one is the CDOM effort's `CDOM_EX_STEP`).
+
+**Class 1 — the four fatal docutils parse errors.** Fixed at source:
+
+| file | was | now |
+|---|---|---|
+| `ztt.py:58` (module docstring) | `**25**(15)` | `**25** (15)` |
+| `ztt.py:393` (`P_BB_ST_ANGLES`) | `**48**(35)` | `**48** (35)` |
+| `ztt.py:650` (`MU_INF_TT2017_TABLE1`) | `**25**(15)` | `**25** (15)` |
+| `inelastic_corr.py:182` (`HeadConfig`) | `\|δ\|` | ` ``\|δ\|`` ` |
+| `inelastic_corr.py:419` (`CorrectionHead.delta`) | `\|δ\|` | ` ``\|δ\|`` ` |
+
+Five sites, not four: `ztt.py`'s module-docstring citation carries the same
+defect and the D1 count did not include it (it is in the module docstring, which
+the hook was also repairing). The `|δ|` fix is a literal rather than the hook's
+backslash escape, which matches what `emulator.py` already does two lines from
+the same idea (``` ``|δ|`` ``` at lines 87 and 230) — house style, and it cannot
+be broken by a reword the way an escape can.
+
+**The `conf.py` hook is deleted**, and redundancy was verified *before* deleting
+rather than assumed. Built with the source fixes and the hook still in place,
+then with the hook removed, and grepped the rendered HTML both times:
+
+```
+<em>Appl. Opt.</em> <strong>48</strong> (35), 6811          identical
+<em>Optics Express</em> <strong>25</strong> (15), 18122     identical (x2)
+Hard tanh bound on <code class="docutils literal notranslate">|δ|</code>
+correction δ(λ),   <code class="docutils literal notranslate">|δ|</code>
+```
+
+The two citations render byte-identically to what the hook produced. The `|δ|`
+pair is the one deliberate difference: it is now a literal code span rather than
+plain text, which is what the source now asks for. `import re` went with the
+hook (nothing else in `conf.py` used it), and **there is no `setup(app)` in
+`conf.py` any more** — noted in the comment that replaces it, so the next person
+knows its absence is deliberate.
+
+**Class 2 — the malformed NumPy type fields, and what actually causes them.**
+The D1 log describes these as "prose sitting in the type slot", which is the
+symptom. The mechanism, found this turn: napoleon's `_consume_inline_attribute`
+parses an attribute docstring's **first line** as `type: description`, so **any
+`#:` doc comment whose first line contains a colon** has everything before that
+colon promoted to a `Type:` field and cross-referenced. `RAMAN_EXPONENT`'s
+`#: Excitation-wavelength exponent, energy units: b_R ∝ ...` was rendering as
+*Type: Excitation-wavelength exponent, energy units* — and the Python domain's
+annotation parser then split that on the comma into two `py:class` targets,
+which is why 12 defects produced more than 12 warnings. Nobody wrote prose into
+a type slot; a colon in the first line of a comment was enough.
+
+Fixed the way Q4 suggested — give the constant a real type and move the prose to
+the description — in eight places: `inelastic.RAMAN_EXPONENT`, `inelastic.MU_D`,
+`inelastic.LAMBDA_FL`, `l23.INELASTIC_XS`, `emulator.DEFAULT_WEIGHTS`,
+`baselines.O25_RRS_CEILING`, `cdom_fl.HAWES_A1`, `cdom_fl.HAWES_A2`. Each now
+renders `Type: float` / `Type: tuple` / `Type: pathlib.Path`, all of which
+resolve. The other four were English type *specs* in real NumPy parameter
+fields, rewritten to resolvable ones: `sequence of 16 float` →
+`sequence of float` with "the sixteen" moved into the description (`ztt.py`
+twice), and `dict of str to numpy.ndarray` → `dict` with the mapping described
+in prose (`emulator.py` twice).
+
+**Class 3 — references to objects autodoc does not emit.** Three sub-cases,
+handled differently on purpose:
+
+- **The `#:` coverage gap (13 warnings).** Re-measured first, and it is
+  unchanged from D1 task 5: **23 of 198** public `__all__` names never reach the
+  page, because autodoc emits module data only if it carries its *own* `#:`
+  comment and these share one with a neighbour. Closed all 23 by giving each its
+  own `#:` line — `conventions` 5, `inelastic` 7, `cdom_fl` 5, `ztt` 2,
+  `validation` 2, `baselines` 1, `inelastic_corr` 1. That fixes `G2_GORDON`,
+  `WAVE_MIN`, `CDOM_EX_STEP` and `INELASTIC_GATE_SPEED` as reference *targets*
+  and closes the 12 % gap as a side effect, which is the third of the three
+  things "Open items carried into D2" said depended on this task.
+- **`Geometry.Ed` (2).** Genuinely resolvable, just unqualified —
+  `robust.rt.types.Geometry.Ed` **is** in `objects.inv` (checked before writing
+  the fix; `napoleon_use_ivar` does not suppress the anchor for a documented
+  attribute). Both sites now write
+  `` :attr:`Geometry.Ed <robust.rt.types.Geometry.Ed>` ``, so the rendered text
+  is unchanged and the link works.
+- **`_network` (3) and `SUPPORTED_THETA_S` / `MU_INF_TT2017_*` (4): not fixable
+  as a docstring edit, and I am saying so rather than forcing it.** `_network`
+  is private and deliberately not exported. `SUPPORTED_THETA_S`,
+  `MU_INF_TT2017_BB_OVER_A_RANGE` and `MU_INF_TT2017_ETA_RANGE` are **not in
+  their modules' `__all__`** (verified by import, not by grep), so no `#:` line
+  can make autodoc emit them; the only fix is to widen the public surface, which
+  is a behaviour change this task has no sanction for. All seven roles were
+  demoted to literals (``` ``_network()`` ```, ``` ``SUPPORTED_THETA_S`` ```),
+  which is honest — the object is real and not documented — rather than a
+  dangling link.
+
+**Two defects Q4 did not know about, found by the after-measurement.**
+`inelastic_corr.py:394` wrote `` :class:`robust.rt.emulator\n.Emulator` `` — a
+role split across a line break, which docutils joins into the target
+`robust.rt.emulator .Emulator` and Sphinx then reports against
+`robust.rt.emulator`. Rewrapped onto one line. And the last two warnings are the
+bare `'` pair that `Float[Array, "..."]` (`types.py:275`) splits into — a
+tool artifact, folded into the shape-string regex rather than fixed. A grep for
+other line-split roles across `robust/` found none.
+
+---
+
+#### The `nitpicky` decision: **ON**, and it is now in `conf.py`
+
+Q3 delegated this with a decision criterion — "does the ignore list stay short
+enough to read" — and D1 task 5 took the hard fallback because it did not. Here
+is the same arithmetic after the fixes, measured on `-n --keep-going`:
+
+```
+                       D1 task 5      D2 task 5 (today)
+warnings                     490                    454
+distinct targets              38                     14
+tool-noise (3 regexes)       454                    454
+residue                       36                      0
+distinct residue targets      24                      0
+```
+
+The residue is **zero**. Every one of the remaining 454 falls into one of the
+three families Q3 predicted:
+
+```
+238  Array                          |  91  optional     |  11  'wave'
+ 66  jaxtyping.Float                |  11  callable     |   7  '*batch'
+                                    |   6  sequence     |   5  '*batch wave'
+                                    |   4  array_like   |   4  'wave_ed'
+                                                        |   4  'sample wave'
+                                                        |   4  'feature'
+                                                        |   2  '
+                                                        |   1  '2 feature'
+   304  jaxtyping                        112  napoleon        38  shape strings
+```
+
+So `nitpicky = True` costs exactly three `nitpick_ignore_regex` entries, each
+with a comment saying what it covers and how many of the 454 it accounts for.
+That is short enough to read, which was the criterion, so I flipped it.
+
+**Proven strict, not assumed.** The D1 task 3 experiment re-run, with the
+opposite result this time:
+
+```
+$ (append `{func}`robust.rt.no_such_function_whatsoever`` to limitations.md)
+$ python -m sphinx -b html -W --keep-going docs <tmp>
+docs/using/limitations.md:186: WARNING: py:func reference target not found:
+    robust.rt.no_such_function_whatsoever [ref.func]
+EXIT=1
+$ (revert; diff against the backup -> identical)
+```
+
+At D1 task 3 that exact case was `no warning, EXIT=0`. It is now a build
+failure, on the real `conf.py`, on the real CI command.
+
+**D2 task 2's gate was reworded back**, since it is the instruction that Q3's
+fallback had made inaccurate in the other direction. It now says what it said
+originally — every cross-reference resolves, a typo'd role is a build failure —
+with the two-step history recorded in the italic note under it. The two `conf.py`
+notes in "Status entering D2" (items 3 and 4 of "what changed from the plan")
+are the other places that assert current config as fact; both got a one-line
+bracketed superseded-at-task-5 marker rather than a rewrite, so the D1 record
+stays readable as a D1 record.
+
+**One consequence worth naming for the CDOM effort:** the docs CI job is now
+strict about Python cross-references, so a `#:` comment whose first line
+contains a colon, or a `:func:` role pointing at something not in `__all__`,
+will turn the `sphinx (-W)` job red. That is the point of the change, but it is
+a new cost on a concurrent effort and it should not arrive as a surprise.
+
+---
+
+#### One number in `robust/` corrected, from D2 task 4's finding
+
+Task 4's log left a finding for this task: `l23.py`'s `load_batch` docstring
+says `bb - bbnw` and `BB_W_L23` "agree to ~1e-7 relative", which is two
+different quantities and neither is 1e-7. **Re-measured here rather than copied
+from that log**, at release scale with `$OS_COLOR` set:
+
+```
+scene 0 (the table's anchor): max rel 3.105e-09
+all 3320 scenes:              max rel 3.407e-06
+test_bb_w_matches_l23_netcdf asserts rtol=1e-6, on scene 0
+```
+
+Identical to task 4's figures. The docstring now states both numbers, says which
+scene each refers to, names the test and its real tolerance, and explains why
+the two differ (float32 storage noise across the release).
+
+---
+
+#### Gate
+
+**1 — `-W` build clean, from a genuinely clean tree** (`docs/_build/` removed
+*and* `docs/_static/fig_*.png` deleted, so the `conf.py` figure hook had to
+produce the hero rather than find a stale copy), and now with `nitpicky = True`:
+
+```
+$ rm -rf docs/_build && rm -f docs/_static/fig_*.png
+$ ls -a docs/_static      ->   .  ..  .gitkeep       (no PNG)
+$ /usr/bin/time -p python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0
+stdout: grep -cE "WARNING|ERROR"  ->  0
+stderr: grep -cE "WARNING|ERROR"  ->  0
+real 3.55   user 2.99   sys 0.30
+$ ls docs/_static         ->   fig_inelastic_architecture.png   (regenerated)
+$ find docs/_build/html -name '*.html' -not -path '*_modules*' | wc -l   ->   25
+```
+
+3.55 s against task 4's 3.44 s — nitpick is not free, but it is ~0.1 s.
+
+**2 — the quoted passages diffed character for character.** Three `diff`
+commands, shown above, all with no output. Method, not assertion.
+
+**3 — AST walk: zero missing docstrings across `robust/` excluding tests.**
+10 → 0, shown above. 15 modules, all with module docstrings; 173 definitions
+including nested ones.
+
+**4 — `pytest -q -ra`**: `2 failed, 483 passed, 1 skipped in 63.53s`. Per Q1's
+answer this is **green modulo the two machine-anchored strict-hash tiers**, and
+that is how it is stated here and on the page — not as an unqualified green
+suite. The two are `test_inelastic_types.py::test_elastic_hash_regression_strict`
+and `test_inelastic_validation.py::test_gate_4_pre_change_pins`, the same
+`sha256_of(Rrs) != PRE_CHANGE_SHA256_RRS_ABOVE` assertion whose pins were
+anchored on the tank server. Re-measured against
+`robust/tests/files/elastic_reference_outputs.npz` **today**:
+
+```
+Rrs: differ 2742/12150 (22.6%), max rel 3.326e-07, max ULP 3
+rrs: differ 2862/12150 (23.6%), max rel 1.642e-07, max ULP 2
+```
+
+Identical to tasks 2, 4 and 7. The pass count is unchanged at 483, which is the
+positive evidence that a docstring pass over twelve modules changed no behaviour.
+
+**5 — `ruff check robust/`** → `All checks passed!`;
+**`ruff format --check robust/`** → `35 files already formatted`. ruff 0.16.0.
+Two E501s appeared while qualifying cross-references and were fixed by
+rewrapping the paragraphs, not by a `noqa`.
+
+**Additional checks, because "exit 0" is not "the page is right":**
+
+```
+using/limitations.html   56 internal href/src targets checked, 0 broken
+                          1 xref role, 0 unresolved
+site-wide               917 xref roles, 0 unresolved   (task 4: 916 / 22)
+```
+
+The 22 unresolved roles `api.html` had carried since D2 task 2 are gone — they
+were Q4's class 3, and this is the measurement that says so. The site-wide
+detector is task 2's, including its relaxed "any `<a>` immediately preceding"
+test; with `nitpicky` on it is now belt-and-braces rather than the gate.
+
+---
+
+#### Deviations, all mine to own
+
+1. **Ten closures filled, not nine.** `_network::ResidualNet::__call__` is not
+   in "Status entering D1"'s list. Filling it is what the gate ("**zero**
+   missing") requires; leaving it would have meant reporting a non-zero count.
+2. **Five class-1 sites fixed, not four.** `ztt.py`'s module-docstring citation
+   carries the same `**25**(15)` defect. Fixing four of five would have left the
+   hook non-redundant.
+3. **All 23 `#:` coverage-gap constants closed, not only the eight that were
+   cross-reference targets.** "Open items carried into D2" names closing that
+   gap as one of the three things depending on this task, and the marginal cost
+   over the eight was writing fifteen more one-line comments. Provably
+   behaviour-free.
+4. **`:func:`robust.rt.forward`` (8 sites) rewritten to
+   `` :func:`~robust.rt.hybrid.forward` ``.** These were *not* in Q4's 27 — the
+   D1 task-5 log records them as the accepted cost of `robust.rt`'s
+   `:no-members:`. But they are 8 of the 37 residue warnings, so `nitpicky`
+   could not go on while they stood. `~` keeps the rendered text short
+   (`forward()`) and the source precise; the explicit-title form would have
+   cost a rewrap of all eight paragraphs.
+5. **Seven roles demoted to literals instead of fixed.** `_network` (private),
+   `SUPPORTED_THETA_S` and the two `MU_INF_TT2017_*` ranges (not in `__all__`).
+   The only real fix is widening the public surface, which is a behaviour
+   change. Recorded here rather than done. If JXP wants those four constants
+   public, adding them to `__all__` is a one-line change per module and their
+   `#:` comments are already written.
+6. **Two `conf.py`-history notes in "Status entering D2" annotated.** The turn
+   asked only for D2 task 2's gate. Those two items assert `nitpicky` is off and
+   the hook exists, both now false, and a future reader acting on them would be
+   acting on stale config; a bracketed one-liner each seemed cheaper than the
+   confusion.
+
+**Tree state at the end.** `git status --short` shows **seventeen paths** — the
+three that were already modified when the turn started (`docs/using/data.md`,
+`docs/using/validation.md`, and this document, all D2 task 4's, left alone), plus
+two `docs/` files and twelve `robust/` files:
+
+```
+ M claude_prompts/RT/rt_docs_prompt_1.md      M robust/rt/data/l23.py
+ M docs/conf.py                               M robust/rt/ed.py
+ M docs/using/data.md                         M robust/rt/emulator.py
+ M docs/using/limitations.md                  M robust/rt/hybrid.py
+ M docs/using/validation.md                   M robust/rt/inelastic.py
+ M robust/rt/baselines.py                     M robust/rt/inelastic_corr.py
+ M robust/rt/cdom_fl.py                       M robust/rt/types.py
+ M robust/rt/conventions.py                   M robust/rt/validation.py
+                                              M robust/rt/ztt.py
+```
+
+`git diff --stat -- robust/` → `12 files changed, 157 insertions(+), 70
+deletions(-)`. **Nothing under `design/`, `notebooks/` or `reports/`** — the
+concurrent CDOM effort's non-`robust/` territory is untouched, the reports were
+read and never written to, and no state-changing git command was run.
+
+**Stopping at D2 task 5**, per the turn's instruction: the gate is green in all
+five parts and **task 6 (the figures script and the Reports section) was not
+attempted.** **No new question for JXP** — the two judgment calls that could have
+been questions (flip `nitpicky`; leave four constants out of `__all__`) are
+answered in this log with the measurement behind each, and neither needed a
+decision only JXP can make. Q1–Q11 are untouched.

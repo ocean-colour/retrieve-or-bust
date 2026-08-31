@@ -2,7 +2,7 @@
 Analytic inelastic terms — the physics backbone (inelastic coding plan, M2).
 
 JAX ports of the **fixed** BING physics (branch ``inelastic-fixes``), pure and
-differentiable, composed into :func:`robust.rt.forward` per the design's
+differentiable, composed into :func:`~robust.rt.hybrid.forward` per the design's
 composition law (§2)::
 
     Rrs_total(λ) = (Rrs_ZTT + ΔRrs) × f_R(λ)  +  Rrs_fl(λ)
@@ -82,7 +82,8 @@ __all__ = [  # noqa: RUF022  - grouped by role
 #: 2.4e-4. Matching the truth's generator wins (design §4.3).
 B_RAMAN_488 = 2.6e-4
 
-#: Excitation-wavelength exponent, energy units: b_R ∝ (488/λ')^5.5.
+#: float: Excitation-wavelength exponent in energy units --
+#: ``b_R ∝ (488/λ')^5.5``.
 RAMAN_EXPONENT = 5.5
 
 #: Backscattering fraction of the Raman phase function. Rayleigh-like:
@@ -90,10 +91,13 @@ RAMAN_EXPONENT = 5.5
 #: convention) is the round 1/2, and the M2 contract is bing-equality.
 RAMAN_BB_RATIO = 0.5
 
-#: S&P98 two-flow mean cosines (design §4.3): downwelling (clear sky, high
-#: sun), upwelling (diffuse), and Raman-scattered (isotropic) light.
+#: float: S&P98 two-flow mean cosine of the *downwelling* stream (clear sky,
+#: high sun) -- one of the three fixed cosines of design §4.3.
 MU_D = 0.9
+#: float: S&P98 two-flow mean cosine of the *upwelling* (diffuse) stream.
 MU_U = 0.5
+#: float: S&P98 two-flow mean cosine of the *Raman-scattered* (isotropic)
+#: stream.
 MU_R = 0.5
 
 #: Shape factor for elastic scattering in the two-flow terms (isotropic).
@@ -115,9 +119,11 @@ MU_F = 0.5
 #: amplitudes.
 PHI_C_REF = 0.02
 
-#: Chlorophyll-a emission line: primary (PS II) Gaussian center and width
-#: (FWHM 25 nm) — Gordon (1979); what L23/HydroLight used, hence validatable.
+#: float: Center of the chlorophyll-a emission line (nm) -- the primary
+#: (PS II) Gaussian, Gordon (1979); what L23/HydroLight used, hence
+#: validatable.
 LAMBDA_FL = 685.0
+#: float: Gaussian width of that primary line (nm), i.e. FWHM 25 nm.
 SIGMA_FL = 10.6
 
 #: Secondary (PS I) shoulder of ``emission_shape='double'`` (FWHM 50 nm,
@@ -125,7 +131,10 @@ SIGMA_FL = 10.6
 #: (design §4.4): reported, never gated, off by default and off everywhere
 #: in v1 training/validation.
 LAMBDA_FL_SECONDARY = 730.0
+#: float: Gaussian width of that secondary shoulder (nm), i.e. FWHM 50 nm.
 SIGMA_FL_SECONDARY = 21.2
+#: float: Weight carried by the primary line when
+#: ``emission_shape='double'``; the shoulder carries ``1 - FL_WEIGHT_PRIMARY``.
 FL_WEIGHT_PRIMARY = 0.75
 
 #: Fluorescence excitation band (nm) — light absorbed by photosynthetic
@@ -134,7 +143,10 @@ FL_WEIGHT_PRIMARY = 0.75
 #: grid points (so the excitation IOPs interpolate losslessly there) and is
 #: the fixed contraction size the design budgets for (§4.6: 3320 × 81 × 65).
 FL_EX_MIN = 370.0
+#: float: Red edge of that fluorescence excitation band (nm).
 FL_EX_MAX = 690.0
+#: float: Quadrature step across it (nm) -- 5 nm, the canonical grid spacing,
+#: which is what puts all 65 nodes exactly on canonical grid points.
 FL_EX_STEP = 5.0
 
 
@@ -303,6 +315,12 @@ def emission_line(
     wave = jnp.asarray(wave)
 
     def gaussian(center, sigma):
+        """One unit-area Gaussian in λ, evaluated on the enclosing ``wave``.
+
+        Unit area (nm⁻¹) is what makes the line an emission *shape*: the
+        weights in the double form then sum the two without changing the
+        total emitted energy.
+        """
         norm = 1.0 / (sigma * jnp.sqrt(2.0 * jnp.pi))
         return norm * jnp.exp(-0.5 * ((wave - center) / sigma) ** 2)
 
