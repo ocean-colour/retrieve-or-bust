@@ -173,10 +173,14 @@ phi_C-linear chlorophyll-a fluorescence kernel.
 cdom_fl -- CDOM fluorescence
 ----------------------------
 
-The CDOM-fluorescence kernel (Hawes' excitation-emission parameterisation) and
-its excitation grid. **The newest module in the package**, and the one piece of
-the API that carries no validation: it is off by default and the truth data that
-would score it does not exist. See :doc:`using/limitations` before using it.
+The CDOM-fluorescence kernel (the Hawes Station FA7 excitation-emission
+parameterisation), its 350--490 nm excitation grid, and the diagnostic that
+quantifies what the hard 350 nm clamp truncates. **The newest module in the
+package**, and the one piece of the API that carries no validation: it is off by
+default and the truth data that would score it does not exist. Read
+:doc:`model/cdom_fluorescence` -- which carries the equation, the constants'
+provenance and the clamp's measured cost -- and :doc:`using/limitations` before
+using it.
 
 .. automodule:: robust.rt.cdom_fl
    :members:

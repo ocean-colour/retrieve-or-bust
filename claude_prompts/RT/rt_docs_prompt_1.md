@@ -585,6 +585,8 @@ sufficient. See **Q7**.
 17. See my answers to Q10-Q12 and act accordingly.  Use Opus. Log your work.
 18. See my answers to Q13 and act accordingly.  Use Opus. Log your work.
 
+19. Because I developed the CDOM model in parallel with the docs, I can see it is not included in the current docs.  Please add it to the docs.  Use Opus. Log your work.  
+
 **No "modify the next prompt doc" turn.** The coding effort needed one because
 its five milestones lived in five files, each having to hand state to the
 next. DocQ9 put both milestones in *this* file, so the equivalent hand-off is
@@ -6788,3 +6790,163 @@ changes this turn are `docs/installation.md` and this document.
 repo, the docs now say where the declaration belongs, and the remaining step is
 JXP's profile export on the tank server. No new question: nothing in this turn
 raised one that is real rather than manufactured.
+
+### 2026-09-01 (prompt 19 — the CDOM chapter; a pre-existing unlogged draft **verified rather than rewritten**, and two claims corrected)
+
+#### What this turn actually was, stated first because it changes how to read it
+
+**I did not write this chapter from scratch.** Several earlier attempts at
+prompt 19 were killed mid-turn by transient server/connectivity errors, each
+before it could run a build gate or write a log entry, and each left the same
+working tree behind: `docs/model/cdom_fluorescence.md` untracked plus ten
+modified files. Per this document's own working agreement — *"an uncommitted
+working-tree draft with no log entry has no standing… verify every claim in it
+before keeping any of it, and say in the log that you did"* — I treated it as
+**neither disposable nor trustworthy**: read in full, then every number,
+equation, constant, code reference and status claim checked against the sources
+before keeping a line. This section is that verification, not a description of
+authorship.
+
+The draft turned out to be **high quality**. Of roughly forty checkable claims,
+**two were wrong** and everything else reproduced exactly. Both are fixed below.
+That is a good outcome for the draft and it is still the right procedure: the
+two defects were exactly the kind — a rounded number and a misattributed source
+— that only a re-measurement finds.
+
+#### The two corrections
+
+**1. The blue-tail percentage (`docs/model/cdom_fluorescence.md`, the Hawes
+section).** The draft said $\eta_Y(\lambda_e,\lambda_e)$ is "6 % of the peak at
+350 nm rising to **23 %** at 490 nm". Measured on a 0.01 nm emission grid:
+**6.18 %** and **22.46 %**. 22.46 does not round to 23. The test docstring for
+`test_emission_peak_is_red_shifted` independently says "~6 %… ~22 %", so the
+draft disagreed with the code as well as with the measurement. Now reads
+6.2 % / 22.5 %.
+
+The same sentence said "nothing asserts the tail away", which undersells what
+the test does: it asserts `0 < η_Y(λ_e,λ_e) < 0.3 · max(η_Y)` — subdominance,
+which is what record §8.4 describes ("asserted subdominant, never asserted
+away"). The sentence now names the test and states the bound.
+
+**2. The decile table's provenance.** The draft claimed the plausibility table
+was "identical to record §8.8 in all five printed digits". Record §8.8 prints
+**two-decimal percentages** (0.30, 0.47, …), not five digits, and it carries no
+`a_cdom(440)` median row at all. The five-digit values *and* the median row come
+from `test_cdom_gate_3_plausibility_band`'s docstring. The claim was true in
+substance and wrong in attribution — a reader following it to §8.8 would not
+find what was promised. Rewritten to cite the test docstring and to say that the
+fractions round to §8.8's percentages.
+
+I also re-derived the table rather than trusting either source: the full
+**9,960-sample** release, `K_cdom` at unit scale over the elastic hybrid $R_{rs}$,
+mean over 440–500 nm, `quantile_bin_labels` deciles of $a_{\rm cdom}(440)$. All
+twenty printed values reproduce to the digit, as does the zenith row
+(4.20 / 4.16 / 4.12 % at 0/30/60°).
+
+#### Everything else, and what it was checked against
+
+Measured in `ocean14` on the committed 150-sample fixture unless noted:
+
+| Claim on the page | Checked against | Result |
+|---|---|---|
+| η_Y equation, reciprocal-wavelength form, `g_Y` gate | `cdom_fl.py` module docstring + `eta_hawes` source | verbatim |
+| Zhai et al. (2017) *Opt. Express* 25(8), Eqs. (7)–(8) / (5)–(8) | module docstring | both citations correct as used |
+| FA7 constants A1 0.470, B1 8.077e-4, A2 0.407, B2 −4.57e-4; A0 ten nodes; `GY_EX_MIN/MAX` 310/490 | `cdom_fl.py` | all exact |
+| Peak table (5 rows: peak λ, analytic $1/(A_1/\lambda_e+B_1)$, η at peak, $A_0$) | recomputed, 0.01 nm grid | all 20 cells reproduce at the printed precision |
+| Provenance: OOWB-sourced, JXP-accepted CQ2 2026-08-30, no primary-source cross-check; "C. K. Carder" note | module docstring + record §8.4 | exact, including the wording *provenance statement, not a peer-review claim* |
+| Excitation grid: n = 29, 350–490 nm, 5 nm, all on canonical grid; Chl-fl's 65 | recomputed | 29 / True / 65 |
+| Truncated-fraction table (9 wavelengths), 3.5e-6 convergence, min 7.0 % at 605 nm, 15 % at 750 nm | recomputed + record §8.5 | 0.846…0.146 exact; 3.517e-6; min **0.0697 at 605 nm**; 0.1463 |
+| 57 % at 400 nm, 85 % at 350, 30 % at 450 | the table | correct roundings |
+| Kernel shape row (400–700 nm as fraction of own peak), peak at 500 nm | recomputed on the fixture | 0.176/0.562/1.000/0.617/0.129/0.038/0.008 → all round as printed |
+| `a_cdom`-required `ValueError` text | `cdom_kernel` source | verbatim, character for character |
+| `forward()` pre-check guard mirrors the `a_ph` arrangement | `hybrid.py:287` | confirmed |
+| Composition law $(R_{ZTT}+\Delta R)f_R + \varphi_C K_{fl}(1+\delta_F) + s_C K_{cdom}$ | `hybrid._apply_inelastic` 322–380 | additive in **Rrs** space, after Raman multiplies — as written |
+| Bit-identity hash `0dd36515…291a`, `Inelastic()` ≡ `Inelastic(cdom_fl=None)` | recomputed; `PRE_CDOM_SHA256_RRS_ABOVE` | identical, and equal to the pin |
+| Two-tier pin, strict + rtol 5e-7 | `test_inelastic_types.py` | confirmed |
+| Additivity at `scale=2.0`: 2.980e-07 | recomputed | **2.980e-07** to the digit |
+| `cdom_fl` alone differs from elastic by 9.3 %, equals elastic + K to 2.4e-7 | recomputed | 9.27 % and 2.384e-07 |
+| `CDOM_FEATURES` six names, no `scale` column; `heads.cdom is None`; `delta_max` 0.5 an arbitrary placeholder documented on `HeadConfig` | `inelastic_corr.py` + `load_default()` run live | all four confirmed |
+| Gate table: 5.6e-3 quadrature, 2.2e-8 / 1.4e-8 / 9.8e-10 gradients vs 1e-6, 2.31× vs 2.6×, 1.9× vs 1.59×, marginal 0.3–0.4× | record §8.4/§8.8, `test_cdom_validation.py` | all exact |
+| Loose bands 0.3–15 % / ≤ 1.2 % | `CDOM_RICH_BAND`, `OLIGOTROPHIC_MAX` | (0.003, 0.15) and 0.012 |
+| `INELASTIC_GATE_SPEED` untouched; `cdom_gradient_report`, `CDOM_FD_STEPS`, `GRADIENT_TOL` exist | `validation.py` | 2.0 / present / 1e-6 |
+| M6 gate wording (≤ 5 % median, all zeniths, rRMS re-verified, no prompt doc) | design §5/§6/§7 | faithful |
+| "unvalidated until M6" is the record's, the package docstring's and the site's phrase | record §8, `robust/rt/__init__.py:63` | true as stated |
+| Fixture is 150 samples = 50 scenes × three zeniths | loaded | (150, 81), θ_s ∈ {0, 30, 60} |
+| MU_F 0.5, PHI_C_REF 0.02, A 0.52 / B 1.7 | `inelastic.py`, `conventions.py` | exact |
+| References page: Hawes SPIE 1750 212–223; Zhai A213–A235; OOWB | design §9, module docstring | correct, and the page correctly flags both as unconfirmed against the primary record |
+| `reports/index.md`: report §6 and §7 call `cdom_fl` a reserved slot with no implementation, true on 2026-08-27 | report §6 item 2, §7 item 4, report date line | accurate |
+| `development_record.md`: ten notebooks, an eleventh added | counted: 5 elastic + 5 inelastic + `rt_cdom_coding_1.ipynb` | 11, notebook exists |
+| `validation.md`: "three tests in `test_cdom_validation.py`" | the file | exactly three gate tests |
+
+#### The consistency check the prompt asked for, done page by page
+
+The "unvalidated, no truth exists" caveat is stated on eight surfaces. Read
+together rather than one at a time, **no page overclaims relative to another**:
+the chapter is the strongest and most specific; `limitations.md` is the only
+other page that names *both* missing sources (L23 omits it, BING never
+implemented it); `overview.md`, `corrections.md`, `validation.md` and
+`reports/index.md` each give the L23 reason and link onward; `data.md` says only
+"off-by-default" and links, which is the weakest but is not a validation claim
+at all; `api.rst` says "the one piece of the API that carries no validation".
+Nothing anywhere calls the term accurate, validated, or error-bounded, and the
+57 %/85 %/30 % clamp numbers appear identically on the chapter and on
+`limitations.md`.
+
+#### Toctree and `api.rst`
+
+`docs/model/overview.md`'s toctree gains `cdom_fluorescence` **immediately after
+`fluorescence`** and before `corrections` — the right place: the two emission
+terms sit together and the heads follow both. Verified as reachable rather than
+assumed, by grepping the rendered `docs/_build/html/model/overview.html` for the
+link. The `api.rst` `cdom_fl` orientation sentence checks out: it now also names
+the FA7 parameterisation, the 350–490 nm grid and the truncation diagnostic —
+all three of which the module genuinely exports — and points at the new chapter
+*before* `using/limitations`, which is the correct reading order. It keeps the
+pre-existing "carries no validation" sentence unchanged.
+
+#### Gate
+
+```console
+$ rm -rf docs/_build
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+```
+
+Clean tree, `nitpicky = True`, zero warnings — so every `{func}`, `{class}`,
+`{data}`, `{attr}`, `{mod}` and `{doc}` role the new chapter introduces resolves,
+including the ten `{data}` roles on the Hawes constants.
+
+```console
+$ ruff check robust/            All checks passed!
+$ ruff format --check robust/   35 files already formatted
+```
+
+Pytest, in the current anchor-aware language:
+
+```console
+$ ROBUST_HASH_ANCHOR=mac pytest -q -ra
+483 passed, 3 skipped
+```
+
+Green, with the **two tank-anchored strict-hash tiers skipped and named** plus
+the unrelated committed-weights skip — exactly what `docs/installation.md` and
+`docs/using/validation.md` already print, verbatim including "this one is mac".
+Worth recording because it briefly looked like a docs defect: a **bare**
+`pytest -q -ra` here gives *483 → 482 passed, 4 skipped*, because the
+mac-anchored `PRE_CDOM` pin then also skips as "unanchored". That is not the
+pages being wrong; it is Q13's profile export still not being in place on this
+Mac. With it declared, the site's counts and its skip text reproduce exactly —
+and the strict mac tier passing is an independent re-proof of the chapter's
+bit-identity claim at the byte level, on top of the hash I recomputed.
+
+#### Scope
+
+Docs-only, as required. `robust/`, `design/` and `notebooks/` were **read but
+never written** — confirmed by `git status`: the only changes are the ten
+modified `docs/` files, the new `docs/model/cdom_fluorescence.md`, and this
+document. Nothing under `robust/` was touched, which is why `ruff` and `pytest`
+are no-ops against the prompt-18 transcripts.
+
+**No new question.** The one loose end — `export ROBUST_HASH_ANCHOR=mac` in this
+Mac's profile — is the already-open Q13 action, not a new one, and prompt 18
+already recorded it as JXP's to take.

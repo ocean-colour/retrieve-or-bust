@@ -140,7 +140,8 @@ ValueError: forward: mode='emulator' returns the learned correction term alone
 
 and `Inelastic.fluorescence` requires `IOPs.a_ph` (the source term is
 $b_F = \varphi_C\,a_{ph}$, and bulk absorption cannot stand in for the
-phytoplankton component), just as `Inelastic.cdom_fl` requires `IOPs.a_cdom`.
+phytoplankton component), just as `Inelastic.cdom_fl` requires `IOPs.a_cdom`
+({doc}`cdom_fluorescence`, off by default).
 Both fail fast, before the emulator loads.
 
 ## The domain guard, and `on_out_of_domain`

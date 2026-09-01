@@ -16,6 +16,13 @@ the chapters under *The model* and *Using it* are the maintained prose, and they
 cite these reports by section. Where the two disagree, the report is the record
 of what was measured and the chapter is the current description of the code.
 
+One place they already disagree, named here so nobody has to discover it: the
+inelastic report's §6 and §7 describe CDOM fluorescence as a *reserved interface
+slot with no implementation*, which was true on 2026-08-27 and is not true now —
+the analytic term shipped afterwards. It is still unvalidated, and for the same
+reason the report gives (no truth data), so nothing measured in either report
+moves. {doc}`../model/cdom_fluorescence` is the current description.
+
 ## What each one measured
 
 | | [The elastic model](report_rt_elastic_model.md) | [The inelastic completion](report_rt_inelastic_model.md) |

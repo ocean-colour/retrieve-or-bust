@@ -145,7 +145,9 @@ handed.
 
 {class}`~robust.rt.data.l23.L23InelasticBatch` — the inelastic sibling, same
 layout, two differences: `iops` carries `a_ph` (the fluorescence source term)
-**and** `a_cdom`, and the reference is three channels
+**and** `a_cdom` (extracted from the release's `ag` field — the source term of
+the off-by-default {doc}`../model/cdom_fluorescence` term, which the three
+reference channels below do *not* contain), and the reference is three channels
 (`Rrs_x1`, `Rrs_x2`, `Rrs_x4`) rather than one. Its
 {meth}`~robust.rt.data.l23.L23InelasticBatch.validate` refuses a batch whose
 `a_ph` or `a_cdom` is `None` — an inelastic batch without its source terms is a

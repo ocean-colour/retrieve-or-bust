@@ -164,14 +164,27 @@ machine-precision gradients, at ~5× the cost of its analytic backbone.
 ## Also in the API, and not validated
 
 {mod}`robust.rt.cdom_fl` — CDOM fluorescence — is exported by `robust.rt`, is
-documented on the {doc}`../api` page, and is **not validated**. It is off by
-default, analytic-only, and the truth data that would score it does not exist:
-L23 has no CDOM-fluorescence channel. Its learned correction head, δ_C, ships
+documented on the {doc}`../api` page and in {doc}`../model/cdom_fluorescence`,
+and is **not validated**. It is off by default (`Inelastic(cdom_fl=None)`, and
+with it off the model is bit-identical to the one the rest of this page is about),
+analytic-only, and the truth data that would score it does not exist: L23 has no
+CDOM-fluorescence channel and BING never implemented the process, so there is no
+reference of any kind to compare against. Its learned correction head, δ_C, ships
 untrained and unwired ({doc}`../model/corrections`). Nothing in either report's
 §5 covers it, because it postdates both.
 
+What *has* been checked is implementation correctness plus a deliberately loose
+plausibility band; what has not been checked is accuracy, in any band, at any
+geometry. Two specific caveats travel with the term and are quantified on its
+chapter: the hard **350 nm excitation clamp** excludes 57 % of the Hawes
+function's nominal emission at 400 nm (85 % at 350 nm, 30 % at 450 nm), and the
+Hawes FA7 constants were accepted from a secondary source without
+primary-source verification. Nothing scores what either costs.
+
 Treat it as present and unmeasured. It is under active development, and this
-page will say something different when there is a measurement to report.
+page will say something different when there is a measurement to report — which
+means the HydroLight "X4 vs X4 + CDOM-fl" runs the term's milestone M6 is blocked
+on, and nothing less.
 
 ## Two tests that skip off their anchor machine
 

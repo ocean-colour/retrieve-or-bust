@@ -1,8 +1,9 @@
 # Development record
 
 `robust.rt` — the forward model, and retrieve-or-bust's first component — was
-built in ten milestones, each written up as a notebook in the repository. Those notebooks are a **chronological build record, not a
-tutorial**: they show what was decided, what was measured and what was rejected
+built in ten milestones, each written up as a notebook in the repository, with an
+eleventh added afterwards for the off-by-default CDOM-fluorescence term. Those
+notebooks are a **chronological build record, not a tutorial**: they show what was decided, what was measured and what was rejected
 on the day, in the order it happened, and they are not maintained against the
 current API. For a runnable introduction use the
 [Quickstart](quickstart.md) or the [Quickstart notebook](quickstart_nb.ipynb);
@@ -51,6 +52,16 @@ correction, without disturbing the elastic result.
 | M3 | [`rt_inelastic_coding_4.ipynb`](gh:notebooks/RT/rt_inelastic_coding_4.ipynb) | The two learned correction heads, $\delta_R$ and $\delta_F$. |
 | M4 | [`rt_inelastic_coding_5.ipynb`](gh:notebooks/RT/rt_inelastic_coding_5.ipynb) | Validation: the inelastic prototype against its acceptance gate. |
 
+## CDOM fluorescence — one notebook
+
+The third inelastic process, added after the two reports were written and
+**off by default**: the analytic Hawes kernel and its full interface, shipped
+without validation because no truth data for it exists ({doc}`model/cdom_fluorescence`).
+
+| | Notebook | What the milestone settled |
+|---|---|---|
+| M5 | [`rt_cdom_coding_1.ipynb`](gh:notebooks/RT/rt_cdom_coding_1.ipynb) | The Hawes FA7 basis, the 350 nm excitation clamp and its cost, the load-bearing default-off bit-identity, and the plausibility/gradient/speed gates — with the M6 boundary stated: no truth, no trained head, no accuracy claim. |
+
 ## The documents behind them
 
 Each half of the effort has a design document (what was to be built and why), a
@@ -65,3 +76,14 @@ verbatim in the {doc}`Reports <reports/index>` section.
 | Coding plan | [`rt_elastic_model_coding_plan.md`](gh:design/rt_elastic_model_coding_plan.md) | [`rt_inelastic_model_coding_plan.md`](gh:design/rt_inelastic_model_coding_plan.md) |
 | Implementation record | [`rt_elastic_implementation.md`](gh:design/rt_elastic_implementation.md) | [`rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md) |
 | Report | [`report_rt_elastic_model.md`](reports/report_rt_elastic_model.md) | [`report_rt_inelastic_model.md`](reports/report_rt_inelastic_model.md) |
+
+The CDOM term follows the same pattern with two differences: its coding plan is a
+prompt document rather than a design-directory file, and it has **no report**,
+because there is nothing validated to report.
+
+| | CDOM fluorescence |
+|---|---|
+| Design | [`rt_cdom_fluorescence_model.md`](gh:design/rt_cdom_fluorescence_model.md) |
+| Coding plan | [`rt_cdom_coding_prompt_1.md`](gh:claude_prompts/RT/rt_cdom_coding_prompt_1.md) |
+| Implementation record | [`rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md) §8 |
+| Report | — none; the term is unvalidated ({doc}`model/cdom_fluorescence`) |

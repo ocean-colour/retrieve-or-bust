@@ -114,12 +114,19 @@ documented on the function rather than silently.
 are off, so the elastic path owes nothing to the ML stack.
 
 :::{note}
-A third inelastic term, **CDOM fluorescence** ({mod}`robust.rt.cdom_fl`), exists
-in the package. It is **off by default** (`Inelastic(cdom_fl=None)`),
-analytic-only (its $\delta_C$ head is defined but untrained), and **unvalidated**
-— the L23 X4 truth omits CDOM fluorescence, so there is nothing yet to score it
-against. It is therefore not part of the law above. See the package docstring on
-the {doc}`../api` page.
+A third inelastic term, **CDOM fluorescence** ({mod}`robust.rt.cdom_fl`), is in
+the package and composes into `forward()` — additively, as a fourth term
+$+\,s_C K_{\rm cdom}(\lambda)$ — but only when it is switched on. It is **off by
+default** (`Inelastic(cdom_fl=None)`, the default even inside `Inelastic()`),
+and with it off the output is bit-identical to the model the law above
+describes, which is why the law is written without it and why every accuracy
+number on this site is unaffected by it.
+
+It is also **unvalidated**: the L23 X4 truth omits CDOM fluorescence, so there
+is nothing yet to score it against, and its $\delta_C$ head is defined but
+untrained and unwired. {doc}`cdom_fluorescence` is the full treatment — the
+Hawes kernel, the 350 nm excitation clamp and what it truncates, the off-state
+guarantee, and what "unvalidated" rules out.
 :::
 
 ## Concept → module → API
@@ -134,6 +141,7 @@ the {doc}`../api` page.
 | $E_d(\theta_s, \lambda)$ — the sky | {mod}`robust.rt.ed` | {func}`~robust.rt.ed.Ed`, {func}`~robust.rt.ed.ratio` |
 | $f_{\text{phys}}$ — analytic Raman | {mod}`robust.rt.inelastic` | {func}`~robust.rt.inelastic.raman_factor`, {func}`~robust.rt.inelastic.raman_bb` |
 | $K_{\mathrm{fl}}$ — fluorescence kernel | {mod}`robust.rt.inelastic` | {func}`~robust.rt.inelastic.fluorescence_kernel`, {func}`~robust.rt.inelastic.emission_line` |
+| $s_C K_{\mathrm{cdom}}$ — CDOM fluorescence, **off by default and unvalidated** | {mod}`robust.rt.cdom_fl` | {func}`~robust.rt.cdom_fl.cdom_kernel`, {class}`~robust.rt.types.CDOMFl` |
 | $\varphi_C$ and the process switches | {mod}`robust.rt.types` | {class}`~robust.rt.types.Inelastic` |
 | $\delta_R$, $\delta_F$ — the learned heads | {mod}`robust.rt.inelastic_corr` | {func}`~robust.rt.inelastic_corr.corrected_raman_factor`, {func}`~robust.rt.inelastic_corr.corrected_fluorescence`, {class}`~robust.rt.inelastic_corr.CorrectionHeads` |
 | What the model must beat | {mod}`robust.rt.baselines` | {func}`~robust.rt.baselines.rrs_gordon`, {func}`~robust.rt.baselines.rrs_o25` |
@@ -152,6 +160,7 @@ forward
 ed
 inelastic
 fluorescence
+cdom_fluorescence
 corrections
 baselines
 ```

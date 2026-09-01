@@ -60,6 +60,31 @@ The elastic report's entry for Loisel et al. is shorter — "the L23 HydroLight
 synthetic ensemble (via `ocpy`)" — and names no journal; the fuller inelastic
 entry is the one reproduced above.
 
+## CDOM fluorescence
+
+The one section on this page that does **not** come from a report's
+bibliography: the CDOM-fluorescence term postdates both reports, so its two
+references are taken from
+[`design/rt_cdom_fluorescence_model.md`](gh:design/rt_cdom_fluorescence_model.md)
+§9 and from the {mod}`robust.rt.cdom_fl` module docstring, which is where the
+kernel's provenance is recorded in full. The **Source** column names those
+instead.
+
+| Reference | Source |
+| --- | --- |
+| **Hawes, S. K., Carder, K. L., & Harvey, G. R. (1992)** — *Quantum fluorescence efficiencies of fulvic and humic acids: effects on ocean color and fluorometric detection*, Ocean Optics XI, Proc. SPIE 1750, 212–223. The spectral fluorescence quantum-efficiency parameterization HydroLight implements, and the Station FA7 constants the kernel uses. | design §9 |
+| **Zhai, Hu, Lee et al. (2017)**, *Opt. Express* 25(8), A213–A235 — Eqs. (5)–(8), the functional form the kernel implements literally, and the same 350 nm excitation floor imposed for the same stated reason. | module docstring |
+| **Mobley, C. D.** — *The Ocean Optics Web Book*, CDOM-fluorescence page: where the FA7 numeric constants were sourced. | module docstring |
+
+Two provenance notes travel with these, both recorded in the code rather than
+resolved: the FA7 constants were **accepted from the Ocean Optics Web Book
+without independent primary-source verification**, and the Hawes page range
+above is as cited by *Light and Water* / the Web Book rather than confirmed
+against the SPIE record. The middle author's initials also differ between
+sources — Zhai et al.'s reference list prints "C. K. Carder" where the
+ocean-optics literature has Kendall L. Carder. See
+{doc}`model/cdom_fluorescence`.
+
 ## A name with no entry
 
 `robust/rt/inelastic.py` attributes an alternative Raman coefficient

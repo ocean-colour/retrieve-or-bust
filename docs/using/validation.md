@@ -175,7 +175,7 @@ per input variable.
 | --- | --- | --- |
 | {func}`~robust.rt.validation.gradient_report` | the elastic model | `a`, `bb_p`, `B_p`, `theta_s` — {data}`~robust.rt.validation.FD_STEPS` |
 | {func}`~robust.rt.validation.inelastic_gradient_report` | the composed corrected inelastic forward | those four **plus** `a_ph` and `phi_C` — {data}`~robust.rt.validation.INELASTIC_FD_STEPS` |
-| {func}`~robust.rt.validation.cdom_gradient_report` | the forward with all three inelastic processes on | those six **plus** `a_cdom` and `scale` — {data}`~robust.rt.validation.CDOM_FD_STEPS` |
+| {func}`~robust.rt.validation.cdom_gradient_report` | the forward with all three inelastic processes on, CDOM fluorescence included ({doc}`../model/cdom_fluorescence`) | those six **plus** `a_cdom` and `scale` — {data}`~robust.rt.validation.CDOM_FD_STEPS` |
 
 The tolerance is {data}`~robust.rt.validation.GRADIENT_TOL` = 1e-6, unchanged
 since M2, and it is a **hard** gate: differentiability is the property the future
@@ -364,6 +364,16 @@ Lines 1, 2, 3 and 6 need the full release, so they carry `needs_l23_inelastic`
 and skip without `$OS_COLOR` ({doc}`data`). `robust/tests/test_validation.py`
 (36 tests) checks the protocol functions themselves against hand-computed
 references, including that a `steps` dict naming the wrong variables is refused.
+
+Those seven lines are the gate for the model this page scores. The
+off-by-default CDOM-fluorescence term has a **separate and deliberately weaker**
+acceptance of its own — three tests in `robust/tests/test_cdom_validation.py`,
+gating a loose plausibility band, the eight-variable
+{func}`~robust.rt.validation.cdom_gradient_report`, and a speed ratio against a
+machine-anchored bound. It contains no rRMS line, because no CDOM-fluorescence
+truth exists to compute one against; see {doc}`../model/cdom_fluorescence`. Its
+speed bound is its own constant, not
+{data}`~robust.rt.validation.INELASTIC_GATE_SPEED`, which is untouched.
 
 :::{important}
 **One of the seven does not run on a machine other than the one that anchored

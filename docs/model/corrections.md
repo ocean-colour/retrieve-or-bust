@@ -166,9 +166,11 @@ unwired**: no CDOM-fluorescence truth exists, so
 {func}`~robust.rt.inelastic_corr.train_cdom_corr` raises,
 {func}`~robust.rt.inelastic_corr.load_default` looks for no CDOM weights
 (`heads.cdom` is `None`, measured), and the shipped CDOM term is
-`scale · K_cdom` — bit-for-bit what a zero-init head would produce. The slot
-exists so wiring it later is an API no-op. {mod}`robust.rt.cdom_fl` is off by
-default and unvalidated; see {doc}`overview`.
+`scale · K_cdom` — bit-for-bit what a zero-init head would produce. Its
+`delta_max` is 0.5, an **arbitrary placeholder** rather than a measured-error
+bound like the other two. The slot exists so wiring it later is an API no-op.
+{mod}`robust.rt.cdom_fl` is off by default and unvalidated; the term, the head's
+status and what unblocks it are {doc}`cdom_fluorescence`.
 
 ## The packaged weights
 
