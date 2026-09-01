@@ -254,8 +254,11 @@ intersphinx_mapping = {
 # This is COPY MODE, and it is the only mode a build can reach: `copy_assets()`
 # takes no arguments and never spawns anything. The module's `--regenerate`
 # mode, which re-runs the two matplotlib scripts under ``reports/``, exists only
-# on its command line and is deliberately unreachable from here -- the docs
-# environment has no matplotlib at all (see docs/requirements.txt).
+# on its command line and is deliberately unreachable from here. Note the
+# guarantee is structural, not environmental: `docs/requirements.txt` has no
+# matplotlib, but Read the Docs also runs `pip install .` (.readthedocs.yaml),
+# and setup.py's install_requires *does* list matplotlib -- so it is present on
+# RTD and absent in the CI docs job. Nothing here can reach it either way.
 #
 # The module was imported above, next to `github_url_base`, because that
 # constant is defined there; Sphinx evaluates conf.py with the working directory

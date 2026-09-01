@@ -14,7 +14,7 @@ validators is pure JAX: differentiable, `jit`-safe, batched.
 the docstrings of each function named below;
 [`design/rt_elastic_model.md`](gh:design/rt_elastic_model.md) §3 (the interface
 convention) and §4.1 (the grid);
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §3 (the reference data). Every printed number was re-measured in this
 environment when the page was written.*
 
@@ -70,8 +70,9 @@ That single fact propagates into two rules used everywhere on this site:
 ### The pole, and what it catches
 
 $R_{rs} \to \infty$ as $r_{rs} \to 1/B$, and goes *negative* beyond it. That
-value is {data}`~robust.rt.conventions.RRS_POLE` = 0.5882…, roughly ten times
-the brightest real ocean $r_{rs}$, so it is only reachable through a unit
+value is {data}`~robust.rt.conventions.RRS_POLE` = 0.5882…, more than **twenty
+times** the brightest real ocean $r_{rs}$ (~2.5×10⁻²; 2.65×10⁻² measured on the
+committed fixture), so it is only reachable through a unit
 error — which is precisely why {func}`~robust.rt.conventions.check_rrs` looks
 for it and says so in the message.
 
@@ -161,7 +162,7 @@ and `bb_p` as separate fields instead of a single `bb`. The ZTT backbone
 terms — and physically water returns ~0.23 sr⁻¹ of its backscatter toward the
 sensor at 180° while particles return ~0.12–0.16 sr⁻¹, so the composition of
 $b_b$ matters independently of its total
-([`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+([`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §1). See {doc}`ztt`.
 :::
 

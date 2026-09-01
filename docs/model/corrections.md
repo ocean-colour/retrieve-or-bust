@@ -4,7 +4,7 @@ The two analytic inelastic terms are *measurably* wrong in ways no constant in
 them can fix: the fixed-mean-cosine two-flow Raman assembly errs by −38.6 % in
 increment at overhead sun, and the fluorescence amplitude drifts from
 model/truth 1.00 at 0° to 0.86 at 60°
-([`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+([`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4). {mod}`robust.rt.inelastic_corr` closes those gaps with two small bounded
 learned heads — **129 parameters each** — that rescale the analytic terms rather
 than replacing them.
@@ -23,7 +23,7 @@ the docstrings of {class}`~robust.rt.inelastic_corr.HeadConfig`,
 {func}`~robust.rt.inelastic_corr.corrected_raman_factor` and
 {func}`~robust.rt.inelastic_corr.corrected_fluorescence`;
 [`design/rt_inelastic_model.md`](gh:design/rt_inelastic_model.md) §4.5;
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §§2, 4 and 5; and
 [`design/rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md)
 §§5.2–5.4 (the implementation record — the source for the training numbers).
@@ -186,7 +186,7 @@ parameters, the per-feature standardisation, the feature names, and the config.
 They were trained on the **L23 scenario differences** — X2/X1 for Raman,
 X4 − X2 for fluorescence — on the elastic effort's training split, with
 full-batch Adam and fixed seeds, ~60 s per head on CPU. Both losses are
-**relatively weighted**, the lesson the whole project's metric is built on. From
+**relatively weighted**, the same lesson this model's own metric is built on. From
 the implementation record (§5.3):
 
 | | training target | train fit | \|δ\|rms | max \|δ\| |
@@ -199,7 +199,7 @@ peak means trophic states weigh equally and the near-zero tails of the emission
 band cannot blow up a pointwise relative error.
 
 What the heads bought, held out, from
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4:
 
 | median error [%] | 0° | 30° | 60° |
@@ -208,7 +208,8 @@ What the heads bought, held out, from
 | Raman increment 490 nm | −3.6 → **+1.03** | +30.8 → **+0.82** | +32.5 → **+0.58** |
 | Fluorescence peak 685 nm | +0.3 → **+0.08** | −5.2 → **+0.07** | −13.7 → **+0.10** |
 
-Total held-out rRMS goes from the analytic 2–4 % to **0.34 % at every zenith**
+Total held-out rRMS goes from the analytic 2–4 % — 4.29 / 1.94 / 2.18 at
+0/30/60° — to **0.34 % at every zenith**
 over 400–700 nm (report §4) — the elastic-era accuracy standard, now holding
 against the all-processes-on ocean. The ≤ 5 % per-process gates are beaten by
 roughly 25× (implementation record §5.3).
@@ -268,7 +269,7 @@ Retrained on 0°/30° only and scored at 60°, δ_R errs by **−74 %** — an o
 magnitude *worse* than the −4.2 % analytic backbone it is supposed to be
 correcting. δ_F degrades more gently, to −9.2 %, still past the 5 % gate. Both
 figures are
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4 and §5 (may-not-claim item 1), and the implementation record §5.3 records the
 same diagnostic with the instruction that these heads *must not be trusted at
 unseen geometries*.

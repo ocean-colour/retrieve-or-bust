@@ -426,6 +426,12 @@ own `#:` comment**, so **23 of 198 public `__all__` names never reach the page**
 `#:` block with a neighbour). That is a one-line-each fix in `robust/`, Q4's
 territory, and it is why the overview page's concept→API table points at
 functions and classes rather than constants.
+**[Superseded at D2 task 7: the gap is closed. Re-measured today by importing
+each of the twelve modules and checking every `__all__` name against the
+`id="…"` anchors in the built `api.html`: **198 public names, 0 missing.** The
+`#:` comments the D2 chapters needed were added along the way, so the concept→API
+tables now point at constants too. Three of those 198 are rendered by an explicit
+`autodata … :no-value:` block rather than by `automodule` — see the task-7 log.]**
 
 ### The gate, re-run at task 7
 
@@ -1548,23 +1554,152 @@ status` can contradict in one second: I checked, and had I not, "start fresh"
 plus a pre-filled file is a good way to ship someone else's unverified numbers
 under my gate. Is (1) the rule you want, and do you know what wrote that draft?
 
+Question from Claude (2026-09-01, model: Opus), raised at D2 task 7, the last
+task in this document. It did not block the task — the gate ran and passed in
+full, with Q1's wording — but it is the one thing the review pass turned up that
+is genuinely yours to decide, and there is no later task to defer it to.
+
+**Q12 (There is now no machine on which `pytest` can be fully green, and the
+docs say so on three pages).** Q1 settled the *wording*: the suite is green
+"modulo the two machine-anchored strict-hash tests", never unqualified. What has
+changed since Q1 is the *arithmetic*, and I only noticed it while re-reading the
+test file for the review. `robust/tests/test_inelastic_types.py` now carries
+**two** strict pin sets anchored to **two different machines** — the elastic
+pins on the tank server, and M5's inelastic pins on your Mac — and its own
+comment says the consequence out loud:
+
+> *"a different machine from the tank server that anchored the elastic pins
+> above, so on any one machine one strict set may fail while the other passes."*
+
+Measured again today, unchanged from tasks 2, 4 and 7: on this Mac the elastic
+strict tier fails at max 3 ULP (`Rrs` max rel 3.33e-07) while the closeness tier
+passes, and `2 failed, 483 passed, 1 skipped` is the standing result. On the
+tank server the failing pair would presumably be the other one. **`skipif(CI)`
+means GitHub Actions is green** — I rehearsed the `test` job in a clean 3.12 venv
+with `CI=true` and got **434 passed, 50 skipped, 0 failed**, and the py3.14 leg
+gives 445/41/0 — so the red is a dev-machine-only condition. But "run the suite
+and see green" is no longer available to anyone as a smoke test, and that is a
+slow-acting hazard: a real regression arrives as *three* failures instead of two,
+which is a much weaker signal than red-vs-green.
+
+Three options, in the order I would rank them:
+
+1. **Make both strict tiers `skipif` on anything but their anchor machine** —
+   e.g. an explicit `ROBUST_HASH_ANCHOR=tank|mac` environment variable, or a
+   platform/host check — so an unanchored dev machine sees a *skip with a
+   reason* rather than a failure, and both anchors still get their bitwise
+   guard. The closeness tiers already carry the real protection everywhere.
+2. **Re-anchor both sets on one machine**, in a deliberate non-docs commit,
+   recording the jax/jaxlib/NumPy versions beside the new hashes. Restores
+   green, at the cost of retiring the tank server's provenance.
+3. **Leave it and keep documenting it** (today's state). Honest, costs nothing,
+   and is what `docs/installation.md` and `docs/using/limitations.md` already
+   do — but it normalises a red suite, and I would rather not have written
+   "two failures are expected" onto a published page as a permanent fixture.
+
+My recommendation: **(1)**, and squarely on the coding side rather than in this
+docs effort — it is a `robust/tests/` change, it needs no re-pinning, and it
+turns an expected failure into an expected skip, which is the difference between
+"green modulo a footnote" and green. If you take it, three pages need a
+one-paragraph edit (`docs/installation.md`'s two notes, `docs/using/data.md`'s
+snapshot note, `docs/using/limitations.md`'s closing section) and I would do
+those in the same turn. If you would rather leave it, nothing on the site is
+wrong today and this question can simply be closed.
+
 ## Next
 
-After D2 the forward model — retrieve-or-bust's first component — is documented
-and published. Open follow-ons, none of them in scope here:
+**Rewritten at D2 task 7, the last task in this document's scope.** D1 + D2 are
+complete: the forward model — retrieve-or-bust's first component — is documented
+and published, and every task's gate has been run. What follows is what is
+genuinely still open, in four groups. Nothing in the first two is *work*; both
+resolve on one merge.
 
-- **The CDOM-fluorescence work** (`Q&A/CDOM` in
-  `rt_inelastic_prompts.md`) will add a term to the model; the inelastic
-  chapters and the limitations page are where it will land.
+### Waiting on the merge to `main` (Q6, answered: no merge until we are done)
+
+- **The canonical URL still 404s.** Re-checked 2026-09-01:
+  `https://retrieve-or-bust.readthedocs.io/` → 404,
+  `/en/latest/` → 404, `/en/cdom-rt/` → **200**. The active `latest` version
+  tracks `default_branch: main` and `main` has no `.readthedocs.yaml`. RTD has
+  built `cdom-rt` **seven** times, all successful, most recently from `06d490b`.
+  Both `README.md` and the front page deliberately name the root (Q10).
+- **All 29 distinct `blob/main/…` links 404 on `main`** for the same reason.
+  Every one was re-verified today to name a path that *exists on this branch*
+  (29 OK, 0 missing), so they become correct at the merge and not before. One
+  constant, `GITHUB_URL_BASE` in `docs/figures/make_docs_figures.py`, is the
+  single dial if that ever has to change.
+- **Three redundant `.gitkeep` files** — `docs/using/`, `docs/figures/`,
+  `docs/reports/` all carry real files now. Removing them is a git operation,
+  JXP's.
+
+### Open questions
+
+- **Q10** (leave the README/front page pointing at the canonical root?) and
+  **Q11** (the rule for an unlogged working-tree draft) have no `> A.` yet.
+  Neither blocked any task; Q11's recommended rule was followed at D2 tasks 4
+  and 6 and worked.
+- **Q12** (new, at task 7): the two machine-anchored strict-hash tiers now make
+  a fully green `pytest` unreachable on any single dev machine.
+
+### Task-7 review findings that were **declined**, each with its reason
+
+- **RTD resolves the whole of `setup.py`'s `install_requires`** (matplotlib,
+  seaborn, bokeh, scikit-learn, xarray, …) because `.readthedocs.yaml` runs
+  `pip install .`, while CI's docs job runs `pip install -e . --no-deps`. So CI
+  cannot catch a dependency-resolution failure that would break RTD. **Not
+  changed**: RTD has built green seven times, and both alternatives (drop
+  `path: .` there, or drop `--no-deps` here) change what runs on a working
+  publication path at a wrap-up task. Both files now carry a comment saying
+  exactly this, and the two false claims that hid it ("this stays light"; "the
+  docs environment has no matplotlib at all") are corrected.
+- **Two `robust/` robustness findings**, out of this effort's sanctioned edit
+  set and therefore recorded rather than fixed —
+  `hybrid.forward()` has an `a_cdom` guard but no `isinstance` guard on
+  `inelastic.cdom_fl`, so the careful pre-M5 migration `ValueError` in
+  `types.Inelastic.validate()` is unreachable from the entry point users call
+  (a bare scalar there now dies as `AttributeError`); and
+  `data.l23.inelastic_npz_reader` reads `sibling[f"ag_{zenith}"]` with no
+  presence check, so a pre-M5 fixture fails with `KeyError: 'ag_0'` instead of
+  the named error every neighbouring field gets.
+- **`ruff check docs/` reports 5 issues**, all inside `docs/quickstart_nb.ipynb`
+  (4 × `E402`, 1 × `E731`). CI lints `robust/` only, by design; both rules are
+  idiomatic in a teaching notebook, and "fixing" them means re-executing a
+  notebook committed with its outputs to satisfy a contract it is not under.
+- **`docs/member_policy.md` line 3 misspells "Retreive"**, and the page has no
+  framing for a reader who arrives at a forward-model site and lands on a voting
+  policy. One-word fix, not made: the file is JXP's governance document and
+  every task in this effort has left it byte-untouched on purpose.
+- **`robust/rt/validation.py`'s `rrms` docstring puts the $R_{rs}$-vs-linear
+  departure at 6–14 %**; the same calculation on the committed fixture gives
+  0–4.7 %, because the fixture's brightest $r_{rs}$ is 2.65×10⁻². Probably a
+  different "ocean range", possibly stale — a `robust/` docstring question for
+  JXP, not a docs fix. The page now states both numbers and attributes each.
+
+### Follow-ons, none of them in scope here
+
+- **The CDOM-fluorescence work** (`Q&A/CDOM` in `rt_inelastic_prompts.md`) will
+  add a term to the model. The hook is already cut: `robust.rt.cdom_fl` is on
+  the API page, `docs/using/limitations.md` §"Also in the API, and not
+  validated" says plainly that it is unmeasured, and
+  `docs/model/corrections.md` documents δ_C as defined-but-untrained. When the
+  truth data exists, those three places and `docs/model/overview.md`'s note are
+  what change.
+- **The retrieval — retrieve-or-bust's next component**, whenever it exists: the
+  AI-driven inversion from `Rrs` to IOPs with injected priors, which is what the
+  project is actually for and what this forward model is the physics for. The
+  site is deliberately written so that documenting it is a new section alongside
+  the model's, not a rewrite of the model's claims. Whether it even shares this
+  site is still open (Q9).
+- **The navbar does not show the site's five parts as tabs**, as DocQ2's
+  reasoning described. pydata renders top-level toctree *documents* as tabs, and
+  three of the five sections (Getting started, Using it, Reference) have several
+  top-level pages each. The fix is structural — one landing page per section —
+  not a `conf.py` option, so it was not made at a wrap-up task. The site is
+  correct and fully reachable as it stands; this is cosmetic.
+- **Desiderio (2000) still has no bibliography entry** in either report, so
+  `docs/references.md` records the gap instead of inventing a citation.
 - **A paper-facing report site** (PAB's `report_site/` pattern) if the results
   ever need a separate community-facing target — not proposed, not needed for
   v1.
-- **The retrieval — retrieve-or-bust's next component**, whenever it exists:
-  the AI-driven inversion from `Rrs` to IOPs with injected priors, which is what
-  the project is actually for and what this forward model is the physics for.
-  The site is deliberately written so that documenting it is a new section
-  alongside the model's, not a rewrite of the model's claims. Whether it even
-  shares this site is an open question (see Q9).
 - A purpose-drawn hero graphic, if `fig_inelastic_architecture.png` ever stops
   earning the front page (DocQ7 chose reuse for v1).
 

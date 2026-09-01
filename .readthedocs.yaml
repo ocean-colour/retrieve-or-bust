@@ -24,9 +24,15 @@ sphinx:
 python:
   install:
     # 1. The package itself, so autodoc can import robust.rt. `--no-deps` is
-    #    not expressible here, but setup.py's install_requires deliberately
-    #    omits the JAX stack, so this stays light; docs/requirements.txt below
-    #    supplies jax/jaxtyping/numpy (and flax/optax).
+    #    not expressible here, so this pulls the whole of setup.py's
+    #    install_requires: it omits the JAX stack (docs/requirements.txt below
+    #    supplies jax/jaxtyping/numpy and flax/optax) but it is NOT light --
+    #    matplotlib, seaborn, bokeh, scikit-learn, xarray, h5netcdf, pandas,
+    #    scipy, emcee, corner, IPython and pytest all come with it, and no page
+    #    needs any of them. It has built green every time, so it is left alone;
+    #    the honest cost is build minutes, and the honest gap is that CI's docs
+    #    job installs `-e . --no-deps` and therefore never resolves this tree,
+    #    so a dependency-resolution failure here would not be caught by CI.
     - method: pip
       path: .
     # 2. The Sphinx toolchain plus the real import-time stack. autodoc is NOT

@@ -90,7 +90,7 @@ grid:
 | 60° | 0.424 | 445 nm | 1.619 | 720 nm | ×3.82 |
 
 Two things fall out of that table. The ratio is **strongly spectral** —
-a factor of ~3.6 across the band — and it is **nearly zenith-independent**,
+a factor of 3.6–3.8 across the band — and it is **nearly zenith-independent**,
 because the sky's *shape* barely changes with sun angle while its amplitude
 cancels in the ratio.
 

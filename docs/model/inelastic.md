@@ -3,7 +3,7 @@
 Water Raman scattering redistributes photons from blue excitation wavelengths
 into longer emission wavelengths, and in the L23 truth it contributes a median
 5–15 % of $R_{rs}$ over 520–750 nm at solar zeniths 30–60°, up to ~20 % at 0°
-([`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+([`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §1). It is not a refinement; an elastic-only model aliases it into biased IOPs.
 
 {mod}`robust.rt.inelastic` implements it as a **multiplicative factor**
@@ -20,7 +20,7 @@ docstrings of {func}`~robust.rt.inelastic.raman_factor`,
 {func}`~robust.rt.conventions.raman_excitation` and
 {func}`~robust.rt.conventions.raman_emission`;
 [`design/rt_inelastic_model.md`](gh:design/rt_inelastic_model.md) §3 and §4.3;
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §§1, 2, 4 and 5; and
 [`design/rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md)
 §4.2. Every number labelled "measured" was measured in this environment when the
@@ -150,7 +150,7 @@ end value, so the term is evaluated on constant-extrapolated IOPs.
 **Below 400 nm this term runs on extrapolated inputs and the correction heads
 never trained there.** The report measures the cost: **13 % error at 350 nm**,
 against 0.34 % inside the band
-([`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+([`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4 and §5, may-not-claim item 4). The domain is documented, **not enforced by an
 error**. The full 350–750 nm grid is always reported and never gated (report §3).
 :::
@@ -226,9 +226,12 @@ f_phys:  min 1.020783   median 1.1228   max 1.2888
 per zenith, median f_phys:  0 deg 1.1242 | 30 deg 1.1235 | 60 deg 1.1205
 ```
 
-The function's own docstring quotes the range as 1.0076–2.5 on the full L23
-release; the fixture is 50 of its 3,320 water bodies, so the narrower spread
-above is a subset, not a disagreement.
+The docstring on
+{attr}`~robust.rt.data.l23.L23InelasticBatch.truth_raman_factor` quotes the
+range as 1.0076–2.51; the fixture is 50 of L23's 3,320 water bodies, so the
+narrower spread above is a subset, not a disagreement. Note the docstring's
+figure is the **0° file's** range, not the release's across all three zeniths —
+at 60° the minimum falls to 1.004739, measured on {doc}`../using/data`.
 
 ## How it composes into `forward()`
 
@@ -260,7 +263,7 @@ why {func}`~robust.rt.conventions.rrs_to_Rrs` sits where it does.
 The two-flow assembly above is a *fixed-mean-cosine* approximation, and its
 errors are structural rather than parametric — no constant in the table above
 fixes them. Quoted from
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4, per-process fidelity table (medians on held-out scenes, analytic →
 corrected):
 
@@ -279,6 +282,7 @@ measured error band rather than zero — a test asserting 0 % there would be
 asserting something the physics does not deliver.
 
 Two consequences a user should carry away. The analytic term alone scores 2–4 %
+(4.29 / 1.94 / 2.18 at 0/30/60°)
 total rRMS against the all-processes-on truth (report §4), which is already most
 of the ~50× an elastic-only model loses. And the shipped default is the
 *corrected* model, so these are not the numbers `forward()` produces unless you

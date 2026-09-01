@@ -124,6 +124,15 @@ jobs:
       # re-resolve here would only risk pulling a different jax. This step
       # exists so autodoc can `import robust.rt` from an installed package
       # rather than relying on conf.py's sys.path insert alone.
+      #
+      # Known and deliberate divergence from RTD: .readthedocs.yaml runs a plain
+      # `pip install .`, which resolves the whole of setup.py's install_requires
+      # (matplotlib, seaborn, bokeh, scikit-learn, xarray, ...). This job does
+      # not, so it will *not* catch a dependency-resolution failure in that
+      # tree -- only a Sphinx/autodoc one. Mirroring RTD exactly would mean
+      # dropping --no-deps here and installing a dozen packages no page uses on
+      # every push. If RTD ever fails on resolution while this job is green,
+      # that gap is the reason.
       - name: Install the package
         run: pip install -e . --no-deps
 

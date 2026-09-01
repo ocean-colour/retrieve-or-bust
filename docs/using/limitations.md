@@ -12,12 +12,14 @@ passage is quoted, the box says so and links the file it came from. Nothing in
 those boxes was rewritten, reordered, or shortened.
 
 *Sources for this page:
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §5 (lines 290–324 of that file) and
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §5 (lines 201–224). Both quotations were diffed against the report files
-character for character when this page was written; the diff command is in the
-task log. The scope statement in the next section comes from `README.md`,
+character for character when this page was written, and both reports are
+rendered in full in the {doc}`Reports <../reports/index>` section if you would
+rather read the passage in place. The scope statement in the next section comes
+from `README.md`,
 [`proposals/Claude_Science/anthropic_application.md`](gh:proposals/Claude_Science/anthropic_application.md)
 and [`context/context_summary.md`](gh:context/context_summary.md).*
 
@@ -49,7 +51,7 @@ The all-processes-on model, quoted from the inelastic report:
 
 :::{important}
 Quoted verbatim from
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §5, *What the prototype may claim — and what it may not*.
 
 **It may claim:** on held-out water bodies from the reference ensemble, a
@@ -69,7 +71,7 @@ qualifications cannot be separated.
 
 :::{warning}
 Continues the same verbatim quotation from
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §5.
 
 **It may not claim:**
@@ -130,7 +132,7 @@ onto.
 
 :::{warning}
 Quoted verbatim from
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §5, *What the prototype may claim — and what it may not*.
 
 **It may claim:** on held-out water bodies from the reference ensemble, a

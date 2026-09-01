@@ -15,7 +15,7 @@ with no weights file and no ML stack.
 *Sources for this page: the {mod}`robust.rt.ztt` module docstring and each
 function's own docstring, which name the paper equations;
 [`design/rt_elastic_model.md`](gh:design/rt_elastic_model.md) §4.3;
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §2 and §4. Every printed number was re-measured in this environment when the
 page was written. The paper itself is* Appl. Sci. **2018**, 8, 2684,
 doi:10.3390/app8122684.
@@ -64,13 +64,19 @@ follows it line for line.
 nadir viewing is $\theta_v = 180°$** and $-\cos\theta_v = +1$ in the
 denominator above. {class}`~robust.rt.types.Geometry` uses the opposite and
 more usual convention — `theta_v = 0` for nadir — and its `theta_s` is the
-*above-water* solar zenith as L23 reports it. Snell's law relates the two solar
-angles through a refractive index of 1.34
+*above-water* solar zenith as L23 reports it, which is the paper's **primed**
+$\theta_s'$. The paper's unprimed $\theta_s$ is the *in-water* angle, and
+inverse Snell relates the two through a refractive index of 1.34
 ({data}`~robust.rt.ztt.REFRACTIVE_INDEX`):
 
 $$
-\theta_s' = \arcsin\!\left(1.34 \sin\theta_s\right) .
+\theta_s = \arcsin\!\left(\frac{\sin\theta_s'}{1.34}\right) .
 $$
+
+Note the direction: it is the sine that is *divided* by 1.34, so the in-water
+angle is always the smaller one. Writing it the other way up is the mistake this
+paragraph exists to prevent — $\arcsin(1.34\sin 60°)$ has no solution at all.
+{func}`~robust.rt.ztt.in_water_zenith` is the implementation.
 
 Both conversions happen in exactly one place,
 {func}`~robust.rt.ztt.geometry_to_paper_angles`, because getting either
@@ -90,7 +96,7 @@ geometry_to_paper_angles(Geometry.nadir(60.0)):
 That is the paper's own worked example — $\theta_s' = 60°$ giving 40.3° in
 water and $\psi = 139.7°$ — reproduced to 0.04°, and it is one of the two
 anchors the report cites for the transcription
-([`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+([`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §2). The other is $\mu_d$ reproducing the paper's quoted 0.79–0.94 range.
 
 ## The phase function, explicitly
@@ -219,7 +225,7 @@ would have provided and keeps it differentiable.
 Results computed this way must be reported as **"ZTT with the TT2017
 $\mu_\infty$"**, never as the published 2018 model. This is item 6 of the
 elastic report's "may not claim" list
-([`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+([`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §5). Passing `mu_inf_coeffs=` restores the 2018 model in one line the moment
 the sixteen numbers arrive.
 :::
@@ -256,7 +262,7 @@ float32 tolerance that depends on it. A test pins the current agreement.
 
 ## How well it does on its own
 
-From [`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+From [`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §4, rRMS in $r_{rs}$ space on the full 9 960-sample L23 batch:
 
 | model | train | held-out scenes | held-out @ 60° |

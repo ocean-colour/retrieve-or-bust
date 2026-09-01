@@ -1,7 +1,7 @@
 # Baselines
 
 {mod}`robust.rt.baselines` is **not part of the forward model**. It exists
-because every accuracy claim in this project is *relative* — "beats standard
+because every accuracy claim this model makes is *relative* — "beats standard
 Gordon on the held-out splits", "2.3× the modern benchmark" — and a claim like
 that is only checkable if the thing being beaten is **in the repo,
 differentiable, and computed on identical data** rather than quoted from a paper.
@@ -15,9 +15,9 @@ docstrings of {func}`~robust.rt.baselines.rrs_gordon`,
 {func}`~robust.rt.baselines.Rrs_o25`,
 {func}`~robust.rt.baselines.o25_coefficients` and
 {func}`~robust.rt.baselines.fit_o25`;
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md) §§3,
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md) §§3,
 4 and 5 (the ladder and its fairness caveats); and
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4. Numbers labelled "measured" were measured in this environment when the page
 was written, on the committed 50-scene fixture, and are **not** the report's
 release-scale numbers — see the caveat below the table.*
@@ -82,7 +82,7 @@ in this repo; they live in the authors' code. Refitting is the alternative the
 paper itself uses when it evaluates O25 on L23 (its Fig. 3). So the numbers here
 are a **strong benchmark that has seen our training data**, not a statement about
 the published model
-([`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+([`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §3 and §5, may-not-claim item 2).
 
 Two consequences, both deliberate. The refit is **fitted on the `scene_train`
@@ -159,8 +159,8 @@ extrapolates in brightness.
 
 ## PR05 is deliberately absent
 
-The stub this page replaced named "PR05/O25", and the honest version is that
-**PR05 is not implemented**. Its coefficients are a 4-D
+The design documents pair "PR05/O25" as though both were rungs of the ladder.
+The honest version is that **PR05 is not implemented**. Its coefficients are a 4-D
 `(theta_s, theta_v, dphi, gamma_b)` lookup table that the paper does not print and
 that is not in this repo — it exists behind a 2005 institutional URL or inside
 POLYMER. And because L23 is nadir-only, a refit here could never populate the two
@@ -171,7 +171,7 @@ records it as a gap rather than approximating it.
 ## Their role in the validation story
 
 The baselines are the rungs of the ladder both reports lead with. From
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md) §4,
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md) §4,
 rRMS (%) in $r_{rs}$ space over the full 9,960-sample batch against the
 **elastic** truth:
 
@@ -194,14 +194,27 @@ seeds (median 7.75 %). That is reported rather than gated, and it is the elastic
 report's §5 item 3.
 
 For the inelastic model the baselines are scored the same way, and
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4's ladder is against the all-processes-on truth: elastic-only 16–19 %,
-analytic inelastic 2–4 %, corrected inelastic **0.34 %** at every zenith.
+analytic inelastic 2–4 % (the report's phrase; its own table reads
+4.29 / 1.94 / 2.18 at 0/30/60°), corrected inelastic **0.34 %** at every zenith.
 
 Speed, from the elastic report §4 (jitted, CPU, full batch): Gordon 0.28 ms,
 O25 0.46 ms, ZTT backbone 3.76 ms, hybrid ~17 ms. The baselines are also the
 evidence that the hybrid does not collapse the analytic advantage of *not*
 calling an RT solver.
+
+:::{warning}
+**Do not compare that 17 ms with the 33.5 ms on the {doc}`../using/validation`
+page.** They are the same quantity — the elastic hybrid over the full
+9,960 × 81 batch, jitted, on CPU — measured by the two reports twelve days
+apart, and they disagree by a factor of two. Neither is wrong; absolute
+wall-clock here is a property of the machine, the jax build and what else was
+running, and no run reconciling the two exists. What each report *does* control
+for, by measuring both halves in the same session, is the **ratio**: 4.5–6× the
+backbone (elastic report §4) and 1.59× elastic → inelastic (inelastic report
+§4). Quote the ratios; treat the millisecond figures as order-of-magnitude.
+:::
 
 ### Re-measured here, and the trap it exposes
 

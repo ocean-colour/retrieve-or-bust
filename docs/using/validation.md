@@ -16,8 +16,8 @@ docstrings of every function named below;
 [`design/rt_inelastic_model.md`](gh:design/rt_inelastic_model.md) §6 (the
 acceptance gate) and [`design/rt_elastic_model.md`](gh:design/rt_elastic_model.md)
 §§6–7 (the elastic protocol);
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
-§§3–4 and [`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
+§§3–4 and [`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §§3–4 (the results); and the generated artifacts
 [`design/validation/metrics_inelastic.md`](gh:design/validation/metrics_inelastic.md)
 and [`design/validation/metrics.md`](gh:design/validation/metrics.md), which are
@@ -34,8 +34,9 @@ $$\mathrm{rRMS} = 100 \times
 
 Two choices in it are load-bearing.
 
-**It is relative, not absolute.** $R_{rs}$ spans more than a decade across the
-spectrum — L23 runs from ~2.5×10⁻² in the blue to ~6×10⁻⁶ in the red — so an
+**It is relative, not absolute.** Reflectance spans **~3.6 decades** across the
+spectrum — in $r_{rs}$, L23 runs from ~2.5×10⁻² in the blue to ~6×10⁻⁶ in the
+red, a factor of ~4,000, and $R_{rs}$ spans much the same range — so an
 absolute RMS would be almost entirely a statement about the blue, and a model
 could look excellent while being useless past 600 nm. The relative form is also
 BING's definition, which is what makes these numbers comparable with the
@@ -43,8 +44,11 @@ pre-existing rRMS ladder rather than a private scale.
 
 **It is computed in $r_{rs}$, not $R_{rs}$.** The air–water interface is
 non-linear ({doc}`../model/conventions`), so relative error in $R_{rs}$ is simply
-a different number — a 6–14 % departure from a linear rescaling sits between the
-two over the ocean range. Every table on this site is $r_{rs}$-space unless it
+a different number — {func}`~robust.rt.validation.rrms`'s own docstring puts the
+departure from a linear rescaling at 6–14 % over the ocean range it has in mind
+(on the committed 50-scene fixture, whose $r_{rs}$ tops out at 2.65×10⁻², the
+same calculation gives 0–4.7 %; the size depends entirely on how bright the
+brightest scene is). Every table on this site is $r_{rs}$-space unless it
 says otherwise, and `truth` must be non-zero because the metric divides by it.
 
 `rrms` is pure JAX and differentiable, which is why it can double as the
@@ -54,9 +58,15 @@ metric it is scored with.
 ### The breakdowns
 
 A single scalar was never enough: standard Gordon buys a respectable total by
-fitting the bright blue and abandoning the dark red (2.5 % at 400 nm rising to
-9.0 % at 700 nm). So the design asks for three cuts, and each is a named
-function.
+fitting the bright blue and abandoning the dark red — 2.5 % at 400 nm rising to
+9.0 % at 700 nm in the pre-existing synthesis ladder
+({func}`~robust.rt.validation.rrms_per_wavelength`'s docstring, from
+[`context/RT/fig_rrms_ladder.csv`](gh:context/RT/fig_rrms_ladder.csv)), and
+3.38 % → 10.91 % in this project's own run
+([`design/validation/rrms_per_wavelength.csv`](gh:design/validation/rrms_per_wavelength.csv),
+the file {doc}`../model/ztt`'s ladder is drawn from). Different data, same
+shape, and the shape is the point. So the design asks for three cuts, and each
+is a named function.
 
 | function | the cut | why it exists |
 | --- | --- | --- |
@@ -83,11 +93,10 @@ on clamped, extrapolated IOPs, and the correction heads never trained there.
 400 nm is the model's stated domain, and has been since M3
 ({doc}`../model/inelastic`).
 
-The band was **JXP's decision**, taken before the gate test was written, in
-answer to a question that laid out both options: *"do not gate on the rms outside
-the 400-700nm range"* (`claude_prompts/RT/rt_inelastic_coding_prompt_5.md`, Q&A
-Q1). Scoring a model outside its stated domain is not a stricter test, it is a
-different one.
+The band was **the principal investigator's decision**, taken before the gate
+test was written and recorded in the development record: *"do not gate on the
+rms outside the 400–700 nm range."* Scoring a model outside its stated domain is
+not a stricter test, it is a different one.
 
 Two safeguards make that honest rather than convenient:
 
@@ -216,7 +225,7 @@ hold. Held out by scene, all processes on, φ_C = 0.02, committed weights.
 | 6 | runtime vs the elastic hybrid, full batch | **1.59×** median | ≤ 2× | pass |
 
 Every cell above was diffed against
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §3 and [`design/rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md)
 §6.6 — the two places the gate is independently written down — and against the
 generated [`design/validation/metrics_inelastic.md`](gh:design/validation/metrics_inelastic.md)
@@ -225,7 +234,9 @@ they both quote. All three agree.
 Line 1 is the line the 400–700 nm band belongs to. Line 2's 0° is named in the
 design *because* the analytic backbone fails it by −38.6 %: that line is what
 δ_R had to earn ({doc}`../model/corrections`). Line 6 asserts the **median of
-three trials**, because single ratios wander ±5 %.
+three trials**, because single ratios wander ±5 % on a shared machine
+([`design/rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md)
+§7).
 
 Two things this gate is not. It is not a claim about geometries L23 does not
 contain — three zeniths, nadir view. And its bars are per-line acceptance, not
@@ -316,11 +327,18 @@ this page was. The physics these rows describe is
 - **φ_C linearity.** At 0.5×/1×/2×/5× the reference yield the 685 nm error is
   +0.076 / +0.072 / +0.103 % per zenith, **identical across all four scales to
   < 10⁻⁴**. Linear by construction, as designed — and truth exists only at 1×.
-- **`emission_shape='double'`.** −8.5 % at 685 nm and +9.8 % at 730 nm against
-  `'single'`; scored against the single-shape truth, −23.6 % at every zenith.
-  Unvalidatable and off everywhere in v1.
+- **`emission_shape='double'`.** In **median total $R_{rs}$**, −8.5 % at 685 nm
+  and +9.8 % at 730 nm against `'single'`; in the **fluorescence term itself**,
+  scored against the single-shape truth, −23.6 % at every zenith. Two different
+  quantities — the term is a small part of the total at 685 nm, which is why the
+  same change reads as −8.5 % one way and −23.6 % the other. Unvalidatable and
+  off everywhere in v1.
 - **Speed.** 52.74 ms against the elastic hybrid's 33.52 ms, full 9,960 × 81
-  batch, jitted CPU; trial ratios 1.60, 1.51, 1.57, 1.60, 1.59.
+  batch, jitted CPU; trial ratios 1.60, 1.51, 1.57, 1.60, 1.59. The **1.59×
+  ratio** is the durable number: the elastic report measured the same elastic
+  hybrid at ~17 ms twelve days earlier, so the absolute milliseconds are
+  machine- and session-dependent in a way the ratio is not (see
+  {doc}`../model/baselines`).
 - **Gradients, all six.** `a` 2.5e-9, `bb_p` 3.6e-10, `B_p` 1.9e-9, `a_ph`
   5.9e-9, `phi_C` 1.4e-9, `theta_s` 3.0e-9 — at θ_s = 35°.
 

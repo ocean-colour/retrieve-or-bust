@@ -64,4 +64,4 @@ verbatim in the {doc}`Reports <reports/index>` section.
 | Design | [`rt_elastic_model.md`](gh:design/rt_elastic_model.md) | [`rt_inelastic_model.md`](gh:design/rt_inelastic_model.md) |
 | Coding plan | [`rt_elastic_model_coding_plan.md`](gh:design/rt_elastic_model_coding_plan.md) | [`rt_inelastic_model_coding_plan.md`](gh:design/rt_inelastic_model_coding_plan.md) |
 | Implementation record | [`rt_elastic_implementation.md`](gh:design/rt_elastic_implementation.md) | [`rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md) |
-| Report | [`report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md) | [`report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md) |
+| Report | [`report_rt_elastic_model.md`](reports/report_rt_elastic_model.md) | [`report_rt_inelastic_model.md`](reports/report_rt_inelastic_model.md) |

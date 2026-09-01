@@ -12,7 +12,7 @@ four numbered decisions are the structure of this chapter) and the docstrings
 of {class}`~robust.rt.emulator.EmulatorConfig`,
 {class}`~robust.rt.emulator.Emulator` and each constant;
 [`design/rt_elastic_model.md`](gh:design/rt_elastic_model.md) §4.4;
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §2, §4 and §5. Numbers marked "measured" were re-measured in this environment,
 against the packaged weights, when the page was written.*
 
@@ -34,8 +34,8 @@ the hybrid already has it in hand and recomputing ZTT costs ~12× everything
 else here.
 
 **Why relative and not absolute.** $r_{rs}$ runs from ~2.5e-2 in the blue to
-~6e-6 in the red, so a network emitting absolute sr⁻¹ would have to span four
-decades with one set of weights, and the relative loss would weight its red-end
+~6e-6 in the red, so a network emitting absolute sr⁻¹ would have to span **~3.6
+decades** with one set of weights, and the relative loss would weight its red-end
 errors ~4000× more heavily than its blue-end ones. The relative residual is an
 $O(1)$ quantity instead: measured over all 9 960 L23 samples at M2, mean
 **+2.20 %**, sd **5.52 %**. That is also directly the number the design asks to
@@ -139,7 +139,7 @@ beat to justify its nonlinearity. On the full L23 batch it takes the backbone's
 5.95 % to **2.57 %** (train) / **2.54 %** (held-out scenes), against the default
 MLP's **0.30 %** — so the nonlinearity earns ~8×, not the ~20× a baseline-free
 comparison would suggest
-([`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+([`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §4).
 
 ## The domain guard
@@ -207,7 +207,7 @@ range, where nothing constrains it and the initialisation decides the answer.
 The **linear** model gives up a great deal in sample and lands at **6.16 %**
 there, stably — its inability to bend is what saves it — and the refit O25
 benchmark wins outright and deterministically at **4.63 %**
-([`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+([`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §4; the module docstring's decision 4).
 
 :::{warning}

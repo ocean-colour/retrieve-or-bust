@@ -17,10 +17,9 @@ Two conventions hold throughout:
   Every module in the package defines one, grouped by role and marked
   ``# noqa: RUF022`` because the grouping matters more than alphabetical
   order; ``:members:`` with no argument honours it. Private helpers and
-  closures are therefore absent by design -- see :doc:`member_policy` for the
-  team's governance, and the module source (the ``[source]`` links below) for
-  everything else.
-* **The signatures are real.** ``autodoc_mock_imports`` is empty (DocQ2): the
+  closures are therefore absent by design -- read the module source (the
+  ``[source]`` links below) for those.
+* **The signatures are real.** ``autodoc_mock_imports`` is empty: the
   documentation build installs and imports the actual JAX stack, so the type
   annotations shown here -- including ``jaxtyping`` shapes such as
   ``Float[Array, "*batch wave"]`` -- are the ones the interpreter sees, not
@@ -132,6 +131,18 @@ misses, its Optax training loop, and the packaged default weights.
    :members:
    :undoc-members:
    :show-inheritance:
+   :exclude-members: DEFAULT_WEIGHTS
+
+.. Rendered separately with :no-value: because its value is
+   ``Path(__file__).parent / "files" / ...`` -- an absolute path resolved at
+   import time, so autodoc printed the *build machine's* checkout directory
+   into the published page (``/home/docs/checkouts/readthedocs.org/...`` on
+   Read the Docs, ``/Users/...`` locally). The path is machine-specific and
+   tells a reader nothing; where the file ships is what matters, and setup.py's
+   ``package_data`` is what puts it there.
+
+.. autodata:: robust.rt.emulator.DEFAULT_WEIGHTS
+   :no-value:
 
 
 hybrid -- ``forward()``
@@ -163,11 +174,9 @@ cdom_fl -- CDOM fluorescence
 ----------------------------
 
 The CDOM-fluorescence kernel (Hawes' excitation-emission parameterisation) and
-its excitation grid. **Newest module in the package**, added by the concurrent
-CDOM effort and not part of the eleven this page was originally specified to
-cover; it is here because ``robust.rt.__init__`` imports and re-exports it and
-because two committed docstrings (in ``hybrid`` and ``inelastic_corr``)
-cross-reference :func:`robust.rt.cdom_fl.cdom_kernel`. See Q&A Q5.
+its excitation grid. **The newest module in the package**, and the one piece of
+the API that carries no validation: it is off by default and the truth data that
+would score it does not exist. See :doc:`using/limitations` before using it.
 
 .. automodule:: robust.rt.cdom_fl
    :members:
@@ -185,6 +194,16 @@ those are measurably wrong, their feature sets, and the packaged weights.
    :members:
    :undoc-members:
    :show-inheritance:
+   :exclude-members: DEFAULT_RAMAN_WEIGHTS, DEFAULT_FL_WEIGHTS
+
+.. Same reason as ``emulator.DEFAULT_WEIGHTS`` above: import-time absolute
+   paths, so the rendered value was the build machine's checkout directory.
+
+.. autodata:: robust.rt.inelastic_corr.DEFAULT_RAMAN_WEIGHTS
+   :no-value:
+
+.. autodata:: robust.rt.inelastic_corr.DEFAULT_FL_WEIGHTS
+   :no-value:
 
 
 baselines -- what the hybrid must beat

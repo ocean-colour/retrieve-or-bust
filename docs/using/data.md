@@ -20,8 +20,8 @@ docstrings of {class}`~robust.rt.data.l23.L23Batch`,
 `robust/tests/conftest.py` for the skip markers;
 [`design/rt_inelastic_model.md`](gh:design/rt_inelastic_model.md) §4.1 for the
 scenario levels and truth channels;
-[`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md) §3
-and [`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md) §3
+and [`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §3 for the splits and the reference-data description. Every number and every
 pasted output on this page was measured in this environment when the page was
 written — the release-scale figures with `$OS_COLOR` set, the fixture-scale ones
@@ -304,15 +304,18 @@ $ env -u OS_COLOR pytest -q -ra
 
 Thirty-seven tests convert from passed to skipped — **23** with the reason
 `L23 elastic Hydrolight data not available ($OS_COLOR)` and **14** with its
-`(X=2/X=4)` sibling, tallied from the `-ra` summary. The two failures are the same in both runs and are neither data- nor
-docs-related; {doc}`../installation` explains them, and {doc}`validation` says
-what they mean for the acceptance gate.
+`(X=2/X=4)` sibling, tallied from the `-ra` summary.
+
+The two failures — `test_elastic_hash_regression_strict` and
+`test_gate_4_pre_change_pins` — are the same in both runs and are neither data-
+nor docs-related; {doc}`../installation` explains them, and {doc}`validation`
+says what they mean for the acceptance gate.
 
 :::{note}
 Treat those counts as a snapshot. They were measured on a checkout under
-concurrent development and have climbed across this effort's turns (451 → 483
-passing). The durable facts are the shape: two named failures, one pre-existing
-skip, a ~37-test skip delta.
+concurrent development and climbed from 451 to 483 passing over three weeks. The
+durable facts are the shape: those two named failures, one pre-existing skip, a
+~37-test skip delta.
 :::
 
 Training is the one thing that genuinely requires the archive.

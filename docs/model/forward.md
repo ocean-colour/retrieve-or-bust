@@ -209,7 +209,7 @@ with respect to an {class}`~robust.rt.types.IOPs` returns an
 {class}`~robust.rt.types.IOPs` of per-field derivatives, which is the shape a
 retrieval wants. Tests pin those against central finite differences; the
 elastic report records agreement to ≤ 5×10⁻⁹
-([`reports/report_rt_elastic_model.md`](gh:reports/report_rt_elastic_model.md)
+([`reports/report_rt_elastic_model.md`](../reports/report_rt_elastic_model.md)
 §4). A worked gradient, including the $\varphi_C$-linearity identity, is in the
 {doc}`../quickstart`.
 

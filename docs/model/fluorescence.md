@@ -3,7 +3,7 @@
 Chlorophyll-a fluorescence is an **emission source**, so unlike Raman it enters
 the model additively. In the L23 truth it carries a median ~35 % of $R_{rs}$ at
 its 685 nm peak
-([`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+([`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §1) — which is why an elastic-only model, 0.30 % accurate against elastic truth,
 is 48 % wrong at that one wavelength against the real ocean (report §4).
 
@@ -20,7 +20,7 @@ docstrings of {func}`~robust.rt.inelastic.fluorescence_kernel`,
 {func}`~robust.rt.inelastic.emission_line` and
 {func}`~robust.rt.inelastic.fl_excitation_grid`;
 [`design/rt_inelastic_model.md`](gh:design/rt_inelastic_model.md) §4.4;
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §§1, 2, 4 and 5; and
 [`design/rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md)
 §4.3. Numbers labelled "measured" were measured in this environment when the
@@ -69,7 +69,7 @@ measures that the corrected model's error is identical at 0.5×/1×/2×/5× the
 reference yield to < 10⁻⁴ (§4) — but that measures *our* model's linearity, not
 the ocean's. Whether the real ocean's fluorescence is φ_C-linear at the ±few-%
 level is untested; varied-φ_C HydroLight runs are the design's wishlist item 2
-([`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+([`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §5, may-not-claim item 2).
 :::
 
@@ -194,7 +194,7 @@ emission line, so there is no truth channel in which a PS I shoulder exists.
 Scored against that truth anyway, `'double'` sits at **−23.6 % at 685 nm** —
 consistent with moving 25 % of the emission into a shoulder L23 cannot see, not
 with the shape being wrong
-([`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+([`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §5, may-not-claim item 3; the same judgement is
 [`design/rt_inelastic_model.md`](gh:design/rt_inelastic_model.md) §4.4's, which
 calls it *physically better, unvalidatable against L23*). It is off by default
@@ -235,7 +235,7 @@ and not something the network can bend. See {doc}`corrections`.
 ## What the analytic backbone gets wrong
 
 Quoted from
-[`reports/report_rt_inelastic_model.md`](gh:reports/report_rt_inelastic_model.md)
+[`reports/report_rt_inelastic_model.md`](../reports/report_rt_inelastic_model.md)
 §4, per-process fidelity (median error at the 685 nm peak on held-out scenes,
 analytic → corrected):
 

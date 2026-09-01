@@ -1,8 +1,9 @@
 # Installation
 
-Everything on this page was run on 2026-08-30 in the project's development
-environment (the `ocean14` conda environment, macOS/arm64), and the outputs are
-pasted as they came back. Two commands are exceptions, and both say so where
+Everything on this page was run in the project's development environment (the
+`ocean14` conda environment, macOS/arm64) and the outputs are pasted as they came
+back — the install transcripts on 2026-08-30, the two test runs at the bottom of
+the page re-run on 2026-09-01 so their counts match the rest of the site. Two commands are exceptions, and both say so where
 they appear: the CUDA JAX wheel, which needs an NVIDIA device this machine does
 not have, and the full `pip install -r requirements.txt`, which was run as
 `--dry-run` here because — as the warning below shows with its own output — the
@@ -199,7 +200,7 @@ jax 0.11.0 [CpuDevice(id=0)]
 ```
 
 Then the test suite. Both runs below come from a single invocation on
-2026-08-30, **with** and then **without** the L23 archive:
+2026-09-01, **with** and then **without** the L23 archive:
 
 ```console
 $ pytest -q -ra
@@ -207,14 +208,20 @@ $ pytest -q -ra
 SKIPPED [1] robust/tests/test_inelastic_corr.py:405: trained weights are committed; the fallback path is gone
 FAILED robust/tests/test_inelastic_types.py::test_elastic_hash_regression_strict
 FAILED robust/tests/test_inelastic_validation.py::test_gate_4_pre_change_pins
-2 failed, 480 passed, 1 skipped in 62.84s (0:01:02)
+2 failed, 483 passed, 1 skipped in 67.87s (0:01:07)
 
 $ env -u OS_COLOR pytest -q
 ...
-2 failed, 445 passed, 36 skipped, 1 warning in 55.86s
+2 failed, 446 passed, 38 skipped, 1 warning in 60.10s
 ```
 
-Thirty-five tests convert from passed to skipped, every one of them with the
+The one standing skip is not a gap in coverage. `test_inelastic_corr.py`'s
+"trained weights are committed; the fallback path is gone" means the *test* has
+nothing to exercise: it checks what happens when the correction weights are
+missing, and in a normal checkout they are not. The fallback itself is very much
+alive — see {doc}`model/corrections`, where it is a warning rather than an error.
+
+Thirty-seven tests convert from passed to skipped, every one of them with the
 reason `L23 elastic Hydrolight data not available ($OS_COLOR)` or its
 `(X=2/X=4)` inelastic sibling. That is the whole cost of not having the
 archive: the model, the emulator, the correction heads and the pytrees are all
@@ -222,10 +229,12 @@ exercised from the committed fixtures either way.
 
 :::{note}
 **Treat the counts as a snapshot, not a contract.** They were measured on a
-development checkout while a second effort was actively adding tests, and they
-climbed by six between two runs an hour apart. What is stable, and what you
-should actually check against, is the *shape*: the two failures named below,
-one pre-existing skip, and a ~35-test skip delta when `$OS_COLOR` is unset.
+development checkout while a second effort was actively adding tests, and the
+passing count moved 451 → 480 → 483 over three weeks. What is stable, and what
+you should actually check against, is the *shape*: the two failures named in the
+output above (`test_elastic_hash_regression_strict` and
+`test_gate_4_pre_change_pins`, explained in the next note), one pre-existing
+skip, and a ~37-test skip delta when `$OS_COLOR` is unset.
 :::
 
 :::{note}

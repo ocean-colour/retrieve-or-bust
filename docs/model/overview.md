@@ -83,53 +83,39 @@ $R_{rs} = A\,r_{rs} / (1 - B\,r_{rs})$ is non-linear. Use
 scoring; use {func}`robust.rt.hybrid.forward` for the above-water quantity an
 instrument would see.
 
-## The three modes
+## The three modes, and the two guarantees
 
-`mode` selects how much of the elastic half runs, so all three configurations
-can be compared on identical splits rather than on separately prepared data. The
-values are {data}`robust.rt.hybrid.MODES`:
+{data}`robust.rt.hybrid.MODES` is `('ztt', 'emulator', 'hybrid')`: the analytic
+backbone alone, the learned correction $\Delta r_{rs}$ alone, and their sum,
+which is the default and the model every accuracy number on this site refers to.
+Having all three behind one signature is what lets them be scored on identical
+splits rather than on separately prepared data.
 
-`'ztt'`
-: The analytic backbone alone, exactly {func}`robust.rt.ztt.rrs_ZTT`. Takes no
-  emulator, loads no weights, and cannot raise a domain warning.
+Two properties are worth knowing before you use any of them, and both have their
+full treatment — with the measured evidence — on {doc}`forward`:
 
-`'emulator'`
-: The learned correction $\Delta r_{rs}$ **alone**. This is the term in
-  isolation, not a standalone learned model that could replace the physics —
-  the correction is defined relative to the backbone. It is **not additive with
-  `'ztt'` in $R_{rs}$ space**, and it is incompatible with `inelastic=` (the
-  inelastic composition applies to a model output; passing both raises
-  `ValueError`).
+- **`'ztt'` and `'emulator'` sum in $r_{rs}$ space and do *not* sum in $R_{rs}$
+  space**, because the air–water interface is non-linear. Reconstructing the
+  hybrid by adding two `forward()` outputs is wrong by about the size of a
+  model-comparison margin.
+- **`inelastic=None` — the default — is the elastic hybrid bit for bit**, not
+  approximately: the `None` branch returns the elastic result untouched rather
+  than composing terms that evaluate to zero, and a test pins the SHA-256. So
+  adding the inelastic terms disturbed no number the elastic report claims.
 
-`'hybrid'`
-: `rrs_ZTT + Δrrs` — the default, and the model every accuracy number on this
-  site refers to.
-
-Any mode that involves the emulator checks its inputs against the trained
+Any mode that involves the emulator also checks its inputs against the trained
 domain and warns (`DomainWarning`) outside it; `on_out_of_domain='ztt'`
 additionally zeroes the learned correction there, degrading to the analytic
 backbone exactly where the emulator was measured to be unreliable. The warning
 needs concrete values, so it is skipped under `jit` — deliberately, and
 documented on the function rather than silently.
 
-## `inelastic=None` is bit-identical to the elastic model
-
-`forward(..., inelastic=None)` — the default — is the elastic hybrid, byte for
-byte. Not approximately, and not by arithmetic that happens to cancel: the
-`None` branch returns the elastic result object **untouched**, rather than
-composing terms that evaluate to zero and paying a round trip through
-$r_{rs} \rightarrow R_{rs} \rightarrow r_{rs}$ at ULP precision. A test pins the
-SHA-256 of the fixture output. The practical consequence is that adding the
-inelastic terms to the package did not disturb a single number the elastic
-report claims, and the elastic acceptance gate remained valid by construction.
-
-The same holds one level down: `corrections` is never even resolved when
-`inelastic` is `None` or all processes are off, so the elastic path owes nothing
-to the ML stack.
+`corrections` is never even resolved when `inelastic` is `None` or all processes
+are off, so the elastic path owes nothing to the ML stack.
 
 :::{note}
 A third inelastic term, **CDOM fluorescence** ({mod}`robust.rt.cdom_fl`), exists
-in the package as of M5. It is **off by default** (`Inelastic(cdom_fl=None)`),
+in the package. It is **off by default** (`Inelastic(cdom_fl=None)`),
 analytic-only (its $\delta_C$ head is defined but untrained), and **unvalidated**
 — the L23 X4 truth omits CDOM fluorescence, so there is nothing yet to score it
 against. It is therefore not part of the law above. See the package docstring on

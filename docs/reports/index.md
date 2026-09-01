@@ -1,10 +1,14 @@
 # Reports
 
-Two team reports stand behind this site. Every accuracy, speed and gradient
-number quoted anywhere in these pages was measured in one of them, and both are
-reproduced here **in full and verbatim** rather than summarised — the point of a
-Reports section is that a reader can check the claim against the document that
-made it, without leaving the site or trusting a paraphrase.
+Two team reports stand behind this site. They are where the headline accuracy,
+speed and gradient numbers were measured, and both are reproduced here **in full
+and verbatim** rather than summarised — the point of a Reports section is that a
+reader can check a claim against the document that made it, without leaving the
+site or trusting a paraphrase. Numbers that are *not* theirs — a quantity
+re-measured on the committed fixture, say, which is smaller than the release the
+reports scored — are labelled as such wherever a chapter prints one, and several
+chapters say in as many words that a fixture-scale figure must not be quoted as
+a report result.
 
 They are dated, versioned documents, written at the end of the effort they
 describe. They are not tutorials and they are not maintained as the API moves;
