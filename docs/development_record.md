@@ -56,8 +56,8 @@ correction, without disturbing the elastic result.
 Each half of the effort has a design document (what was to be built and why), a
 coding plan (the milestone breakdown the notebooks follow), and an
 implementation record (what was actually built, with the measured numbers). The
-two reports are the site's evidence base; they will also be rendered in full in
-the site's Reports section, which arrives later in this milestone.
+two reports are the site's evidence base, and both are also rendered in full and
+verbatim in the {doc}`Reports <reports/index>` section.
 
 | | Elastic | Inelastic |
 |---|---|---|

@@ -5461,3 +5461,340 @@ attempted.** **No new question for JXP** — the two judgment calls that could h
 been questions (flip `nitpicky`; leave four constants out of `__all__`) are
 answered in this log with the measurement behind each, and neither needed a
 decision only JXP can make. Q1–Q11 are untouched.
+
+### 2026-09-01 (D2 task 6 — the figures script and the Reports section; the two reports render in-site, and `--regenerate` turns out not to need `$OS_COLOR` at all)
+
+Branch **`cdom-rt`**, read not assumed (`git branch --show-current`), at
+`a90166d`. Tree clean entering the turn — the CDOM effort's `robust/` files that
+D2 task 5 left modified have since been committed, so unlike task 4 there was no
+undrafted work to distrust (Q11's rule was ready and not needed).
+
+Four files changed and one added, all under `docs/`:
+
+```
+ M docs/conf.py                       +44 / −22
+ M docs/development_record.md         +2  / −2   (one sentence, now false otherwise)
+ M docs/figures/make_docs_figures.py  +465 / −37 (149 → 577 lines)
+ M docs/index.md                      +21 / −4   (a fifth card, a toctree, one sentence)
+?? docs/reports/index.md              new, 75 lines
+```
+
+`.gitignore` needed **no** change: D1 task 1 had already added both patterns,
+verified rather than assumed —
+
+```
+$ git check-ignore -v docs/_static/fig_architecture.png docs/reports/report_rt_elastic_model.md
+.gitignore:86:docs/_static/fig_*.png       docs/_static/fig_architecture.png
+.gitignore:87:docs/reports/report_rt_*.md  docs/reports/report_rt_elastic_model.md
+```
+
+---
+
+#### `docs/figures/make_docs_figures.py` — copy mode
+
+`DOCS_FIGURES` grows from one name to **seven**, which is every
+`reports/fig_*.png` there is (listed, not recalled: `fig_architecture`,
+`fig_rrms_ladder`, `fig_unseen_zenith` from the elastic report;
+`fig_inelastic_architecture`, `fig_inelastic_rrms_ladder`,
+`fig_inelastic_deltas`, `fig_inelastic_unseen_zenith` from the inelastic one).
+`copy_reports()` joins `copy_figures()`, and `copy_assets()` — the one thing
+`conf.py` calls — is exactly their concatenation.
+
+The rewriter is one narrow regex over Markdown links and images and three cases,
+chosen after enumerating **every** link target in both reports (23 distinct, of
+which one is already absolute):
+
+1. `](fig_*.png)` → `](../_static/fig_*.png)`. The generated page lives in
+   `docs/reports/`, so `../_static/` is where the copies are.
+2. `](report_rt_elastic_model.md)` — the inelastic report's two links to its
+   predecessor (its header's *Predecessor:* line and its §9 document map) —
+   **left exactly as written**. Both reports are now rendered
+   pages in the same directory, so the relative Markdown link already resolves
+   *in-site*, which beats sending a reader to a GitHub 404. Confirmed in the
+   HTML: `<a class="reference internal" href="report_rt_elastic_model.html">`.
+   This is a small, deliberate departure from the task text's "repo-relative
+   links (`…`, `reports/…`) → absolute GitHub URLs", and it is the only one.
+3. Everything else relative — `../design/…`, `../context/…`,
+   `make_report_figures.py` — is normalised against `reports/` into a
+   repo-relative path and turned into an absolute URL on `GITHUB_URL_BASE`.
+   A target ending in `/` (there is one, `../design/validation/`) gets `/tree/`
+   rather than `/blob/`, because GitHub serves directories there.
+
+`copy_reports()` **checks each rewritten path against the checkout and raises**
+if one is missing. These URLs name a git ref, so they cannot be verified at
+build time; the path is the only thing that *can* be, and a report edited to
+point at a file that no longer exists would otherwise ship a silent 404. All 29
+distinct `github.com/ocean-colour/retrieve-or-bust/{blob,tree}/main/…` URLs on
+the finished site (this task's plus the pages' existing `gh:` links) were
+checked against the working tree: **29 OK, 0 missing**. They still 404 on `main`
+today — Q6, accepted, and the reports index says so on the page.
+
+Each copy gets an HTML-comment banner naming `reports/<file>.md` as the source
+and saying the copy is gitignored and rewritten on every build, plus a visible
+`note` admonition telling the *reader* the page is verbatim. The note goes
+**after** the H1 so the page keeps its own title, which it does:
+`<title>A differentiable elastic radiative-transfer forward model for ocean
+color — retrieve-or-bust</title>`.
+
+**Verbatim, proven rather than asserted.** Strip the banner and the note from
+each copy, replace every link target in both files with a placeholder, and diff:
+
+```
+elastic    source 313 lines, stripped copy 313 lines, diff hunks 0
+inelastic  source 432 lines, stripped copy 432 lines, diff hunks 0
+```
+
+So the only differences are the banner, the note, and link targets. No wording,
+number, table or section is touched.
+
+---
+
+#### `--regenerate`, and the prerequisite the task text got wrong
+
+`regenerate_figures()` runs each of `reports/make_report_figures.py` and
+`reports/make_inelastic_report_figures.py` as `sys.executable <path>` —
+**reused, not forked**; not even imported, because both do their work under
+`if __name__ == "__main__":` and both mutate `matplotlib.rcParams` at module
+scope. Non-zero exit raises with the captured stdout and stderr.
+
+The task text says this mode "needs `$OS_COLOR` and L23". **Read against the two
+scripts, it does not**, and I did not write a check for a thing that is not
+needed. Both scripts import `csv`, `pathlib`, `matplotlib`, `numpy` and read
+three committed CSVs under `design/validation/`; neither mentions `$OS_COLOR`,
+`ocpy` or a netCDF anywhere. That is their own stated rule — *"draw from the
+committed validation artefacts, never recompute the science"* (both module
+docstrings). What is true is that regenerating the **artefacts**
+(`design/py/run_validation.py`) needs `$OS_COLOR` and L23; redrawing figures
+from them needs matplotlib. The preflight therefore checks the real
+prerequisites, and its error message says exactly this so the next reader is not
+misled the way the plan was. Both failure paths were run, not reasoned about:
+
+```
+$ /usr/bin/python3 docs/figures/make_docs_figures.py --regenerate
+RuntimeError: --regenerate needs matplotlib, numpy, which
+/Library/Developer/CommandLineTools/usr/bin/python3 cannot import. This mode is
+for a developer machine with the plotting stack (the `ocean14` environment); the
+documentation build environment deliberately has no matplotlib. …
+
+>>> regenerate_figures(repo_root="<an empty directory>")
+RuntimeError: --regenerate reads the committed validation artefacts and these
+are missing from …: design/validation/rrms_per_wavelength.csv,
+design/validation/rrms_per_wavelength_inelastic.csv,
+design/validation/metrics_inelastic.csv. They are written by
+design/py/run_validation.py (which does need $OS_COLOR and the L23 netCDFs); the
+figure scripts only redraw them.
+```
+
+**The mode was also run for real**, in `ocean14`, with the seven committed PNGs
+copied to a scratch directory first and restored byte-identically afterwards
+(`cp -p`, md5 verified before and after; no git command was used to clean up):
+
+```
+regenerating the report figures (developer mode):
+  running: …/reports/make_report_figures.py
+    wrote 3 figures to …/reports
+  running: …/reports/make_inelastic_report_figures.py
+    wrote 4 figures to …/reports
+     copied: …/docs/_static/fig_architecture.png        (× 7)
+```
+
+Worth recording: the redraw is **not byte-reproducible** — all seven PNGs
+differed from the committed ones, so `git status` showed seven modified files
+until the backups went back. That is a property of matplotlib, not a defect, and
+it is a second reason this mode is opt-in: an incidental `--regenerate` would
+dirty seven committed binaries for nothing.
+
+---
+
+#### One `github_url_base`, and which file owns it
+
+**One source of truth, and it moved.** The constant now lives in
+`docs/figures/make_docs_figures.py` (`GITHUB_REPO_URL`, `GITHUB_URL_BASE`, same
+`ROBUST_GITHUB_URL_BASE` override and same `blob/main/` default as D2 task 1
+wrote), and `conf.py` imports it:
+
+```python
+sys.path.insert(0, os.path.abspath("figures"))
+from make_docs_figures import GITHUB_REPO_URL, GITHUB_URL_BASE, copy_assets
+github_repo_url = GITHUB_REPO_URL
+github_url_base = GITHUB_URL_BASE
+```
+
+The direction is forced, not preferred: `conf.py` already imports the figures
+module to call it at import time, so a constant defined in `conf.py` and read by
+the script would be a circular import (and would make the script unrunnable from
+the command line, which is half of what it is for). The reverse works and leaves
+**one definition with two consumers** — the `gh:` MyST URL scheme the
+hand-written pages use, and the report rewriter. D2 task 1's log anticipated
+exactly this choice ("it can import it from `conf.py` or read the same
+environment variable, and either way there is one place to change"); importing
+turned out to be the only one of the two that is genuinely single-sourced, since
+"read the same environment variable" would have duplicated the default string.
+Both files carry a comment saying which owns it and why.
+
+Proven still to work end to end, the same way task 1 proved it: nothing on the
+site says `/blob/main/` except through this constant.
+
+---
+
+#### `docs/reports/index.md`, and the front page
+
+75 lines. It says: two team reports stand behind this site; every accuracy,
+speed and gradient number quoted anywhere on it was measured in one of them;
+both are reproduced **in full and verbatim** so a reader can check a claim
+against the document that made it. Then a table of what each measured —
+
+| | elastic | inelastic |
+|---|---|---|
+| version, date | 1.0, **2026-08-15** | 1.0, **2026-08-27** |
+| truth | L23, elastic scattering only | L23 with all processes on (the "X4" release) |
+| headline | 0.30 % rRMS held out, 2.3× the O25 refit, 24× Gordon | 0.34 % rRMS held out at every zenith over 400–700 nm; elastic-only 16–19 %, 48 % at 685 nm |
+| gradients | ≤ 5 × 10⁻⁹ | ≤ 5.9 × 10⁻⁹ incl. φ_C, 1.59× runtime, `inelastic=None` bit-identical |
+| size | 313 lines, 9 sections, 3 figures | 432 lines, 9 sections, 4 figures |
+
+— every cell read out of the two reports' headers and executive summaries in
+this task, not carried over from the front page. Then the shared §1–§9 structure
+with **§5 named as the section to read first**, pointing at
+`using/limitations`; then a plain account of how the two pages are generated
+(the three things that change, the gitignored outputs, the sources linked with
+`gh:`); then a `note` repeating the `main`-404 caveat the development record
+already carries, because a reader who lands here from the front page has not
+read that page.
+
+`docs/index.md` gains three things: a fifth `Reports` card in the grid, a
+`Reports` toctree caption between *Using it* and *Reference*, and a corrected
+sentence — it said "the Reports section **will** render them in full", which
+stops being true today. `docs/development_record.md` had the same tense problem
+in one sentence ("which arrives later in this milestone") and now links the
+section instead. Both are one-sentence edits to live pages made because leaving
+them would have shipped a false statement, which is the same reason D2 task 1
+edited `quickstart.md`.
+
+All five front-page cards resolve in the built HTML (hrefs extracted and
+stat'd): `installation.html`, `model/overview.html`, `using/data.html`,
+`reports/index.html`, `api.html`.
+
+---
+
+#### Gate
+
+**1. Clean tree, bare `-W` build.** `docs/_build/`, `docs/_static/fig_*.png` and
+`docs/reports/report_rt_*.md` all deleted first, so every generated file had to
+come from the `conf.py` hook:
+
+```
+$ rm -rf docs/_build docs/_static/fig_*.png docs/reports/report_rt_*.md
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0     zero WARNING/ERROR lines on stdout or stderr
+/usr/bin/time -p: real 3.22  user 2.75  sys 0.21
+$ ls docs/_static | wc -l   →  7        $ ls docs/reports  →  index.md + both reports
+```
+
+**41 HTML pages** (28 excluding `_modules/`, up 3: the reports index and the two
+reports). `nitpicky` is on, so the new `{doc}` roles are load-bearing — all six
+of them (three on the reports index, two on the front page, one on the
+development record) resolve, or the build would not have exited 0.
+
+**2. Every figure visible, every link resolving — checked in the HTML, not
+assumed.** The task text is right that `-W` is the wrong instrument here: it
+fails on a *missing* image file at read time, but says nothing about whether the
+`src` a page finally emits points anywhere. So a script walks every built page,
+extracts every `<img src>` and `<a href>`, and resolves the local ones against
+the file's own directory:
+
+```
+pages          : 41
+<img> total    : 11   broken local: 0
+<a> total      : 4670   broken local: 0
+github.com/ocean-colour/retrieve-or-bust hrefs: 123 (29 distinct)
+```
+
+The seven figures land as three on the elastic page and four on the inelastic
+one, each as `../_images/fig_*.png` (Sphinx's own copy of the `_static` file),
+all present:
+
+```
+report_rt_elastic_model.html    fig_architecture, fig_rrms_ladder, fig_unseen_zenith
+report_rt_inelastic_model.html  fig_inelastic_architecture, fig_inelastic_rrms_ladder,
+                                fig_inelastic_deltas, fig_inelastic_unseen_zenith
+```
+
+And the 29 distinct GitHub URLs, stripped back to repo paths and stat'd against
+the checkout: **29 OK, 0 missing** (README, 3 context, 9 design, 1 design tree,
+10 notebooks, 1 proposal, 4 reports).
+
+**3. Idempotent — byte-identical, twice.** From a deleted state, run, hash,
+run again, hash again:
+
+```
+$ python docs/figures/make_docs_figures.py     # 7 copied, 2 written
+$ python docs/figures/make_docs_figures.py     # 7 up-to-date, 2 up-to-date
+MD5 IDENTICAL          (all nine outputs)
+SIZE+MTIME IDENTICAL   (all nine outputs)
+```
+
+The second run rewrites nothing at all: figures skip on matching size+mtime (as
+before), and a report copy skips when its bytes already equal what would be
+written. A build that calls this on every `conf.py` import therefore does not
+churn the tree.
+
+**4. `--regenerate` is not reachable from a build.** Three ways, because the
+static argument alone is the kind that ages badly:
+
+- *Static.* `conf.py` calls `copy_assets()`, which takes no arguments;
+  `copy_assets.__code__.co_names == ('copy_figures', 'copy_reports')`. The
+  string `regenerate` appears in `conf.py` exactly once, in a comment. There is
+  no `subprocess` import anywhere in `conf.py`.
+- *Empirical.* Full clean build with the environment variable removed —
+  `env -u OS_COLOR python -m sphinx -b html -W …` — `build succeeded.`, all
+  seven figures and both reports produced. And the committed sources were
+  untouched by it: md5 **and** mtime of all seven `reports/fig_*.png` identical
+  before and after, so nothing redrew anything.
+- *Environmental.* `docs/requirements.txt` has no matplotlib, by design, so the
+  RTD and CI environments cannot run the plotting scripts even if something
+  tried to.
+
+**5. Health, unchanged by this task** (nothing under `robust/` was touched):
+`pytest -q -ra` → **483 passed, 1 skipped, 2 failed in 68.07 s**, the two being
+`test_elastic_hash_regression_strict` and `test_gate_4_pre_change_pins` — green
+modulo the two machine-anchored strict-hash tests, red before this effort began
+(Q1). `ruff check` and `ruff format --check` clean on both changed Python files;
+CI's lint job runs over `robust/` only, which this task did not touch. (Noted in
+passing, not a finding of mine to fix here: `ruff check docs/` reports 5
+pre-existing issues in `docs/quickstart_nb.ipynb` — four `E402` and one `E731`
+inside notebook cells, from D2 task 1. Out of CI's scope; task 7's call.)
+
+---
+
+#### Deviations, both mine to own
+
+1. **The inelastic report's two links to the elastic report are not rewritten
+   to GitHub.** The task text says repo-relative links become absolute GitHub
+   URLs; these stay relative, because both files are now rendered pages in the
+   same directory and the link resolves in-site. Sending a reader from a page on
+   this site to a `main` 404, when the target is one directory entry away and
+   rendered, would be following the letter of the instruction into a worse site.
+2. **`--regenerate`'s preflight checks matplotlib and three CSVs, not
+   `$OS_COLOR` and L23.** Reasoned above; the short version is that the scripts
+   were read and the stated prerequisite is not one. Writing an `$OS_COLOR`
+   check would have made the mode fail on a machine where it works.
+
+One thing left for task 7, not blocking and not done here: several hand-written
+pages still cite the reports as `gh:reports/report_rt_*.md` (GitHub, 404 until
+the merge) now that both are rendered in-site — `model/conventions.md`,
+`model/baselines.md`, `model/fluorescence.md`, `model/inelastic.md`,
+`using/limitations.md`, `development_record.md`. Whether those become in-site
+`{doc}` links, stay as source-of-record GitHub links, or become both is a
+site-wide consistency decision that belongs in the review pass, not in a
+mechanical edit at the end of this one.
+
+**Stopping at D2 task 6**, per the turn's instruction: the gate is green in all
+five parts and **task 7 (the review pass and wrap-up) was not attempted.** **No
+new question for JXP** — the two judgment calls that could have been questions
+(the in-site sibling link; the wrong prerequisite in the task text) are answered
+in this log with the evidence behind each, and neither needs a decision only JXP
+can make. Q1–Q11 are untouched. Nothing under `robust/`, `design/`, `notebooks/`
+or `reports/` was modified — the seven PNGs `--regenerate` overwrote were
+restored byte-identically from a scratch backup — and no state-changing git
+command was run.

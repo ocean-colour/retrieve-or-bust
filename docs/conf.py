@@ -80,8 +80,8 @@ myst_heading_anchors = 3  # let pages link to each other's subsections
 
 # -- Outbound GitHub links: one constant, one place ---------------------------
 #
-# Several pages (the development record today; the generated report copies at
-# D2 task 6) link out to files that live in the repository but are never
+# Several pages (the development record; the model chapters; the generated
+# report copies) link out to files that live in the repository but are never
 # rendered by the site -- the design docs, the coding plans, the implementation
 # records, and the ten milestone notebooks. Those links have to name a git ref.
 #
@@ -101,10 +101,23 @@ myst_heading_anchors = 3  # let pages link to each other's subsections
 # Hardcoding a branch name here would be worse than the 404: the working
 # agreements forbid treating a branch name as fact, and those URLs would rot at
 # the merge instead of before it.
-github_repo_url = "https://github.com/ocean-colour/retrieve-or-bust"
-github_url_base = os.environ.get(
-    "ROBUST_GITHUB_URL_BASE", f"{github_repo_url}/blob/main/"
+#
+# The constant is DEFINED in docs/figures/make_docs_figures.py and imported
+# here, rather than the other way round, because that module is the other
+# consumer -- it rewrites the two reports' repo-relative links onto the same
+# base -- and this file already imports it (see "Generated assets" at the
+# bottom), so defining the constant here would be a circular import. One
+# definition, two consumers: the `gh:` scheme below and the report rewriter.
+sys.path.insert(0, os.path.abspath("figures"))
+
+from make_docs_figures import (  # noqa: E402
+    GITHUB_REPO_URL,
+    GITHUB_URL_BASE,
+    copy_assets,
 )
+
+github_repo_url = GITHUB_REPO_URL
+github_url_base = GITHUB_URL_BASE
 
 # Pages use it through a MyST URL scheme, so a link is written as its
 # repo-relative path and nothing else:  [text](gh:notebooks/RT/foo.ipynb).
@@ -220,27 +233,36 @@ intersphinx_mapping = {
     "jax": ("https://docs.jax.dev/en/latest/", None),
 }
 
-# -- Generated figures -------------------------------------------------------
+# -- Generated assets --------------------------------------------------------
 #
-# The site's figures are committed once, under ``reports/``. This copies the
-# ones the site renders into ``docs/_static/`` (which is gitignored for
-# ``fig_*.png``), so there is never a second committed copy to drift.
+# The site's figures and its two reports are committed once, under ``reports/``.
+# `copy_assets()` copies the seven figures into ``docs/_static/`` and writes the
+# two reports into ``docs/reports/`` as generated pages (image paths repointed
+# at ``_static``, repo-relative links rewritten onto ``github_url_base``, a
+# generated-file banner prepended). Both destinations are gitignored
+# (``docs/_static/fig_*.png``, ``docs/reports/report_rt_*.md``), so there is
+# never a second committed copy to drift.
 #
 # Called here, at conf.py import time, rather than from a Sphinx event: the
-# copies must exist before the *read* phase, because a document that references
-# a missing image is a warning and CI builds with -W. Doing it here also means
-# Read the Docs and CI produce the copies themselves, from a bare checkout, with
-# no extra build step to remember. It is pure pathlib/shutil (no matplotlib) and
-# idempotent, so paying for it on every build is free.
+# generated files must exist before the *read* phase, because a document that
+# references a missing image -- or a toctree entry with no source file -- is a
+# warning, and CI builds with -W. Doing it here also means Read the Docs and CI
+# produce them themselves, from a bare checkout, with no extra build step to
+# remember. It is pure pathlib/shutil/re (no matplotlib) and idempotent, so
+# paying for it on every build is free.
 #
-# Sphinx evaluates conf.py with the working directory set to the config
-# directory, which is what makes the relative path below correct -- the same
-# assumption the sys.path line at the top of this file already makes.
-sys.path.insert(0, os.path.abspath("figures"))
-
-from make_docs_figures import copy_figures  # noqa: E402
-
-copy_figures()
+# This is COPY MODE, and it is the only mode a build can reach: `copy_assets()`
+# takes no arguments and never spawns anything. The module's `--regenerate`
+# mode, which re-runs the two matplotlib scripts under ``reports/``, exists only
+# on its command line and is deliberately unreachable from here -- the docs
+# environment has no matplotlib at all (see docs/requirements.txt).
+#
+# The module was imported above, next to `github_url_base`, because that
+# constant is defined there; Sphinx evaluates conf.py with the working directory
+# set to the config directory, which is what makes that relative `sys.path`
+# entry correct -- the same assumption the `os.path.abspath("..")` line at the
+# top of this file already makes.
+copy_assets()
 
 # -- HTML output -------------------------------------------------------------
 

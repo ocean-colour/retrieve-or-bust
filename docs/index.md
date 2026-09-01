@@ -104,10 +104,11 @@ wavelengths below 400 nm are outside the supported domain.
 Every number above was measured, and the measurements live in two reports in
 the repository — `reports/report_rt_elastic_model.md` (executive summary and
 §5, limitations) and `reports/report_rt_inelastic_model.md` (executive summary,
-§4, and §5). They are the site's evidence base; the Reports section will render
-them in full, and the scope-and-limitations page will quote their limits
-verbatim rather than paraphrase them. Nothing on this site states a number that
-was not measured.
+§4, and §5). They are the site's evidence base, and the
+{doc}`Reports <reports/index>` section renders both of them in full and
+verbatim; the {doc}`scope-and-limitations <using/limitations>` page quotes their
+limits word for word rather than paraphrasing them. Nothing on this site states
+a number that was not measured.
 
 ## Where to go
 
@@ -136,6 +137,14 @@ chapters that take them one at a time.
 
 The L23 reference data, the validation protocol behind every number on this
 site, and a blunt statement of what the model may not be used to claim.
+:::
+
+:::{grid-item-card} Reports
+:link: reports/index
+:link-type: doc
+
+The two team reports behind every number on this site, reproduced in full: the
+elastic model (2026-08-15) and the inelastic completion (2026-08-27).
 :::
 
 :::{grid-item-card} Reference
@@ -174,6 +183,14 @@ model/overview
 using/data
 using/validation
 using/limitations
+```
+
+```{toctree}
+:caption: Reports
+:maxdepth: 2
+:hidden:
+
+reports/index
 ```
 
 ```{toctree}
