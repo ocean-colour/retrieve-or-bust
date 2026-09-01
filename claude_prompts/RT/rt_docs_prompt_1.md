@@ -6678,3 +6678,113 @@ the transcripts above were all re-measured.
 hostname table knows this Mac and not the tank server, so the elastic strict tier
 is currently dormant everywhere. Q1–Q12 are untouched; Q10 is closed with no
 changes, Q11 is recorded as a working agreement, Q12 is implemented.
+
+### 2026-09-01 (prompt 18 — Q13 answered with option 2; the mechanism traced and confirmed, one paragraph added to `docs/installation.md`)
+
+Branch, read not assumed: **`cdom-rt`**, working tree **clean** at the start of
+the turn (`git status --short` returned nothing — the Q11 rule applied before
+anything else). Q13's answer: *"Ok, go with (2)"* — export
+`ROBUST_HASH_ANCHOR=tank` in the tank server's shell profile, optionally `=mac`
+here, **nothing in the repo changes**.
+
+#### "Nothing in the repo changes" — traced, then measured, not taken on trust
+
+The claim to check was narrow: does exporting `ROBUST_HASH_ANCHOR=tank` in a
+profile on the tank server, with zero code changes here, actually make that
+machine's *elastic* strict tier **run** instead of skip? Read the code first
+(`robust/tests/test_inelastic_types.py`, the Q12 block at lines 76–134):
+`strict_bits_on_anchor("tank")` returns the CI skip if `CI` is non-empty,
+otherwise `skipif("tank" not in this_machines_anchors())`, and
+`this_machines_anchors()` returns the parsed `ROBUST_HASH_ANCHOR` set whenever
+that variable is non-empty — the hostname table is consulted **only** when it is
+unset. So a declared `tank` selects the elastic tier and de-selects the
+inelastic one, independently of `platform.node()`.
+
+Then run it, in `ocean14`, over the three strict tests, in every state the
+answer depends on (`platform.node()` here is `mac.lan`, `CI` and
+`ROBUST_HASH_ANCHOR` both unset in this shell — checked):
+
+```console
+$ pytest -q -ra <the three strict tests>            # unset: hostname table
+1 passed, 2 skipped     inelastic strict runs; both elastic tiers skip ("this one is mac")
+
+$ ROBUST_HASH_ANCHOR=mac pytest -q -ra ...
+1 passed, 2 skipped     byte-identical to the unset case — so exporting `=mac`
+                        here is a no-op today and survives a rename off mac.lan
+
+$ ROBUST_HASH_ANCHOR=tank pytest -q -ra ...
+2 failed, 1 skipped     the two ELASTIC tiers are SELECTED AND EXECUTED;
+                        the inelastic one skips with "anchored to the 'mac' machine"
+
+$ ROBUST_HASH_ANCHOR="  TANK  " pytest -q -ra ...
+2 failed, 1 skipped     identical — `.strip().lower()` normalises case and padding
+
+$ CI=true ROBUST_HASH_ANCHOR=tank pytest -q -ra ...
+3 skipped               the CI branch takes precedence over any declaration
+```
+
+The third line **is** the confirmation, and its two failures are the proof
+rather than a problem: on this Mac the tank pins cannot reproduce (the same
+3 ULP finding as ever — the assertion prints
+`02de5483…` against the pinned `aaa06161…`), so a machine that *claims* `tank`
+and is not the tank server fails, which is exactly the selection working. On the
+tank server, which computed those bytes, the same selection runs the same
+assertion against its own pins. Q13's answer is therefore correct as written:
+**no repo change is needed, and none was made to any test file or to `robust/`.**
+
+Two caveats worth knowing, both measured above, neither requiring a change:
+the variable is read at **collection** time, so it must be in the environment
+of the shell that launches `pytest` (a profile export is precisely that); and
+`CI` set in that environment would override the declaration and skip both tiers.
+
+#### The action itself is JXP's, and was not attempted
+
+Editing a shell profile — on the tank server or on this Mac — is environment
+configuration outside this repository, and outside anything a docs turn should
+do. **No `.zshrc`, `.zprofile`, `.bash_profile` or any other file outside the
+repo was read or written**, on this machine or any other. The one-line action
+that closes Q13 is JXP's: `export ROBUST_HASH_ANCHOR=tank` in the tank server's
+profile, and optionally `export ROBUST_HASH_ANCHOR=mac` here.
+
+#### One documentation paragraph, in `docs/installation.md`
+
+Checked what the site already says before adding anything. `docs/installation.md`
+(the "About those two skips" note), `docs/using/limitations.md` and
+`docs/using/validation.md` all already document the *mechanism* — the variable's
+values, the comma-separated form, `=none`, the hostname fallback, the `CI`
+override — from the prompt-17 turn. The genuine gap was narrower: nothing told a
+reader on an anchor machine **where the declaration should live**, which is the
+whole of option 2's reasoning. So one paragraph was added to the
+`installation.md` note, immediately after the sentence describing the selection,
+and nowhere else (the other two pages would only have repeated it):
+
+> If you work on an anchor machine — one that computed a pin set, or one that
+> re-pins a set in future — export `ROBUST_HASH_ANCHOR` in that machine's
+> **shell profile** rather than per-invocation: the variable is read when the
+> tests are collected, so a profile export is what makes a plain `pytest` there
+> exercise the bitwise guard, and it keeps working if the host is ever renamed
+> out of the table. Do not set it on a machine that did not compute the pins;
+> the strict tier will fail there, correctly.
+
+Both of its factual claims are the measured ones above (collection-time read;
+`=mac` here is a no-op that survives a rename), and its last sentence is the
+`ROBUST_HASH_ANCHOR=tank` run on this Mac.
+
+#### Gate
+
+```console
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0     zero WARNING/ERROR lines on stdout *or* stderr, from a removed _build
+```
+
+The paragraph was also read back out of the rendered
+`docs/_build/html/installation.html` rather than assumed to have landed. No test
+file, no `robust/` source and no `conf.py` was touched, so `pytest` and `ruff`
+are unchanged from the prompt-17 log's transcripts; the only working-tree
+changes this turn are `docs/installation.md` and this document.
+
+**Q13 is closed** — the mechanism is confirmed to need nothing further from the
+repo, the docs now say where the declaration belongs, and the remaining step is
+JXP's profile export on the tank server. No new question: nothing in this turn
+raised one that is real rather than manufactured.

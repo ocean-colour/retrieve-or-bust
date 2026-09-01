@@ -259,6 +259,14 @@ unset, a small hostname table names the anchors we know and every other machine
 anchors nothing. The tiers are also skipped whenever `CI` is set, so GitHub
 Actions is unaffected.
 
+If you work on an anchor machine — one that computed a pin set, or one that
+re-pins a set in future — export `ROBUST_HASH_ANCHOR` in that machine's **shell
+profile** rather than per-invocation: the variable is read when the tests are
+collected, so a profile export is what makes a plain `pytest` there exercise the
+bitwise guard, and it keeps working if the host is ever renamed out of the
+table. Do not set it on a machine that did not compute the pins; the strict tier
+will fail there, correctly.
+
 The *closeness* tiers — `test_elastic_regression_close_everywhere` and its
 inelastic sibling — are the guard that actually detects a changed computation,
 and they run and pass everywhere: measured deviation from the committed
