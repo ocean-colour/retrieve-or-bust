@@ -173,14 +173,23 @@ untrained and unwired ({doc}`../model/corrections`). Nothing in either report's
 Treat it as present and unmeasured. It is under active development, and this
 page will say something different when there is a measurement to report.
 
-## Two tests that fail on this machine
+## Two tests that skip off their anchor machine
 
 For completeness, since a reader who clones the repository will meet them:
 `test_elastic_hash_regression_strict` and `test_gate_4_pre_change_pins` assert
 byte-exact SHA-256 pins on the elastic reference outputs. Those pins were
-anchored on a different machine from the one this documentation was written on,
-and on this Mac the outputs reproduce to 3 ULP (max relative 3.3×10⁻⁷) rather
-than bit-for-bit. The closeness tier that guards against an actual route change,
-`test_elastic_regression_close_everywhere`, passes; the strict tier is skipped
-in CI. So the suite is green **modulo those two machine-anchored strict-hash
-tests**, and this site never describes it as unqualified green.
+anchored on the tank server, not on the Mac this documentation was written on,
+and here the outputs reproduce to 3 ULP (max relative 3.3×10⁻⁷) rather than
+bit-for-bit — float32 arithmetic is not bit-reproducible across CPUs and
+JAX/XLA builds. Since there is a second pin set (the default-inelastic one)
+anchored on a *different* machine again, no single machine can reproduce both.
+
+Each strict tier therefore runs only where it is anchored and **skips with a
+reason** everywhere else — declared by `ROBUST_HASH_ANCHOR=tank|mac`, or by the
+hostname table in `robust/tests/test_inelastic_types.py` when that variable is
+unset; CI skips both regardless. So the suite is **green**, with those two
+skips visible and explained in the `-ra` summary, and the guard against an
+actual route change is the closeness tier
+(`test_elastic_regression_close_everywhere` and its inelastic sibling), which
+runs and passes on every machine. What this site still does not claim is
+bit-identity on a machine that has not demonstrated it.

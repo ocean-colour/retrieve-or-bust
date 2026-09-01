@@ -16,7 +16,10 @@ Three concerns, in order of importance:
   anchored to the machine that pinned it: GitHub's heterogeneous runner fleet
   reproduced the tank bits on some runners and not others *within one CI run*,
   so the strict bitwise tests skip under CI (the M2 bing-xcheck precedent) and
-  are mandatory-green on dev machines. CI instead runs a *closeness*
+  are mandatory-green **on their anchor machine** — since M5 there are two pin
+  sets on two different machines, so each strict tier now also skips where it
+  is not anchored rather than failing there (:func:`strict_bits_on_anchor`,
+  docs prompt 1 Q&A Q12). CI instead runs a *closeness*
   regression against the committed pre-change outputs
   (``files/elastic_reference_outputs.npz``, whose bytes hash to the pins
   below) at ULP-scale tolerance — tight enough to catch any real change to
@@ -51,6 +54,7 @@ import dataclasses
 import hashlib
 import os
 import pathlib
+import platform
 
 import jax
 import jax.numpy as jnp
@@ -69,13 +73,66 @@ ELASTIC_REFERENCE = (
     pathlib.Path(__file__).parent / "files" / "elastic_reference_outputs.npz"
 )
 
-#: Bit-identity is machine-anchored; on CI's heterogeneous runners the strict
-#: tier skips and the closeness tier below carries the regression (Q&A Q2).
-strict_bits_are_local = pytest.mark.skipif(
-    os.environ.get("CI", "") != "",
-    reason="bitwise hash pin is anchored to the dev machine; CI runners "
-    "reproduce it only sometimes — the closeness regression runs instead",
-)
+#: The machine each strict pin set was computed on (see the pin blocks below).
+#: They are deliberately *different* machines, which is why the strict tiers
+#: have to be selected per anchor rather than simply "not CI".
+ELASTIC_PIN_ANCHOR = "tank"
+INELASTIC_PIN_ANCHOR = "mac"
+
+#: Hosts whose anchor identity we can name, so the two anchor machines keep
+#: their bitwise guard without anyone having to remember an environment
+#: variable. Keys are ``platform.node()``, lowercased. Add the tank server's
+#: node name here the first time the suite runs there.
+ANCHOR_HOSTS = {"mac.lan": INELASTIC_PIN_ANCHOR}
+
+#: Environment override, read once: ``ROBUST_HASH_ANCHOR=tank``, ``=mac``, a
+#: comma-separated list (a machine that anchors both), or ``=none`` to disown
+#: every pin set on a machine that :data:`ANCHOR_HOSTS` would otherwise claim.
+
+
+def this_machines_anchors() -> frozenset[str]:
+    """Which strict pin sets this machine is the anchor for.
+
+    ``ROBUST_HASH_ANCHOR`` wins when set; otherwise :data:`ANCHOR_HOSTS` maps
+    the hostname. An unknown machine anchors **nothing**, which is the safe
+    default: a strict tier that cannot be trusted here skips with a reason
+    instead of failing, and the closeness tiers — which pass everywhere — stay
+    the regression guard.
+    """
+    declared = os.environ.get("ROBUST_HASH_ANCHOR", "").strip().lower()
+    if declared:
+        return frozenset(a for a in (p.strip() for p in declared.split(",")) if a)
+    host = platform.node().strip().lower()
+    return frozenset({ANCHOR_HOSTS[host]} if host in ANCHOR_HOSTS else ())
+
+
+def strict_bits_on_anchor(anchor: str):
+    """Skip a strict bitwise tier unless this machine is its anchor.
+
+    Bit-identity is machine-anchored twice over: the elastic pins were
+    computed on the tank server and the inelastic ones on JXP's Mac, so no
+    single machine reproduces both and an unconditional strict tier turns a
+    routine ``pytest`` run permanently red — which is a weaker regression
+    signal than a green suite, not a stronger one (prompt-1 Q&A Q12,
+    option 1). CI skips both tiers for the older reason (Q&A Q2): GitHub's
+    heterogeneous runners reproduced the tank bits on some machines and not
+    others *within one run*.
+    """
+    if os.environ.get("CI", "") != "":
+        return pytest.mark.skipif(
+            True,
+            reason="bitwise hash pins are machine-anchored; CI runners "
+            "reproduce them only sometimes — the closeness tier runs instead",
+        )
+    here = sorted(this_machines_anchors())
+    return pytest.mark.skipif(
+        anchor not in here,
+        reason=f"bitwise hash pins are anchored to the {anchor!r} machine; "
+        f"this one is {'+'.join(here) or 'unanchored'} — set "
+        f"ROBUST_HASH_ANCHOR={anchor} to claim it. The closeness tier carries "
+        "the regression here",
+    )
+
 
 #: SHA-256 of ``np.asarray(out).tobytes()`` for ``forward``/``rrs_forward`` on
 #: the 50-scene fixture (150 samples x 81 bands, float32), computed on the
@@ -108,9 +165,11 @@ INELASTIC_DEFAULT_REFERENCE = (
 #: CDOM branch is unreachable — a no-op by construction — when ``cdom_fl``
 #: stays ``None`` (CDOM design §3). Machine anchoring: pinned on JXP's Mac
 #: (darwin, 2026-08-29) — a *different* machine from the tank server that
-#: anchored the elastic pins above, so on any one machine one strict set may
-#: fail while the other passes; the closeness tiers carry the guard
-#: everywhere (the finding recorded in the M5 prompt doc's task-1 log).
+#: anchored the elastic pins above, so no one machine can reproduce both pin
+#: sets. Each strict tier therefore runs only on its own anchor and skips
+#: elsewhere (:func:`strict_bits_on_anchor`); the closeness tiers carry the
+#: guard everywhere (the finding recorded in the M5 prompt doc's task-1 log,
+#: decided at docs prompt 1 Q&A Q12).
 PRE_CDOM_SHA256_RRS_ABOVE = (
     "0dd365158e3037261ee061777fe51da8fa132d4f0972792ad068b9c73641291a"
 )
@@ -144,14 +203,15 @@ def elastic_outputs(batch):
     )
 
 
-@strict_bits_are_local
+@strict_bits_on_anchor(ELASTIC_PIN_ANCHOR)
 def test_elastic_hash_regression_strict(l23_small_batch):
     """``forward(..., inelastic=None)`` is bit-identical to the pre-change hybrid.
 
     Strict tier: the SHA-256 pins *and* element-wise equality with the
     committed reference (same content — the arrays' bytes hash to the pins;
     the array comparison is here so a failure names positions, not just
-    digests). Skips under CI; mandatory-green on dev machines.
+    digests). Skips under CI and off the tank server that pinned it
+    (``ROBUST_HASH_ANCHOR=tank``); mandatory-green there.
     """
     Rrs, rrs = elastic_outputs(l23_small_batch)
     assert np.asarray(Rrs).dtype == np.float32
@@ -202,7 +262,7 @@ def inelastic_default_outputs(batch):
 
 
 @needs_weights
-@strict_bits_are_local
+@strict_bits_on_anchor(INELASTIC_PIN_ANCHOR)
 def test_inelastic_default_hash_regression_strict(l23_small_inelastic_batch):
     """``forward(..., inelastic=Inelastic())`` is bit-identical to the
     pre-CDOM-wiring shipped inelastic model.
@@ -212,7 +272,8 @@ def test_inelastic_default_hash_regression_strict(l23_small_inelastic_batch):
     ``Rrs_cdom`` composition, so this passing after the wiring proves the new
     branch is unreachable when ``cdom_fl`` stays ``None`` — the default model
     remains provably CDOM-fl-free, keeping the X4-truth 0.34 % gate's claims
-    valid. Skips under CI and without the committed heads (the default
+    valid. Skips under CI, off the Mac that pinned it
+    (``ROBUST_HASH_ANCHOR=mac``), and without the committed heads (the default
     ``corrections=None`` resolves them; absent weights would silently change
     the bytes under comparison).
     """

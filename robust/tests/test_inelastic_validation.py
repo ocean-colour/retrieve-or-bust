@@ -21,8 +21,9 @@ too. The full 350–750 nm number is *reported* by the validation script
 Skips: the full-release lines need ``$OS_COLOR`` (CI skips them); everything
 weight-dependent skips with a regenerate message if the committed heads are
 absent; the bit-identity line's strict tier is machine-anchored and skips
-under CI exactly as ``test_inelastic_types.py``'s does (the two-tier rule,
-record §2.8).
+under CI, and off its anchor machine, exactly as ``test_inelastic_types.py``'s
+does (the two-tier rule, record §2.8; the per-anchor selection, docs prompt 1
+Q&A Q12).
 """
 
 from __future__ import annotations
@@ -205,14 +206,15 @@ def test_gate_4_elastic_bit_identity(l23_small_batch):
     np.testing.assert_array_equal(omitted, all_off_explicit)
 
 
-@hash_pins.strict_bits_are_local
+@hash_pins.strict_bits_on_anchor(hash_pins.ELASTIC_PIN_ANCHOR)
 def test_gate_4_pre_change_pins(l23_small_batch):
     """**§6 line 4, the anchor**: the pre-extension hashes still pin the bytes.
 
     ``test_inelastic_types.py``'s strict tier invoked through the gate file —
     same helper, same pins, no second definition — so the acceptance record
-    names the bit-identity line explicitly. Machine-anchored; CI runs the
-    closeness tier in the standing module instead.
+    names the bit-identity line explicitly. Anchored to the tank server that
+    pinned the elastic hashes (``ROBUST_HASH_ANCHOR=tank``); everywhere else,
+    CI included, the closeness tier in the standing module runs instead.
     """
     Rrs, rrs = hash_pins.elastic_outputs(l23_small_batch)
     assert hash_pins.sha256_of(Rrs) == hash_pins.PRE_CHANGE_SHA256_RRS_ABOVE

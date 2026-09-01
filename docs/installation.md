@@ -206,16 +206,19 @@ Then the test suite. Both runs below come from a single invocation on
 $ pytest -q -ra
 ...
 SKIPPED [1] robust/tests/test_inelastic_corr.py:405: trained weights are committed; the fallback path is gone
-FAILED robust/tests/test_inelastic_types.py::test_elastic_hash_regression_strict
-FAILED robust/tests/test_inelastic_validation.py::test_gate_4_pre_change_pins
-2 failed, 483 passed, 1 skipped in 67.87s (0:01:07)
+SKIPPED [1] robust/tests/test_inelastic_types.py:206: bitwise hash pins are anchored to the 'tank' machine; this one is mac — set ROBUST_HASH_ANCHOR=tank to claim it. The closeness tier carries the regression here
+SKIPPED [1] robust/tests/test_inelastic_validation.py:209: bitwise hash pins are anchored to the 'tank' machine; this one is mac — set ROBUST_HASH_ANCHOR=tank to claim it. The closeness tier carries the regression here
+483 passed, 3 skipped in 64.35s (0:01:04)
 
 $ env -u OS_COLOR pytest -q
 ...
-2 failed, 446 passed, 38 skipped, 1 warning in 60.10s
+446 passed, 40 skipped, 1 warning in 57.09s
 ```
 
-The one standing skip is not a gap in coverage. `test_inelastic_corr.py`'s
+**No failures**: the suite is green, and the two hash skips are the subject of
+the second note below.
+
+The first skip is not a gap in coverage. `test_inelastic_corr.py`'s
 "trained weights are committed; the fallback path is gone" means the *test* has
 nothing to exercise: it checks what happens when the correction weights are
 missing, and in a normal checkout they are not. The fallback itself is very much
@@ -231,29 +234,36 @@ exercised from the committed fixtures either way.
 **Treat the counts as a snapshot, not a contract.** They were measured on a
 development checkout while a second effort was actively adding tests, and the
 passing count moved 451 → 480 → 483 over three weeks. What is stable, and what
-you should actually check against, is the *shape*: the two failures named in the
-output above (`test_elastic_hash_regression_strict` and
-`test_gate_4_pre_change_pins`, explained in the next note), one pre-existing
-skip, and a ~37-test skip delta when `$OS_COLOR` is unset.
+you should actually check against, is the *shape*: zero failures, the two
+machine-anchored hash skips named in the output above (explained in the next
+note), one pre-existing skip, and a ~37-test skip delta when `$OS_COLOR` is
+unset.
 :::
 
 :::{note}
-**About those two failures — they are expected on a machine other than the one
-that anchored the pins, and they are not a broken install.**
+**About those two skips — the strict bitwise hash tiers run only on the machine
+that pinned them.**
 
 Both are the same assertion, a SHA-256 pin on the bytes of the elastic
-`Rrs`/`rrs` output over the committed fixture. The elastic pins were anchored
-on a different machine from the inelastic ones, and float32 arithmetic is not
-bit-reproducible across CPUs and JAX/XLA builds — so on any one machine one
-strict set may fail while the other passes. The *closeness* tiers, which are
-the guard that actually detects a changed computation, pass everywhere:
-measured deviation from the committed reference here is at most **3.0 ULP**
-(max relative 3.33e-07 on `Rrs`, 1.64e-07 on `rrs`).
+`Rrs`/`rrs` output over the committed fixture. There are two such pin sets —
+the elastic one anchored on the tank server, the default-inelastic one on the
+Mac these pages were written on — and float32 arithmetic is not bit-reproducible
+across CPUs and JAX/XLA builds, so no single machine can reproduce both. Each
+strict tier therefore *skips with a reason* off its anchor rather than failing
+there, which keeps a plain `pytest` run a usable green/red smoke test.
 
-The strict tiers are marked `skipif(CI)`, so this is a development-machine
-gate only and GitHub Actions is unaffected. If you see these two and nothing
-else, your install is fine. If you see a *closeness* failure, that is a real
-finding.
+The selection is explicit, in `robust/tests/test_inelastic_types.py`:
+`ROBUST_HASH_ANCHOR=tank` or `=mac` (comma-separate to claim both, `=none` to
+claim neither) declares which pin sets this machine anchors; with the variable
+unset, a small hostname table names the anchors we know and every other machine
+anchors nothing. The tiers are also skipped whenever `CI` is set, so GitHub
+Actions is unaffected.
+
+The *closeness* tiers — `test_elastic_regression_close_everywhere` and its
+inelastic sibling — are the guard that actually detects a changed computation,
+and they run and pass everywhere: measured deviation from the committed
+reference here is at most **3.0 ULP** (max relative 3.33e-07 on `Rrs`, 1.64e-07
+on `rrs`). A *closeness* failure is a real finding; a strict skip is not.
 :::
 
 ## Building this documentation

@@ -296,26 +296,28 @@ imports *and* that every required file is on disk:
 
 ```console
 $ pytest -q -ra
-2 failed, 483 passed, 1 skipped in 67.88s
+483 passed, 3 skipped in 64.35s
 
 $ env -u OS_COLOR pytest -q -ra
-2 failed, 446 passed, 38 skipped, 1 warning in 59.76s
+446 passed, 40 skipped, 1 warning in 56.65s
 ```
 
 Thirty-seven tests convert from passed to skipped — **23** with the reason
 `L23 elastic Hydrolight data not available ($OS_COLOR)` and **14** with its
 `(X=2/X=4)` sibling, tallied from the `-ra` summary.
 
-The two failures — `test_elastic_hash_regression_strict` and
-`test_gate_4_pre_change_pins` — are the same in both runs and are neither data-
-nor docs-related; {doc}`../installation` explains them, and {doc}`validation`
-says what they mean for the acceptance gate.
+Two of the skips in each run — `test_elastic_hash_regression_strict` and
+`test_gate_4_pre_change_pins` — are the same in both and are neither data- nor
+docs-related: they are the strict bitwise hash tiers, which run only on the
+machine whose pins they carry and skip with a reason elsewhere.
+{doc}`../installation` explains the mechanism, and {doc}`validation` says what
+it means for the acceptance gate.
 
 :::{note}
 Treat those counts as a snapshot. They were measured on a checkout under
 concurrent development and climbed from 451 to 483 passing over three weeks. The
-durable facts are the shape: those two named failures, one pre-existing skip, a
-~37-test skip delta.
+durable facts are the shape: no failures, the two machine-anchored hash skips,
+one pre-existing skip, a ~37-test skip delta.
 :::
 
 Training is the one thing that genuinely requires the archive.

@@ -137,6 +137,13 @@ deciding what a page should *not* claim, `code-review` for the D2 review task.
   sanctioned edits: `__version__` (D1) and the missing docstrings (D2). No
   behavior changes; the test suite and the elastic hash-regression stay green.
   Use Opus if you can. Log your work.
+- **An uncommitted working-tree draft with no log entry has no standing**
+  (Q11, answered: option 1). Verify every claim in it — every number, command,
+  signature and pasted output — against running code or a source document
+  before keeping any of it, and **say in the log that you did**. Start every
+  turn from a fresh `git status`, never from what a brief or an old log entry
+  asserts the tree contains: a brief saying "no files were changed" is a claim,
+  and `git status` settles it in one second.
 
 ## Context
 
@@ -575,6 +582,8 @@ sufficient. See **Q7**.
     section. Use Opus. Log your work.
 16. Read this doc. Execute D2's 7th task — the review pass and the wrap-up.
     Use Opus. Log your work.
+17. See my answers to Q10-Q12 and act accordingly.  Use Opus. Log your work.
+18. See my answers to Q13 and act accordingly.  Use Opus. Log your work.
 
 **No "modify the next prompt doc" turn.** The coding effort needed one because
 its five milestones lived in five files, each having to hand state to the
@@ -1497,10 +1506,13 @@ committing it. The durable fix is yours and is a merge, not an edit: once
 `cdom-rt` lands on `main`, `latest` builds and every link in the repo becomes
 correct at once. Do you want it left as is?
 
+
 Question from Claude (2026-08-31, model: Opus), raised at D2 task 4. It did not
 block the task — the gate ran and passed in full — but it is about a working
 practice that nearly cost the site three wrong numbers, and the answer changes
 what I do at the start of a turn.
+
+>A. Leave it as is.
 
 **Q11 (D2 task 4's two pages were already written when the turn started, with no
 log entry, and the turn's brief said no files had been changed).** The brief for
@@ -1559,6 +1571,8 @@ task in this document. It did not block the task — the gate ran and passed in
 full, with Q1's wording — but it is the one thing the review pass turned up that
 is genuinely yours to decide, and there is no later task to defer it to.
 
+>A. Ok, use (1)
+
 **Q12 (There is now no machine on which `pytest` can be fully green, and the
 docs say so on three pages).** Q1 settled the *wording*: the suite is green
 "modulo the two machine-anchored strict-hash tests", never unqualified. What has
@@ -1605,6 +1619,40 @@ one-paragraph edit (`docs/installation.md`'s two notes, `docs/using/data.md`'s
 snapshot note, `docs/using/limitations.md`'s closing section) and I would do
 those in the same turn. If you would rather leave it, nothing on the site is
 wrong today and this question can simply be closed.
+
+>A. Ok, use (1)
+
+Question from Claude (2026-09-01, model: Opus), raised at prompt 17 while
+implementing Q12's option 1. It did not block the turn — the suite is green here
+and CI is unaffected — but the fix leaves one machine's guard dormant until you
+say a word only you know.
+
+**Q13 (Q12's anchor mechanism knows this Mac by hostname; it does not know the
+tank server's).** `strict_bits_on_anchor` resolves the anchor from
+`ROBUST_HASH_ANCHOR` first and, when that is unset, from a small hostname table
+in `robust/tests/test_inelastic_types.py`. The table has exactly one entry today,
+`{"mac.lan": "mac"}` — measured, `platform.node()` on this machine — because
+that is the only anchor hostname I can verify from here. The consequence: on this
+Mac a bare `pytest` still runs the inelastic strict tier (it passes), but on the
+tank server the *elastic* strict tier now skips unless someone sets
+`ROBUST_HASH_ANCHOR=tank` there. That is safe — the closeness tiers carry the
+regression everywhere — but it is a guard that is currently switched off rather
+than merely quiet, and I would rather you chose how it comes back on:
+
+1. **Tell me the tank server's `platform.node()`** and I add it to the table, so
+   both anchors work with no environment set anywhere.
+2. **Export `ROBUST_HASH_ANCHOR=tank` in the tank server's shell profile** (and,
+   if you like, `=mac` here, which also survives the Mac being renamed off
+   `mac.lan`). Nothing in the repo changes.
+3. **Leave it**: the elastic bitwise pin is exercised only when someone
+   deliberately asks for it. Honest, and the weakest of the three.
+
+My recommendation: **(2)**, with (1) as a free extra if the tank hostname is
+stable — an environment variable in a profile is the explicit declaration the
+mechanism was designed around, and the hostname table is only a convenience for
+machines we can name.
+
+>A. Ok, go with (2)
 
 ## Next
 
@@ -5933,3 +5981,700 @@ can make. Q1–Q11 are untouched. Nothing under `robust/`, `design/`, `notebooks
 or `reports/` was modified — the seven PNGs `--regenerate` overwrote were
 restored byte-identically from a scratch backup — and no state-changing git
 command was run.
+
+### 2026-09-01 (D2 task 7 — the review pass and the wrap-up; the effort closes, with one physics error caught in the prose and a factor-of-two the two reports never reconciled)
+
+Branch **`cdom-rt`**, read not assumed, at `06d490b`, tree clean entering the
+turn. **Twenty-one files changed, all of them docs-side** — `docs/` ×18,
+`.readthedocs.yaml`, `.github/workflows/ci.yml`, and this document. **Nothing
+under `robust/`, `design/`, `notebooks/` or `reports/` was touched**, and no
+state-changing git command was run. Two review findings *are* `robust/` findings
+and are written up for JXP rather than fixed, per the ground rules.
+
+---
+
+#### Part A1 — the `code-review` skill, at high effort, over the full branch diff
+
+Scope: `834466f~1..HEAD` (the commit before `docs/conf.py` first landed) limited
+to `docs/ README.md .readthedocs.yaml .github/workflows/ci.yml setup.py robust/`
+— 64 files, +15,307/−161. The review re-ran the suite, rebuilt the docs the way
+CI does, **executed every `python` fenced block in `docs/**.md` and diffed the
+captured stdout against the adjacent `text` blocks** (`quickstart.md` reproduces
+line for line), checked the CDOM prose numbers against the code, and exercised
+the new API paths. It called the diff unusually clean and returned **three**
+findings.
+
+**Finding 1 — `.readthedocs.yaml` `pip install .` is not light, and two comments
+say it is. FIXED (the comments), DECLINED (the behaviour).** `setup.py`'s
+`install_requires` lists matplotlib, seaborn, bokeh, scikit-learn, xarray,
+h5netcdf, pandas, scipy, emcee, corner, IPython and pytest — none of which any
+page needs — so RTD resolves all of them. Two written claims were false:
+`.readthedocs.yaml`'s *"setup.py's install_requires deliberately omits the JAX
+stack, so this stays light"* (it omits JAX; it is not light) and `conf.py`'s
+*"the docs environment has no matplotlib at all"* (true in CI, **false on RTD**).
+Both rewritten to say what is actually true, and `ci.yml` gained a comment naming
+the real consequence: CI installs `-e . --no-deps`, so **the docs job cannot
+catch a dependency-resolution failure that would break RTD** — the one thing the
+job's own header says it exists to prevent. The behaviour is unchanged and that
+is a deliberate decline: RTD has built green seven times, and swapping either
+side at a wrap-up task risks a working publication path to close a theoretical
+gap. `conf.py`'s `--regenerate`-unreachability argument survives intact, because
+it was always structural (`copy_assets()` takes no arguments and never spawns)
+and only its *environmental* third leg was wrong.
+
+**Findings 2 and 3 — both in `robust/`, both DECLINED and recorded for JXP.**
+(i) `Inelastic.cdom_fl` was retyped from the pre-M5 scalar hook to
+`CDOMFl | None`, but the type check lives in `Inelastic.validate()`, which
+`forward()` never calls; `forward()` gained an `a_cdom` guard and no type guard,
+so pre-M5 code passing a bare float now dies at
+`jnp.asarray(inelastic.cdom_fl.scale)` with `AttributeError` and the carefully
+written migration `ValueError` — *"A bare scalar was the pre-M5 reserved-hook
+signature"* — is unreachable from the only entry point users call. (ii)
+`data.l23.inelastic_npz_reader` reads `sibling[f"ag_{zenith}"]` with no presence
+check while every neighbouring field is either cross-checked or guarded with a
+named error, so a pre-M5 fixture fails as `KeyError: 'ag_0'`. Both are behaviour
+questions in the package, both are in the concurrent CDOM effort's territory, and
+this effort's sanctioned `robust/` edits were `__version__` and the docstrings.
+Written into **"## Next"** so they are not lost.
+
+The review also noted, without filing it, that M5 added a *second* strict pin set
+anchored to a different machine from the elastic one — see **Q12** below, which
+is the one new question this turn raises.
+
+---
+
+#### Part A2 — the site proofread, and the conflation sweep
+
+Built fresh, then walked as a reader: every toctree entry followed, the front
+page read cold, and every rendered page's prose read in full.
+
+**The conflation sweep is the headline, and it is clean.** Grepped rather than
+skimmed: every occurrence of "retrieve-or-bust" in every source page and in the
+rendered text of all 28 HTML pages, plus the wider patterns ("this project",
+"the package", "this package is a forward model"). **No sentence anywhere makes
+retrieve-or-bust and the forward model the same thing.** The front page meets a
+newcomer with the project first (`index.md` §Overview), then "This site: the
+first major contribution", then §"What exists, and what does not" — *"the
+retrieval itself … is a separate component of retrieve-or-bust and does not exist
+yet"* — and only then, in the same breath, the accuracy numbers. The ordering the
+task asks for holds.
+
+Three residual *sloppy possessives* were found and fixed, none of them the old
+conflation but each blurring the same boundary: `model/baselines.md` "every
+accuracy claim in **this project** is relative" → "every accuracy claim **this
+model** makes"; `model/corrections.md` "the lesson **the whole project's** metric
+is built on" → "the same lesson **this model's own** metric is built on"; and
+`reports/index.md`'s opening, which claimed *"every accuracy, speed and gradient
+number quoted anywhere in these pages was measured in one of them"* — false, and
+contradicted on ~8 pages that say in as many words that a fixture-scale figure is
+**not** the report's number. Rewritten to say what is true and to point at the
+labelling convention the chapters actually use.
+
+**The one real error the proofread caught, and it is physics.**
+`model/ztt.md` wrote Snell's law **upside down**:
+
+```
+was:   θ_s' = arcsin(1.34 sin θ_s)          <- no solution at θ_s = 60°
+is:    θ_s  = arcsin( sin θ_s' / 1.34 )
+```
+
+Checked against the source rather than reasoned about:
+`ztt.in_water_zenith(theta_s_air_deg)` computes
+`arcsin(sin(θ) / REFRACTIVE_INDEX)`, and the page's *own* measured block three
+paragraphs later prints `theta_s (in water) = 40.2623` / `theta_s' (in air) =
+60.0000`, i.e. primed = air, unprimed = water — the opposite of what the sentence
+above it implied. The page now names the convention explicitly, gives the
+equation the right way up, and says out loud that `arcsin(1.34 sin 60°)` has no
+solution, because that is the check a reader can do in their head.
+
+**Two whole sections were near-verbatim duplicates.** `model/overview.md`'s "The
+three modes" and "`inelastic=None` is bit-identical" repeated
+`model/forward.md`'s versions almost word for word, and the toctree puts them
+four pages apart. The overview's copies are now a short summary of the two
+guarantees pointing at the chapter, which is what an overview is for; the
+chapter, which carries the measured evidence, is untouched.
+
+**Internal-process leakage, five places, all removed:** `api.rst` said the CDOM
+module was *"not part of the eleven this page was originally specified to cover"*
+and *"See Q&A Q5"* (both invisible to a reader; replaced by a sentence saying it
+is the unvalidated one and linking the limitations page), and cited *"(DocQ2)"*;
+`api.rst` also linked a discussion of module `__all__` **members** to
+`member_policy` — *"see :doc:`member_policy` for the team's governance"* — which
+lands a reader on a voting policy; `using/limitations.md` referred a reader to
+*"the task log"*; `using/data.md` said counts had climbed *"across this effort's
+turns"*; `using/validation.md` cited
+`claude_prompts/RT/rt_inelastic_coding_prompt_5.md, Q&A Q1` by filename (the
+decision is real and is kept — attributed to the principal investigator and to
+the development record — the unpublished filename is gone); and
+`model/overview.md` dated the CDOM module *"as of M5"*, a milestone label that
+appears nowhere else on the site.
+
+**Numeric contradictions between pages — the substantive one is a factor of
+two.** `model/baselines.md` quoted the elastic hybrid at **~17 ms** (elastic
+report §4) and `using/validation.md` at **33.52 ms** (inelastic report §4). Same
+model, same 9,960 × 81 batch, same "jitted, CPU". I checked the reports rather
+than assuming a transcription slip, and **the two reports genuinely disagree** —
+`report_rt_elastic_model.md:181` and `report_rt_inelastic_model.md:266`, twelve
+days apart. Neither is wrong and no reconciling run exists. Both pages now carry
+the discrepancy explicitly, with the resolution that each report *does* control
+for: the **ratios** (4.5–6× the backbone; 1.59× elastic → inelastic) were
+measured in one session and are the durable numbers; the milliseconds are
+order-of-magnitude. Note this is also why the verbatim `limitations.md` quote
+"~5× the cost of its analytic backbone" is consistent with 17 ms and not with
+33.5 ms — the quote is left verbatim, as it must be.
+
+Six smaller ones, each verified before it was touched:
+
+| where | was | is | how checked |
+|---|---|---|---|
+| `using/validation.md` | "$R_{rs}$ spans **more than a decade**" | "~3.6 decades", labelled $r_{rs}$ | measured on the fixture: `rrs` 1.52e-5..2.65e-2 (3.24 dec), `Rrs` 7.88e-6..1.44e-2 (3.26 dec) |
+| `model/emulator.md` | "**four** decades" | "~3.6 decades" | same measurement; the page's own "~4000×" implies 3.6 |
+| `model/conventions.md` | pole is "roughly **ten times** the brightest real ocean $r_{rs}$" | "more than **twenty times**" | 0.5882 / 2.65e-2 = 22× |
+| `model/ed.md` | "a factor of **~3.6** across the band" | "3.6–3.8" | the table directly above reads ×3.55 / ×3.61 / ×3.82 |
+| `model/inelastic.md` | Raman factor "1.0076–2.5 **on the full L23 release**" | the **0° file's** range, with the 60° minimum | `using/data.md` had already measured and corrected this; the two pages now agree |
+| `using/validation.md` | "`'double'` −8.5 % at 685 nm … −23.6 %" as one quantity | −8.5 % is **median total $R_{rs}$**, −23.6 % is the **fluorescence term** | `design/validation/metrics_inelastic.md:77` says exactly that; the site had dropped the qualifier |
+
+The "analytic inelastic **2–4 %**" phrase on three pages is the *report's own*
+wording while the report's own table reads 4.29 / 1.94 / 2.18. Rather than
+contradict a quoted phrase, all three pages now carry the exact figures beside
+it.
+
+**Test-count drift, fixed by re-measuring rather than by hand-waving.**
+`installation.md` said 480 passed / 445 passed-36 skipped from 2026-08-30 while
+`using/data.md` said 483 / 446-38. Both runs were re-executed today in `ocean14`
+and `installation.md` updated to the fresh pair (**483 / 446-38**, matching
+`data.md` exactly), the "climbed by six" sentence — which matched neither step —
+replaced by the real trajectory, the dangling "the two failures named **below**"
+(they are named *above*) fixed, and the page's dateline corrected so the install
+transcripts (08-30) and the test runs (09-01) are each dated honestly.
+
+**One more reader trap closed:** the standing skip line reads *"trained weights
+are committed; the fallback path is gone"*, which reads as contradicting
+`model/corrections.md`'s insistence that the fallback is alive and is a warning
+rather than an error. Read the test: it skips because in a normal checkout there
+are no missing weights **to test**. `installation.md` now says so in two
+sentences.
+
+**Attribution, six numbers.** The review flagged eleven measured figures as
+carrying no source. Traced each: **nine of them come from a `robust/` module
+docstring or `design/rt_elastic_implementation.md`**, both of which the pages'
+own *Sources* blocks already name (`baselines.py:22` for the median 5.1 % zenith
+fall; `ztt.py:407,429–430,667` for 1570 / 0.137 / 0.156 / 0.148 / 0.31;
+`emulator.py:559` for the ~12×), so those are attributed and were left. Two were
+not, and both are now cited on the page: `rrms`'s 6–14 % non-linearity departure
+(`validation.py:207`) and the ±5 % single-trial speed wander
+(`rt_inelastic_implementation.md` §7). The 6–14 % turned up a **discrepancy worth
+JXP's eye**: the same calculation on the committed fixture gives **0–4.7 %**,
+because the fixture's brightest $r_{rs}$ is 2.65×10⁻². The page now prints both
+and says why they differ; the docstring is a `robust/` question, in "## Next".
+
+The eleventh, `using/validation.md`'s "standard Gordon … 2.5 % at 400 nm rising
+to 9.0 % at 700 nm", turned out to be from a **different dataset** than the
+site's own ladder: `validation.py:226` cites `context/RT/fig_rrms_ladder.csv`
+(the pre-existing synthesis), while `design/validation/rrms_per_wavelength.csv`
+— the file `model/ztt.md`'s table is drawn from — gives **3.38 % → 10.91 %** for
+the same model. Read side by side those look like a contradiction. Both are now
+on the page, each with its source, and the sentence says the shape is the point.
+
+**Declined, with reasons** (all repeated in "## Next"): the RTD/CI dependency
+divergence, the two `robust/` robustness findings, `ruff check docs/`'s five
+notebook-only findings, and `member_policy.md`'s "Retreive" typo — one word, in
+JXP's governance document, which every task in this effort has left byte-untouched
+on purpose. Also declined: two un-wrapped source lines flagged as style (invisible
+in the rendered page), and the 67.87 s vs 67.88 s wall-clock difference between
+two genuinely separate verbatim runs whose counts happen to coincide.
+
+---
+
+#### Part A3 — the six `gh:reports/` citations were **forty**, across twelve pages
+
+D2 task 6's log named six pages. Grepped rather than trusted: **40 citations in
+12 hand-written pages** —
+
+```
+development_record 2 | model/baselines 5 | model/conventions 2 | model/corrections 4
+model/emulator 3 | model/fluorescence 5 | model/forward 1 | model/inelastic 4
+model/ztt 4 | using/data 2 | using/limitations 5 | using/validation 3
+```
+
+— all rewritten from `gh:reports/report_rt_*.md` (GitHub, 404 until the merge) to
+relative in-site links (`../reports/…`, or `reports/…` from the root), matching
+the pattern D2 task 6 used for the inelastic report's two links to its
+predecessor. **The two on `docs/reports/index.md` are deliberately left as
+GitHub links**: that sentence is the "the sources are …" line in the paragraph
+explaining how the generated copies are made, where the *source file* is exactly
+what is meant.
+
+This needed proving, not assuming, because `suppress_warnings =
+["myst.xref_missing"]` means a broken relative Markdown link is **silent** — the
+one class of breakage `-W` cannot catch here. Verified in the built HTML: all 40
+render as `class="reference internal"` pointing at
+`../reports/report_rt_*.html`. The only non-internal `report_rt_*` hrefs left in
+the whole site are prev/next navigation, the two on the reports index, and the
+one in each generated page's own banner.
+
+---
+
+#### Part A4 — the PR check
+
+`gh` is **not authenticated** in this environment (`gh auth status`: *"You are
+not logged into any GitHub hosts"*), so `gh pr list --head cdom-rt` returns the
+login prompt. Rather than stop there I queried the public REST API, which needs
+no auth for a public repo:
+
+```
+GET /repos/ocean-colour/retrieve-or-bust/pulls?state=all  ->  18 PRs
+  #19..#14  inelastic-rt -> inelastic-rt-staging / RT   (all closed)
+  #13  OPEN   RT -> main         "Elastic RT"       updated 2026-08-29
+  #12..#1                                            (all closed)
+```
+
+**There is no PR with head `cdom-rt`**, open or closed — so the M0/M3 pattern
+(PR + `@cursor review`, PR #14 and #18) has not been started for this branch and
+there are no Bugbot comments to address. The only open PR, #13, is `RT → main`
+and predates this lineage. Nothing in Q&A points at PR feedback. Recorded and
+moved on, as instructed.
+
+---
+
+#### Part B — the gate, every part, run today
+
+**1. `-W` build, from a genuinely clean tree.** `docs/_build/`,
+`docs/_static/fig_*.png` and `docs/reports/report_rt_*.md` all deleted first, so
+every generated file had to come from the `conf.py` hook:
+
+```
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.
+EXIT=0     zero WARNING/ERROR lines on stdout or stderr
+/usr/bin/time -p: real 3.12  user 2.69  sys 0.19
+```
+
+**41 HTML pages** (28 excluding `_modules/`, from 24 Sphinx documents). Whole-effort
+trajectory, each measured at its own task: 1.38 s (D1 t1, 7 pages) → 2.63 s
+(D1 t7, 23 pages) → 3.22 s (D2 t6, 41 pages) → **3.12 s** today.
+
+**Site integrity, re-walked after every edit:** 11 `<img>`, **0 broken**; 4,132
+`<a href>`, **0 broken local**; 29 distinct
+`github.com/ocean-colour/retrieve-or-bust/{blob,tree}/main/…` URLs, all 29
+naming a path that exists in the checkout, **0 missing**. And the `__all__`
+coverage gap D1 task 5 measured at **23 of 198** is **closed**: importing all
+twelve modules and checking every `__all__` name against the `id=` anchors in
+`api.html` gives **198 names, 0 missing**. The "Status entering D2" section has
+been marked superseded on that point.
+
+**A finding of my own the review did not catch, and it was on the live site.**
+Autodoc renders module-level data by `repr`, and three constants are
+`Path(__file__).parent / "files" / ...`, so the **build machine's checkout
+directory** was printed into the API page. Confirmed on the published site, not
+just locally:
+
+```
+local :  PosixPath('/Users/xavier/Oceanography/python/retrieve-or-bust/robust/rt/files/emulator_l23.npz')
+live  :  PosixPath('/home/docs/checkouts/readthedocs.org/user_builds/retrieve-or-bust/checkouts/cdom-rt/robust/rt/files/emulator_l23.npz')
+```
+
+Fixed docs-side, without touching `robust/` and without a `conf.py` hook: the
+three names are `:exclude-members:`-ed from their `automodule` and re-rendered as
+explicit `autodata … :no-value:` blocks, with a comment saying why. Their
+docstrings still render, all 198 `__all__` names still reach the page, the build
+is still warning-free, and `grep -c /Users/xavier docs/_build/html/api.html` is
+now **0**. A module-wide `:no-value:` was considered and rejected — it would have
+hidden `FEATURES`, `LINEAR_CONFIG`, `KINDS` and the rest, which are worth seeing.
+
+**2. `pytest -q -ra`** → **`2 failed, 483 passed, 1 skipped in 67.87s`**. Per
+Q1's standing rule this is **green modulo the two machine-anchored strict-hash
+tests** — `test_elastic_hash_regression_strict` and
+`test_gate_4_pre_change_pins`, the same `sha256_of(Rrs)` assertion, red before
+this effort began — and never an unqualified green. Re-measured against
+`elastic_reference_outputs.npz` today: unchanged from tasks 2, 4 and 7. Without
+`$OS_COLOR`: `2 failed, 446 passed, 38 skipped`. See **Q12**.
+
+**3. ruff.** `ruff check robust/` → `All checks passed!`;
+`ruff format --check robust/` → `35 files already formatted`. The two docs
+Python files are also clean on both.
+
+**4. CI's three jobs, rehearsed locally step by step rather than trusted.** Three
+throwaway venvs from the same 3.12.14 interpreter D1 task 2 used, each running
+its job's steps verbatim, in order:
+
+```
+JOB lint  (ruff==0.16.0 in a clean venv)
+  ruff check robust/          All checks passed!            EXIT=0
+  ruff format --check robust/ 35 files already formatted    EXIT=0
+
+JOB docs  (pip install -r docs/requirements.txt; pip install -e . --no-deps)
+  104 packages resolved; sphinx 9.1.0, jax 0.11.1, numpy 2.5.2
+  python -m sphinx -b html -W --keep-going docs <tmp>
+  build succeeded.   EXIT=0   grep -cE 'WARNING|ERROR' -> 0   real 10.79
+  (no matplotlib in this environment, confirming the CI-vs-RTD gap above)
+
+JOB test  (pip install jax flax optax jaxtyping numpy scipy xarray pytest;
+           pip install --no-deps git+ocpy; pip install -e . --no-deps)
+  jax 0.11.1 cpu [CpuDevice(id=0)]
+  env -u OS_COLOR CI=true pytest -q -ra
+  434 passed, 50 skipped, 1 warning in 42.23s        <- 0 FAILED
+```
+
+The `CI=true` is the point and is easy to miss: without it the same venv gives
+`2 failed, 435 passed, 47 skipped`, because the strict hash tiers are
+`skipif(CI)`. **With the environment GitHub Actions actually provides, the test
+job is green.** The py3.14 matrix leg was rehearsed in `ocean14` (Python 3.14.6,
+the closest thing to it on this machine) under the same conditions:
+**445 passed, 41 skipped, 0 failed**. So all three jobs should be green on push,
+and that is now a measurement rather than a reading of the YAML.
+
+**5. Live RTD vs local.** The live build is from **`06d490b`, i.e. this branch's
+`HEAD`** — `builds/` shows **8 builds, 7 successful, all `cdom-rt`**, the most
+recent 2026-09-01T08:48Z. Compared structurally and then by content:
+
+```
+live docnames  24        local docnames  24        symmetric difference: none
+live objects.inv 338     local 338                 symmetric difference: none
+
+text-diff of five pages, live vs local build of the same commit:
+  index.html                          257 lines, 0 differing
+  model/overview.html                 441 lines, 0 differing
+  using/limitations.html              355 lines, 0 differing
+  reports/report_rt_inelastic_model   938 lines, 0 differing
+  quickstart_nb.html                 1457 lines, 0 differing
+```
+
+**The published site and the local build of the same commit are identical.** I
+then re-diffed the three pages this task edited and got back exactly my own
+edits and nothing else, which is the useful direction of that check. The
+canonical root and `/en/latest/` still return **404** — `latest` tracks
+`default_branch: main`, which has no `.readthedocs.yaml`; `/en/cdom-rt/` returns
+200. That is Q10, unchanged, and it is a merge, not an edit.
+
+**6. Every review finding resolved or declined in writing** — above, and in
+"## Next".
+
+---
+
+#### The page and line inventory, against DocQ9's estimate
+
+| | count | lines |
+|---|---|---|
+| Tracked source pages under `docs/` | **22** (21 `.md`/`.rst` + 1 `.ipynb`) | **5,180** (4,751 without the notebook's JSON) |
+| Generated report pages (gitignored, derived) | 2 | 773 |
+| Sphinx documents built | **24** | — |
+| HTML pages rendered | **28** (+13 `_modules/` = 41) | — |
+| Machinery (`conf.py` 295, `make_docs_figures.py` 577, `requirements.txt` 33, `Makefile` 31) | 4 | 936 |
+| Root `.readthedocs.yaml` | 1 | 47 |
+| **Total authored by this effort** | | **6,163** |
+
+DocQ9 sized it at **~15 pages, ~2,000–2,500 lines**. The real figures are
+**24 documents and 5,180 lines of pages** — 1.6× the page estimate and **2.1–2.6×
+the line estimate**, or **2.5–3.1×** counting the machinery. The estimate was not
+wrong about the shape, only the depth: nine model chapters averaging 250 lines
+apiece and a 440-line validation page are where the overrun lives, and both are
+consequences of the "every number traces to a measurement, cited on the page"
+rule rather than of scope creep. No page describes anything unbuilt.
+
+---
+
+#### The note to JXP on the branch state
+
+**The docs site is complete relative to this document's D1 + D2 scope.** All
+fourteen tasks are done and gated; there is no deferred task left, and this turn
+deliberately closed the things earlier turns were right to defer. The site is
+live at `https://retrieve-or-bust.readthedocs.io/en/cdom-rt/` and the published
+pages are byte-for-byte what this checkout builds.
+
+**Ready, needing nothing from you:** the 21 changed files are committable as they
+stand. `-W` clean, three CI jobs rehearsed green, live-vs-local identical.
+
+**Needs a decision from you**, in the order I would take them:
+
+1. **Q12** — the two machine-anchored strict-hash tiers, now on two different
+   machines, mean no dev machine can be fully green. My recommendation is to make
+   both tiers skip off their anchor rather than fail; it is a `robust/tests/`
+   change, not a docs one, and if you take it three pages need a one-paragraph
+   edit that I would do in the same turn.
+2. **The two `robust/` robustness findings** (the missing `cdom_fl` type guard in
+   `forward()`; the unguarded `ag_{zenith}` read) — CDOM-effort territory,
+   written up in "## Next" with reproductions.
+3. **Q10 and Q11**, still unanswered, neither blocking.
+4. **The merge.** It is the single action that turns 29 outbound links and the
+   canonical URL from 404 to correct, in one move.
+
+**Not done, and deliberately so:** anything under `robust/`. The one-word
+`member_policy.md` typo is yours to make or to leave.
+
+On whether this effort is "done" in the sense the coding effort's prompt docs
+concluded: **the sibling `rt_inelastic_prompts.md` ended with a separate Report
+phase, and this document has no equivalent and needs none** — its deliverable
+*is* a published document set, and the two reports it renders are the reports.
+So D1 + D2 close here. If a paper-facing report site is ever wanted (PAB's
+`report_site/` pattern), that is a new prompt doc, and "## Next" says why it is
+not needed for v1.
+
+**Final tree state.** 21 files modified, **0 under `robust/`**:
+
+```
+ M .github/workflows/ci.yml
+ M .readthedocs.yaml
+ M claude_prompts/RT/rt_docs_prompt_1.md
+ M docs/api.rst
+ M docs/conf.py
+ M docs/development_record.md
+ M docs/installation.md
+ M docs/model/{baselines,conventions,corrections,ed,emulator,fluorescence,
+                forward,inelastic,overview,ztt}.md          (10 files)
+ M docs/reports/index.md
+ M docs/using/{data,limitations,validation}.md               (3 files)
+```
+
+`docs/index.md` needed no change: its scope statement was already the one the
+task asks a newcomer to meet, in the right order.
+
+**Postscript — JXP committed mid-task again**, the same pattern as tasks 2 and 3.
+By the end of the turn `git status` showed only this document modified; `git log`
+explains it: `0002b3e "changes galore"` swept up all twenty of the docs-side
+edits above. Verified byte-for-byte rather than assumed — `git show HEAD:` finds
+the corrected Snell equation in `model/ztt.md`, the four `:no-value:` blocks in
+`api.rst`, the "it is NOT light" comment in `.readthedocs.yaml`, the 17 ms/33.5 ms
+warning in `model/baselines.md`, and exactly **2** remaining `gh:reports/` links
+in the whole of `docs/`, both the deliberate ones on the reports index. Nothing
+was lost, and the strict build is green against the committed tree.
+
+**One new question for JXP: Q12**, in the D2 `### Q&A` section above. Q1–Q11 are
+untouched. This is the last task in this prompt document's scope.
+
+### 2026-09-01 (prompt 17 — Q10–Q12 acted on; the strict hash tiers become per-anchor skips, and `pytest` is green here for the first time)
+
+Three answers, one of which is a code change. Branch, read not assumed:
+**`cdom-rt`**. The turn opened with a fresh `git status` (the Q11 rule applied to
+itself): only this document was modified — no pre-written draft this time, and
+nothing of the concurrent CDOM effort's in `robust/` or `design/`.
+
+#### Q10 — closed, no changes
+
+The RTD canonical root (`https://retrieve-or-bust.readthedocs.io/` and
+`/en/latest/`) still 404s because `latest` tracks `main` and `main` has no
+`.readthedocs.yaml`. JXP: *"Leave it as is."* Nothing edited: `README.md` and the
+front page keep naming the canonical root, which becomes correct the moment
+`cdom-rt` merges. Recorded as closed, pending that merge.
+
+#### Q11 — the standing rule is now in `### Working agreements`
+
+JXP: *"Ok, use (1)."* Added as a new bullet at the end of the working-agreements
+list (the section was read first and is otherwise untouched):
+
+> **An uncommitted working-tree draft with no log entry has no standing**
+> (Q11, answered: option 1). Verify every claim in it — every number, command,
+> signature and pasted output — against running code or a source document
+> before keeping any of it, and **say in the log that you did**. Start every
+> turn from a fresh `git status`, never from what a brief or an old log entry
+> asserts the tree contains: a brief saying "no files were changed" is a claim,
+> and `git status` settles it in one second.
+
+The second half of Q11 — *"do you know what wrote that draft?"* — went
+unanswered. **Who wrote D2 task 4's unlogged draft remains unknown**, and per
+the prompt this was not chased further.
+
+#### Q12 — option 1 implemented in `robust/tests/`
+
+JXP: *"Ok, use (1)."* This is a deliberate, explicitly authorized exception to
+the docstring-only `robust/` edit rule: test-infrastructure logic, no
+`robust/rt/` production code touched, no hashes re-pinned.
+
+The old marker was a single module-level `skipif(CI)`, shared by all three
+strict tests. It is replaced in `robust/tests/test_inelastic_types.py` by two
+named anchors, a hostname table, a resolver and a marker factory:
+
+```python
+ELASTIC_PIN_ANCHOR = "tank"
+INELASTIC_PIN_ANCHOR = "mac"
+ANCHOR_HOSTS = {"mac.lan": INELASTIC_PIN_ANCHOR}
+
+
+def this_machines_anchors() -> frozenset[str]:
+    declared = os.environ.get("ROBUST_HASH_ANCHOR", "").strip().lower()
+    if declared:
+        return frozenset(a for a in (p.strip() for p in declared.split(",")) if a)
+    host = platform.node().strip().lower()
+    return frozenset({ANCHOR_HOSTS[host]} if host in ANCHOR_HOSTS else ())
+
+
+def strict_bits_on_anchor(anchor: str):
+    if os.environ.get("CI", "") != "":
+        return pytest.mark.skipif(True, reason="bitwise hash pins are machine-"
+            "anchored; CI runners reproduce them only sometimes — the closeness "
+            "tier runs instead")
+    here = sorted(this_machines_anchors())
+    return pytest.mark.skipif(
+        anchor not in here,
+        reason=f"bitwise hash pins are anchored to the {anchor!r} machine; "
+        f"this one is {'+'.join(here) or 'unanchored'} — set "
+        f"ROBUST_HASH_ANCHOR={anchor} to claim it. The closeness tier carries "
+        "the regression here",
+    )
+```
+
+Applied as `@strict_bits_on_anchor(ELASTIC_PIN_ANCHOR)` on
+`test_elastic_hash_regression_strict`, `@strict_bits_on_anchor(INELASTIC_PIN_ANCHOR)`
+on `test_inelastic_default_hash_regression_strict`, and
+`@hash_pins.strict_bits_on_anchor(hash_pins.ELASTIC_PIN_ANCHOR)` on
+`test_gate_4_pre_change_pins` in `robust/tests/test_inelastic_validation.py`
+(the only other user of the old name; grepped, not assumed).
+
+Three design points, since each was a choice:
+
+- **Env var first, hostname second.** `ROBUST_HASH_ANCHOR` is the explicit
+  declaration Q12 asked for; the hostname table exists so the anchor machines
+  keep their guard without anyone remembering to export anything. It has exactly
+  one entry, `mac.lan`, measured here with `platform.node()`. The tank server's
+  node name is not knowable from this machine — that is **Q13**, raised below.
+- **Unknown machine anchors nothing.** The unset-and-unrecognised default skips
+  both tiers, which is the safe direction: a false *failure* on a stranger's
+  laptop is exactly the hazard Q12 is about, and the closeness tiers — which
+  pass everywhere and are the real regression guard — are untouched.
+- **CI's skip is unchanged and takes precedence**, with its own original reason
+  string (Q&A Q2's heterogeneous-runner finding), so nothing about the GitHub
+  Actions behaviour depends on the new mechanism.
+
+Also supported and exercised: a comma-separated list (`tank,mac`, for a machine
+that ever anchors both) and `none` (disown a machine the table would claim).
+
+#### The mechanism, measured in all four states
+
+Not reasoned about — run, on this Mac (`platform.node()` = `mac.lan`), over the
+three strict tests:
+
+```console
+$ pytest -q -ra <the three strict tests>            # nothing set
+1 passed, 2 skipped        (inelastic strict runs; both elastic tiers skip)
+
+$ ROBUST_HASH_ANCHOR=none pytest -q -ra ...
+3 skipped                  (all named with their reason)
+
+$ CI=true pytest -q -ra ...
+3 skipped                  ("CI runners reproduce them only sometimes")
+
+$ ROBUST_HASH_ANCHOR=tank,mac pytest -q -ra ...
+2 failed, 1 passed         (the pre-change behaviour, on demand)
+```
+
+The last one is the proof that nothing was weakened by accident: claim both
+anchors and the elastic pins fail here exactly as they did before, at the same
+3 ULP.
+
+#### The suite, before and after
+
+Both measured today in `ocean14` (Python 3.14.6, jax 0.11.0, CPU):
+
+```console
+# BEFORE
+$ pytest -q -ra
+FAILED robust/tests/test_inelastic_types.py::test_elastic_hash_regression_strict
+FAILED robust/tests/test_inelastic_validation.py::test_gate_4_pre_change_pins
+2 failed, 483 passed, 1 skipped in 66.20s (0:01:06)
+
+# AFTER
+$ pytest -q -ra
+SKIPPED [1] robust/tests/test_inelastic_corr.py:405: trained weights are committed; the fallback path is gone
+SKIPPED [1] robust/tests/test_inelastic_types.py:206: bitwise hash pins are anchored to the 'tank' machine; this one is mac — set ROBUST_HASH_ANCHOR=tank to claim it. The closeness tier carries the regression here
+SKIPPED [1] robust/tests/test_inelastic_validation.py:209: bitwise hash pins are anchored to the 'tank' machine; this one is mac — set ROBUST_HASH_ANCHOR=tank to claim it. The closeness tier carries the regression here
+483 passed, 3 skipped in 64.35s (0:01:04)
+
+$ env -u OS_COLOR pytest -q -ra
+446 passed, 40 skipped, 1 warning in 56.65s
+```
+
+**Zero failures.** The passing count is unchanged at 483 — the two ex-failures
+became skips, and no test that used to run stopped running (the inelastic strict
+tier still runs here, on its own anchor, and still passes). The `$OS_COLOR` skip
+delta is still 37 (40 − 3), tallied from the `-ra` summary: 23 elastic + 14
+`(X=2/X=4)`, unchanged.
+
+So for the first time this effort can say **green** without the "modulo two
+failures" qualifier — and this log says so only because the run above says so.
+
+#### CI, rehearsed rather than assumed
+
+`.github/workflows/ci.yml`'s `test` job, step by step: checkout →
+`setup-python` (3.12 and 3.14) → `pip install jax flax optax jaxtyping numpy
+scipy xarray pytest` → `pip install --no-deps git+…/ocpy` → `pip install -e .
+--no-deps` → show the environment → `pytest -q -ra`. The change adds no
+dependency (`platform` is stdlib) and no step interacts with it. GitHub Actions
+sets `CI=true`, so both strict tiers hit the CI branch and skip with the same
+reason string as before; even without it, the runner's hostname is not in the
+table, so the fallback would skip too. Rehearsed locally under the CI condition:
+
+```console
+$ env -u OS_COLOR CI=true pytest -q -ra
+445 passed, 41 skipped, 1 warning in 57.04s
+```
+
+Identical to the counts task 7 recorded for the py3.14 CI leg (445/41/0) —
+i.e. **CI behaviour is bit-for-bit the same story as before the change**. (This
+rehearsal was in `ocean14`, not a fresh 3.12 venv; the clean-venv rehearsal was
+task 7's and nothing in this change touches dependency resolution.)
+
+#### The doc pages — three named, four edited
+
+Every count and transcript below was re-measured after the final `ruff format`
+pass, because that pass shifted a decorator by one line and the skip reasons
+print line numbers:
+
+- **`docs/installation.md`** — the `pytest` transcript now shows the two skip
+  lines instead of two `FAILED` lines and the real totals (483/3 and 446/40);
+  "the one standing skip" became "the first skip"; the snapshot note's *shape*
+  is now "zero failures, two machine-anchored hash skips, one pre-existing skip,
+  ~37 skip delta"; and the second note is rewritten from "about those two
+  failures" to "about those two skips", documenting `ROBUST_HASH_ANCHOR`, the
+  hostname fallback, the `CI` skip, and that a *closeness* failure is still a
+  real finding.
+- **`docs/using/data.md`** — the two-line transcript re-measured, and the
+  paragraph naming the two failures rewritten as two of the skips, pointing at
+  installation for the mechanism. The snapshot note's durable shape now leads
+  with "no failures".
+- **`docs/using/limitations.md`** — the closing section is retitled *"Two tests
+  that skip off their anchor machine"* and rewritten: two pin sets on two
+  machines, so no machine can reproduce both; each tier skips with a reason off
+  its anchor; the suite is green; the closeness tiers are the real guard. It
+  still refuses the claim that would be false — bit-identity on a machine that
+  has not demonstrated it.
+- **`docs/using/validation.md`** — **not one of the three Q12 named**, but it
+  carried the same "green modulo the two machine-anchored strict-hash tiers"
+  sentence and a pasted `1 failed, 6 passed` transcript for the gate module.
+  Leaving it would have left the site contradicting its own test code, so it was
+  updated too: the transcript is re-run (`6 passed, 1 skipped in 10.34s`, with
+  the skip reason), and the closing sentence now describes an anchor-machine
+  gate. Flagged here as a deviation-by-addition.
+
+A grep for `modulo`, `2 failed`, `two failures`, `fails on this machine` and
+`expected failure` across `docs/` and `README.md` now returns nothing.
+
+#### Gate
+
+```console
+$ python -m sphinx -b html -W --keep-going docs docs/_build/html
+build succeeded.                       # from a removed _build, zero warnings
+
+$ ruff check robust/
+All checks passed!
+
+$ ruff format --check robust/
+35 files already formatted
+```
+
+`ruff format --check` did fail once, on the new code — one missing blank line
+before the pin block — and was fixed by `ruff format` on that file, after which
+the transcripts above were all re-measured.
+
+#### Deviations, both mine to own
+
+1. **A fourth page edited** (`docs/using/validation.md`), for the reason given
+   above: Q12 named three, and a fourth said the same now-false thing.
+2. **The CI rehearsal reused `ocean14`** rather than building a clean 3.12 venv,
+   on the grounds that the change adds no dependency and the counts matched the
+   recorded py3.14 leg exactly. If you want the clean-venv rehearsal repeated,
+   it is a ten-minute job.
+
+**One new question for JXP: Q13**, in the D2 `### Q&A` section above — the
+hostname table knows this Mac and not the tank server, so the elastic strict tier
+is currently dormant everywhere. Q1–Q12 are untouched; Q10 is closed with no
+changes, Q11 is recorded as a working agreement, Q12 is implemented.

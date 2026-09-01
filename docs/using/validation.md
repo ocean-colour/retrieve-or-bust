@@ -366,13 +366,13 @@ and skip without `$OS_COLOR` ({doc}`data`). `robust/tests/test_validation.py`
 references, including that a `steps` dict naming the wrong variables is refused.
 
 :::{important}
-**One of the seven fails on a machine other than the one that anchored it, and
-this page will not pretend otherwise.** Re-run here:
+**One of the seven does not run on a machine other than the one that anchored
+it, and this page will not pretend otherwise.** Re-run here:
 
 ```console
 $ pytest robust/tests/test_inelastic_validation.py -q -ra
-1 failed, 6 passed in 11.38s
-FAILED robust/tests/test_inelastic_validation.py::test_gate_4_pre_change_pins
+SKIPPED [1] robust/tests/test_inelastic_validation.py:209: bitwise hash pins are anchored to the 'tank' machine; this one is mac — set ROBUST_HASH_ANCHOR=tank to claim it. The closeness tier carries the regression here
+6 passed, 1 skipped in 10.34s
 ```
 
 `test_gate_4_pre_change_pins` re-asserts a **strict SHA-256 pin** of the elastic
@@ -387,10 +387,12 @@ Rrs: differ 2742/12150 (22.6%), max rel 3.326e-07, max ULP 3
 rrs: differ 2862/12150 (23.6%), max rel 1.642e-07, max ULP 2
 ```
 
-Three ULP of float32 rounding, not a changed route. The strict tier is
-`skipif(CI)`, so it is a dev-machine gate only, and read the whole suite as
-**green modulo the two machine-anchored strict-hash tiers** rather than as
-unqualified green. {doc}`../installation` carries the same statement.
+Three ULP of float32 rounding, not a changed route. The strict tier runs only
+on the machine that pinned it — declared by `ROBUST_HASH_ANCHOR`, and skipped
+under `CI` regardless — so it is an anchor-machine gate, and the suite reads as
+**green with the two machine-anchored strict-hash tiers skipped and named**
+rather than as unqualified bit-identity everywhere.
+{doc}`../installation` carries the same statement.
 :::
 
 To regenerate every committed number:
