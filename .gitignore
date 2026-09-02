@@ -6,8 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
-# Most PDFs
-context/RT/*.pdf
+# Papers
+context/papers/Biomass/
+
+# PDFs
+*.pdf
 
 # Distribution / packaging
 .Python
