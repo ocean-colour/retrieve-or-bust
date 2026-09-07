@@ -114,7 +114,8 @@ the design-§7 HydroLight runs unblock M6.
 4. Read this doc. Execute tasks 6–7. Use Fable if you can. Log your work.
 5. Read this doc. Execute task 8 — the notebook and record. Use Fable if you
    can. Log your work.
-6. Read this doc. Execute task 9 — reviewing the pull request. Use Fable if
+6. Read this doc. Execute task 9 — the report and docs. Use Fable if you can. Log your work.
+7. Read this doc. Execute task 10 — revisings based on comments in the pull request. Use Fable if
    you can. Log your work.
 
 ## M5
@@ -217,9 +218,10 @@ the design-§7 HydroLight runs unblock M6.
    **Gate.** Notebook committed with outputs; record updated; the
    unvalidated-until-M6 language present verbatim.
 
-9. **Pull request.** JXP will create the PR. Review it (multi-angle, per the
-   inelastic M0 task-6 precedent), verify findings against live code, and fix
-   what JXP triages in. Use Fable if you can. Log your work.
+9. **Report and docs**.  Update the docs in `docs/model` as need be.  And then update the inelastic RT report in `reports/report_rt_inelastic_model.md`.  
+
+10. **Pull request.** JXP has created a PR and cursor reviewed it.  Make changes
+based on the comments in the pull request. 
 
 ### Q&A
 
@@ -794,3 +796,78 @@ Also untouched: the Q&A section above, and the concurrent Docs session's
 files (`rt_docs_prompt_1.md`, `docs/api.rst`, `docs/conf.py` carry its
 uncommitted changes — left alone). Remaining: task 9 (PR review) once JXP
 opens the PR.
+
+### 2026-09-07 (M5 task 9 — docs verified current; inelastic report gains the M5 addendum + §6/§7/§9 updates; prose only) (model: Fable)
+
+Executed task 9 on `cdom-rt` (verified; the only tree modification at start
+was this prompt doc itself, carrying JXP's uncommitted task-9/10 wording —
+left as found, appended to only here in Logs). A documentation-only task by
+its own scope: **no re-derivation, no re-measurement** — every number cited
+below traces to `design/rt_inelastic_implementation.md` §8, this doc's Logs,
+or `docs/model/cdom_fluorescence.md`.
+
+**Part 1 — `docs/model` (and the rest of `docs/`): already complete and
+accurate; almost nothing to do.** The concurrent Docs session (committed at
+`363951d "all set?"`) had already covered CDOM fluorescence thoroughly:
+`docs/model/cdom_fluorescence.md` (the canonical page), plus consistent
+mentions in `overview.md` (the note + concept-table row), `forward.md` (the
+a_cdom guard), `corrections.md` (δ_C defined/untrained/unwired),
+`api.rst`, `using/limitations.md` ("Also in the API, and not validated"),
+`using/validation.md` (`cdom_gradient_report`, the truth-less gate),
+`using/data.md` (`ag` extraction), `references.md` (the Zhai/Hawes/OOWB
+provenance split), `reports/index.md`, and `development_record.md`. Read all
+of them and spot-checked claims against the code (`cdom_fl.py` constants and
+grid, `inelastic_corr.py` CDOM_FEATURES/`train_cdom_corr`/delta_max 0.5,
+`types.py` a_cdom, `test_cdom_validation.py`'s
+`CDOM_GATE_SPEED_MACHINE_ANCHORED = 2.6`) and against record §8 — every
+checked number and status statement matched. **No `docs/model` file was
+edited.** The only docs edits are the two consistency fixes Part 2 forced
+(below).
+
+**Part 2 — `reports/report_rt_inelastic_model.md`:** the two stale spots
+that described CDOM-fl as a bare reserved slot are updated, and nothing
+else. (1) A short blockquote **"Addendum (2026-09-07)"** sits between the
+header block and the Executive summary: the report's numbers describe
+M0–M4/v1.0; M5's CDOM-fl has since landed analytic-only, off by default,
+unvalidated; bit-identical when off, so no claim in the report changes;
+pointer to `docs/model/cdom_fluorescence.md`. No version bump, no
+Date/Authors change — the v1.0 substance is untouched, and the dated
+addendum + per-item "*(updated 2026-09-07)*" tags flag the additions.
+(2) §6 item 2 rewritten: M5 shipped the term, gate-passed on everything
+truth-less can gate (bit-identity, correctness pins, the 0.30 → 4.16 %
+monotone plausibility deciles stated as a characterization not an accuracy
+claim, gradients ≤ 2.2e-8, the rescoped machine-anchored 2.6× speed bound);
+still no truth anywhere, term unvalidated for accuracy, δ_C
+defined/zero-init/neither trained nor wired; the HydroLight pairs (wishlist
+item 3) remain the prerequisite — now for M6, not for existence; pointers to
+the cdom docs page and record §8. (3) §7 item 4 reframed the same way
+("prerequisite for M6, not for the term's existence"; the model now carries
+the process unvalidated rather than omitting it). (4) §9 document map gains
+three rows in the existing terse style: `design/rt_cdom_fluorescence_model.md`,
+`claude_prompts/RT/rt_cdom_coding_prompt_1.md`, and
+`docs/model/cdom_fluorescence.md`. §1–§5, §8, and References untouched, per
+scope — every v1.0 number stands.
+
+**The two consistency fixes the report update forced in `docs/`:**
+`docs/reports/index.md`'s "one place they already disagree" paragraph
+asserted the report's §6/§7 *still* describe a reserved unimplemented slot —
+no longer true after (2)/(3), so it now says the report predates the term and
+carries the dated addendum (and its length cell for the inelastic report
+updated 432 → 465 lines; the rendered copy is generated from the source on
+every build, so nothing else to sync). `docs/development_record.md`'s M5
+document-map Report cell re-worded precisely: still "none of its own; the
+term is unvalidated", now adding that the inelastic report carries a dated
+status addendum, **not measurements** — no overclaim that an M0–M4-style
+report exists for this term.
+
+**Out of scope for this task, deliberately:** no source file was touched —
+`hybrid.py`, `cdom_fl.py`, `types.py`, `inelastic_corr.py`, `validation.py`,
+tests, notebooks, fixtures all bit-identical (prose-only task; ruff n/a to
+Markdown, no pytest state to report — nothing executable changed). Also
+untouched: `docs/model/*` (verified current, above), `rt_docs_prompt_1.md`,
+`design/rt_inelastic_implementation.md` (already the complete M5 record),
+`design/rt_cdom_fluorescence_model.md`, and the Q&A section. Git tree at
+end (JXP commits): modified — `reports/report_rt_inelastic_model.md`,
+`docs/reports/index.md`, `docs/development_record.md`, and this prompt doc
+(JXP's pre-existing wording changes + this log entry). Remaining: task 10
+(PR revisions) once the review comments exist.

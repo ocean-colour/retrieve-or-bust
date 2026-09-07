@@ -86,4 +86,4 @@ because there is nothing validated to report.
 | Design | [`rt_cdom_fluorescence_model.md`](gh:design/rt_cdom_fluorescence_model.md) |
 | Coding plan | [`rt_cdom_coding_prompt_1.md`](gh:claude_prompts/RT/rt_cdom_coding_prompt_1.md) |
 | Implementation record | [`rt_inelastic_implementation.md`](gh:design/rt_inelastic_implementation.md) §8 |
-| Report | — none; the term is unvalidated ({doc}`model/cdom_fluorescence`) |
+| Report | — none of its own; the term is unvalidated. The inelastic report carries a dated status addendum about it, not measurements ({doc}`model/cdom_fluorescence`) |

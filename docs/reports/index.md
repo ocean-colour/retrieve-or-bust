@@ -16,12 +16,14 @@ the chapters under *The model* and *Using it* are the maintained prose, and they
 cite these reports by section. Where the two disagree, the report is the record
 of what was measured and the chapter is the current description of the code.
 
-One place they already disagree, named here so nobody has to discover it: the
-inelastic report's §6 and §7 describe CDOM fluorescence as a *reserved interface
-slot with no implementation*, which was true on 2026-08-27 and is not true now —
-the analytic term shipped afterwards. It is still unvalidated, and for the same
-reason the report gives (no truth data), so nothing measured in either report
-moves. {doc}`../model/cdom_fluorescence` is the current description.
+One thing to know before quoting the inelastic report: it predates CDOM
+fluorescence. As first written, its §6 and §7 described the process as a
+*reserved interface slot with no implementation* — true on 2026-08-27, not true
+once the analytic term shipped — and the report now carries a dated addendum
+(2026-09-07), with §6 item 2 and §7 item 4 updated, saying exactly that. The
+term is off by default and still unvalidated, for the same reason the report
+gives (no truth data), so nothing measured in either report moves.
+{doc}`../model/cdom_fluorescence` is the current description.
 
 ## What each one measured
 
@@ -32,7 +34,7 @@ moves. {doc}`../model/cdom_fluorescence` is the current description.
 | Truth it was scored against | Loisel et al. (2023), elastic scattering only | Loisel et al. (2023) with all processes on — the "X4" release |
 | Headline | **0.30 % rRMS** on held-out water bodies, **2.3×** better than the O25 benchmark of Pitarch et al. (2025) refit on the same data and 24× better than standard Gordon (1988) | **0.34 % rRMS** on held-out water bodies at every solar zenith over 400–700 nm, where the elastic model alone scores 16–19 % against the same truth and 48 % at the 685 nm fluorescence peak |
 | Gradients | agree with finite differences to ≤ 5 × 10⁻⁹ | ≤ 5.9 × 10⁻⁹, including in $\varphi_C$, at **1.59×** the elastic runtime, with `inelastic=None` bit-identical (SHA-256 pinned) |
-| Length | 313 lines, 9 sections, 3 figures | 432 lines, 9 sections, 4 figures |
+| Length | 313 lines, 9 sections, 3 figures | 465 lines, 9 sections, 4 figures |
 
 Both share a structure, which is worth knowing before you open one: §1
 motivation, §2 the model, §3 the data and validation protocol, §4 the results,

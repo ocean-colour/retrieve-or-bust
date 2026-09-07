@@ -17,6 +17,16 @@ effort extends and whose conventions this report inherits.
 
 ---
 
+> **Addendum (2026-09-07).** This report describes the model as of milestones
+> M0–M4 — the v1.0 above. A third inelastic process, **CDOM fluorescence**
+> (milestone M5), has since landed in the same package: analytic-only, **off by
+> default** (`Inelastic(cdom_fl=None)`), and **unvalidated** — no truth channel
+> for it exists, and with it off the model is bit-identical to the one measured
+> here, so no number or claim in this report changes. §6 item 2 and §7 item 4
+> below were updated with this addendum to state the current status; the full
+> treatment is
+> [`docs/model/cdom_fluorescence.md`](../docs/model/cdom_fluorescence.md).
+
 ## Executive summary
 
 We extended the elastic hybrid forward model with the two inelastic processes
@@ -332,10 +342,26 @@ For JXP to dispatch; none block the conclusions above.
    HydroLight run wishlist
    ([`design/rt_inelastic_model.md`](../design/rt_inelastic_model.md) §8)
    prices the fix: denser zenith sampling first.
-2. **CDOM fluorescence** — the third inelastic process — has a reserved,
-   validated interface slot (`Inelastic.cdom_fl`) and no implementation: no
-   truth data exist in L23 or anywhere in hand. CDOM-fluorescence on/off
-   HydroLight pairs are the prerequisite (wishlist item 3).
+2. **CDOM fluorescence** — the third inelastic process — *(updated
+   2026-09-07)* is no longer the reserved, unimplemented slot v1.0 described
+   here: milestone **M5** shipped the analytic term (the Hawes et al. 1992
+   FA7 basis, `robust/rt/cdom_fl.py`), **off by default**, passing everything
+   a truth-less gate can check — off-state bit-identity (two-tier pins, so
+   this report's numbers are untouched by construction), correctness pins on
+   the published function, a loose literature-plausibility band (0.30 → 4.16%
+   of blue-green *R*<sub>rs</sub> across *a*<sub>cdom</sub>(440) deciles,
+   strictly monotone — a characterization, not an accuracy claim),
+   eight-variable gradients (≤ 2.2×10⁻⁸), and a rescoped, machine-anchored
+   2.6× speed bound. What has not changed: **no truth data exist in L23 or
+   anywhere in hand**, so the term is unvalidated for accuracy and its
+   δ<sub>C</sub> head is defined, zero-initialized, and neither trained nor
+   wired. The CDOM-fluorescence on/off HydroLight pairs (wishlist item 3)
+   remain the prerequisite — now for **M6** (training δ<sub>C</sub> and a
+   quantitative gate) rather than for the term's existence. Full detail:
+   [`docs/model/cdom_fluorescence.md`](../docs/model/cdom_fluorescence.md)
+   and
+   [`design/rt_inelastic_implementation.md`](../design/rt_inelastic_implementation.md)
+   §8.
 3. **The solar spectrum.** v1 ships L23's sky by design; the community-model
    quality concern (DQ5) stands. Alternative-solar-spectrum runs (wishlist
    item 5) would turn it from a caveat into a measurement; the
@@ -373,9 +399,13 @@ inversion) pull in different directions:
 3. **Varied-φ<sub>C</sub> runs** (wishlist item 2) to test
    φ<sub>C</sub>-linearity against truth rather than construction — cheap,
    and they directly de-risk the φ<sub>C</sub> retrieval of item 1.
-4. **CDOM-fluorescence pairs** (wishlist item 3) to populate the reserved
-   `cdom_fl` slot — the blue-green matters for CDOM-rich waters and it is
-   the one HydroLight process the model still omits.
+4. **CDOM-fluorescence pairs** (wishlist item 3) — *(updated 2026-09-07)*
+   now the prerequisite for **M6**, not for the term's existence: M5 shipped
+   the analytic term, off by default and gated at the truth-less level (§6
+   item 2). The pairs are what would let δ<sub>C</sub> train and the term be
+   scored quantitatively; the blue-green matters for CDOM-rich waters, and
+   until they exist the model carries the process unvalidated rather than
+   omitting it.
 5. **Alternative solar spectra** (wishlist item 5) to bound the DQ5 concern
    with numbers.
 
@@ -404,6 +434,9 @@ acceptance gate is `robust/tests/test_inelastic_validation.py`, one test per
 | [`design/rt_inelastic_model_coding_plan.md`](../design/rt_inelastic_model_coding_plan.md) | milestones M0–M4 (how/when) |
 | [`design/rt_inelastic_implementation.md`](../design/rt_inelastic_implementation.md) | what was actually built, per milestone |
 | `claude_prompts/RT/rt_inelastic_coding_prompt_{1..5}.md` | the execution prompts and their dated logs |
+| [`design/rt_cdom_fluorescence_model.md`](../design/rt_cdom_fluorescence_model.md) | the CDOM-fluorescence (M5/M6) design — postdates v1.0 (Addendum) |
+| `claude_prompts/RT/rt_cdom_coding_prompt_1.md` | the M5 execution prompt and its dated logs |
+| [`docs/model/cdom_fluorescence.md`](../docs/model/cdom_fluorescence.md) | the maintained CDOM-fluorescence chapter — the term this report predates |
 | [`report_rt_elastic_model.md`](report_rt_elastic_model.md) | the elastic predecessor this model extends |
 | **this report** | the top-level synthesis, for the team and eventual public release |
 
