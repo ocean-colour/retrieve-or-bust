@@ -25,10 +25,11 @@ Ed source (TSIS-1-era references vs older standards) must be revisited; the
 ``Geometry.Ed`` override accepted here is the seam where that happens, with no
 interface change.
 
-**Override semantics.** ``override=(wave_Ed, Ed)`` — the :attr:`Geometry.Ed`
-pair — replaces the packaged sky entirely, and ``theta_s`` is then ignored: an
-override *is* one particular sky, zenith dependence included. Overrides are
-interpolated onto the requested wavelengths with the same clamped linear rule.
+**Override semantics.** ``override=(wave_Ed, Ed)`` — the
+:attr:`Geometry.Ed <robust.rt.types.Geometry.Ed>` pair — replaces the packaged
+sky entirely, and ``theta_s`` is then ignored: an override *is* one particular
+sky, zenith dependence included. Overrides are interpolated onto the requested
+wavelengths with the same clamped linear rule.
 """
 
 from __future__ import annotations
@@ -111,7 +112,8 @@ def Ed(
         Wavelengths (nm); defaults to the canonical grid. Off-grid values are
         interpolated; beyond 350–750 nm the spectrum is clamped at its ends.
     override : (Array, Array), optional
-        A ``(wave_Ed, Ed)`` pair — pass :attr:`Geometry.Ed` here to use a real
+        A ``(wave_Ed, Ed)`` pair — pass
+        :attr:`Geometry.Ed <robust.rt.types.Geometry.Ed>` here to use a real
         sky instead of the packaged L23 one.
 
     Returns

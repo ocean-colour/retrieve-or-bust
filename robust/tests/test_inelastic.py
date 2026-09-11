@@ -38,12 +38,13 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from robust.rt import cdom_fl
 from robust.rt import conventions as C
 from robust.rt import ed as E
 from robust.rt import hybrid as H
 from robust.rt import inelastic as I
 from robust.rt.data.l23 import PHI_C_L23
-from robust.rt.types import Geometry, Inelastic, IOPs, PhaseParams
+from robust.rt.types import CDOMFl, Geometry, Inelastic, IOPs, PhaseParams
 
 #: The Raman-only configuration the task-1 wiring tests use.
 RAMAN_ONLY = Inelastic(fluorescence=False)
@@ -723,3 +724,89 @@ def test_gradient_matches_finite_differences_composed(
     assert analytic == pytest.approx(numeric, rel=1e-6), (
         f"d/d{name}: autodiff {analytic:.10e} vs finite difference {numeric:.10e}"
     )
+
+
+# --------------------------------------- CDOM-fluorescence wiring (M5 task 5) ----
+
+
+def test_forward_composes_cdom_fluorescence_additively(l23_small_inelastic_batch):
+    """forward(default + cdom_fl) == forward(default) + scale * K_cdom.
+
+    The M5 task-5 gate's additive claim, spot-checked at the kernel's value —
+    the :func:`test_forward_composes_fluorescence_additively` twin for the
+    third term (CDOM design §2). Algebraically exact in **Rrs space** (the
+    composition law's space — ``K_cdom`` ends in ``rrs_to_Rrs``, so the term
+    adds above the surface; a difference of ``rrs_forward`` outputs would
+    pick up Lee's non-linear conversion instead); the rrs round trip inside
+    costs ~1 ULP (float32). ``scale=2.0`` — deliberately not the default
+    1.0, so a wiring that dropped or ignored the amplitude cannot pass. The
+    same identity is asserted a second time from ``rrs_forward`` outputs
+    explicitly converted up, pinning that the term is additive at exactly
+    the composed layer and not by accident of ``forward``'s final
+    conversion.
+    """
+    batch = l23_small_inelastic_batch
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    scale = 2.0
+
+    with_cdom = np.asarray(
+        H.forward(
+            *args,
+            inelastic=Inelastic(cdom_fl=CDOMFl(scale=scale)),
+            corrections=False,
+            check_domain=False,
+        )
+    )
+    without = np.asarray(
+        H.forward(*args, inelastic=Inelastic(), corrections=False, check_domain=False)
+    )
+    k_cdom = np.asarray(cdom_fl.cdom_kernel(batch.iops, batch.geometry, batch.wave))
+
+    np.testing.assert_allclose(
+        with_cdom, without + scale * k_cdom, rtol=5e-6, atol=1e-10
+    )
+    # The term only adds, and visibly so in the blue-green (the Hawes band).
+    i460 = int(np.abs(np.asarray(batch.wave) - 460.0).argmin())
+    assert np.all((with_cdom - without)[:, i460] > 0.0)
+
+    # The rrs_forward form of the same identity, converted up explicitly.
+    rrs_with = H.rrs_forward(
+        *args,
+        inelastic=Inelastic(cdom_fl=CDOMFl(scale=scale)),
+        corrections=False,
+        check_domain=False,
+    )
+    rrs_without = H.rrs_forward(
+        *args, inelastic=Inelastic(), corrections=False, check_domain=False
+    )
+    np.testing.assert_allclose(
+        np.asarray(C.rrs_to_Rrs(rrs_with)),
+        np.asarray(C.rrs_to_Rrs(rrs_without)) + scale * k_cdom,
+        rtol=5e-6,
+        atol=1e-10,
+    )
+
+
+def test_cdom_fl_alone_composes(l23_small_inelastic_batch):
+    """cdom_fl set with raman/fluorescence off still composes its term.
+
+    The regression for the M5 task-5 guard fix: ``_apply_inelastic``'s
+    early return used to test only ``raman or fluorescence``, so this exact
+    configuration would have silently returned the untouched elastic ``rrs``
+    — a plausible-looking array with the requested physics missing, the
+    failure mode this module's error-guard tests exist to prevent. Asserted
+    both ways: the output is *not* the elastic one bitwise, and it *is*
+    elastic + K_cdom (scale = 1, the default) to composition-law tolerance.
+    """
+    batch = l23_small_inelastic_batch
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    cdom_only = Inelastic(raman=False, fluorescence=False, cdom_fl=CDOMFl())
+
+    composed = np.asarray(
+        H.forward(*args, inelastic=cdom_only, corrections=False, check_domain=False)
+    )
+    elastic = np.asarray(H.forward(*args, check_domain=False))
+    k_cdom = np.asarray(cdom_fl.cdom_kernel(batch.iops, batch.geometry, batch.wave))
+
+    assert not np.array_equal(composed, elastic)  # the pre-fix silent no-op
+    np.testing.assert_allclose(composed, elastic + k_cdom, rtol=5e-6, atol=1e-10)

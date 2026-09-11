@@ -61,7 +61,26 @@ def test_fixture_loads_without_os_color(l23_small_inelastic_batch):
         assert channel.shape == (150, 81)
     assert batch.iops.a_ph is not None
     assert batch.iops.a_ph.shape == (150, 81)
+    assert batch.iops.a_cdom is not None
+    assert batch.iops.a_cdom.shape == (150, 81)
     np.testing.assert_array_equal(np.unique(batch.zenith), [0.0, 30.0, 60.0])
+
+
+def test_a_cdom_decomposition_bookkeeping(l23_small_inelastic_batch):
+    """The a_dg double-counting foot-gun, pinned (CDOM design §8, M5 task 2).
+
+    L23 stores ``ag`` (CDOM) separately from ``ad`` (detritus), so with
+    ``a = a_water + a_ph + a_cdom + a_detrital`` the loaded components must
+    satisfy ``a_cdom ≥ 0`` and ``a_ph + a_cdom ≤ a`` *everywhere* — a real
+    assertion on real numbers, not an assumption about the decomposition.
+    (Measured margin on the fixture: max(a_ph + a_cdom − a) ≈ −5.3e-3.)
+    """
+    batch = l23_small_inelastic_batch
+    a = np.asarray(batch.iops.a)
+    a_ph = np.asarray(batch.iops.a_ph)
+    a_cdom = np.asarray(batch.iops.a_cdom)
+    assert a_cdom.min() >= 0.0
+    assert np.all(a_ph + a_cdom <= a)
 
 
 def test_reader_rejects_mismatched_fixtures(tmp_path):
@@ -110,6 +129,8 @@ def test_golden_absolute_values():
     assert data["Rrs2_0"][0, i440] == pytest.approx(9.2462e-03, rel=1e-4)
     assert data["Rrs4_0"][0, i685] == pytest.approx(1.2273e-04, rel=1e-4)
     assert data["aph_0"][0, i440] == pytest.approx(3.7110e-03, rel=1e-4)
+    assert data["ag_0"][0, i440] == pytest.approx(5.7960e-03, rel=1e-4)
+    assert data["ag_30"][7, i440] == pytest.approx(3.1390e-03, rel=1e-4)
 
 
 def test_raman_factor_is_physical(l23_small_inelastic_batch):
@@ -214,6 +235,18 @@ def test_validate_requires_a_ph(l23_small_inelastic_batch):
         stripped.validate()
 
 
+def test_validate_requires_a_cdom(l23_small_inelastic_batch):
+    """An inelastic batch without the CDOM-fl source term is likewise a bug."""
+    import dataclasses
+
+    stripped = dataclasses.replace(
+        l23_small_inelastic_batch,
+        iops=dataclasses.replace(l23_small_inelastic_batch.iops, a_cdom=None),
+    )
+    with pytest.raises(ValueError, match="a_cdom"):
+        stripped.validate()
+
+
 # --------------------------------------------------------- against the netCDF ----
 
 
@@ -232,6 +265,9 @@ def test_fixture_rows_match_the_raw_netcdf():
             data[f"aph_{zenith}"], ds1.aph.data[:50].astype(np.float32)
         )
         np.testing.assert_array_equal(
+            data[f"ag_{zenith}"], ds1.ag.data[:50].astype(np.float32)
+        )
+        np.testing.assert_array_equal(
             data[f"Rrs2_{zenith}"], ds2.Rrs.data[:50].astype(np.float32)
         )
         np.testing.assert_array_equal(
@@ -239,6 +275,45 @@ def test_fixture_rows_match_the_raw_netcdf():
         )
         for ds in (ds1, ds2, ds4):
             ds.close()
+
+
+@needs_l23
+@needs_l23_inelastic
+def test_loader_a_cdom_golden_against_the_raw_netcdf():
+    """Golden a_cdom rows: the loader reproduces the raw ``ag`` bit for bit.
+
+    Mirrors the a_ph golden pattern — the value is read *directly from the
+    raw file* (float64, no fixture in the loop) and the live loader must
+    reproduce it at specific (scene, zenith) samples.
+    """
+    from ocpy.hydrolight import loisel23
+
+    n_scene = 10
+    batch = L.load_inelastic_batch(zeniths=(0, 60), scenes=slice(0, n_scene))
+    a_cdom = np.asarray(batch.iops.a_cdom)
+
+    for block, zenith in enumerate((0, 60)):
+        ds = loisel23.load_ds(1, zenith)
+        raw = np.asarray(ds.ag.data, dtype=float)
+        ds.close()
+        for scene in (0, 7):
+            row = block * n_scene + scene
+            assert batch.zenith[row] == zenith and batch.scene[row] == scene
+            np.testing.assert_array_equal(a_cdom[row], raw[scene])
+
+
+@needs_l23
+@needs_l23_inelastic
+def test_full_release_a_cdom_decomposition_bookkeeping():
+    """The §8 foot-gun pins at full scale: over all 9960 samples of the live
+    release, ``a_cdom ≥ 0`` and ``a_ph + a_cdom ≤ a`` everywhere."""
+    batch = L.load_inelastic_batch()
+    a = np.asarray(batch.iops.a)
+    a_ph = np.asarray(batch.iops.a_ph)
+    a_cdom = np.asarray(batch.iops.a_cdom)
+    assert batch.n_sample == 3 * L.N_SCENES
+    assert a_cdom.min() >= 0.0
+    assert np.all(a_ph + a_cdom <= a)
 
 
 @needs_l23

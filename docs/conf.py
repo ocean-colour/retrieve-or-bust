@@ -78,6 +78,63 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 3  # let pages link to each other's subsections
 
+# -- Outbound GitHub links: one constant, one place ---------------------------
+#
+# Several pages (the development record; the model chapters; the generated
+# report copies) link out to files that live in the repository but are never
+# rendered by the site -- the design docs, the coding plans, the implementation
+# records, and the ten milestone notebooks. Those links have to name a git ref.
+#
+# `main` is the ref the site describes and the ref these URLs will be correct
+# against, so it is the default. It is *not* correct today: the docs work lives
+# on an unmerged branch, and `main` carries no ``reports/``, ``design/`` or
+# ``notebooks/`` directory at all, so every link below 404s until the merge.
+# That is a known, accepted state (prompt-doc Q&A Q6: "I will not merge
+# cdom-rt into main until we are all done"), not an oversight -- and the reason
+# the ref is a single constant rather than fifteen hardcoded strings is so the
+# whole site moves in one edit, or one environment variable, when it changes:
+#
+#     export ROBUST_GITHUB_URL_BASE=\
+#         "https://github.com/ocean-colour/retrieve-or-bust/blob/cdom-rt/"
+#     python -m sphinx -b html docs docs/_build/html
+#
+# Hardcoding a branch name here would be worse than the 404: the working
+# agreements forbid treating a branch name as fact, and those URLs would rot at
+# the merge instead of before it.
+#
+# The constant is DEFINED in docs/figures/make_docs_figures.py and imported
+# here, rather than the other way round, because that module is the other
+# consumer -- it rewrites the two reports' repo-relative links onto the same
+# base -- and this file already imports it (see "Generated assets" at the
+# bottom), so defining the constant here would be a circular import. One
+# definition, two consumers: the `gh:` scheme below and the report rewriter.
+sys.path.insert(0, os.path.abspath("figures"))
+
+from make_docs_figures import (  # noqa: E402
+    GITHUB_REPO_URL,
+    GITHUB_URL_BASE,
+    copy_assets,
+)
+
+github_repo_url = GITHUB_REPO_URL
+github_url_base = GITHUB_URL_BASE
+
+# Pages use it through a MyST URL scheme, so a link is written as its
+# repo-relative path and nothing else:  [text](gh:notebooks/RT/foo.ipynb).
+# Listing the standard schemes alongside is required -- assigning
+# `myst_url_schemes` replaces the default set rather than extending it.
+myst_url_schemes = {
+    "http": None,
+    "https": None,
+    "mailto": None,
+    "ftp": None,
+    "gh": {
+        "url": github_url_base + "{{path}}",
+        "title": "{{path}} on GitHub",
+        "classes": ["github"],
+    },
+}
+
 # The two reports and the design docs are authored as standalone GitHub
 # documents carrying repo-relative links (``design/...``, ``robust/...``).
 # Those are not Sphinx cross-reference targets, and CI builds with -W, so a
@@ -104,6 +161,65 @@ autodoc_typehints = "description"  # built-in; no sphinx-autodoc-typehints dep
 # functions, so autodoc never drags in ocpy's geospatial tree.
 autodoc_mock_imports = []
 
+
+# -- Docstring markup repair: REMOVED at D2 task 5 -----------------------------
+#
+# D1 task 5 added a six-line `autodoc-process-docstring` hook here because four
+# docstrings in `robust/` carried reStructuredText docutils cannot parse
+# (`**48**(35)`, and `|delta|` read as a substitution reference), each a hard
+# -W failure. That was a workaround in the docs config for a defect in the
+# package, and Q&A Q4's answer was to fix the sources and delete the hook in
+# the same change. D2 task 5 did exactly that: `ztt.py` now writes
+# `**48** (35)` and `inelastic_corr.py` writes ``|delta|`` as a literal, so the
+# hook was verified to be a no-op and removed. There is no `setup(app)` in this
+# file any more, deliberately -- if one comes back, it should be for something
+# that is not a source bug.
+
+# -- Nitpicky cross-references -------------------------------------------------
+#
+# ON since D2 task 5. Without it, `-W` is strict about documents, toctrees and
+# images but a typo'd Python role (`` :func:`no_such_thing` ``) renders as plain
+# text and passes -- measured at D1 task 3, and the reason D2 task 2's gate had
+# to be reworded to a manual HTML spot-check (Q&A Q3, option-3 fallback).
+#
+# It was measured and *rejected* at D1 task 5: a nitpicky build then left 490
+# warnings, and while 454 collapsed into the three regexes below, the 36-warning
+# residue needed 24 literal `nitpick_ignore` entries, 23 of which would have been
+# silencing real malformed docstrings in `robust/` (targets like
+# ``("py:class", "O25's stated validity ceiling")``). An ignore list whose
+# entries are English sentences is a list of defects promoted to exceptions.
+#
+# D2 task 5 fixed those docstrings at source (Q&A Q4). Re-measured immediately
+# afterwards: 454 warnings, 14 distinct targets, and every one of them belongs to
+# one of the three families below. So nitpick now costs exactly three readable
+# regexes, and a typo'd role is a build failure again -- which is what D2 task
+# 2's gate says it is.
+nitpicky = True
+
+nitpick_ignore_regex = [
+    # `jaxtyping` annotations. `Float[Array, "*batch wave"]` is parsed by the
+    # Python domain into three separate cross-references -- the constructor,
+    # the element type, and the shape string -- none of which is a documentable
+    # object. 304 of the 454.
+    ("py:class", r"(jaxtyping\..*|Array)$"),
+    # napoleon's descriptive type nouns. These are English, not classes, and
+    # the NumPy docstring standard is what asks for them. 112 of the 454.
+    # `datetime-like` (added for `robust/solar.py`) is the same family: an
+    # adjective describing acceptable inputs, not a documentable object.
+    ("py:class", r"(optional|callable|sequence|array_like|datetime-like)$"),
+    # The quoted shape strings themselves (`'wave'`, `'*batch wave'`, and the
+    # bare `'` pair that `Float[Array, "..."]` splits into). 38 of the 454.
+    ("py:class", r"'.*$"),
+    # `numpy.float64` is a real, precisely-named type -- unlike the family
+    # above -- but numpy's own objects.inv has no `py:class` entry for it
+    # (verified: its scalar dtypes are documented only as C-API enumerators,
+    # e.g. `NPY_FLOAT64`, never as autodoc'd Python classes). `numpy.ndarray`
+    # and friends resolve fine via intersphinx; this one specific name never
+    # will, on numpy's side, so it is ignored rather than reworded away.
+    ("py:class", r"numpy\.float64$"),
+]
+
+
 # -- Napoleon ----------------------------------------------------------------
 
 napoleon_google_docstring = True
@@ -125,6 +241,40 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org/stable/", None),
     "jax": ("https://docs.jax.dev/en/latest/", None),
 }
+
+# -- Generated assets --------------------------------------------------------
+#
+# The site's figures and its two reports are committed once, under ``reports/``.
+# `copy_assets()` copies the seven figures into ``docs/_static/`` and writes the
+# two reports into ``docs/reports/`` as generated pages (image paths repointed
+# at ``_static``, repo-relative links rewritten onto ``github_url_base``, a
+# generated-file banner prepended). Both destinations are gitignored
+# (``docs/_static/fig_*.png``, ``docs/reports/report_rt_*.md``), so there is
+# never a second committed copy to drift.
+#
+# Called here, at conf.py import time, rather than from a Sphinx event: the
+# generated files must exist before the *read* phase, because a document that
+# references a missing image -- or a toctree entry with no source file -- is a
+# warning, and CI builds with -W. Doing it here also means Read the Docs and CI
+# produce them themselves, from a bare checkout, with no extra build step to
+# remember. It is pure pathlib/shutil/re (no matplotlib) and idempotent, so
+# paying for it on every build is free.
+#
+# This is COPY MODE, and it is the only mode a build can reach: `copy_assets()`
+# takes no arguments and never spawns anything. The module's `--regenerate`
+# mode, which re-runs the two matplotlib scripts under ``reports/``, exists only
+# on its command line and is deliberately unreachable from here. Note the
+# guarantee is structural, not environmental: `docs/requirements.txt` has no
+# matplotlib, but Read the Docs also runs `pip install .` (.readthedocs.yaml),
+# and setup.py's install_requires *does* list matplotlib -- so it is present on
+# RTD and absent in the CI docs job. Nothing here can reach it either way.
+#
+# The module was imported above, next to `github_url_base`, because that
+# constant is defined there; Sphinx evaluates conf.py with the working directory
+# set to the config directory, which is what makes that relative `sys.path`
+# entry correct -- the same assumption the `os.path.abspath("..")` line at the
+# top of this file already makes.
+copy_assets()
 
 # -- HTML output -------------------------------------------------------------
 

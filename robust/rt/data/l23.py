@@ -119,7 +119,7 @@ class L23Batch:
     """A stacked L23 batch: model inputs, the reference ``Rrs``, and labels.
 
     Deliberately **not** a registered pytree. It is an analysis container, not an
-    argument of :func:`robust.rt.forward` -- and :attr:`scene` is host-side
+    argument of :func:`~robust.rt.hybrid.forward` -- and :attr:`scene` is host-side
     integer metadata that has no business being traced or differentiated. The
     model inputs it holds (:attr:`iops`, :attr:`phase_params`, :attr:`geometry`)
     are pytrees.
@@ -360,6 +360,8 @@ def npz_reader(path):
     stored_x = int(data["x"])
 
     def read(x: int, zenith: int) -> dict[str, np.ndarray]:
+        """Serve one ``(x, zenith)`` slice of the fixture as a
+        :data:`RAW_FIELDS` dict, raising if the fixture does not hold it."""
         if x != stored_x:
             raise ValueError(
                 f"npz_reader: fixture holds X={stored_x}, was asked for X={x}"
@@ -423,9 +425,12 @@ def load_batch(
     -----
     ``bb_w`` and ``bb_p`` come from **the file itself** (``bb - bbnw`` and
     ``bbnw``), not from :func:`robust.rt.conventions.bb_w`, so a batch is exactly
-    what L23 says with no convention drift. The two agree to ~1e-7 relative (the
-    table in ``conventions`` was derived from this same difference); a test
-    asserts that, closing the loop between the modules.
+    what L23 says with no convention drift. The two agree closely, since the
+    table in ``conventions`` was derived from this same difference: measured,
+    ``bb - bbnw`` reproduces :data:`robust.rt.conventions.BB_W_L23` to 3.1e-09
+    relative at the scene the table was taken from, and to 3.4e-06 across all
+    3320 scenes (float32 storage noise). ``test_bb_w_matches_l23_netcdf``
+    asserts ``rtol=1e-6``, closing the loop between the modules.
     """
     if not zeniths:
         raise ValueError("load_batch: `zeniths` must name at least one angle")
@@ -630,8 +635,8 @@ def _take_geometry(geometry: Geometry, keep) -> Geometry:
 
 
 # ------------------------------------------------------ inelastic scenarios --
-#: The two inelastic L23 scenarios: X=2 adds Raman scattering to the elastic
-#: X=1, X=4 adds Raman *and* chlorophyll-a fluorescence.
+#: tuple: The two inelastic L23 scenarios -- X=2 adds Raman scattering to the
+#: elastic X=1, X=4 adds Raman *and* chlorophyll-a fluorescence.
 INELASTIC_XS = (2, 4)
 
 #: The chlorophyll fluorescence quantum yield HydroLight used for the X=4
@@ -650,6 +655,7 @@ INELASTIC_RAW_FIELDS = (
     "bbnw",
     "bnw",
     "aph",
+    "ag",
     "Rrs1",
     "Rrs2",
     "Rrs4",
@@ -676,8 +682,8 @@ class L23InelasticBatch:
     Attributes
     ----------
     iops : IOPs
-        With ``a_ph`` set; identical across the X scenarios (asserted at
-        read time).
+        With ``a_ph`` and ``a_cdom`` set; identical across the X scenarios
+        (asserted at read time).
     phase_params : PhaseParams
         ``B_p`` spectrum, as elastic.
     geometry : Geometry
@@ -746,6 +752,11 @@ class L23InelasticBatch:
                 "L23InelasticBatch: iops.a_ph is None -- the inelastic loader "
                 "must supply the fluorescence source term"
             )
+        if self.iops.a_cdom is None:
+            raise ValueError(
+                "L23InelasticBatch: iops.a_cdom is None -- the inelastic loader "
+                "must supply the CDOM-fluorescence source term"
+            )
         self.iops.validate(wave=self.wave)
         self.phase_params.validate()
         self.geometry.validate()
@@ -786,9 +797,10 @@ def _read_inelastic_file(zenith: int) -> dict[str, np.ndarray]:
         "bbnw": np.asarray(ds1.bbnw.data, dtype=float),
         "bnw": np.asarray(ds1.bnw.data, dtype=float),
         "aph": np.asarray(ds1.aph.data, dtype=float),
+        "ag": np.asarray(ds1.ag.data, dtype=float),
     }
     for x, ds in datasets.items():
-        for key in ("a", "bb", "aph"):
+        for key in ("a", "bb", "aph", "ag"):
             if not np.array_equal(np.asarray(ds[key].data, dtype=float), out[key]):
                 raise ValueError(
                     f"L23 inelastic read: {key} differs between X=1 and X={x} "
@@ -802,7 +814,7 @@ def inelastic_npz_reader(path, elastic_path):
     """An inelastic ``reader`` backed by the sibling + elastic fixtures.
 
     The sibling fixture (CQ4) deliberately stores only what the elastic
-    fixture lacks -- ``aph`` and the X=2/X=4 ``Rrs`` -- plus ``a``/``bb``/
+    fixture lacks -- ``aph``, ``ag``, and the X=2/X=4 ``Rrs`` -- plus ``a``/``bb``/
     ``Rrs1`` copies used here to *prove* the two files describe the same 50
     scenes (a mismatch raises rather than silently pairing different water).
     ``bbnw``/``bnw`` come from the elastic fixture.
@@ -824,6 +836,9 @@ def inelastic_npz_reader(path, elastic_path):
     available = tuple(int(z) for z in sibling["zeniths"])
 
     def read(zenith: int) -> dict[str, np.ndarray]:
+        """Serve one zenith as an :data:`INELASTIC_RAW_FIELDS` dict, joining
+        the sibling fixture to the elastic one and checking that the two
+        describe the same scenes before returning."""
         if int(zenith) not in available:
             raise ValueError(
                 f"inelastic_npz_reader: fixture holds zeniths {available}, "
@@ -844,7 +859,7 @@ def inelastic_npz_reader(path, elastic_path):
                     "describe the same scenes"
                 )
             out[field] = ours
-        for field in ("aph", "Rrs2", "Rrs4"):
+        for field in ("aph", "ag", "Rrs2", "Rrs4"):
             out[field] = np.asarray(sibling[f"{field}_{int(zenith)}"], dtype=float)
         return out
 
@@ -884,7 +899,18 @@ def load_inelastic_batch(
     read = _read_inelastic_file if reader is None else reader
     wave_ref: np.ndarray | None = None
     parts: dict[str, list[np.ndarray]] = {
-        key: [] for key in ("a", "bb_w", "bb_p", "a_ph", "B_p", "Rrs1", "Rrs2", "Rrs4")
+        key: []
+        for key in (
+            "a",
+            "bb_w",
+            "bb_p",
+            "a_ph",
+            "a_cdom",
+            "B_p",
+            "Rrs1",
+            "Rrs2",
+            "Rrs4",
+        )
     }
     theta_parts, scene_parts = [], []
 
@@ -908,6 +934,7 @@ def load_inelastic_batch(
         parts["bb_w"].append(raw["bb"][index] - bbnw)
         parts["bb_p"].append(bbnw)
         parts["a_ph"].append(raw["aph"][index])
+        parts["a_cdom"].append(raw["ag"][index])
         parts["B_p"].append(bbnw / raw["bnw"][index])
         for x in (1, *INELASTIC_XS):
             parts[f"Rrs{x}"].append(raw[f"Rrs{x}"][index])
@@ -923,6 +950,7 @@ def load_inelastic_batch(
             bb_w=jnp.asarray(np.concatenate(parts["bb_w"])),
             bb_p=jnp.asarray(np.concatenate(parts["bb_p"])),
             a_ph=jnp.asarray(np.concatenate(parts["a_ph"])),
+            a_cdom=jnp.asarray(np.concatenate(parts["a_cdom"])),
         ),
         phase_params=PhaseParams(B_p=jnp.asarray(B_p)),
         geometry=Geometry.nadir(jnp.asarray(np.concatenate(theta_parts))),

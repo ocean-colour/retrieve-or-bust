@@ -16,7 +16,10 @@ Three concerns, in order of importance:
   anchored to the machine that pinned it: GitHub's heterogeneous runner fleet
   reproduced the tank bits on some runners and not others *within one CI run*,
   so the strict bitwise tests skip under CI (the M2 bing-xcheck precedent) and
-  are mandatory-green on dev machines. CI instead runs a *closeness*
+  are mandatory-green **on their anchor machine** — since M5 there are two pin
+  sets on two different machines, so each strict tier now also skips where it
+  is not anchored rather than failing there (:func:`strict_bits_on_anchor`,
+  docs prompt 1 Q&A Q12). CI instead runs a *closeness*
   regression against the committed pre-change outputs
   (``files/elastic_reference_outputs.npz``, whose bytes hash to the pins
   below) at ULP-scale tolerance — tight enough to catch any real change to
@@ -51,6 +54,7 @@ import dataclasses
 import hashlib
 import os
 import pathlib
+import platform
 
 import jax
 import jax.numpy as jnp
@@ -69,13 +73,66 @@ ELASTIC_REFERENCE = (
     pathlib.Path(__file__).parent / "files" / "elastic_reference_outputs.npz"
 )
 
-#: Bit-identity is machine-anchored; on CI's heterogeneous runners the strict
-#: tier skips and the closeness tier below carries the regression (Q&A Q2).
-strict_bits_are_local = pytest.mark.skipif(
-    os.environ.get("CI", "") != "",
-    reason="bitwise hash pin is anchored to the dev machine; CI runners "
-    "reproduce it only sometimes — the closeness regression runs instead",
-)
+#: The machine each strict pin set was computed on (see the pin blocks below).
+#: They are deliberately *different* machines, which is why the strict tiers
+#: have to be selected per anchor rather than simply "not CI".
+ELASTIC_PIN_ANCHOR = "tank"
+INELASTIC_PIN_ANCHOR = "mac"
+
+#: Hosts whose anchor identity we can name, so the two anchor machines keep
+#: their bitwise guard without anyone having to remember an environment
+#: variable. Keys are ``platform.node()``, lowercased. Add the tank server's
+#: node name here the first time the suite runs there.
+ANCHOR_HOSTS = {"mac.lan": INELASTIC_PIN_ANCHOR}
+
+#: Environment override, read once: ``ROBUST_HASH_ANCHOR=tank``, ``=mac``, a
+#: comma-separated list (a machine that anchors both), or ``=none`` to disown
+#: every pin set on a machine that :data:`ANCHOR_HOSTS` would otherwise claim.
+
+
+def this_machines_anchors() -> frozenset[str]:
+    """Which strict pin sets this machine is the anchor for.
+
+    ``ROBUST_HASH_ANCHOR`` wins when set; otherwise :data:`ANCHOR_HOSTS` maps
+    the hostname. An unknown machine anchors **nothing**, which is the safe
+    default: a strict tier that cannot be trusted here skips with a reason
+    instead of failing, and the closeness tiers — which pass everywhere — stay
+    the regression guard.
+    """
+    declared = os.environ.get("ROBUST_HASH_ANCHOR", "").strip().lower()
+    if declared:
+        return frozenset(a for a in (p.strip() for p in declared.split(",")) if a)
+    host = platform.node().strip().lower()
+    return frozenset({ANCHOR_HOSTS[host]} if host in ANCHOR_HOSTS else ())
+
+
+def strict_bits_on_anchor(anchor: str):
+    """Skip a strict bitwise tier unless this machine is its anchor.
+
+    Bit-identity is machine-anchored twice over: the elastic pins were
+    computed on the tank server and the inelastic ones on JXP's Mac, so no
+    single machine reproduces both and an unconditional strict tier turns a
+    routine ``pytest`` run permanently red — which is a weaker regression
+    signal than a green suite, not a stronger one (prompt-1 Q&A Q12,
+    option 1). CI skips both tiers for the older reason (Q&A Q2): GitHub's
+    heterogeneous runners reproduced the tank bits on some machines and not
+    others *within one run*.
+    """
+    if os.environ.get("CI", "") != "":
+        return pytest.mark.skipif(
+            True,
+            reason="bitwise hash pins are machine-anchored; CI runners "
+            "reproduce them only sometimes — the closeness tier runs instead",
+        )
+    here = sorted(this_machines_anchors())
+    return pytest.mark.skipif(
+        anchor not in here,
+        reason=f"bitwise hash pins are anchored to the {anchor!r} machine; "
+        f"this one is {'+'.join(here) or 'unanchored'} — set "
+        f"ROBUST_HASH_ANCHOR={anchor} to claim it. The closeness tier carries "
+        "the regression here",
+    )
+
 
 #: SHA-256 of ``np.asarray(out).tobytes()`` for ``forward``/``rrs_forward`` on
 #: the 50-scene fixture (150 samples x 81 bands, float32), computed on the
@@ -91,8 +148,37 @@ PRE_CHANGE_SHA256_RRS_BELOW = (
     "d111464020aacb47bbc9dd9aa027dd11b2e15e019a735687b6c6c0fa504c2c38"
 )
 
+#: The committed pre-CDOM-wiring default-inelastic outputs (M5 task 5) —
+#: ``forward``/``rrs_forward`` with ``inelastic=Inelastic()`` (``raman=True,
+#: fluorescence=True, cdom_fl=None``) on the 150-sample inelastic fixture;
+#: regenerate with ``gen_inelastic_fixture.write_inelastic_default_reference``
+#: only on a deliberate change to the shipped inelastic model.
+INELASTIC_DEFAULT_REFERENCE = (
+    pathlib.Path(__file__).parent / "files" / "inelastic_default_reference_outputs.npz"
+)
 
-from robust.tests.conftest import tiny_args  # noqa: E402 - shared helper
+#: SHA-256 of ``np.asarray(out).tobytes()`` for the default-inelastic
+#: configuration above, computed on the PRE-CDOM-WIRING code (M5 task 5, step
+#: 5a: the reference was written and hashed **before** ``hybrid.py`` grew the
+#: ``Rrs_cdom`` composition) with the committed trained heads
+#: (``corrections=None``) and ``check_domain=False``. These pins prove the
+#: CDOM branch is unreachable — a no-op by construction — when ``cdom_fl``
+#: stays ``None`` (CDOM design §3). Machine anchoring: pinned on JXP's Mac
+#: (darwin, 2026-08-29) — a *different* machine from the tank server that
+#: anchored the elastic pins above, so no one machine can reproduce both pin
+#: sets. Each strict tier therefore runs only on its own anchor and skips
+#: elsewhere (:func:`strict_bits_on_anchor`); the closeness tiers carry the
+#: guard everywhere (the finding recorded in the M5 prompt doc's task-1 log,
+#: decided at docs prompt 1 Q&A Q12).
+PRE_CDOM_SHA256_RRS_ABOVE = (
+    "0dd365158e3037261ee061777fe51da8fa132d4f0972792ad068b9c73641291a"
+)
+PRE_CDOM_SHA256_RRS_BELOW = (
+    "72d4a308e2222c802e18e1878d00f26853db831d9db82a8e529cfead883cc0b8"
+)
+
+
+from robust.tests.conftest import needs_weights, tiny_args  # noqa: E402 - shared
 
 
 def sha256_of(array) -> str:
@@ -117,14 +203,15 @@ def elastic_outputs(batch):
     )
 
 
-@strict_bits_are_local
+@strict_bits_on_anchor(ELASTIC_PIN_ANCHOR)
 def test_elastic_hash_regression_strict(l23_small_batch):
     """``forward(..., inelastic=None)`` is bit-identical to the pre-change hybrid.
 
     Strict tier: the SHA-256 pins *and* element-wise equality with the
     committed reference (same content — the arrays' bytes hash to the pins;
     the array comparison is here so a failure names positions, not just
-    digests). Skips under CI; mandatory-green on dev machines.
+    digests). Skips under CI and off the tank server that pinned it
+    (``ROBUST_HASH_ANCHOR=tank``); mandatory-green there.
     """
     Rrs, rrs = elastic_outputs(l23_small_batch)
     assert np.asarray(Rrs).dtype == np.float32
@@ -151,6 +238,71 @@ def test_elastic_regression_close_everywhere(l23_small_batch):
     reference = np.load(ELASTIC_REFERENCE)
     assert sha256_of(reference["Rrs"]) == PRE_CHANGE_SHA256_RRS_ABOVE
     assert sha256_of(reference["rrs"]) == PRE_CHANGE_SHA256_RRS_BELOW
+    np.testing.assert_allclose(np.asarray(Rrs), reference["Rrs"], rtol=5e-7, atol=0.0)
+    np.testing.assert_allclose(np.asarray(rrs), reference["rrs"], rtol=5e-7, atol=0.0)
+
+
+# ---------------------------------- inelastic-default hash-regression (M5) ----
+
+
+def inelastic_default_outputs(batch):
+    """The two M5 regression quantities, computed exactly as the pins were.
+
+    The default ``Inelastic()`` — ``cdom_fl=None`` implicitly — with the
+    packaged trained heads (``corrections=None``, the shipped default) and
+    ``check_domain=False``; the :func:`elastic_outputs` pattern on the
+    inelastic fixture, whose samples carry the ``a_ph``/``a_cdom`` the
+    default configuration exercises.
+    """
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    return (
+        H.forward(*args, inelastic=T.Inelastic(), check_domain=False),
+        H.rrs_forward(*args, inelastic=T.Inelastic(), check_domain=False),
+    )
+
+
+@needs_weights
+@strict_bits_on_anchor(INELASTIC_PIN_ANCHOR)
+def test_inelastic_default_hash_regression_strict(l23_small_inelastic_batch):
+    """``forward(..., inelastic=Inelastic())`` is bit-identical to the
+    pre-CDOM-wiring shipped inelastic model.
+
+    The M5 task-5 extension of the elastic strict tier (CDOM design §3): the
+    pins and reference were computed **before** ``hybrid.py`` grew the
+    ``Rrs_cdom`` composition, so this passing after the wiring proves the new
+    branch is unreachable when ``cdom_fl`` stays ``None`` — the default model
+    remains provably CDOM-fl-free, keeping the X4-truth 0.34 % gate's claims
+    valid. Skips under CI, off the Mac that pinned it
+    (``ROBUST_HASH_ANCHOR=mac``), and without the committed heads (the default
+    ``corrections=None`` resolves them; absent weights would silently change
+    the bytes under comparison).
+    """
+    Rrs, rrs = inelastic_default_outputs(l23_small_inelastic_batch)
+    assert np.asarray(Rrs).dtype == np.float32
+    assert sha256_of(Rrs) == PRE_CDOM_SHA256_RRS_ABOVE
+    assert sha256_of(rrs) == PRE_CDOM_SHA256_RRS_BELOW
+
+    reference = np.load(INELASTIC_DEFAULT_REFERENCE)
+    np.testing.assert_array_equal(np.asarray(Rrs), reference["Rrs"])
+    np.testing.assert_array_equal(np.asarray(rrs), reference["rrs"])
+
+
+@needs_weights
+def test_inelastic_default_regression_close_everywhere(l23_small_inelastic_batch):
+    """Closeness tier: the default-inelastic route matches the committed
+    pre-CDOM-wiring outputs to ULP scale, on every platform.
+
+    The committed arrays are the pinned bytes (their SHA-256 *is* the strict
+    pin), so this is the same guard at the tolerance cross-platform float32
+    allows — rtol 5e-7 (~4 ULP), exactly the elastic closeness tier's. Any
+    genuine change to the default inelastic route — e.g. CDOM arithmetic
+    leaking into the ``cdom_fl=None`` path — shows up broadly at this
+    tolerance, on the tank server and CI as well as the pinning Mac.
+    """
+    Rrs, rrs = inelastic_default_outputs(l23_small_inelastic_batch)
+    reference = np.load(INELASTIC_DEFAULT_REFERENCE)
+    assert sha256_of(reference["Rrs"]) == PRE_CDOM_SHA256_RRS_ABOVE
+    assert sha256_of(reference["rrs"]) == PRE_CDOM_SHA256_RRS_BELOW
     np.testing.assert_allclose(np.asarray(Rrs), reference["Rrs"], rtol=5e-7, atol=0.0)
     np.testing.assert_allclose(np.asarray(rrs), reference["rrs"], rtol=5e-7, atol=0.0)
 
@@ -684,3 +836,15 @@ def test_inelastic_is_exported():
 
     assert rt.Inelastic is T.Inelastic
     assert "Inelastic" in rt.__all__
+
+
+def test_cdom_fl_is_exported():
+    """``robust.rt`` re-exports ``CDOMFl`` (M5 task 5 — deferred from task 1,
+    which left ``__init__.py`` untouched; the composition wiring makes
+    ``CDOMFl`` a genuine ``forward()`` argument type, so it exports beside
+    ``Inelastic``, and the ``cdom_fl`` submodule joins the roster)."""
+    from robust import rt
+
+    assert rt.CDOMFl is T.CDOMFl
+    assert "CDOMFl" in rt.__all__
+    assert "cdom_fl" in rt.__all__

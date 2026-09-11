@@ -15,14 +15,14 @@ POLYMER. And because L23 is nadir-only, a refit here could never populate the tw
 sensor-geometry axes, so it would be a different object wearing the same name. Recorded
 as a gap rather than approximated (prompt 5, Q8).
 
-**Gordon takes the same arguments as** :func:`robust.rt.forward` **and ignores two
-of them.** ``phase_params`` and ``geometry`` are accepted and discarded, which is
-not an implementation shortcut but the model's defining limitation: standard Gordon
-has no phase-function input and no solar-zenith dependence. L23 says ``Rrs`` falls
-by a median 5.1% from 0 deg to 60 deg, so a zenith-blind model *must* mis-fit at
-least one angle. That gap is what the ZTT backbone and the residual emulator are for,
-and keeping the signatures interchangeable is what lets M4 score all of them in one
-loop.
+**Gordon takes the same arguments as** :func:`~robust.rt.hybrid.forward` **and
+ignores two of them.** ``phase_params`` and ``geometry`` are accepted and
+discarded, which is not an implementation shortcut but the model's defining
+limitation: standard Gordon has no phase-function input and no solar-zenith
+dependence. L23 says ``Rrs`` falls by a median 5.1% from 0 deg to 60 deg, so a
+zenith-blind model *must* mis-fit at least one angle. That gap is what the ZTT
+backbone and the residual emulator are for, and keeping the signatures
+interchangeable is what lets M4 score all of them in one loop.
 """
 
 from __future__ import annotations
@@ -51,6 +51,7 @@ __all__ = [  # noqa: RUF022  - grouped by role
 #: (``context/RT/make_rt_elastic_figures.py``) use these same two numbers, so our
 #: rRMS is comparable with the ladder in ``context/RT/fig_rrms_ladder.csv``.
 G1_GORDON = 0.0949
+#: float: The quadratic coefficient ``G2`` of that same Gordon (1988) form.
 G2_GORDON = 0.0794
 
 
@@ -75,7 +76,7 @@ def rrs_gordon(
         of the two things it is blind to.
     phase_params : optional
         **Ignored.** Accepted so the signature matches
-        :func:`robust.rt.forward`; standard Gordon has no phase-function input.
+        :func:`~robust.rt.hybrid.forward`; standard Gordon has no phase-function input.
     geometry : optional
         **Ignored.** Same reason: no solar-zenith dependence.
     wave : Array, optional
@@ -154,7 +155,8 @@ O25_L23_REFIT = (
     (60.0, 0.05249313, 0.03749838, 0.03936996, 0.20619877),
 )
 
-#: O25's stated validity ceiling: the quadratic was fitted for ``Rrs`` up to this value.
+#: float: O25's stated validity ceiling -- the quadratic was fitted for ``Rrs``
+#: up to this value.
 #: L23 reaches 0.0248, well inside it, so nothing here extrapolates in brightness.
 O25_RRS_CEILING = 0.06
 

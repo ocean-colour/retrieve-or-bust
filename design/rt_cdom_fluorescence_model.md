@@ -48,7 +48,8 @@ request of §7, commissioned jointly with the geometry runs (CFQ8).
   inside `Inelastic()`, and `Inelastic(..., cdom_fl=None)` must be
   **bit-identical** to the current shipped inelastic output.
 - Preserve every inherited property: differentiable end-to-end (now including
-  ∂Rrs/∂scale), batched, within the existing 2× elastic speed budget.
+  ∂Rrs/∂scale), batched, within the speed budget (originally the inherited 2×
+  elastic; rescoped to a machine-anchored 2.6× at M5 — see §5 item 5).
 
 **Non-goals (v1).**
 - **No correction-head training.** No CDOM-fl truth exists anywhere in hand —
@@ -178,8 +179,22 @@ cross-check (no BING implementation exists). M5 passes when all of:
    in a_g(440).
 4. **Gradients**: central-difference checks pass for all inputs including the
    new `scale` amplitude (and `a_cdom`).
-5. **Speed**: the composed forward with CDOM-fl on stays within the existing
-   **2× elastic** runtime budget.
+5. **Speed**: the composed forward with CDOM-fl on stays within the runtime
+   budget — **rescoped at M5 task 8 from the original 2× elastic to a
+   machine-anchored 2.6× elastic** (Q&A CQ3, 2026-08-30, JXP: "Go ahead and
+   rescope the budget and make note that it is machine-anchored"). The
+   measured facts behind the rescope: on JXP's Mac the everything-on forward
+   reproducibly measures 2.26–2.34× (2.45× under load), with the CDOM
+   *marginal* only ~0.3–0.4× elastic — most of the overage is baseline drift
+   on that machine (the shipped Raman+Chl-fl model measures ~1.9× there vs
+   its M4-recorded 1.59×). The 2.6 bound is **machine-anchored** in exactly
+   the strict-SHA-256-hash-pin sense: it characterizes *that machine's*
+   measured behavior with headroom, not a portable physical requirement — a
+   different machine (e.g. the tank server that anchored the M4 speed
+   record) may reproduce a different, possibly tighter, ratio. The shipped
+   M4 model's own 2× gate (`validation.INELASTIC_GATE_SPEED`) is untouched;
+   the rescoped constant lives separately as
+   `test_cdom_validation.CDOM_GATE_SPEED_MACHINE_ANCHORED`.
 
 **M6 gate (deferred — conditional on truth arrival).** Written now, armed
 later: with HydroLight "X4 vs X4+CDOM-fl" pairs in hand (§7), train δ_C on the
