@@ -221,7 +221,7 @@ the design-§7 HydroLight runs unblock M6.
 9. **Report and docs**.  Update the docs in `docs/model` as need be.  And then update the inelastic RT report in `reports/report_rt_inelastic_model.md`.  
 
 10. **Pull request.** JXP has created a PR and cursor reviewed it.  Make changes
-based on the comments in the pull request. 
+based on the comments in the pull request (or none if there are none).  There are 2 failing doc tests.  Fix those 
 
 ### Q&A
 
@@ -871,3 +871,73 @@ end (JXP commits): modified — `reports/report_rt_inelastic_model.md`,
 `docs/reports/index.md`, `docs/development_record.md`, and this prompt doc
 (JXP's pre-existing wording changes + this log entry). Remaining: task 10
 (PR revisions) once the review comments exist.
+
+### 2026-09-11 (M5 task 10 — PR #21: no review comments to act on; the 2 failing `sphinx -W` doc-build checks fixed) (model: Fable)
+
+Executed task 10 on `cdom-rt` (verified; only tree change at start was this
+prompt doc's own task-9/10 rewording, per the previous entry — left alone,
+appended to only here).
+
+**PR review comments: none to act on.** `gh pr view --json comments` on
+PR #21 ("CDOM RT") shows one issue comment, JXP's own `@cursor review`
+trigger; `gh api .../pulls/21/reviews` shows exactly one review, from
+`cursor[bot]` (Bugbot): *"reviewed your changes and found no new
+issues!"*; `gh api .../pulls/21/comments` (inline review comments) is
+empty. So the task's own "(or none if there are none)" branch applies —
+nothing to change on that front.
+
+**The 2 failing doc tests.** `gh pr checks 21` showed exactly two failing
+checks, both named `sphinx (-W)` (one per Python-version job in the
+matrix, same root cause). Reproduced locally: `python -m sphinx -b html -W
+--keep-going docs docs/_build/html` failed with 8 warning lines collapsing
+to **2 distinct unresolved `py:class` targets**, both from
+`robust/solar.py` (a large, otherwise-unrelated NOAA-solar-geometry module
+that landed on this branch via the concurrent Docs session's `abf4360
+"wip"` commit, together with all of `docs/`) — each hit twice, once via
+autodoc scanning the module and once via the `robust.solar.solar_zenith`/
+`solar_position` entries `docs/api.rst:244` documents explicitly:
+
+- `datetime-like` — the `Parameters`-section type field
+  (`time : datetime-like or str or numpy.datetime64 or array_like`) napoleon
+  splits into separate tokens and tries to cross-reference each; this one
+  is prose, not a class, exactly like the `optional`/`callable`/`sequence`/
+  `array_like` family `docs/conf.py`'s `nitpick_ignore_regex` already
+  carries a comment-documented entry for (D1/D2's own convention: real
+  malformed docstrings get fixed at source, genuine English type-nouns get
+  one shared regex). Extended that same regex to include it rather than
+  adding a new entry or rewording the docstring — it is the identical
+  category, not a new one.
+- `numpy.float64` — checked whether this was instead a docstring problem
+  (missing backticks, wrong dotted path) before touching `conf.py`:
+  fetched and decompressed numpy's live `objects.inv` and grepped it for
+  `float` — numpy's Sphinx inventory has **no `py:class` entry for
+  `numpy.float64`** at all (or any numpy scalar dtype); those are
+  documented only as C-API enumerators (`NPY_FLOAT64` etc.), never as
+  autodoc'd Python classes, while `numpy.ndarray` (used right next to it in
+  the same type fields) resolves fine. So this is not a local defect to
+  reword away — the name is accurate and the gap is on numpy's side — and
+  it gets its own new `nitpick_ignore_regex` entry, `numpy\.float64$`, with
+  a comment recording exactly this verification so a future reader doesn't
+  mistake it for an unjustified silence.
+
+Both are single-line, single-purpose regex additions to the existing list
+in `docs/conf.py`, not new prose or restructuring. Rebuilt clean after:
+`python -m sphinx -b html -W --keep-going docs docs/_build/html` → **build
+succeeded**, 0 warnings. `ruff check`/`ruff format --check` on `conf.py`
+both clean. Also re-ran `pytest -q` from the repo root as a final sanity
+check (unaffected by a docs-only change, and confirms this Mac's earlier
+machine-anchored strict-hash-pin failures are not currently reproducing —
+tracked separately, not this task's concern): **532 passed, 5 skipped**.
+
+**Out of scope, deliberately:** did not touch `robust/solar.py` itself (its
+docstrings are accurate; the fix belongs in the doc-build config, per the
+established family-regex convention, not in the module), did not open a
+new PR review round-trip (nothing was requested to change), and did not
+investigate why the two `sphinx (-W)` CI runs both fired for the same
+commit (matrix duplication, not a bug). Git tree at end (JXP commits):
+modified — `docs/conf.py` (this task) plus this prompt doc's log entry;
+`reports/report_rt_inelastic_model.md`, `docs/reports/index.md`,
+`docs/development_record.md` from task 9 remain as committed there.
+M5's own prompt-doc task list (1–10) is now fully executed; remaining work
+is JXP's (push, let CI re-run, merge) and, longer-term, M6 once the
+HydroLight truth runs land.

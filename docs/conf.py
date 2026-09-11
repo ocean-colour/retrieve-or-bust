@@ -204,10 +204,19 @@ nitpick_ignore_regex = [
     ("py:class", r"(jaxtyping\..*|Array)$"),
     # napoleon's descriptive type nouns. These are English, not classes, and
     # the NumPy docstring standard is what asks for them. 112 of the 454.
-    ("py:class", r"(optional|callable|sequence|array_like)$"),
+    # `datetime-like` (added for `robust/solar.py`) is the same family: an
+    # adjective describing acceptable inputs, not a documentable object.
+    ("py:class", r"(optional|callable|sequence|array_like|datetime-like)$"),
     # The quoted shape strings themselves (`'wave'`, `'*batch wave'`, and the
     # bare `'` pair that `Float[Array, "..."]` splits into). 38 of the 454.
     ("py:class", r"'.*$"),
+    # `numpy.float64` is a real, precisely-named type -- unlike the family
+    # above -- but numpy's own objects.inv has no `py:class` entry for it
+    # (verified: its scalar dtypes are documented only as C-API enumerators,
+    # e.g. `NPY_FLOAT64`, never as autodoc'd Python classes). `numpy.ndarray`
+    # and friends resolve fine via intersphinx; this one specific name never
+    # will, on numpy's side, so it is ignored rather than reworded away.
+    ("py:class", r"numpy\.float64$"),
 ]
 
 
