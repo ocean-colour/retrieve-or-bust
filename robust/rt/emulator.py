@@ -713,8 +713,38 @@ class Emulator:
     def _standardise(
         self, x: Float[Array, "... feature"]
     ) -> Float[Array, "... feature"]:
-        """Apply the stored per-feature standardisation."""
-        return (x - self.mean) / self.std
+        """Apply the stored per-feature standardisation.
+
+        A feature that was **constant over the training split** is forced to
+        exactly ``0`` rather than divided by the :data:`_STD_FLOOR` guard.
+
+        This is not cosmetic. ``cos_theta_v`` and ``cos_dphi`` are constant in
+        L23 (nadir view, zero azimuth), so their stored ``std`` is the 1e-8
+        floor. A 54.6 deg sensor zenith then standardises to
+        ``(0.5796 - 1.0) / 1e-8 = -4.2e7``, which saturates every ``tanh`` in
+        the network and collapses ``delta`` to a **flat constant at all 81
+        wavelengths** — measured at ``-0.219`` for a real PACE matchup pixel,
+        i.e. a silent -22 % multiplicative bias on ``Rrs``, against a nadir
+        correction that properly varies from -0.059 to +0.034 across the band.
+        Two different view angles (22 deg and 60 deg) produced the *identical*
+        output, which is the signature of full saturation.
+
+        Zero is the only defensible value: the network never saw the feature
+        vary, so it has no information about it, and the correct behaviour is
+        to apply the correction it *did* learn rather than an arbitrary
+        extrapolation. The analytic ZTT backbone still carries the real
+        geometry dependence; only the learned residual is held geometry-blind.
+
+        This keeps the M5 seam intact. Once off-nadir training data exists the
+        feature's ``std`` exceeds the floor and it activates automatically,
+        with no interface or weights change here.
+
+        The companion :meth:`out_of_domain` check still reports these inputs,
+        so a caller is told the correction is unvalidated off-nadir — it is
+        simply no longer corrupted by being told.
+        """
+        z = (x - self.mean) / self.std
+        return jnp.where(self.std > _STD_FLOOR, z, 0.0)
 
 
 def _effective_domain(domain, theta_s_limits):
