@@ -1,0 +1,19 @@
+model,split,rrms_percent
+standard Gordon,train,7.2063
+standard Gordon,held-out scenes,7.2117
+standard Gordon,held-out @60,9.0079
+ZTT backbone,train,5.9465
+ZTT backbone,held-out scenes,5.9342
+ZTT backbone,held-out @60,8.1082
+"O25 form, refit on L23",train,0.6997
+"O25 form, refit on L23",held-out scenes,0.6929
+"O25 form, refit on L23",held-out @60,0.7142
+"hybrid, linear",train,2.5719
+"hybrid, linear",held-out scenes,2.5409
+"hybrid, linear",held-out @60,2.4824
+"hybrid, MLP",train,0.2978
+"hybrid, MLP",held-out scenes,0.3026
+"hybrid, MLP",held-out @60,0.3166
+"hybrid, MLP + fallback",train,0.2978
+"hybrid, MLP + fallback",held-out scenes,0.3026
+"hybrid, MLP + fallback",held-out @60,0.3166

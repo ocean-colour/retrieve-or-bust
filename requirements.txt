@@ -14,6 +14,12 @@ pytest
 emcee
 corner
 bokeh
+# Differentiable RT forward model (robust/rt) — CPU-only JAX.
+# Plain `jax` pulls the matching CPU `jaxlib`; a GPU build would be `jax[cuda12]`.
+jax
+flax
+optax
+jaxtyping
 # Sibling packages (not on PyPI) — installed from source/GitHub
 git+https://github.com/ocean-colour/ocpy
 git+https://github.com/ocean-colour/bing.git

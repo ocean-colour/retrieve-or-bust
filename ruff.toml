@@ -1,0 +1,34 @@
+# Ruff configuration for retrieve-or-bust.
+#
+# Why this file exists: without it, `ruff check` runs against whatever the
+# installed ruff version happens to default to, so "lint is clean" becomes a
+# statement about a tool version rather than about the code, and a ruff release
+# can turn CI red with no code change. The rule selection below matches the
+# sibling PAB project, so the two repos lint the same way.
+
+line-length = 88
+target-version = "py312"        # the floor declared in setup.py
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort (import ordering)
+    "W",    # pycodestyle warnings
+    "UP",   # pyupgrade (modern syntax for the target version)
+    "B",    # flake8-bugbear (likely bugs)
+]
+
+# Both of these fire on `jaxtyping` annotations, where the string is a *shape
+# specification* (`Float[Array, " 81"]`), not a stringified type. Neither linter
+# knows that: pyflakes tries to parse the shape as a forward reference and
+# reports a syntax error, and pyupgrade offers to delete quotes that are
+# load-bearing. The coding plan calls for light jaxtyping on public signatures,
+# so the rules go rather than the annotations.
+ignore = [
+    "F722",   # "syntax error in forward annotation" -- it is a shape, not a type
+    "UP037",  # "remove quotes from type annotation" -- the quotes are required
+]
+
+[format]
+quote-style = "double"
