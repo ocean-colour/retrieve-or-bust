@@ -41,7 +41,9 @@ setup_keywords['packages'] = find_packages()
 # L23 test fixture. Without this, an installed copy imports fine and then fails at
 # the first forward(mode='hybrid') with a missing-weights error, because
 # find_packages() collects modules only -- data files need saying out loud.
-setup_keywords['package_data'] = {'robust': ['rt/files/*.npz', 'tests/files/*.npz']}
+setup_keywords['package_data'] = {
+    'robust': ['rt/files/*.npz', 'rt/data/*.npz', 'tests/files/*.npz'],
+}
 
 if os.path.isdir('bin'):
     setup_keywords['scripts'] = [fname for fname in glob.glob(os.path.join('bin', '*'))

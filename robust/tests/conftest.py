@@ -29,6 +29,20 @@ import pytest
 #: Y = 0/30/60 deg. The prototype needs all three (coding plan M1).
 L23_ELASTIC_FILES = ("Hydrolight100.nc", "Hydrolight130.nc", "Hydrolight160.nc")
 
+#: The L23 *inelastic* files: X=2 (+ Raman) and X=4 (+ Raman and chlorophyll
+#: fluorescence) at the same three zeniths. Guarded separately from
+#: :data:`L23_ELASTIC_FILES` because a machine can legitimately hold the elastic
+#: three without these six — the inelastic effort's raw-netCDF tests must then
+#: skip, not fail (inelastic coding plan, M1).
+L23_INELASTIC_FILES = (
+    "Hydrolight200.nc",
+    "Hydrolight230.nc",
+    "Hydrolight260.nc",
+    "Hydrolight400.nc",
+    "Hydrolight430.nc",
+    "Hydrolight460.nc",
+)
+
 #: Fixtures directory (BING layout).
 FILES = pathlib.Path(__file__).parent / "files"
 
@@ -62,6 +76,32 @@ def l23_available():
 #: Skip a test that needs the L23 reference data.
 needs_l23 = pytest.mark.skipif(
     not l23_available(), reason="L23 elastic Hydrolight data not available ($OS_COLOR)"
+)
+
+
+def l23_inelastic_available():
+    """Whether the L23 inelastic (X=2/X=4) dataset is on disk.
+
+    Returns
+    -------
+    bool
+        True when ``ocpy`` imports *and* every file in
+        :data:`L23_INELASTIC_FILES` is present in its L23 directory.
+    """
+    try:
+        from ocpy.hydrolight import loisel23
+    except Exception:  # noqa: BLE001 - any failure here means "no data", by design
+        return False
+    return all(
+        os.path.isfile(os.path.join(loisel23.l23_path, name))
+        for name in L23_INELASTIC_FILES
+    )
+
+
+#: Skip a test that needs the L23 inelastic (X=2/X=4) reference data.
+needs_l23_inelastic = pytest.mark.skipif(
+    not l23_inelastic_available(),
+    reason="L23 inelastic Hydrolight data (X=2/X=4) not available ($OS_COLOR)",
 )
 
 
