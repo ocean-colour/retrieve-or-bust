@@ -20,7 +20,7 @@ This prompt doc will be used to update the websites for the Retrieve or Bust Git
     - Add the team names: 
       - Paula Bontemps (URI)
       - Heidi Dierssen (UConn)
-      - Henry Housekeeper (WHOI)
+      - Henry Houskeeper (WHOI)
       - Robert Frouin (SIO)
       - Mariah Kavanaugh  (OSU)
       - Raphe Kudela (UCSC)

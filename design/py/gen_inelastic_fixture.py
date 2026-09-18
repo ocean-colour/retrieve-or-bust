@@ -185,12 +185,147 @@ def write_elastic_reference(path: Path = ELASTIC_REF_PATH) -> None:
         tmp.unlink(missing_ok=True)
 
 
+#: Destination of the sibling CI fixture (CQ4; M1 task 3).
+INELASTIC_FIXTURE_PATH = (
+    REPO / "robust" / "tests" / "files" / "l23_inelastic_fixture.npz"
+)
+
+#: Scenes in the sibling fixture -- the elastic fixture's own 50 (its
+#: ``write_fixture`` takes the *first* ``n_scene`` scenes; CQ4 requires the
+#: same indices, and the loader's cross-fixture equality check enforces it).
+N_SCENE_FIXTURE = 50
+
+
+def write_inelastic_fixture(path: Path = INELASTIC_FIXTURE_PATH) -> None:
+    """Part 2: the sibling CI fixture (coding plan CQ4).
+
+    The elastic fixture's 50 scene indices x {a, aph, ag, bb, Rrs1, Rrs2, Rrs4}
+    at all three zeniths, float32, and nothing else (Ed ships in the package
+    data; ``bbnw``/``bnw`` stay in the elastic fixture, whose bytes this
+    script never touches). The a/bb/Rrs1 copies exist so
+    ``l23.inelastic_npz_reader`` can *prove* the two fixtures describe the
+    same water rather than assuming it.
+
+    Verified before replacing anything: loaded back through the real
+    ``load_inelastic_batch`` via the real fixture reader, validated, and
+    sample-counted (the write_fixture / PR #11 discipline).
+    """
+    from robust.rt.data import l23
+
+    arrays: dict[str, np.ndarray] = {
+        "zeniths": np.asarray(ZENITHS),
+        "n_scene": np.asarray(N_SCENE_FIXTURE),
+    }
+    for zenith in ZENITHS:
+        raw = l23._read_inelastic_file(zenith)  # noqa: SLF001 - the loader's own reader
+        arrays["wave"] = raw["wave"].astype(np.float32)
+        for field in ("a", "aph", "ag", "bb", "Rrs1", "Rrs2", "Rrs4"):
+            arrays[f"{field}_{zenith}"] = raw[field][:N_SCENE_FIXTURE].astype(
+                np.float32
+            )
+
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        batch = l23.load_inelastic_batch(
+            reader=l23.inelastic_npz_reader(
+                tmp, REPO / "robust" / "tests" / "files" / "l23_small.npz"
+            )
+        )
+        batch.validate()
+        expected = len(ZENITHS) * N_SCENE_FIXTURE
+        if batch.n_sample != expected:
+            raise ValueError(
+                f"write_inelastic_fixture: snapshot loads {batch.n_sample} "
+                f"samples, expected {expected}; {path} left untouched"
+            )
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+        print(f"Wrote {path} ({path.stat().st_size / 1024:.0f} kB)")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+#: Destination of the inelastic-default reference outputs (the M5 task-5
+#: extended bit-identity regression's everywhere-runnable form;
+#: robust/tests/test_inelastic_types.py reads it).
+INELASTIC_DEFAULT_REF_PATH = (
+    REPO / "robust" / "tests" / "files" / "inelastic_default_reference_outputs.npz"
+)
+
+
+def write_inelastic_default_reference(path: Path = INELASTIC_DEFAULT_REF_PATH) -> None:
+    """Write the default-inelastic `forward`/`rrs_forward` outputs on the fixture.
+
+    The CDOM-fluorescence design (§3) extends the bit-identity guarantee: the
+    *default* inelastic configuration — ``Inelastic()``, i.e. ``raman=True,
+    fluorescence=True, cdom_fl=None`` — must stay bit-identical when the CDOM
+    branch is wired into ``hybrid.forward()`` (M5 task 5), because the shipped
+    X4 truth and the reported 0.34 % gate omit CDOM fluorescence. This is the
+    :func:`write_elastic_reference` discipline applied to the new pin: the
+    arrays here were computed on the **pre-wiring** code (before ``hybrid.py``
+    grew any ``Rrs_cdom`` composition), so the strict SHA-256 pins in
+    ``test_inelastic_types.py`` prove the new branch is unreachable — a no-op
+    by construction — when ``cdom_fl`` stays ``None``. Computed with the
+    packaged trained heads (``corrections=None``, the shipped default) and
+    ``check_domain=False``, on the sibling inelastic fixture (150 samples,
+    which carry the ``a_ph``/``a_cdom`` the default config exercises).
+    Regenerate only on a deliberate change to the shipped inelastic model.
+    """
+    from robust.rt import hybrid
+    from robust.rt.data import l23
+    from robust.rt.types import Inelastic
+
+    batch = l23.load_inelastic_batch(
+        reader=l23.inelastic_npz_reader(
+            INELASTIC_FIXTURE_PATH,
+            REPO / "robust" / "tests" / "files" / "l23_small.npz",
+        )
+    )
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    arrays = {
+        "Rrs": np.asarray(
+            hybrid.forward(*args, inelastic=Inelastic(), check_domain=False)
+        ),
+        "rrs": np.asarray(
+            hybrid.rrs_forward(*args, inelastic=Inelastic(), check_domain=False)
+        ),
+    }
+
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        check = np.load(tmp)
+        assert set(check.files) == {"Rrs", "rrs"}
+        for key in ("Rrs", "rrs"):
+            assert check[key].dtype == np.float32
+            assert check[key].shape == arrays[key].shape
+            assert np.array_equal(check[key], arrays[key])
+        check.close()
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+        print(f"Wrote {path} ({path.stat().st_size / 1024:.0f} kB)")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def main() -> None:
     print("Part 1: Ed(0+) spectra (X=2 files)")
     write_ed()
     print("Elastic reference outputs (hash-regression companion)")
     write_elastic_reference()
-    # Part 2 (the sibling CI fixture) is added by M1 task 3.
+    print("Part 2: sibling CI fixture (X1/X2/X4 channels + aph)")
+    write_inelastic_fixture()
+    print("Inelastic-default reference outputs (M5 task-5 pin companion)")
+    write_inelastic_default_reference()
 
 
 if __name__ == "__main__":

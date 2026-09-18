@@ -64,20 +64,7 @@ def batch_args(batch):
     return batch.iops, batch.phase_params, batch.geometry, batch.wave
 
 
-def tiny_args():
-    """Minimal synthetic inputs for tests that never evaluate the model."""
-    wave = jnp.asarray([440.0, 550.0])
-    iops = IOPs(
-        a=jnp.asarray([0.15, 0.12]),
-        bb_w=C.bb_w(wave),
-        bb_p=jnp.asarray([0.003, 0.003]),
-    )
-    return (
-        iops,
-        PhaseParams(B_p=jnp.asarray(0.0126)),
-        Geometry.nadir(jnp.asarray(30.0)),
-        wave,
-    )
+from robust.tests.conftest import tiny_args  # noqa: E402 - shared helper
 
 
 @pytest.fixture(scope="module")

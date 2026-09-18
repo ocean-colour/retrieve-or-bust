@@ -125,7 +125,7 @@ VQ5:
 
 **VQ6 — Team & PI.** EOI is blind, PI on only one EOI, international & ECR-lead
 encouraged. Who is the intended **PI**? The current group (Bontemps/URI,
-Dierssen/UConn, Housekeeper/WHOI, Frouin/SIO, Kavanaugh/OSU, Kudela/UCSC,
+Dierssen/UConn, Houskeeper/WHOI, Frouin/SIO, Kavanaugh/OSU, Kudela/UCSC,
 Prochaska/UCSC) is strong on ocean-color→biogeochemistry — do we add a
 **carbon-flux / BGC modeler**, an **air–sea CO₂ / BGC-Argo** partner, and/or an
 **international** institution to fit VICC's team expectations?

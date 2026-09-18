@@ -9,13 +9,16 @@
 <p align="center"><em>Our last, best effort at solving the ocean-color IOP inversion — with AI as the accelerant.</em></p>
 
 <p align="center">
+  <a href="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml"><img src="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://doi.org/10.5281/zenodo.22807857"><img src="https://zenodo.org/badge/1284586186.svg" alt="DOI"></a>
+</p>
+
+<p align="center">
   <img src="docs/figs/rob_graphic_readme.png" width="100%"
        alt="Retrieve or Bust: observe hyperspectral Rrs, break the IOP-inversion degeneracy with priors + AI, retrieve IOPs with uncertainty, validate against in-situ truth">
 </p>
 
 ---
-
-[![DOI](https://zenodo.org/badge/1284586186.svg)](https://doi.org/10.5281/zenodo.22807857)
 
 ## Overview
 
@@ -31,6 +34,11 @@ Success is defined as an outcome, not a number: **retrieving more independent,
 physically meaningful IOP components from hyperspectral reflectance than current
 methods manage** — absorption, backscattering, and their constituents — **with
 credible uncertainties, validated against in-situ truth.**
+
+The fuller statement of scope is
+[`proposals/Claude_Science/anthropic_application.md`](proposals/Claude_Science/anthropic_application.md);
+the physics and literature background is
+[`context/context_summary.md`](context/context_summary.md).
 
 ## Why this is hard
 
@@ -67,8 +75,17 @@ line, not a destination; the final solution may look nothing like it. The real a
 is simple to state and hard to do: **milk the most we possibly can out of
 hyperspectral reflectance** (PACE / OCI and beyond).
 
+## What exists today
+
+The project is being built in components. **Only the first exists: the
+differentiable radiative-transfer forward model in
+[`robust/rt/`](robust/rt/)** — the physics the retrieval will be built on,
+documented at <https://retrieve-or-bust.readthedocs.io/>. **The retrieval
+itself — the inversion — does not exist yet.**
+
 ## Related work
 
+- **Documentation** — the forward model's site: <https://retrieve-or-bust.readthedocs.io>
 - **IOPtics** — companion documentation and tooling: <https://ioptics.readthedocs.io>
 - **BING** — Prochaska, J. X., & Frouin, R. (2025). *On the challenges of retrieving
   phytoplankton properties from remote sensing.* Biogeosciences 22, 4705.
@@ -86,8 +103,43 @@ hyperspectral reflectance** (PACE / OCI and beyond).
 ## Package layout
 
 - `robust/` — the Python package source (**R**etrieve **O**r **BUST**).
+  - `robust/rt/` — the project's first component: a differentiable (JAX) map from
+    IOPs, phase function and geometry to `Rrs(λ)`, built as an analytic backbone
+    plus a learned residual, with Raman scattering and chlorophyll-a fluorescence
+    on top. Documented at
+    [retrieve-or-bust.readthedocs.io](https://retrieve-or-bust.readthedocs.io/);
+    its working documents are listed below.
 - `context/` — project synthesis and the radiative-transfer reference material.
-- `docs/` — documentation and figure scripts (Read the Docs site, forthcoming).
+- `design/` — design documents, coding plans and implementation records.
+- `reports/` — the validation reports and their figures: the evidence base for
+  every number the documentation states.
+- `notebooks/RT/` — the milestone build notebooks (a development record, not a
+  tutorial).
+- `docs/` — documentation source and figure scripts
+  ([Read the Docs](https://retrieve-or-bust.readthedocs.io/)).
+
+### The forward model's working documents
+
+|  | Elastic | Inelastic |
+|---|---|---|
+| Design | [`rt_elastic_model.md`](design/rt_elastic_model.md) | [`rt_inelastic_model.md`](design/rt_inelastic_model.md) |
+| Milestones | [`rt_elastic_model_coding_plan.md`](design/rt_elastic_model_coding_plan.md) | [`rt_inelastic_model_coding_plan.md`](design/rt_inelastic_model_coding_plan.md) |
+| What is built | [`rt_elastic_implementation.md`](design/rt_elastic_implementation.md) | [`rt_inelastic_implementation.md`](design/rt_inelastic_implementation.md) |
+| Report | [`report_rt_elastic_model.md`](reports/report_rt_elastic_model.md) | [`report_rt_inelastic_model.md`](reports/report_rt_inelastic_model.md) |
+
+plus the build notebooks in [`notebooks/RT/`](notebooks/RT/).
+
+## Development
+
+```bash
+pip install -r requirements.txt     # full environment, incl. the CPU JAX stack
+pip install -e . --no-deps          # the package itself
+pytest -q                           # from the repo root
+```
+
+The Loisel+2023 reference data lives outside the repo; `ocpy` finds it via
+`$OS_COLOR`. Tests that need it **skip** when it is absent, so `pytest -q` stays
+meaningful either way (`-ra` prints the skip reasons).
 
 ## License
 
