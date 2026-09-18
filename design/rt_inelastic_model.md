@@ -294,6 +294,11 @@ No truth data exist in L23 (omitted by design) or anywhere in hand. The
 `Inelastic.cdom_fl` slot and the additive-term pattern of §4.4 are its
 landing zone.
 
+*Update (2026-08-29):* CDOM fluorescence is now designed in a companion
+document, [`design/rt_cdom_fluorescence_model.md`](rt_cdom_fluorescence_model.md)
+(milestones M5/M6). The paragraph above is retained as the historical
+decision record.
+
 **HydroLight run wishlist** — what we would ask of new RT compute, in
 priority order:
 

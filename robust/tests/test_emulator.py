@@ -767,3 +767,66 @@ def test_hybrid_beats_the_backbone_on_the_fixture(l23_fit, l23_small_batch):
     assert np.all(np.diff(history.fit) <= 0.1)
     # The held-out-scene number exists and is finite at the end of training.
     assert np.isfinite(history.eval["scene_test"][-1])
+
+
+# --- constant training features must not saturate the network ---------------
+def _delta_at(em, batch, theta_v, dphi, theta_s=30.0, B_p=0.012):
+    """The packaged emulator's relative correction at one geometry."""
+    import warnings
+
+    iops = IOPs(
+        a=batch.iops.a[0:1], bb_w=batch.iops.bb_w[0:1], bb_p=batch.iops.bb_p[0:1]
+    )
+    pp = PhaseParams(B_p=np.array([B_p]))
+    geom = Geometry(
+        theta_s=np.array([theta_s]),
+        theta_v=np.array([theta_v]),
+        dphi=np.array([dphi]),
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return np.asarray(em.relative_delta(iops, pp, geom)).ravel()
+
+
+def test_constant_features_standardise_to_zero_not_to_the_floor(l23_small_batch):
+    """Off-nadir must reuse the trained correction, not saturate every tanh.
+
+    ``cos_theta_v``/``cos_dphi`` are constant in L23, so their stored ``std``
+    is the 1e-8 guard. Dividing a real excursion by that guard standardises a
+    54.6 deg sensor zenith to -4.2e7, which saturated the network and collapsed
+    ``delta`` to a flat constant across all 81 wavelengths — measured at -0.219
+    for a real PACE matchup pixel, a silent -22 % bias on ``Rrs``.
+    """
+    em = E.load_default()
+    nadir = _delta_at(em, l23_small_batch, 0.0, 0.0)
+
+    for theta_v, dphi in [(22.1, 0.0), (59.7, 0.0), (54.6, 81.3), (59.7, -103.9)]:
+        off = _delta_at(em, l23_small_batch, theta_v, dphi)
+        # identical, because the learned residual carries no view-angle info
+        np.testing.assert_allclose(off, nadir, rtol=0, atol=0)
+        # and crucially still *spectrally structured*, not a collapsed constant
+        assert off.std() > 1e-3, "delta collapsed to a flat constant"
+
+
+def test_a_trained_feature_still_moves_the_correction(l23_small_batch):
+    """The guard must not flatten ``cos_theta_s``, which L23 genuinely varies."""
+    em = E.load_default()
+    d0 = _delta_at(em, l23_small_batch, 0.0, 0.0, theta_s=0.0)
+    d60 = _delta_at(em, l23_small_batch, 0.0, 0.0, theta_s=60.0)
+    assert np.max(np.abs(d60 - d0)) > 1e-2
+
+
+def test_off_nadir_is_still_reported_out_of_domain(l23_small_batch):
+    """Silencing the corruption must not silence the warning."""
+    em = E.load_default()
+    iops = IOPs(
+        a=l23_small_batch.iops.a[0:1],
+        bb_w=l23_small_batch.iops.bb_w[0:1],
+        bb_p=l23_small_batch.iops.bb_p[0:1],
+    )
+    pp = PhaseParams(B_p=np.array([0.012]))
+    geom = Geometry(
+        theta_s=np.array([30.0]), theta_v=np.array([54.6]), dphi=np.array([81.3])
+    )
+    breaches = em.out_of_domain(iops, pp, geom)
+    assert any("theta_v" in str(b) for b in breaches)

@@ -66,7 +66,7 @@ THEMES = {
     ),
 }
 
-TEAM = ("Bontemps · Dierssen · Housekeeper · Frouin · "
+TEAM = ("Bontemps · Dierssen · Houskeeper · Frouin · "
         "Kavanaugh · Kudela · Prochaska")
 
 # ----------------------------------------------------- toy bio-optical model -

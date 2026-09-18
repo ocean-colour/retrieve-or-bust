@@ -1,7 +1,27 @@
 
 # Standard imports
-import glob, os
+import glob, os, re
 from setuptools import setup, find_packages
+
+
+def get_version():
+    """Read ``__version__`` out of ``robust/__init__.py`` without importing it.
+
+    One source of truth: the literal lives in ``robust/__init__.py`` and is read
+    here (and by ``docs/conf.py``, as ``robust.__version__``), so the packaging
+    version and the documented version can never drift.
+
+    It is parsed rather than imported deliberately -- ``import robust`` at build
+    time would pull the JAX stack into the packaging environment, and pip builds
+    in an isolated env where jax is not installed.
+    """
+    here = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(here, 'robust', '__init__.py')) as init_file:
+        match = re.search(r"^__version__\s*=\s*['\"]([^'\"]+)['\"]",
+                          init_file.read(), re.M)
+    if match is None:
+        raise RuntimeError('Could not find __version__ in robust/__init__.py')
+    return match.group(1)
 
 
 # Begin setup
@@ -12,7 +32,7 @@ setup_keywords['author'] = 'J. Xavier Prochaska'
 setup_keywords['author_email'] = 'jxp@ucsc.edu'
 setup_keywords['license'] = 'BSD'
 setup_keywords['url'] = 'https://github.com/ocean-colour/retrieve-or-bust'
-setup_keywords['version'] = '0.0.dev0'
+setup_keywords['version'] = get_version()
 # Use README.md as long_description.
 setup_keywords['long_description'] = ''
 if os.path.exists('README.md'):

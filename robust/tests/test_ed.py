@@ -122,6 +122,23 @@ def test_wavelength_clamped_at_grid_ends():
     assert out[2] == out[3]
 
 
+def test_integer_wavelength_grid_returns_float_irradiances():
+    """An int wave grid selects nodes; it must never truncate the spectra.
+
+    Regression for PR #14 review finding 1: the spectra were cast to
+    ``wave.dtype``, so ``np.arange(400, 705, 5)`` (int) collapsed every
+    irradiance to 0 or 1 and the Raman ratio went inf/NaN silently.
+    """
+    int_grid = np.arange(400, 705, 5)
+    out = np.asarray(E.Ed(30.0, int_grid))
+    assert np.issubdtype(out.dtype, np.floating)
+    np.testing.assert_allclose(
+        out, np.asarray(E.Ed(30.0, int_grid.astype(float))), rtol=1e-6
+    )
+    r = np.asarray(E.ratio(30.0, int_grid, int_grid + 50))
+    assert np.all(np.isfinite(r)) and np.all(r > 0.0)
+
+
 # ------------------------------------------------------------------ override ----
 
 

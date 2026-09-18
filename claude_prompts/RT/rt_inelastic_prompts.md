@@ -57,15 +57,649 @@ If you need to run Python use the `ocean14` conda environment.
 
 6. The coding plan looks great!  Please generate a series of prompt docs to execute the coding plan.  Name them `claude_prompts/RT/rt_inelastic_coding_prompt_1.md`, `claude_prompts/RT/rt_inelastic_coding_prompt_2.md`, etc.  Model them after the ones for the elastic RT effort. Use Fable if you can.  Log your work.
 
+7. Re-read the design document and the coding plan and the Inelastic Report. We have thus far neglected CDOM fluorescence.  We will now add it to the model.  Please ask me a set of questions in Q&A/CDOM before writing the document.  Use Fable if you can.  Log your work.
+
+8. Read my answers to the Q&A/CDOM section below. Proceed to write the prompt document and update the high-level design document and coding plan.  Use Fable if you can.  Log your work.
+
 ### Report
 
 1. We have worked through all of the prompt docs.  Please write a report summarizing the work we have done.  Name it `report/rt_elastic_model.md`.  Please ask me a set of questions in Q&A/Report before writing the document.  Use Fable if you can.  Log your work.
 
 2. I have answered your questions in the Q&A section below.  Please review them.  Then proceed to write the report.  Use Fable if you can.  Log your work.
 
+### Docs
+
+1. Generate a full set of documentation for the model.  Model it after the BING, PAB, and IOPtics docs.  These will appear on ReadTheDocs.  Please ask me a set of questions in Q&A/Docs before writing the documentation.  Use Opus.  Log your work.
+
+2. See my answers to the Q&A/Docs section below. Proceed to generate the prompt docs.  Use Opus.  Log your work.
+
+### PR
+
+1. I have issued a PR and then tried to merge in `origin/main`.  However, there are some conflicts in the `README.md` file.  Please recommend a solution in Q&A/PR below.  Use Opus 5.  Log your work.
+
+2. I have answered your questions below.  Please revise the README.md file and I will then perform the `git` commands.  Also fix Henry's name! Use Opus 5.  Log your work.  
+
+3. Please see Cursor's comments on the PR and attempt to address them.  If you have
+any questions put them in the Q&A/PR section below.  Use Opus 5.  Log your work.
+
 ## Comments
 
 ## Q&A
+
+### PR
+
+Recommendation from Claude (2026-09-18, model: Opus 5) for the `README.md`
+conflict on the in-progress merge of `origin/main` into `inelastic-rt`.
+
+**Bottom line: keep the branch's `README.md` wholesale, then graft exactly two
+things in from `main`.** The branch version is a strict superset of main's
+prose; main contributes only a badge and a spelling fix.
+
+#### Why the conflict looks so bad
+
+Both sides rewrote the *same* 23-line base README (`39171156`, the "Our last
+best effort at IOP Retreivals" stub) from scratch and independently. Git
+therefore saw two large, unanchored insertions rather than two edits to shared
+text, and could not align the ~70 lines of Overview / Why this is hard / The
+bet / BING / Team prose that are **byte-identical on both sides**. The result
+is two conflict hunks (lines 10–132 and 143–217) that between them duplicate
+that whole block. The file is not as tangled as it appears — it is one
+alignment failure, not a real content disagreement.
+
+#### What each side actually has
+
+Diffing the two complete versions (`git show HEAD:README.md` vs
+`git show MERGE_HEAD:README.md`) gives the full picture:
+
+*Only on `main`, and worth keeping:*
+
+1. The Zenodo **DOI badge** — `[![DOI](https://zenodo.org/badge/1284586186.svg)](https://doi.org/10.5281/zenodo.22807857)` (from PR #22, `profxj-patch-1`).
+2. **"Henry Houskeeper"** — the *correct* spelling. The branch writes
+   "Housekeeper", which is a typo:
+   `proposals/Claude_Science/anthropic_application.md:131` and the WHOI profile
+   (`whoi.edu/profile/henry.houskeeper/`) both confirm **Houskeeper**.
+
+*Only on the branch, and all worth keeping:* the CI badge (main dropped it);
+the "fuller statement of scope" paragraph pointing at the Anthropic
+application and `context/context_summary.md`; the **What exists today**
+section (forward model exists, retrieval does not — the honest framing);
+the Read the Docs link under Related work; the expanded Package layout with
+`robust/rt/`, `design/`, `reports/`, `notebooks/RT/`; the forward-model
+working-documents table; and the **Development** block (`pip install`,
+`pytest -q`, the `$OS_COLOR` note).
+
+That last one matters: `main` *deleted* the Development block that the base
+carried. Resolving in main's favour would silently drop the only install and
+test instructions in the repo. Nothing on `main` is lost by taking the branch.
+
+#### Recommended resolution
+
+Take the branch file, then make two edits:
+
+```bash
+git checkout --ours README.md      # branch version, conflict markers gone
+#   ... the two edits below ...
+git add README.md
+git commit                          # completes the merge
+```
+
+**Edit 1 — fold the DOI badge into the existing badge row** (README.md:12–14):
+
+```html
+<p align="center">
+  <a href="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml"><img src="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://doi.org/10.5281/zenodo.22807857"><img src="https://zenodo.org/badge/1284586186.svg" alt="DOI"></a>
+</p>
+```
+
+*Alternative* if you prefer main's placement verbatim: leave the CI `<p>`
+alone and put the DOI markdown line on its own, immediately after the `---`
+and before `## Overview`, exactly where main had it. Both render fine; the
+badge row is tidier and keeps the graphic flush against the rule.
+
+**Edit 2 — fix the name** (README.md:97): `Housekeeper` → `Houskeeper`.
+
+#### Two follow-ups the README resolution does *not* cover
+
+The same misspelling arrives with main in two files that are already staged
+clean (no conflict), so fixing README alone leaves them wrong:
+
+- **`docs/scripts/rob_graphic.py:69`** — `TEAM = ("Bontemps · Dierssen ·
+  Housekeeper · ...")`. This script renders **both** figures, so the typo is
+  baked into `docs/figs/rob_graphic_readme.png` (displayed at the top of the
+  README) *and* `rob_graphic_talk.png`. Fixing the string means regenerating
+  both PNGs (`ocean14`).
+- **`claude_prompts/websites.md:23`** — "Henry Housekeeper (WHOI)".
+
+I'd do these in the same commit as the merge resolution, since the README
+figure is the most public surface the typo appears on.
+
+#### Questions for you
+
+- **Q1:** Shall I apply the resolution to `README.md` (file edits only — you
+  run every git command, per CLAUDE.md)?
+>A. yes, I will do the git
+- **Q2:** Badge row, or main's original standalone DOI line after the `---`?
+>A. I would prefer the badge row.
+- **Q3:** Fix `rob_graphic.py` + `websites.md` and regenerate both figures now,
+  or leave those for a separate pass after the merge lands?
+>A. Fix and regenerate both figures now.
+
+---
+
+Findings from Claude (2026-09-18, model: Opus 5) for PR prompt 3 — "see
+Cursor's comments on the PR and address them."
+
+**There is nothing to address. Cursor's only comment is a clean bill of
+health**, and it predates the merge you just completed.
+
+#### What Cursor actually said
+
+PR #23 (*Inelastic RT*, `inelastic-rt` → `main`, 108 files) carries exactly
+one review, from `cursor[bot]` at 08:26:42Z:
+
+> ✅ Bugbot reviewed your changes and found no new issues!
+> …Reviewed by Cursor Bugbot for commit `e1f4289`.
+
+I checked for hidden feedback rather than trusting the summary view — a
+GraphQL query for `reviewThreads(first: 100)` returns **`totalCount: 0`**, so
+there are no inline comments at all: none resolved, none marked outdated, none
+collapsed. The REST endpoints agree (`/pulls/23/comments` is empty). The PR's
+only other comment is your own `@cursor review` at 08:22:37Z. So: one review,
+zero findings, zero threads.
+
+#### The one thing worth knowing
+
+**Bugbot reviewed `e1f4289` ("off nadir", 2026-09-15), but the PR head is now
+`b3f87ce` (the merge, 2026-09-18).** The bot has not seen the merge commit. Its
+net effect on the branch is 8 files:
+
+```
+ .gitignore                                |   7 +-    (from main)
+ README.md                                 |   3 +-    (conflict resolution)
+ claude_prompts/RT/rt_inelastic_prompts.md | 208 +
+ claude_prompts/schmidt_vicc_prompts.md    |   2 +-    (name fix)
+ claude_prompts/websites.md                | 281 +     (from main)
+ docs/figs/rob_graphic_readme.png          | Bin       (regenerated)
+ docs/figs/rob_graphic_talk.png            | Bin       (from main)
+ docs/scripts/rob_graphic.py               | 310 +     (from main)
+```
+
+I verified the README landed exactly as designed: `git diff e1f4289 b3f87ce --
+README.md` is **+2/-1** — the DOI badge line and `Housekeeper` → `Houskeeper`,
+nothing else. The resolution did not smuggle in any other change.
+
+Of those 8, only `rob_graphic.py` is executable code, and it arrived from
+`main` (PR #22), where it was already reviewed — so the unreviewed *new* code
+surface is effectively zero. Re-running Bugbot is cheap insurance, not a
+requirement.
+
+#### Independent check: CI on the current head is fully green
+
+Since there were no findings to work from, I checked the PR's actual health
+instead. Every check on `b3f87ce` passes:
+
+| Check | Result |
+|---|---|
+| `pytest (py3.12)` | pass (2m47s) |
+| `pytest (py3.14)` | pass (2m51s) |
+| `ruff` | pass |
+| `sphinx (-W)` | pass — warnings-as-errors, so the docs build clean |
+| `docs/readthedocs.org` | pass — [preview build](https://retrieve-or-bust--23.org.readthedocs.build/en/23/) |
+
+`mergeable: MERGEABLE`, no remaining conflicts.
+
+#### Question for you
+
+- **Q4:** Want me to post `@cursor review` on PR #23 so Bugbot re-reviews the
+  merged head? I have not posted anything to GitHub — that is outward-facing,
+  and you have run every git/GitHub action on this PR so far. Say the word and
+  I will, or post it yourself in two seconds. Given the merge added no new
+  executable code, my read is that it is optional.
+
+### Docs
+
+Questions from Claude (2026-08-29, model: Opus) before writing the ReadTheDocs
+documentation. Context reviewed: the `robust/` package (11 modules in
+`robust/rt/`, ~5,900 lines; `forward()` plus the `IOPs`/`PhaseParams`/
+`Geometry`/`Inelastic` pytrees are the public surface), the design docs and
+implementation records, both reports, the notebooks, and — in detail — the
+three doc sets the prompt names as models. Two findings shape most of what
+follows. First, **retrieve-or-bust has no docs scaffold at all**: `docs/`
+exists but holds exactly one file, `docs/member_policy.md` (team governance,
+not technical), with no `conf.py`, no `.readthedocs.yaml`, no Makefile and no
+docs job in `.github/workflows/ci.yml`. This is greenfield. Second, **the
+three exemplars do not agree** — all are Sphinx published on ReadTheDocs, but
+they differ on layout, theme, and markup, so "model it after BING, PAB, and
+IOPtics" needs a pick (DocQ2). One piece of good news measured rather than
+assumed: of ~115 public classes/functions in `robust/rt/`, only **7 lack
+docstrings** and every module has a module docstring — autodoc will work
+essentially out of the box. Each question carries a recommendation.
+
+**DocQ1 (Scope — what "the model" means here, and for whom).** The prompt
+sits under the inelastic effort, but `forward()` is a *single* entry point
+whose inelastic terms are meaningless without the elastic backbone they
+multiply and add onto — a Raman-and-fluorescence-only site would have to
+re-explain `Rrs_ZTT + ΔRrs` on page one anyway. My recommendation:
+**document `robust.rt` as one complete forward model** — conventions, the ZTT
+backbone, the residual emulator, the hybrid, Ed, the inelastic terms, the
+correction heads, the baselines and the validation protocol — with the
+inelastic material as the deepest chapters rather than the whole site. Two
+consequences to confirm: (i) the second package `rob/` (only `__init__.py`
+plus `data/Dutkiewicz2015`) is **excluded** for now; (ii) the site states
+plainly that **the inversion does not exist yet** — this is a forward model
+— the way IOPtics' front page says outright what has and has not been
+measured. Audience: ocean-colour researchers who might use or check the
+forward model, plus Frouin and future sessions — i.e. the report's audience,
+one notch more practical. OK?
+
+**DocQ1-answer:** . Yes, be complete and ignore Dutkiewicz2015.  And that is the correct audience, but do provide a basic introduction too.
+
+**DocQ2 (Tooling — the three exemplars disagree; which do we follow?).**
+What I found, concretely:
+
+- **BING** — `docs/` flat, `docs/conf.py`, `sphinx_rtd_theme`, **`.rst`
+  only** (no MyST), root `readthedocs.yaml`, a separate
+  `docs/requirements.txt`, pdf+epub formats, version hardcoded in `conf.py`.
+  ~5,850 lines: 15 hand-written narrative pages plus **seven** per-module
+  `api/*.rst` files.
+- **IOPtics** — `docs/source/` layout, **furo** theme (light/dark),
+  `autosummary` + `autodoc_mock_imports`, `.readthedocs.yaml`, **one**
+  `api/index.rst` built from `automodule` blocks, generated report pages
+  under `source/reports/`, figure-generator scripts in `docs/figures/*.py`
+  writing into `_static/`, and `release` read from `ioptics.__version__`.
+  Its Markdown design docs sit in `docs/design/` and are deliberately **not**
+  rendered (no MyST is loaded).
+- **PAB** — `docs/` flat, `sphinx_rtd_theme` (alabaster fallback), and
+  crucially **`myst-nb`**, so the Markdown design docs (`docs/design/*.md`)
+  *and* nine executed notebooks (`docs/nb/*.ipynb`, `nb_execution_mode =
+  "off"`) render into the site untouched; plus `sphinxcontrib-mermaid`, docs
+  dependencies single-sourced in the root `requirements.txt`, and a *second*
+  Sphinx target (`report_site/`) for the community-facing results.
+
+My recommendation: **PAB's shape as the primary template** — flat `docs/`
+with `docs/conf.py`, `sphinx_rtd_theme` (2 of 3 use it), and **MyST enabled**,
+because every piece of source material we already own (two reports, four
+design/plan docs, ten notebooks) is Markdown or `.ipynb`, and MyST is the
+difference between reusing it and transcribing it into `.rst` — with
+IOPtics' *API pattern* (a single `automodule` page, not BING's seven) and
+IOPtics' version single-sourcing. Deviating from PAB on one point: docs deps
+in a `docs/requirements.txt` (BING/IOPtics style) rather than the root
+`requirements.txt`, so the RTD build does not drag in the JAX stack it does
+not need — though autodoc *does* need `jax`/`flax`/`jaxtyping` importable
+unless we mock them, which brings us to a real choice: **install the package
+on RTD (honest signatures) or mock the JAX stack (fast, green builds)?** My
+lean is **install** — `jax` is a plain CPU wheel and the type annotations are
+`jaxtyping` shapes worth rendering. Agree with PAB-shape + MyST + rtd-theme,
+or would you rather have IOPtics' furo look?
+
+**DocQ2-answer:** . Yes, PAB's shape is the primary template.  And I would install the JAX stack on RTD.  Do use a different style than PAB and IOPtics.  Pick something cool.
+
+**DocQ3 (Where it lives, `member_policy.md`, and the RTD project itself).**
+I propose the Sphinx site at **`docs/`** (flat, per DocQ2) with a new root
+**`.readthedocs.yaml`** (dotted — BING's undotted `readthedocs.yaml` also
+works, but the dotted name is the current convention and is what PAB and
+IOPtics use), `build.os: ubuntu-24.04`, `python: "3.12"` (the `setup.py`
+floor), and `fail_on_warning: false` on RTD while CI carries the strict gate
+(DocQ8). The existing `docs/member_policy.md` then sits inside the Sphinx
+source tree and must be either rendered or excluded; my lean is to **render
+it** as a short "Team" page (it is a real project policy, and MyST renders it
+as-is), rather than move it or hide it in `exclude_patterns`. Two things only
+you can answer: (i) has a ReadTheDocs project already been created for
+retrieve-or-bust — and if so under what slug/URL — or do you need to create
+it? (ii) the repo is public but the docs will be *the* public face of this
+work well before any paper; any content you want kept off a public site?
+
+**DocQ3-answer:** I have just created the project on ReadTheDocs.  The slug is `retrieve-or-bust` and the URL is `https://retrieve-or-bust.readthedocs.io/`.  I would render the `member_policy.md` page.  And I would not keep any content off the public site.
+
+**DocQ4 (The page set — narrative vs API reference).** Proposed table of
+contents, sized between PAB's ~1,000 narrative lines and BING's ~5,850:
+
+- *Getting started* — Installation (the `requirements.txt` / `pip install -e
+  . --no-deps` dance, the JAX stack, `$OS_COLOR` and the skipping tests) and
+  a Quickstart that computes `Rrs` for one L23 scene, toggles
+  `inelastic=Inelastic()`, and takes a gradient.
+- *The model* — Conventions (`Rrs`↔`rrs`, the 81-point grid, `bb_w`); the
+  ZTT backbone; the residual emulator; `forward()` and the composition law;
+  Ed; the inelastic terms (Raman + Chl-a fluorescence); the correction heads;
+  the baselines (Gordon, PR05/O25).
+- *Using it* — Data (L23), Validation & accuracy (the gate numbers), and a
+  prominent **Scope and limitations** page.
+- *Reference* — one autodoc API page, References, Team.
+
+Two calls inside that. (i) **One `automodule` API page (IOPtics) rather than
+seven per-module pages (BING)** — `robust/rt` is 11 modules and the
+docstrings are already thorough; and I would fill the 7 missing docstrings
+(3 in `emulator.py`, 2 in `ztt.py`, 1 each in `inelastic.py` and
+`validation.py`) as part of this effort, which is a small edit to `robust/`
+— confirm you want code touched at all here. (ii) The **limitations page is
+not buried**: it quotes the measured caveats verbatim from report §5 — the
+−74 % unseen-zenith cliff, official support only for λ ≥ 400 nm, φ_C truth
+at 0.02 only, `'double'` emission unvalidatable — at the reports' level of
+bluntness. Right page set, right bluntness?
+
+**DocQ4-answer:** Yes, that's fine.
+
+**DocQ5 (Design docs, reports, and provenance — rendered, linked, or
+omitted).** The exemplars split: PAB renders its design docs *and* its
+implementation record and full-run report inside the site; IOPtics keeps
+design Markdown out of `source/` (unrendered) but renders generated report
+pages; BING renders neither. My recommendation, a middle path: **render the
+two reports** (`reports/report_rt_elastic_model.md`,
+`report_rt_inelastic_model.md`) as a "Reports" section — they are already
+public-facing, figure-complete narrative and are the best evidence the model
+works — and **link out to GitHub** for the design docs, coding plans and the
+1,469-line implementation record, which are internal decision records full of
+repo-relative links and would roughly double the site. The Q&A/prompt-doc
+provenance (this file included) is **not** published: the docs should read as
+a user-facing manual, with the reports carrying the "how we know" story. Do
+you want the design docs in the site too (PAB-style), or is linking right?
+
+**DocQ5-answer:** Yes, that sounds right with your recommended linking.
+
+**DocQ6 (The ten milestone notebooks).** `notebooks/RT/` holds ten executed
+notebooks (five elastic, five inelastic) with narrative, figures and outputs
+committed — genuinely good material, and PAB proves the mechanics work
+(`myst-nb`, execution off). But they are *chronological build records*: they
+open on environment installs and `sys.path` bootstrapping, are organized by
+milestone, and would be a poor first read. My recommendation: **do not render
+them as tutorials**; instead write **one new short quickstart notebook**
+(load an L23 scene → `forward()` elastic → `forward(..., inelastic=...)` →
+one gradient → plot) that *is* rendered, and link the ten from a one-line
+"development record" note. Alternative if you want them all up: render them
+under a clearly-labelled "Development record" caption where their milestone
+framing is a feature. Which?
+
+**DocQ6-answer:** Yes, create a new quickstart notebook and link to the ten from a one-line "development record" note.
+
+**DocQ7 (Figures).** We already own 7 committed PNGs in `reports/` (two
+architecture schematics, two rRMS ladders, two unseen-zenith figures, the
+inelastic deltas) with two regeneration scripts, plus 8 more in
+`context/RT/`. I propose the IOPtics pattern: a small `docs/figures/*.py`
+that *copies or regenerates* the needed figures into `docs/_static/` rather
+than committing a second set of bytes, reusing
+`reports/make_inelastic_report_figures.py` where possible. For the front
+page, both IOPtics (`ioptics_graphic.png`) and PAB (`pab_summary_light/
+dark.png`) have a hero graphic; `reports/fig_inelastic_architecture.png`
+could serve as-is. Recommendation: **reuse it for v1**, and only commission a
+purpose-drawn hero if you want one. New hero graphic, or reuse?
+
+**DocQ7-answer:** Yes, follow the IOPtics pattern.
+
+**DocQ8 (Version single-sourcing, the CI gate, and the branch).** Three
+small mechanics. (i) `robust` has **no `__version__`** (setup.py says
+`0.0.dev0`); IOPtics and PAB both single-source `release` into `conf.py` from
+the package while BING hardcodes it. I recommend adding
+`robust.__version__` and reading it in `conf.py` — a two-line change to
+`robust/__init__.py`. (ii) **CI**: BING and PAB both run a docs-build job
+(`sphinx-build -W --keep-going`); IOPtics does not. I recommend adding one to
+`.github/workflows/ci.yml`, strict (`-W`), with RTD itself lenient — so a
+broken cross-reference fails a PR, never the published site. (iii) Per RQ7's
+precedent the docs describe the **`main`** state; I assume the docs work
+happens on a fresh branch off `main` after `inelastic-rt` merges, and that
+you run all git as usual. Confirm all three?
+
+**DocQ8-answer:** I confirm all three.
+
+**DocQ9 (Effort and staging — this one is bigger than a 1–2 day item).**
+For calibration: BING's site is ~5,850 lines of narrative, PAB's ~1,000 plus
+notebooks, IOPtics' ~800 plus generated report pages. A full set for
+`robust.rt` at PAB-to-BING density is **~2,000–2,500 lines across ~15 pages,
+plus scaffold, figures and the API page** — realistically 2–3 days, not one
+pass in an afternoon, and unlike the CDOM item it has no physics risk, only
+volume. My recommendation: stage it as two milestones inside a single prompt
+doc (`claude_prompts/RT/rt_docs_prompt_1.md`, mirroring how the coding
+prompts worked) — **D1: scaffold, `.readthedocs.yaml`, CI job, API page,
+Installation + Quickstart + a model-overview page, site building green and
+published**; then **D2: the full narrative set, the reports section,
+limitations, figures**. That way something real is on ReadTheDocs at the end
+of day one and the prose lands against a working build. OK, or would you
+rather I write the whole thing in one pass and hand you a finished site?
+
+**DocQ9-answer:** Let's follow your recommendation.
+
+### CDOM
+
+Questions from Claude (2026-08-29) before writing the CDOM-fluorescence design
+document. Context: I re-read the design doc (`design/rt_inelastic_model.md` —
+the reserved `Inelastic.cdom_fl` slot in §3, the §8 landing zone and wishlist
+item 3), the coding plan, the Inelastic Report (`reports/report_rt_inelastic_model.md`
+— open item 2 and priority 4 both point here), and the assessment's §4.3 (per
+A8, the origin of this prompt). Two facts verified fresh: **BING implements no
+CDOM fluorescence** (a grep over `bing/rt/` and `bing/models/` finds CDOM only
+in the elastic a_g absorption models — so, unlike Raman/Chl-fl, there is no
+fixed-BING reference to port or cross-check against), and **no CDOM-fluorescence
+truth data exist in L23** (the data folder on this machine,
+`$OS_COLOR/Loisel2023/`, holds exactly the X∈{1,2,4} × {0°,30°,60°} pairs —
+no CDOM-fl scenario; expected, per A5/DQ2). Those two absences shape most of
+what follows. Each question carries a recommendation.
+
+**CFQ1 (Document target).** Prompt 7 says "before writing the document" without
+naming it. Options: (a) amend `design/rt_inelastic_model.md` in place —
+its §3 reserved the `cdom_fl` slot for exactly this; or (b) a new standalone
+`design/rt_cdom_fluorescence_model.md` that cites the inelastic design as its
+companion, the way the inelastic design cited the elastic one. I recommend
+**(b)**: the inelastic design is now a *finished decision record* — its §6 gate
+has been declared PASSED and the shipped report cites it as-is — and rewriting
+it retroactively muddies that record. The new doc would be short (the Ed
+module, composition law, correction-head machinery, and conventions are all
+inherited by reference), and §8 of the old doc gets only a one-line pointer
+when the new one lands. OK?
+
+**CFQ1-answer:** Yes, (b) is the correct answer.  
+
+**CFQ2 (Truth data and what "add it to the model" means now).** With no truth
+in hand, the effort splits cleanly: (i) what can be built and verified *now* —
+the analytic CDOM-fl term, the interface, correctness/plausibility tests; and
+(ii) what must wait for HydroLight on/off pairs — correction-head training and
+any quantitative rRMS gate. My recommendation: design the full two-part
+architecture now, **implement the analytic term and interface now, and gate
+head training behind data arrival**, with the design doc carrying the concrete
+run spec (CFQ8) so the runs can be commissioned in parallel rather than
+sitting on the critical path. The direct question: do you have CDOM-fl
+HydroLight runs planned or underway on a known timeline that should change
+this — i.e., should this design assume truth arrives during the effort?
+
+**CFQ2-answer:** Yes, let's follow your recommendation.  I will eventually have HydroLight runs, but not yet and not before we release this to main.
+
+**CFQ3 (Architecture — mirror the Chl-fl shape).** I recommend CDOM-fl take
+exactly the fluorescence term's shape from design §2/§4.4: an **additive**
+emission term with a physics backbone and a bounded correction head,
+`Rrs_cdom = s_C · K_cdom(IOPs, Ω, λ) · (1 + δ_C)`, composed as
+`Rrs_total = (Rrs_ZTT + ΔRrs) × f_R + Rrs_fl + Rrs_cdom`. The head δ_C is
+*defined* now (zero-initialized, so untrained head ≡ analytic backbone — the
+same decay-to-physics property the other heads have) but ships **untrained**
+in v1: there is nothing to train it on, and inventing pseudo-truth would
+defeat the point. So v1 CDOM-fl is analytic-only by construction, with the
+training pipeline stubbed and waiting. Agree?
+
+**CFQ3-answer:**  I agree.
+
+**CFQ4 (Physics basis — Hawes, the a_cdom input, and the UV clamp).** CDOM
+emission is broad and featureless (no 685 nm-style line), so the Chl-fl
+single-Gaussian machinery does not transfer. Options: (a) the **Hawes et al.
+(1992) spectral fluorescence quantum-efficiency functions η(λ′, λ)** — the
+parameterization HydroLight itself implements and the wishlist runs would use,
+so any future truth is Hawes-consistent by construction (the same
+controlled-experiment property that made X2/X4 so clean); or (b) a simpler
+Coble/Gaussian-style EEM. I recommend **(a)**, as a fixed reference kernel
+scaled by a differentiable amplitude, with the source term proportional to
+**a_CDOM(λ′)** rather than a_ph. Two consequences to confirm: (i) `IOPs`
+grows an optional `a_cdom` field (the a_ph pattern exactly — a physical
+requirement, not an API whim; L23 stores a_g separately from a_nap, so the
+existing loaders can populate it); (ii) CDOM excitation extends into the UV
+below the 350 nm L23/IOP grid edge — a sharper version of the Raman clamp —
+so I propose a hard 350 nm lower limit on the excitation integral in v1, with
+the truncated fraction quantified from the Hawes functions and documented as
+a caveat. OK on (a), the `a_cdom` field, and the 350 nm truncation?
+
+**CFQ4-answer:** Yes, ok on all of these.
+
+**CFQ5 (The `cdom_fl` slot's concrete shape — and off-by-default).** The
+reserved slot is `cdom_fl=None`. Designing it concretely, I recommend:
+(i) **`None` (off) stays the default even inside `Inelastic()`** — this is
+load-bearing, because the L23 X4 truth *omits* CDOM fluorescence, so the
+shipped 0.34 % gate and every report claim remain valid only if the default
+model is CDOM-fl-free; (ii) when set, a small pytree (e.g.
+`CDOMFl(scale=1.0)`: a differentiable amplitude on the Hawes reference kernel,
+with room for shape metadata once truth exists) rather than a bare scalar;
+(iii) the bit-identity regression *extends*: `Inelastic(..., cdom_fl=None)`
+must be bit-identical to the current inelastic output, alongside the existing
+elastic pin. OK?
+
+**CFQ5-answer:** Ok.
+
+**CFQ6 (Acceptance gate without truth — what "done" means).** The DQ6-style
+held-out rRMS gate is impossible here, and so is the M2-style rtol ≤ 1e-6
+BING cross-check (no BING implementation exists). I propose the v1 gate be:
+(1) off-state bit-identity (CFQ5-iii); (2) implementation-correctness pins —
+the Hawes η function reproduced against its published values, energy/quanta
+bookkeeping unit tests, quadrature convergence; (3) a **literature-plausibility
+band**, reported and gated loosely — the CDOM-fl contribution on L23 IOPs
+lands in the published range (a few % of Rrs in the blue-green for CDOM-rich
+scenes, ≲1 % oligotrophic), monotone in a_g(440); (4) gradient checks
+including the new amplitude; (5) the composed forward stays within the
+existing 2× elastic speed budget. The quantitative ≤ 5 %-style per-process
+gate is *written* in the design now but explicitly conditional on the truth
+runs landing (it becomes the head-training milestone's gate). Are those the
+right bars for a truth-less v1?
+
+**CFQ6-answer:** yes, those are the right bars for a truth-less v1.
+
+**CFQ7 (Relationship to the coding plan and prompt docs).** The scope —
+one analytic term, interface extensions, tests, no training — is a ~1–2 day
+effort, not another week-long M0–M4 arc. I recommend: the new design doc
+(CFQ1) carries its own small milestone table (an **M5**: analytic term +
+interface + CFQ6 gate; and a *deferred* **M6**: head training + quantitative
+gate, unblocked by truth arrival), executed by a **single prompt doc**
+(`claude_prompts/RT/rt_cdom_coding_prompt_1.md`) — no separate coding-plan
+document. The existing coding plan's "Beyond v1" section gets a pointer. As
+always you run git; I'd suggest a fresh branch off `main` once `inelastic-rt`
+is merged (the report's header already assumes that merge). OK, or do you
+want the full design → coding plan → prompt-doc ceremony?
+
+**CFQ7-answer:** Yes, that's ok.
+
+**CFQ8 (Refining wishlist item 3 into a commissioning spec).** Design §8's
+wishlist item 3 is one line; since CDOM-fl is now actively planned, I
+recommend the new design doc expand it into a concrete run request: **paired
+runs "X4 vs X4 + CDOM-fl"** (an X5-style scenario, so the difference isolates
+CDOM-fl on top of the realistic ocean, exactly as X4−X2 isolated Chl-fl); a
+**CDOM-stratified scene subset** spanning the full a_g(440) range with the
+CDOM-rich tail oversampled (the sparse-tail lesson from δ_F); all three
+zeniths (or the denser grid if wishlist item 1 runs at the same time); full
+350–750 nm output; and the **exact Hawes quantum-efficiency function/version
+recorded** so the model kernel matches the truth's constants. One packaging
+question: should these be requested *jointly* with the geometry runs the
+report made priority 2, to amortize the HydroLight setup, or kept as an
+independent smaller request?
+
+**CFQ8-answer:** Yes, request jointly.
+
+### Report
+
+Questions from Claude (2026-08-27) before writing the end-of-effort report.
+Context: all five coding prompt docs are complete, the design-§6 acceptance
+gate PASSES (held-out total rRMS 0.343/0.341/0.340 % vs X4 at 0/30/60° on
+400–700 nm; worst per-process delta 1.03 %; gradients to 5.9e-9 incl. φ_C;
+1.59× elastic runtime), and the elastic precedent is
+`reports/report_rt_elastic_model.md` (313 lines, 3 figures via
+`reports/make_report_figures.py` from the committed validation artifacts).
+Each question carries a recommendation.
+
+**RQ1 (Filename and location).** The prompt says `report/rt_elastic_model.md`,
+but the repo directory is `reports/` (plural) and this is the *inelastic*
+effort — the elastic report already occupies
+`reports/report_rt_elastic_model.md`. I propose
+**`reports/report_rt_inelastic_model.md`**, mirroring the elastic naming.
+OK?
+
+**RQ1-answer:** Ok
+
+**RQ2 (Scope — prototype-focused or the full arc).** "The work we have done"
+spans four phases: (i) the BING assessment quantified against L23
+(`context/RT/rt_inelastic_bing_summary.md`); (ii) the BING fixes (the 1/π
+fluorescence normalization, the true-Ed Raman ratio — landed in the BING repo,
+PR issued); (iii) the design + coding plan; (iv) the M0–M4 prototype in
+`robust/rt`. The elastic report covered only its prototype and *linked* to its
+context/design docs. My recommendation: the same shape — the report's
+deliverable is the prototype (the combined elastic+inelastic `forward()`),
+with the assessment and the BING fixes compressed into the
+motivation/background section as the findings that set the correction targets
+(the ×π fluorescence error and the flat-Ed Raman error are worth stating as
+results there, since they affect published BING-based fits), linking out for
+the detail. Or do you want a full-arc report treating all four phases at
+comparable depth?
+
+**RQ2-answer:**  Right, don't worry about the BING fixes.
+
+**RQ3 (Template, audience, and the headline claim).** I plan to mirror the
+elastic report exactly: same section skeleton (Executive summary → motivation
+→ the model → data & validation protocol → results → what it may claim and
+may not → open items → recommended next priorities → reproducibility →
+document map → references), same header block (team report, "intended to
+evolve into a public (non-refereed) write-up", authors J. Xavier Prochaska
+and Claude (Fable 5), version 1.0), same audience (you + Robert Frouin +
+future sessions). One framing choice: the natural headline is the *complete*
+forward model — `forward(..., inelastic=Inelastic())` reproduces the
+all-processes-on L23 ocean (X4) to 0.34 % held-out rRMS, i.e. the elastic-era
+accuracy now holds for the realistic ocean rather than an elastic idealization
+— with the elastic 0.30 % quoted as the inherited base. Agree with that
+framing?
+
+**RQ3-answer:** I agree
+
+**RQ4 (Figures).** Elastic precedent: `reports/make_report_figures.py`
+regenerates the report figures from committed artifacts only (no recompute of
+the science). I propose a sibling script `reports/make_inelastic_report_figures.py`
+producing ~4 figures: (a) an architecture schematic of the composition law
+`Rrs = (Rrs_ZTT + ΔRrs) × f_R(1+δ_R) + φ_C·K_fl(1+δ_F)`; (b) the rRMS ladder
+per wavelength (elastic-only ~16 % → analytic backbone ~3 % → corrected
+0.34 %, ungated regions shaded) from `rrms_per_wavelength_inelastic.csv`;
+(c) the nine per-process delta rows analytic → corrected against the ±5 %
+band (the −38.6 → −0.14 % headline at 0°) from `metrics_inelastic.csv`;
+(d) the zenith-holdout caveat figure (the −74 % cliff at an unseen 60°). For
+the BING-fix motivation I'd *reuse* the committed assessment figures in
+`context/RT/` by link rather than regenerate. OK, or different figure
+choices?
+
+**RQ4-answer:** Ok
+
+**RQ5 (Candor about the BING errors and the caveats).** Two calibration
+checks for a document Frouin will read and that may become public: (i) the
+report states plainly that the pre-fix BING fluorescence term overestimated
+Rrs_fl by ~×π (so published `include_Chl_fl` fits carry an effective-φ_C
+~π× smaller than nominal) and that flat-Ed was the dominant Raman error —
+final-state framing per your A6 preference (the finding and the fix, no
+debugging narrative). (ii) The "what it may not claim" section quotes the
+sharp measured caveats verbatim: the −74 % zenith-holdout cliff, φ_C truth
+at only 0.02, the sub-400 nm excitation clamp, `'double'` emission
+unvalidatable. I recommend both, at the elastic report's level of bluntness.
+OK?
+
+**RQ5-answer:** Ok
+
+**RQ6 (Closing recommendations).** The elastic report closed with
+"Recommended priorities (M5)". For the inelastic close I propose: (1) the
+inversion step — the forward model is complete and differentiable incl.
+∂Rrs/∂φ_C, so IOP+φ_C retrieval is the natural next effort; (2) the
+HydroLight run wishlist (design §8) prioritized by which caveat each run
+retires (geometry coverage first, varied-φ_C second); (3) CDOM fluorescence
+via the reserved `cdom_fl` hook once truth exists. Should the report go
+further and recommend *which* to do first (my lean: inversion — the caveats
+bind at unseen geometries, not on the L23 domain where the inversion work
+would start), or lay out the options without a pick?
+
+**RQ6-answer:** Yes, include a recommendation on what to do first.
+
+**RQ7 (Branch/PR state in the header).** The elastic report's header cited
+its branch and milestones. The inelastic work sits on `inelastic-rt` (M0 =
+PR #14, M3 = PR #18 merged; M4 pending your PR). Should the report header
+cite the branch + PR trail as-is, or do you plan to merge before the report
+lands so it can cite `main`?
+
+**RQ7-answer:** I will develop on the inelastic-rt branch and then merge it before the report lands.
+Therefore, refer to `main`.
 
 ### Coding
 
@@ -1008,3 +1642,533 @@ reinvention, pytest gates, elastic hash-regression green from M0 onward.
 
 **Next:** JXP review/commit of the docs, then begin execution with
 `rt_inelastic_coding_prompt_1.md` prompt 1.
+
+### 2026-08-27 (Report prompt 1: reviewed the completed effort; posed Q&A/Report round 1)
+
+Executed Report prompt 1 (model: Fable). No report written yet — per the
+prompt, posed seven questions (RQ1–RQ7) in the new Q&A/Report section, each
+with a recommendation.
+
+**State of the effort reviewed before asking:** all five coding prompt docs
+executed to completion; `design/rt_inelastic_implementation.md` v0.27
+(2026-08-27) records M0–M4 all ✅ and **the design-§6 acceptance gate
+PASSES** — held-out total rRMS vs X4 of 0.343/0.341/0.340 % at 0/30/60° on
+the 400–700 nm gate band (bar ≤ 0.5 %); worst per-process delta 1.03 %
+(Raman 490 nm at 0°; bar ≤ 5 %; the −38.6 % analytic high-sun error closed
+to −0.14 %); `inelastic=None` bit-identical (strict SHA-256 pins); gradients
+for all six inputs incl. φ_C to 5.9e-9; speed 1.59× the elastic hybrid
+(median; budget 2×). Final suite: 431 passed, 1 skipped; artifacts committed
+under `design/validation/*inelastic*` and regenerable by
+`python design/py/run_validation.py --inelastic`. Also re-read the elastic
+report (`reports/report_rt_elastic_model.md`) as the structural template and
+its figure pipeline (`reports/make_report_figures.py` from committed
+artifacts).
+
+**Two filename discrepancies flagged in RQ1:** the prompt names the
+deliverable `report/rt_elastic_model.md`, but the repo directory is
+`reports/` (plural) and the elastic report already occupies
+`reports/report_rt_elastic_model.md` — recommended
+`reports/report_rt_inelastic_model.md`.
+
+**The seven questions:** RQ1 filename/location; RQ2 scope (prototype-focused
+with the BING assessment/fixes compressed into motivation, vs full-arc);
+RQ3 template/audience and the headline framing (the complete forward model
+reproducing the realistic X4 ocean at 0.34 %, elastic 0.30 % as the inherited
+base); RQ4 figures (sibling `make_inelastic_report_figures.py`, ~4 figures
+from committed artifacts; reuse `context/RT/` figures by link); RQ5 candor
+(state the ~×π BING fluorescence error and its consequence for published
+fits, final-state framing per A6; quote the sharp caveats incl. the −74 %
+zenith-holdout cliff verbatim); RQ6 closing recommendations (inversion next
+vs options-only); RQ7 whether the header cites branch `inelastic-rt` + the
+PR trail or waits for a merge to `main`.
+
+**Next:** await JXP's answers (Report prompt 2), then write the report.
+
+### 2026-08-27 (Report prompt 2: wrote reports/report_rt_inelastic_model.md + 4 figures)
+
+Executed Report prompt 2 (model: Fable). Reviewed the RQ1–RQ7 answers — all
+affirmative, with three directives: keep the BING fixes to passing mention
+(RQ2), include an explicit first-priority recommendation (RQ6), and refer to
+`main` since the `inelastic-rt` branch will be merged before the report lands
+(RQ7). Wrote the deliverables:
+
+- **`reports/report_rt_inelastic_model.md`** — the end-of-effort report,
+  mirroring the elastic report's skeleton section for section (executive
+  summary → motivation → the model → data & validation protocol → results →
+  may-claim/may-not → open items → recommended priorities → reproducibility →
+  document map → references). Headline per RQ3: the *complete* forward model
+  reproduces the all-processes-on L23 ocean (X4) to 0.34 % held-out rRMS at
+  all three zeniths on 400–700 nm — the elastic-era accuracy now holding
+  against the realistic ocean (the elastic-only model scores 16–19 % on that
+  truth, 48 % at the 685 nm peak). Per RQ5 the motivation states the two
+  upstream BING findings plainly (the ~×π fluorescence normalization and its
+  effective-φ_C consequence for published fits; flat-Ed as the dominant Raman
+  shape error) in final-state framing, and §5 quotes the sharp caveats
+  verbatim (the −74 % zenith-holdout cliff, φ_C truth at one point, the
+  sub-400 nm clamp at 13 %, the unvalidatable 'double' emission, one-sided
+  θ_s derivatives at the Ed anchors, the elastic inheritances). Per RQ6, §7
+  opens with the pick: **do the inversion next** (the caveats bind at unseen
+  geometries, not on the L23 domain; ∂Rrs/∂φ_C is the physiology handle the
+  architecture preserved), with the geometry HydroLight runs commissioned in
+  parallel and a domain guard for the heads until they exist.
+- **`reports/make_inelastic_report_figures.py`** — sibling of the elastic
+  figure script, committed-artifacts-only (reads
+  `design/validation/{rrms_per_wavelength_inelastic,metrics_inelastic}.csv`;
+  the zenith-holdout numbers transcribed from the implementation record §5.3
+  with provenance noted, matching the elastic script's transcription
+  precedent). Produces `fig_inelastic_architecture.png` (the composition-law
+  dataflow), `fig_inelastic_rrms_ladder.png` (per-λ elastic-only → analytic →
+  corrected vs X4, ungated regions shaded, the 0.5 % gate bar drawn only over
+  its band), `fig_inelastic_deltas.png` (the nine per-process rows analytic →
+  corrected against the ±5 % band), `fig_inelastic_unseen_zenith.png` (the
+  −74 % cliff). House palette reused from the elastic script (same validated
+  adjacent order; every series direct-labeled). `ruff check` clean (the
+  sibling's status); all four figures rendered and visually inspected.
+
+One small correction made en route: an early docstring draft cited a
+`--exclude-zenith` flag that `train_inelastic_corr.py` does not have — the
+script trains the zenith-holdout variant unconditionally; fixed before
+committing outputs.
+
+**Next:** JXP review of the report; merge of `inelastic-rt` (the report's
+header already refers to `main` per RQ7). This closes the prompt docs for
+the inelastic RT effort.
+
+### 2026-08-29 (Design prompt 7: re-read the docs, confirmed the CDOM-fl double absence; posed Q&A/CDOM round 1)
+
+Executed Design prompt 7 (model: Fable). No design document written or edited
+yet — per the prompt, posed eight questions (CFQ1–CFQ8) in the new Q&A/CDOM
+section, each with a recommendation, after re-reading the three governing
+documents fresh:
+
+- **`design/rt_inelastic_model.md`** — the relevant anchors: §3 reserved the
+  `Inelastic.cdom_fl` slot (None in v1) explicitly for this moment; §4.4 is
+  the additive-emission pattern CDOM-fl would mirror; §8 names the landing
+  zone and wishlist item 3 (CDOM on/off pairs with the Hawes et al. quantum
+  functions on a CDOM-stratified subset); §6 is the gate style that cannot
+  transfer as-is (no truth to gate against).
+- **`design/rt_inelastic_model_coding_plan.md`** — the M0–M4 arc is complete;
+  its "Beyond v1" section already points at the wishlist; the M2-style
+  live-BING cross-check pattern is *unavailable* for CDOM-fl (below).
+- **`reports/report_rt_inelastic_model.md`** — open item 2 and recommended
+  priority 4 both defer CDOM-fl to "when truth exists"; the headline 0.34 %
+  X4 gate is scored against a truth that *omits* CDOM fluorescence, which
+  makes off-by-default a correctness requirement, not a style choice (CFQ5).
+- Also re-skimmed `context/RT/rt_inelastic_bing_summary.md` §4.3 and A8 —
+  the origin of the "neglected CDOM fluorescence" framing.
+
+**Two verification findings (both expected, both load-bearing):**
+
+1. **BING implements no CDOM fluorescence.** Grep over `bing/rt/` and
+   `bing/models/` (case-insensitive "cdom"): every hit is the elastic a_g
+   absorption machinery in `bing/models/anw.py`; nothing in `bing/rt/`.
+   Consequence: unlike Raman/Chl-fl there is no fixed-BING implementation to
+   port or pin against at rtol ≤ 1e-6 — the analytic term must be built from
+   the literature (Hawes et al. 1992, the HydroLight parameterization) and
+   verified by correctness pins rather than a cross-check (CFQ4, CFQ6).
+2. **No new CDOM-fluorescence truth data exist.** The L23 folder on this
+   machine (`$OS_COLOR/Loisel2023/` →
+   `/Users/xavier/Projects/Oceanography/data/Color/Loisel2023/`) holds
+   exactly the known 18 files — `Hydrolight{1,2,4}{00,30,60}[.nc|_profile.nc]`
+   — i.e. the X∈{1,2,4} scenario set, none of which toggles CDOM
+   fluorescence (A5). Nothing new has landed since the survey. Stated
+   plainly: this design pass proceeds with **zero truth data**, which shapes
+   the architecture (analytic-only v1, head defined but untrained), the gate
+   (plausibility + correctness, no rRMS), and the wishlist refinement.
+
+**The eight questions and my recommendations:** CFQ1 document target — new
+standalone `design/rt_cdom_fluorescence_model.md` rather than amending the
+finished, gate-passed inelastic design in place; CFQ2 truth status — build
+the analytic term + interface now, gate head training behind data arrival,
+and ask whether HydroLight CDOM runs are already planned on a timeline;
+CFQ3 architecture — mirror the Chl-fl shape (additive term, physics backbone
++ bounded head), head zero-initialized and shipped untrained; CFQ4 physics —
+the Hawes et al. (1992) η(λ′,λ) quantum-efficiency functions (HydroLight's
+own, so future truth is consistent by construction), source ∝ a_CDOM(λ′)
+(so `IOPs` grows an optional `a_cdom` field, the a_ph pattern), 350 nm
+excitation clamp documented; CFQ5 slot shape — `cdom_fl=None` stays the
+default *inside* `Inelastic()` (the X4 truth omits CDOM-fl, so the shipped
+gate is valid only for a CDOM-fl-free default), a small differentiable
+`CDOMFl(scale=...)` pytree when set, bit-identity regression extended;
+CFQ6 gate without truth — off-state bit-identity + Hawes correctness pins +
+literature-plausibility band + gradients + the existing 2× speed budget,
+with the quantitative ≤ 5 %-style gate written but conditional on truth;
+CFQ7 process — a small M5 (+ deferred M6) milestone table inside the new
+design doc and a single prompt doc, not a full design→coding-plan→five-doc
+arc; CFQ8 wishlist — expand item 3 into a concrete commissioning spec
+(X4 vs X4+CDOM-fl pairs, a_g(440)-stratified subset with the rich tail
+oversampled, exact Hawes function/version recorded), and ask whether to
+bundle it with the priority-2 geometry runs.
+
+**Next:** awaiting JXP's answers to CFQ1–CFQ8 before writing the
+CDOM-fluorescence design document.
+
+### 2026-08-29 (Docs prompt 1: surveyed the BING/PAB/IOPtics doc sets; posed Q&A/Docs round 1)
+
+Executed Docs prompt 1 (model: Opus). No documentation written — per the
+prompt I posed nine questions (DocQ1–DocQ9) in Q&A/Docs first.
+
+**What I reviewed:**
+
+- **The thing to be documented.** `robust/rt/` — 11 modules, ~5,900 lines:
+  `conventions`, `types` (the `IOPs`/`PhaseParams`/`Geometry`/`Inelastic`
+  pytrees), `data.l23`, `ed`, `ztt`, `emulator`, `hybrid` (`forward()`, the
+  public entry point), `inelastic`, `inelastic_corr`, `baselines`,
+  `validation` — plus the 18-file test tree, `setup.py`, `requirements.txt`,
+  the CI workflow, and both reports/design records as source material.
+- **Docstring coverage, measured** (AST walk over `robust/rt/*.py`): of ~115
+  public classes/functions, **7 lack docstrings** — 3 in `emulator.py`, 2 in
+  `ztt.py`, 1 each in `inelastic.py` and `validation.py` — and every module
+  carries a module docstring. Autodoc is therefore essentially free; the
+  seven gaps are a small edit, offered in DocQ4.
+- **The three exemplar doc sets**, in detail (conf.py, RTD yaml, toctrees,
+  page inventories, line counts, CI jobs).
+
+**Two findings that shape the questions:**
+
+1. **retrieve-or-bust is greenfield.** `docs/` exists but holds exactly one
+   file — `docs/member_policy.md`, team governance, not technical. No
+   `conf.py`, no `.readthedocs.yaml`/`readthedocs.yaml`, no Makefile, no
+   docs job in `.github/workflows/ci.yml`, no `robust.__version__`. Nothing
+   to extend; everything to create.
+2. **The three exemplars disagree**, so "model it after BING, PAB, and
+   IOPtics" required a recommendation rather than a copy. All three are
+   Sphinx on ReadTheDocs, but: **BING** = flat `docs/`, `sphinx_rtd_theme`,
+   `.rst` only (no MyST), undotted `readthedocs.yaml`, pdf+epub, hardcoded
+   version, ~5,850 lines over 15 narrative pages + *seven* per-module API
+   pages; **IOPtics** = `docs/source/` layout, **furo**, autosummary +
+   `autodoc_mock_imports`, *one* `automodule` API page, generated report
+   pages, figure-generator scripts writing into `_static/`, version read
+   from `ioptics.__version__`, and Markdown design docs deliberately left
+   unrendered; **PAB** = flat `docs/`, rtd-theme, **`myst-nb`** rendering
+   both Markdown design docs and nine executed notebooks in-site, mermaid,
+   docs deps in the root `requirements.txt`, RTD lenient while CI builds
+   `-W --keep-going`, plus a second Sphinx target (`report_site/`) for the
+   community. BING and PAB gate docs in CI; IOPtics does not.
+
+**The nine questions and my recommendations:** DocQ1 scope — document
+`robust.rt` as *one* forward model (elastic backbone + inelastic terms), not
+inelastic-only, excluding the stub `rob/` package and stating plainly that
+the inversion does not exist yet; DocQ2 tooling — PAB's shape (flat `docs/`,
+rtd-theme) **with MyST**, since every scrap of source material we own is
+Markdown or `.ipynb`, plus IOPtics' single-`automodule` API page and version
+single-sourcing, and a real sub-choice: install the package on RTD (my lean)
+vs mock the JAX stack; DocQ3 location — `docs/` + a new dotted
+`.readthedocs.yaml` (ubuntu-24.04 / py3.12, `fail_on_warning: false`), render
+`member_policy.md` as a Team page, and two questions only JXP can answer (does
+an RTD project already exist, and is anything to be kept off a public site);
+DocQ4 page set — ~15 pages (installation, quickstart, the model chapter by
+chapter, data, validation, a prominent limitations page, one API page,
+references), with the report §5 caveats quoted verbatim rather than buried;
+DocQ5 provenance — render the two *reports* in-site, link out to design docs
+and the implementation record, publish no Q&A/prompt-doc material; DocQ6
+notebooks — do **not** render the ten milestone notebooks as tutorials (they
+open on environment installs and are organized chronologically); write one new
+quickstart notebook instead; DocQ7 figures — reuse the 7 committed report
+PNGs via an IOPtics-style `docs/figures/*.py` rather than a second copy, and
+reuse `fig_inelastic_architecture.png` as the hero unless a new one is wanted;
+DocQ8 mechanics — add `robust.__version__`, add a strict `-W` docs job to CI
+while RTD stays lenient, and (per RQ7) document the `main` state from a fresh
+branch after `inelastic-rt` merges; DocQ9 staging — this is a **2–3 day,
+~2,000–2,500-line** effort, not a 1–2 day item, so I propose two milestones in
+a single prompt doc (`rt_docs_prompt_1.md`): **D1** scaffold + CI + API +
+installation/quickstart building green and published, then **D2** the full
+narrative set, reports section, limitations and figures.
+
+**Next:** awaiting JXP's answers to DocQ1–DocQ9 before writing any
+documentation.
+
+### 2026-08-29 (Docs prompt 2: wrote `rt_docs_prompt_1.md` — D1/D2 milestones, pydata theme picked)
+
+Executed Docs prompt 2 (model: Opus). No documentation, no `docs/` scaffold,
+no `robust/` edit and no CI change — per DocQ9 this turn produces the prompt
+doc only, exactly as Design prompt 6 produced the five coding prompt docs
+without doing M0's work.
+
+**Reviewed first:** JXP's answers to DocQ1–DocQ9 in Q&A/Docs above (all nine
+answered), the house template
+(`claude_prompts/RT/rt_inelastic_coding_prompt_1.md` in full,
+`rt_inelastic_coding_prompt_5.md` for how a wrap-up milestone's tasks and
+gates read), the eleven `robust/rt/` modules and `robust/rt/__init__.py`'s
+docstring (already a compact site outline), `setup.py` / `requirements.txt` /
+`.github/workflows/ci.yml` / `ruff.toml`, `docs/member_policy.md`, both
+reports and their two figure scripts, the ten `notebooks/RT/*.ipynb`, and —
+in detail — the three exemplars' real configs (PAB `docs/conf.py` +
+`.readthedocs.yaml`, IOPtics `docs/source/conf.py` + `.readthedocs.yaml` +
+`docs/requirements.txt` + `docs/figures/`, BING `docs/conf.py` +
+`readthedocs.yaml`), so the tasks carry working values rather than
+hand-waving.
+
+**Written:** `claude_prompts/RT/rt_docs_prompt_1.md` (687 lines), house
+sections in house order — Goals (with the theme decision), Claude
+(Skills / Working agreements), Context, Status entering D1, Prompts (14
+numbered turns), D1 with 7 numbered tasks each ending in a concrete **Gate**,
+D1 Q&A (empty), D2 with 7 tasks and gates, D2 Q&A (empty), Next, Logging,
+Logs (empty). D1 = scaffold + `conf.py` + `docs/requirements.txt` +
+`robust.__version__` + `.readthedocs.yaml` + CI docs job + Installation +
+Quickstart + Team + References + the single autodoc API page + front page and
+model overview, building green under `-W` and rehearsed in a clean venv. D2 =
+the quickstart notebook and development record, the elastic and inelastic
+model chapters, Data + Validation, the verbatim limitations page, the nine
+docstring fills, the figures script and Reports section, and a review/PR turn.
+
+**Theme picked: `pydata-sphinx-theme`** (+ `sphinx-design`,
+`sphinx-copybutton`), pinned `>=0.16`. It is neither BING/PAB's
+`sphinx_rtd_theme` nor IOPtics' `furo`; it is the theme NumPy, SciPy, pandas,
+xarray and Matplotlib ship, so it reads as scientific-library documentation on
+sight; its three-column layout gives the long equation-dense ZTT/inelastic
+chapters a right-hand in-page TOC that furo and rtd-theme bury; the top navbar
+lets the five site sections be tabs; light/dark is native and `sphinx-design`
+gives the front page a card grid for the hero. Recorded fallback if it fights
+`-W`: `sphinx-book-theme` (pydata's sibling, what JAX's own docs use) — to be
+raised in Q&A, not switched silently.
+
+**No "modify the next prompt doc" turn**, unlike the coding docs: those needed
+one because five milestones lived in five files. Both milestones live in this
+one file, so the hand-off is D1's task 7, which fills the doc's own "Status
+entering D2" section. A `rt_docs_prompt_2.md` is only to be proposed in Q&A if
+D2's volume warrants a third milestone.
+
+**Findings from the fresh inspection worth recording:**
+
+- **The docstring count is 9, not 7.** DocQ4's scan globbed `robust/rt/*.py`
+  and missed `robust/rt/data/l23.py`, which has two more
+  (`npz_reader::read`, `inelastic_npz_reader::read`). More usefully: **all
+  nine are nested closures**, so none of them is ever emitted by autodoc —
+  filling them is a readability edit, not a rendering fix, and the prompt doc
+  says so to stop a future turn claiming otherwise.
+- **`robust.rt` imports only `jax`, `jaxtyping` and `numpy` at module level**
+  (`flax`, `optax` and `ocpy` are all function-level imports, verified by AST
+  walk). That is what makes DocQ2's no-mocking decision cheap: autodoc can
+  import the whole package on RTD without ocpy or its geospatial extras.
+- **The RTD config must not reuse the root `requirements.txt`** — its two
+  `git+` lines pull ocpy's heavy extras (cartopy/geopandas/healpy), a
+  build-breaking risk on RTD and the same file that clobbers editable dev
+  checkouts (prompt 1 Q&A Q1). Hence `docs/requirements.txt` carrying the
+  Sphinx toolchain *plus* the real JAX stack.
+- **PAB's `conf.py` carries two hard-won settings we need verbatim**: load
+  `myst_nb` *instead of* `myst_parser` (loading both conflicts) and
+  `suppress_warnings = ["myst.xref_missing"]`, without which the rendered
+  Markdown's repo-relative links fail the strict `-W` CI build. BING's
+  contribution is `napoleon_use_ivar = True` (52 duplicate-object warnings
+  without it).
+- **Both reports reference their figures by bare relative filename**
+  (`![...](fig_inelastic_architecture.png)`), so the D2 figures script both
+  copies the seven `reports/*.png` into `docs/_static/` **and** writes
+  path-rewritten copies of the two reports into `docs/reports/` — invoked from
+  `conf.py` at build time, outputs gitignored, so RTD and CI regenerate them
+  and no second copy of anything is committed (DocQ7's intent, extended to the
+  Markdown).
+- The docs build needs **no `$OS_COLOR` and no L23 data** — copy mode is pure
+  file copying; figure regeneration is an opt-in `--regenerate` flag that must
+  never be reachable from `conf.py`.
+
+**Next:** JXP to create the docs branch off `main` (name JXP's call — the
+prompt doc deliberately does not hardcode one, per the
+`rt-inelastic-prototype`-vs-`inelastic-rt` lesson) and start prompt 1 of
+`claude_prompts/RT/rt_docs_prompt_1.md`.
+
+### 2026-08-29 (Design prompt 8: wrote the CDOM design doc, prompt doc, and updated the two upstream docs)
+
+Executed Design prompt 8 (model: Fable). Reviewed JXP's eight CFQ answers in
+Q&A/CDOM — all affirmative and mutually consistent, no second round needed:
+standalone companion doc (CFQ1), analytic term + interface now with head
+training gated on truth arrival (CFQ2), the Chl-fl term's exact additive
+shape with a zero-init untrained δ_C head (CFQ3), Hawes et al. (1992) basis
+∝ a_CDOM(λ′) with a new `IOPs.a_cdom` field and a hard 350 nm excitation
+clamp (CFQ4), `cdom_fl=None` default even inside `Inelastic()` with a
+`CDOMFl(scale=1.0)` pytree when set and an extended bit-identity regression
+(CFQ5), the five-item truth-less v1 gate (CFQ6), a single-prompt-doc M5 plus
+deferred M6 (CFQ7), and the "X4 vs X4 + CDOM-fl" run spec requested jointly
+with the geometry runs (CFQ8).
+
+**Created (2 files):**
+
+- `design/rt_cdom_fluorescence_model.md` (~250 lines, §§1–9: goals/non-goals,
+  architecture, interface, components/layout, validation & acceptance gate,
+  milestones M5/M6, HydroLight run request, risks, references). Deliberately
+  short — the Ed module, composition law, two-flow transport, and head
+  machinery are inherited from the companion inelastic design by reference,
+  not re-derived. The Hawes citation is given as Mobley cites it (Proc. SPIE
+  1750, 212–223) with an explicit note that the page range should be
+  confirmed against the SPIE record at implementation time.
+- `claude_prompts/RT/rt_cdom_coding_prompt_1.md` (~230 lines), the single M5
+  prompt doc: Goals / Claude (skills note: `inelastic-rrs` is BING-only
+  background — BING has no CDOM-fl; working agreements incl. both
+  hash-regressions staying green) / Context / Status entering M5 (431 passed
+  + 1 skipped at end of M4; `cdom_fl` currently a rejected reserved slot in
+  `types.py`) / Prompts / M5 with 9 gated tasks (types, loader wiring, Hawes
+  kernel + correctness pins, clamp + truncated-fraction diagnostic,
+  composition + the new `cdom_fl=None` bit-identity pin, zero-init δ_C,
+  plausibility/gradients/speed, notebook + record, PR review) / empty Q&A /
+  Next (M6 deferred, blocked on truth) / Logging template / empty Logs.
+
+**Edited (2 pointer insertions, additive only):**
+
+- `design/rt_inelastic_model.md` §8, immediately after the CDOM-fluorescence
+  landing-zone paragraph: "*Update (2026-08-29):* CDOM fluorescence is now
+  designed in a companion document, `design/rt_cdom_fluorescence_model.md`
+  (milestones M5/M6). The paragraph above is retained as the historical
+  decision record." Original text untouched.
+- `design/rt_inelastic_model_coding_plan.md`, end of "Beyond v1": "*Update
+  (2026-08-29):* CDOM fluorescence now has its own design doc and M5/M6
+  milestone plan in `design/rt_cdom_fluorescence_model.md`, executed by
+  `claude_prompts/RT/rt_cdom_coding_prompt_1.md` …". Original text untouched.
+
+No git commands were run; JXP handles branching (fresh branch off `main` once
+`inelastic-rt` merges) and all commits. The concurrent Docs effort's files
+and its Q&A/Docs section were not touched; this entry was appended after a
+fresh re-read of the file's tail.
+
+**Next:** the design doc and M5 prompt doc await JXP's review before
+execution of M5 begins.
+
+### 2026-09-18 (PR prompt 1: diagnosed the README merge conflict; recommendation in Q&A/PR)
+
+Executed PR prompt 1 (model: Opus 5). The working tree is mid-merge:
+`origin/main` (`76a7b9a`, PR #22 `profxj-patch-1`) merging into `inelastic-rt`
+(`e1f4289`), with `.gitignore`, `claude_prompts/websites.md`,
+`docs/figs/rob_graphic_talk.png` and `docs/scripts/rob_graphic.py` staged
+cleanly and `README.md` the sole unmerged path (two hunks: lines 10–132 and
+143–217). No git state-changing commands were run — read-only inspection only
+(`git status`, `git log`, `git merge-base`, `git diff`, `git show`).
+
+**Diagnosis.** The merge base is `39171156`, whose README was the 23-line stub
+("Our last best effort at IOP Retreivals" + CI badge + a Development block).
+Both sides rewrote it from scratch, independently, into near-identical prose.
+Git saw two large unanchored insertions instead of edits to shared text, so it
+could not align the ~70 lines of Overview / Why this is hard / The bet /
+Point of departure / Team that are byte-identical on both sides. The conflict
+is one alignment failure, not a content disagreement — which is why the naive
+merged file duplicates the entire Overview→Package layout block.
+
+**Key finding.** Diffing the two complete versions
+(`git show HEAD:README.md` vs `git show MERGE_HEAD:README.md`) shows the
+branch is a strict superset of main's content with exactly two exceptions:
+(i) main carries the Zenodo DOI badge, and (ii) main spells the co-I's name
+**Houskeeper** — which is *correct*; the branch's "Housekeeper" is a typo,
+confirmed against `proposals/Claude_Science/anthropic_application.md:131` and
+the WHOI profile URL recorded there. Everything else main has, the branch has
+verbatim. Conversely main *deleted* the base's Development block (pip install,
+`pytest -q`, the `$OS_COLOR` skip note) and dropped the CI badge; the branch
+kept both. So resolving in main's favour, or hand-merging section by section,
+risks losing the repo's only install/test instructions.
+
+**Recommendation written to Q&A/PR:** `git checkout --ours README.md`, then
+two edits — fold the DOI badge into the existing centered badge row alongside
+CI (with main's standalone placement offered as the alternative), and fix
+`Housekeeper` → `Houskeeper` at README.md:97. Nothing from `main` is lost.
+
+**Secondary finding.** The same misspelling rides in on two *cleanly staged*
+files that resolving README does not touch: `docs/scripts/rob_graphic.py:69`
+(the `TEAM` string) and `claude_prompts/websites.md:23`. The script renders
+**both** `rob_graphic_readme.png` — the figure at the top of the README — and
+`rob_graphic_talk.png`, so the typo is baked into the project's most public
+image and both PNGs need regenerating after the string is fixed.
+
+**Next:** awaiting JXP's answers to Q1–Q3 in Q&A/PR (apply the resolution?
+badge row or standalone DOI line? fix the script and regenerate the figures
+now or after the merge lands?). No files outside this prompt doc were edited.
+
+### 2026-09-18 (PR prompt 2: resolved the README conflict and fixed Henry's name everywhere)
+
+Executed PR prompt 2 (model: Opus 5), acting on JXP's three answers in Q&A/PR:
+apply the resolution, use the badge row, fix the script and regenerate both
+figures now. **No git state-changing commands were run** — JXP does the git.
+Verified the tree was still mid-merge and unchanged since prompt 1 before
+touching anything (`README.md` still `UU`, `MERGE_HEAD` still `76a7b9a`).
+
+**`README.md` — resolved.** Rather than `git checkout --ours`, I wrote the
+resolved file directly: dumped the branch version with the read-only
+`git show HEAD:README.md` and applied the two edits to it, so the index entry
+stays `UU` for JXP to `git add`. Both edits were made under assertions that
+the target text appeared exactly once, then the result was checked for
+leftover conflict markers (0) and for the string "Housekeeper" (absent).
+
+1. *Badge row* (README.md:11–14) — the Zenodo DOI badge now sits beside CI in
+   the existing centered `<p>`, as HTML `<a><img></a>` to match its neighbour
+   rather than as main's markdown line. The graphic stays flush against the
+   `---`.
+2. *Name* (README.md:97) — `Housekeeper` → `Houskeeper`.
+
+Everything else is the branch version verbatim: CI badge, scope paragraph,
+"What exists today", the docs link, the expanded Package layout, the
+working-documents table, and the **Development** block that `main` had
+deleted. Nothing from `main` is lost — checked by diffing the resolved file
+against `git show MERGE_HEAD:README.md`. All 13 relative links and the local
+image path resolve on disk (verified by script, not by eye).
+
+**Henry's name — fixed in three more places.** The README was only the most
+visible one:
+
+- `docs/scripts/rob_graphic.py:69` — the `TEAM` footer string.
+- `claude_prompts/websites.md:23` — the team list (incoming from `main`).
+- `claude_prompts/schmidt_vicc_prompts.md:128` — question VQ6 of a *different*
+  effort's prompt doc, found by grepping the whole repo. Flagging it
+  explicitly since it lies outside this PR and edits a historical Q&A record;
+  trivial to revert if unwanted.
+
+The only remaining "Housekeeper" in the repo is inside this file's own Logs
+section, where the 2026-09-18 prompt-1 entry quotes the typo as evidence. Left
+as-is deliberately: it is a record of what the string *was*.
+
+**Figures regenerated** with `ocean14` (Python 3.14.6, invoked as
+`/Users/xavier/miniforge3/envs/ocean14/bin/python` — `conda activate` fails in
+a non-interactive shell without `conda init`). `docs/scripts/rob_graphic.py`
+writes *both* renders in one run, so a single invocation refreshed
+`rob_graphic_talk.png` and `rob_graphic_readme.png`. MD5s changed on both, and
+I read the two PNGs back to confirm the footer now reads "Bontemps · Dierssen
+· **Houskeeper** · Frouin · Kavanaugh · Kudela · Prochaska" — the rendered
+pixels were checked, not just the source string. The README's own header image
+is therefore correct now.
+
+**Next:** JXP runs `git add README.md docs/figs/ docs/scripts/rob_graphic.py
+claude_prompts/websites.md claude_prompts/schmidt_vicc_prompts.md` (plus this
+prompt doc) and commits to complete the merge.
+
+### 2026-09-18 (PR prompt 3: checked Cursor's review on PR #23 — no findings to address)
+
+Executed PR prompt 3 (model: Opus 5). **Outcome: there is nothing to address.**
+Cursor Bugbot's single review of PR #23 reports "✅ Bugbot reviewed your
+changes and found no new issues!" — a clean pass, not a list of comments.
+Findings written to Q&A/PR with one question (Q4). No git or GitHub
+state-changing commands were run; all `gh` calls were reads, and nothing was
+posted to the PR.
+
+**State check first.** JXP had completed the merge since prompt 2: `MERGE_HEAD`
+is gone, the tree is clean apart from this prompt doc, and `b3f87ce` ("Merge
+remote-tracking branch 'origin/main' into inelastic-rt") is now HEAD and the
+PR head. PR #23 (*Inelastic RT*) is OPEN, `MERGEABLE`, 108 files.
+
+**Verified the absence of comments rather than assuming it.** A bot summary
+saying "no issues" can coexist with inline threads that are resolved,
+outdated, or collapsed in the web view, so I queried GraphQL directly:
+`reviewThreads(first: 100)` → **`totalCount: 0`**. REST agrees —
+`/pulls/23/comments` is empty, `/pulls/23/reviews` has exactly one entry
+(cursor[bot], COMMENTED, 08:26:42Z), and the only issue comment is JXP's
+`@cursor review` at 08:22:37Z. One review, zero findings, zero threads.
+
+**The one substantive observation: the review is stale.** Bugbot reviewed
+commit `e1f4289` ("off nadir", 2026-09-15 23:49), but the head is now `b3f87ce`
+(2026-09-18 02:18). The bot has not seen the merge commit. Its net effect is 8
+files, of which the only executable code is `docs/scripts/rob_graphic.py` —
+and that arrived *from* `main` via PR #22, where it was already reviewed. The
+genuinely unreviewed new-code surface is therefore ~zero, which is why I rate
+re-triggering as optional rather than necessary.
+
+**Confirmed my own prompt-2 work landed clean.** `git diff e1f4289 b3f87ce --
+README.md` is **+2/-1**: the DOI badge line and `Housekeeper` → `Houskeeper`,
+nothing else. The conflict resolution smuggled in no other change — worth
+checking explicitly, since a hand-written resolution is exactly where stray
+edits hide.
+
+**Substituted a real check for the absent one.** With no findings to work
+from, I checked the PR's actual health instead of reporting nothing: every
+check on `b3f87ce` passes — `pytest (py3.12)`, `pytest (py3.14)`, `ruff`,
+`sphinx (-W)` (warnings-as-errors, so the docs build is clean), and the Read
+the Docs preview build. No conflicts remain.
+
+**Next:** Q4 in Q&A/PR asks whether JXP wants `@cursor review` posted so
+Bugbot re-reviews the merged head. I did not post it — that is outward-facing,
+and JXP has driven every GitHub action on this PR. Otherwise the PR looks
+ready.

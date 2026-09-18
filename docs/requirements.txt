@@ -1,0 +1,33 @@
+# Documentation build requirements for retrieve-or-bust.
+#
+#     pip install -r docs/requirements.txt
+#
+# Why this file exists rather than reusing the root requirements.txt (which is
+# what PAB does): the root file ends in two `git+https://github.com/...` lines
+# (ocpy, bing). Those are wrong here for two reasons. On a developer machine
+# they *replace* editable local checkouts of bing/ocpy with GitHub copies (the
+# M0 lesson -- never run the root file wholesale in `ocean14`). On Read the
+# Docs they pull ocpy's heavy geospatial dependency tree, which no page in this
+# site needs and which is a real build-breaking risk. `robust.rt` imports ocpy
+# lazily, inside the L23 loader functions, so autodoc never touches it.
+#
+# The docs build *imports* the package (autodoc, no mocking -- see conf.py), so
+# this file carries the real import-time stack as well as the Sphinx toolchain.
+
+# -- Sphinx toolchain --------------------------------------------------------
+sphinx>=8
+pydata-sphinx-theme>=0.16   # three-column layout, navbar sections, light/dark
+myst-nb>=1.1                # Markdown *and* .ipynb sources; bundles myst-parser
+sphinx-design               # card grids on the front page
+sphinx-copybutton           # copy button on code blocks
+
+# -- The real import-time stack for robust.rt --------------------------------
+# Measured: `import robust.rt` needs exactly jax, jaxtyping and numpy at module
+# level. flax and optax (emulator training) and ocpy (the L23 loader) are
+# imported inside functions. flax/optax are listed anyway so that a future page
+# which does touch the training code still renders.
+jax
+jaxtyping
+numpy
+flax
+optax
