@@ -79,6 +79,9 @@ If you need to run Python use the `ocean14` conda environment.
 
 2. I have answered your questions below.  Please revise the README.md file and I will then perform the `git` commands.  Also fix Henry's name! Use Opus 5.  Log your work.  
 
+3. Please see Cursor's comments on the PR and attempt to address them.  If you have
+any questions put them in the Q&A/PR section below.  Use Opus 5.  Log your work.
+
 ## Comments
 
 ## Q&A
@@ -181,6 +184,78 @@ figure is the most public surface the typo appears on.
 - **Q3:** Fix `rob_graphic.py` + `websites.md` and regenerate both figures now,
   or leave those for a separate pass after the merge lands?
 >A. Fix and regenerate both figures now.
+
+---
+
+Findings from Claude (2026-09-18, model: Opus 5) for PR prompt 3 — "see
+Cursor's comments on the PR and address them."
+
+**There is nothing to address. Cursor's only comment is a clean bill of
+health**, and it predates the merge you just completed.
+
+#### What Cursor actually said
+
+PR #23 (*Inelastic RT*, `inelastic-rt` → `main`, 108 files) carries exactly
+one review, from `cursor[bot]` at 08:26:42Z:
+
+> ✅ Bugbot reviewed your changes and found no new issues!
+> …Reviewed by Cursor Bugbot for commit `e1f4289`.
+
+I checked for hidden feedback rather than trusting the summary view — a
+GraphQL query for `reviewThreads(first: 100)` returns **`totalCount: 0`**, so
+there are no inline comments at all: none resolved, none marked outdated, none
+collapsed. The REST endpoints agree (`/pulls/23/comments` is empty). The PR's
+only other comment is your own `@cursor review` at 08:22:37Z. So: one review,
+zero findings, zero threads.
+
+#### The one thing worth knowing
+
+**Bugbot reviewed `e1f4289` ("off nadir", 2026-09-15), but the PR head is now
+`b3f87ce` (the merge, 2026-09-18).** The bot has not seen the merge commit. Its
+net effect on the branch is 8 files:
+
+```
+ .gitignore                                |   7 +-    (from main)
+ README.md                                 |   3 +-    (conflict resolution)
+ claude_prompts/RT/rt_inelastic_prompts.md | 208 +
+ claude_prompts/schmidt_vicc_prompts.md    |   2 +-    (name fix)
+ claude_prompts/websites.md                | 281 +     (from main)
+ docs/figs/rob_graphic_readme.png          | Bin       (regenerated)
+ docs/figs/rob_graphic_talk.png            | Bin       (from main)
+ docs/scripts/rob_graphic.py               | 310 +     (from main)
+```
+
+I verified the README landed exactly as designed: `git diff e1f4289 b3f87ce --
+README.md` is **+2/-1** — the DOI badge line and `Housekeeper` → `Houskeeper`,
+nothing else. The resolution did not smuggle in any other change.
+
+Of those 8, only `rob_graphic.py` is executable code, and it arrived from
+`main` (PR #22), where it was already reviewed — so the unreviewed *new* code
+surface is effectively zero. Re-running Bugbot is cheap insurance, not a
+requirement.
+
+#### Independent check: CI on the current head is fully green
+
+Since there were no findings to work from, I checked the PR's actual health
+instead. Every check on `b3f87ce` passes:
+
+| Check | Result |
+|---|---|
+| `pytest (py3.12)` | pass (2m47s) |
+| `pytest (py3.14)` | pass (2m51s) |
+| `ruff` | pass |
+| `sphinx (-W)` | pass — warnings-as-errors, so the docs build clean |
+| `docs/readthedocs.org` | pass — [preview build](https://retrieve-or-bust--23.org.readthedocs.build/en/23/) |
+
+`mergeable: MERGEABLE`, no remaining conflicts.
+
+#### Question for you
+
+- **Q4:** Want me to post `@cursor review` on PR #23 so Bugbot re-reviews the
+  merged head? I have not posted anything to GitHub — that is outward-facing,
+  and you have run every git/GitHub action on this PR so far. Say the word and
+  I will, or post it yourself in two seconds. Given the merge added no new
+  executable code, my read is that it is optional.
 
 ### Docs
 
@@ -2050,3 +2125,50 @@ is therefore correct now.
 **Next:** JXP runs `git add README.md docs/figs/ docs/scripts/rob_graphic.py
 claude_prompts/websites.md claude_prompts/schmidt_vicc_prompts.md` (plus this
 prompt doc) and commits to complete the merge.
+
+### 2026-09-18 (PR prompt 3: checked Cursor's review on PR #23 — no findings to address)
+
+Executed PR prompt 3 (model: Opus 5). **Outcome: there is nothing to address.**
+Cursor Bugbot's single review of PR #23 reports "✅ Bugbot reviewed your
+changes and found no new issues!" — a clean pass, not a list of comments.
+Findings written to Q&A/PR with one question (Q4). No git or GitHub
+state-changing commands were run; all `gh` calls were reads, and nothing was
+posted to the PR.
+
+**State check first.** JXP had completed the merge since prompt 2: `MERGE_HEAD`
+is gone, the tree is clean apart from this prompt doc, and `b3f87ce` ("Merge
+remote-tracking branch 'origin/main' into inelastic-rt") is now HEAD and the
+PR head. PR #23 (*Inelastic RT*) is OPEN, `MERGEABLE`, 108 files.
+
+**Verified the absence of comments rather than assuming it.** A bot summary
+saying "no issues" can coexist with inline threads that are resolved,
+outdated, or collapsed in the web view, so I queried GraphQL directly:
+`reviewThreads(first: 100)` → **`totalCount: 0`**. REST agrees —
+`/pulls/23/comments` is empty, `/pulls/23/reviews` has exactly one entry
+(cursor[bot], COMMENTED, 08:26:42Z), and the only issue comment is JXP's
+`@cursor review` at 08:22:37Z. One review, zero findings, zero threads.
+
+**The one substantive observation: the review is stale.** Bugbot reviewed
+commit `e1f4289` ("off nadir", 2026-09-15 23:49), but the head is now `b3f87ce`
+(2026-09-18 02:18). The bot has not seen the merge commit. Its net effect is 8
+files, of which the only executable code is `docs/scripts/rob_graphic.py` —
+and that arrived *from* `main` via PR #22, where it was already reviewed. The
+genuinely unreviewed new-code surface is therefore ~zero, which is why I rate
+re-triggering as optional rather than necessary.
+
+**Confirmed my own prompt-2 work landed clean.** `git diff e1f4289 b3f87ce --
+README.md` is **+2/-1**: the DOI badge line and `Housekeeper` → `Houskeeper`,
+nothing else. The conflict resolution smuggled in no other change — worth
+checking explicitly, since a hand-written resolution is exactly where stray
+edits hide.
+
+**Substituted a real check for the absent one.** With no findings to work
+from, I checked the PR's actual health instead of reporting nothing: every
+check on `b3f87ce` passes — `pytest (py3.12)`, `pytest (py3.14)`, `ruff`,
+`sphinx (-W)` (warnings-as-errors, so the docs build is clean), and the Read
+the Docs preview build. No conflicts remain.
+
+**Next:** Q4 in Q&A/PR asks whether JXP wants `@cursor review` posted so
+Bugbot re-reviews the merged head. I did not post it — that is outward-facing,
+and JXP has driven every GitHub action on this PR. Otherwise the PR looks
+ready.
