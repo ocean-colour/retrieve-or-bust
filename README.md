@@ -15,6 +15,8 @@
 
 ---
 
+[![DOI](https://zenodo.org/badge/1284586186.svg)](https://doi.org/10.5281/zenodo.22807857)
+
 ## Overview
 
 **retrieve-or-bust** is a genuine, no-hedging attempt to finally crack the
