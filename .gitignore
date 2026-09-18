@@ -6,13 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
-# Papers
-context/papers/Biomass/
-context/RT/*.pdf
-
 # PDFs
-context/*/*.pdf
-proposals/Schmidt_Sciences/*.pdf
+context/papers/Biomass/
 *.pdf
 
 # Distribution / packaging

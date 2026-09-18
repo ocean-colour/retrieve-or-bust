@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml"><img src="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://doi.org/10.5281/zenodo.22807857"><img src="https://zenodo.org/badge/1284586186.svg" alt="DOI"></a>
 </p>
 
 <p align="center">
@@ -93,7 +94,7 @@ itself — the inversion — does not exist yet.**
 
 - Paula Bontemps (URI)
 - Heidi Dierssen (UConn)
-- Henry Housekeeper (WHOI)
+- Henry Houskeeper (WHOI)
 - Robert Frouin (SIO)
 - Mariah Kavanaugh (OSU)
 - Raphe Kudela (UCSC)

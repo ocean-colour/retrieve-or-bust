@@ -73,9 +73,114 @@ If you need to run Python use the `ocean14` conda environment.
 
 2. See my answers to the Q&A/Docs section below. Proceed to generate the prompt docs.  Use Opus.  Log your work.
 
+### PR
+
+1. I have issued a PR and then tried to merge in `origin/main`.  However, there are some conflicts in the `README.md` file.  Please recommend a solution in Q&A/PR below.  Use Opus 5.  Log your work.
+
+2. I have answered your questions below.  Please revise the README.md file and I will then perform the `git` commands.  Also fix Henry's name! Use Opus 5.  Log your work.  
+
 ## Comments
 
 ## Q&A
+
+### PR
+
+Recommendation from Claude (2026-09-18, model: Opus 5) for the `README.md`
+conflict on the in-progress merge of `origin/main` into `inelastic-rt`.
+
+**Bottom line: keep the branch's `README.md` wholesale, then graft exactly two
+things in from `main`.** The branch version is a strict superset of main's
+prose; main contributes only a badge and a spelling fix.
+
+#### Why the conflict looks so bad
+
+Both sides rewrote the *same* 23-line base README (`39171156`, the "Our last
+best effort at IOP Retreivals" stub) from scratch and independently. Git
+therefore saw two large, unanchored insertions rather than two edits to shared
+text, and could not align the ~70 lines of Overview / Why this is hard / The
+bet / BING / Team prose that are **byte-identical on both sides**. The result
+is two conflict hunks (lines 10–132 and 143–217) that between them duplicate
+that whole block. The file is not as tangled as it appears — it is one
+alignment failure, not a real content disagreement.
+
+#### What each side actually has
+
+Diffing the two complete versions (`git show HEAD:README.md` vs
+`git show MERGE_HEAD:README.md`) gives the full picture:
+
+*Only on `main`, and worth keeping:*
+
+1. The Zenodo **DOI badge** — `[![DOI](https://zenodo.org/badge/1284586186.svg)](https://doi.org/10.5281/zenodo.22807857)` (from PR #22, `profxj-patch-1`).
+2. **"Henry Houskeeper"** — the *correct* spelling. The branch writes
+   "Housekeeper", which is a typo:
+   `proposals/Claude_Science/anthropic_application.md:131` and the WHOI profile
+   (`whoi.edu/profile/henry.houskeeper/`) both confirm **Houskeeper**.
+
+*Only on the branch, and all worth keeping:* the CI badge (main dropped it);
+the "fuller statement of scope" paragraph pointing at the Anthropic
+application and `context/context_summary.md`; the **What exists today**
+section (forward model exists, retrieval does not — the honest framing);
+the Read the Docs link under Related work; the expanded Package layout with
+`robust/rt/`, `design/`, `reports/`, `notebooks/RT/`; the forward-model
+working-documents table; and the **Development** block (`pip install`,
+`pytest -q`, the `$OS_COLOR` note).
+
+That last one matters: `main` *deleted* the Development block that the base
+carried. Resolving in main's favour would silently drop the only install and
+test instructions in the repo. Nothing on `main` is lost by taking the branch.
+
+#### Recommended resolution
+
+Take the branch file, then make two edits:
+
+```bash
+git checkout --ours README.md      # branch version, conflict markers gone
+#   ... the two edits below ...
+git add README.md
+git commit                          # completes the merge
+```
+
+**Edit 1 — fold the DOI badge into the existing badge row** (README.md:12–14):
+
+```html
+<p align="center">
+  <a href="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml"><img src="https://github.com/ocean-colour/retrieve-or-bust/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://doi.org/10.5281/zenodo.22807857"><img src="https://zenodo.org/badge/1284586186.svg" alt="DOI"></a>
+</p>
+```
+
+*Alternative* if you prefer main's placement verbatim: leave the CI `<p>`
+alone and put the DOI markdown line on its own, immediately after the `---`
+and before `## Overview`, exactly where main had it. Both render fine; the
+badge row is tidier and keeps the graphic flush against the rule.
+
+**Edit 2 — fix the name** (README.md:97): `Housekeeper` → `Houskeeper`.
+
+#### Two follow-ups the README resolution does *not* cover
+
+The same misspelling arrives with main in two files that are already staged
+clean (no conflict), so fixing README alone leaves them wrong:
+
+- **`docs/scripts/rob_graphic.py:69`** — `TEAM = ("Bontemps · Dierssen ·
+  Housekeeper · ...")`. This script renders **both** figures, so the typo is
+  baked into `docs/figs/rob_graphic_readme.png` (displayed at the top of the
+  README) *and* `rob_graphic_talk.png`. Fixing the string means regenerating
+  both PNGs (`ocean14`).
+- **`claude_prompts/websites.md:23`** — "Henry Housekeeper (WHOI)".
+
+I'd do these in the same commit as the merge resolution, since the README
+figure is the most public surface the typo appears on.
+
+#### Questions for you
+
+- **Q1:** Shall I apply the resolution to `README.md` (file edits only — you
+  run every git command, per CLAUDE.md)?
+>A. yes, I will do the git
+- **Q2:** Badge row, or main's original standalone DOI line after the `---`?
+>A. I would prefer the badge row.
+- **Q3:** Fix `rob_graphic.py` + `websites.md` and regenerate both figures now,
+  or leave those for a separate pass after the merge lands?
+>A. Fix and regenerate both figures now.
 
 ### Docs
 
@@ -1842,3 +1947,106 @@ fresh re-read of the file's tail.
 
 **Next:** the design doc and M5 prompt doc await JXP's review before
 execution of M5 begins.
+
+### 2026-09-18 (PR prompt 1: diagnosed the README merge conflict; recommendation in Q&A/PR)
+
+Executed PR prompt 1 (model: Opus 5). The working tree is mid-merge:
+`origin/main` (`76a7b9a`, PR #22 `profxj-patch-1`) merging into `inelastic-rt`
+(`e1f4289`), with `.gitignore`, `claude_prompts/websites.md`,
+`docs/figs/rob_graphic_talk.png` and `docs/scripts/rob_graphic.py` staged
+cleanly and `README.md` the sole unmerged path (two hunks: lines 10–132 and
+143–217). No git state-changing commands were run — read-only inspection only
+(`git status`, `git log`, `git merge-base`, `git diff`, `git show`).
+
+**Diagnosis.** The merge base is `39171156`, whose README was the 23-line stub
+("Our last best effort at IOP Retreivals" + CI badge + a Development block).
+Both sides rewrote it from scratch, independently, into near-identical prose.
+Git saw two large unanchored insertions instead of edits to shared text, so it
+could not align the ~70 lines of Overview / Why this is hard / The bet /
+Point of departure / Team that are byte-identical on both sides. The conflict
+is one alignment failure, not a content disagreement — which is why the naive
+merged file duplicates the entire Overview→Package layout block.
+
+**Key finding.** Diffing the two complete versions
+(`git show HEAD:README.md` vs `git show MERGE_HEAD:README.md`) shows the
+branch is a strict superset of main's content with exactly two exceptions:
+(i) main carries the Zenodo DOI badge, and (ii) main spells the co-I's name
+**Houskeeper** — which is *correct*; the branch's "Housekeeper" is a typo,
+confirmed against `proposals/Claude_Science/anthropic_application.md:131` and
+the WHOI profile URL recorded there. Everything else main has, the branch has
+verbatim. Conversely main *deleted* the base's Development block (pip install,
+`pytest -q`, the `$OS_COLOR` skip note) and dropped the CI badge; the branch
+kept both. So resolving in main's favour, or hand-merging section by section,
+risks losing the repo's only install/test instructions.
+
+**Recommendation written to Q&A/PR:** `git checkout --ours README.md`, then
+two edits — fold the DOI badge into the existing centered badge row alongside
+CI (with main's standalone placement offered as the alternative), and fix
+`Housekeeper` → `Houskeeper` at README.md:97. Nothing from `main` is lost.
+
+**Secondary finding.** The same misspelling rides in on two *cleanly staged*
+files that resolving README does not touch: `docs/scripts/rob_graphic.py:69`
+(the `TEAM` string) and `claude_prompts/websites.md:23`. The script renders
+**both** `rob_graphic_readme.png` — the figure at the top of the README — and
+`rob_graphic_talk.png`, so the typo is baked into the project's most public
+image and both PNGs need regenerating after the string is fixed.
+
+**Next:** awaiting JXP's answers to Q1–Q3 in Q&A/PR (apply the resolution?
+badge row or standalone DOI line? fix the script and regenerate the figures
+now or after the merge lands?). No files outside this prompt doc were edited.
+
+### 2026-09-18 (PR prompt 2: resolved the README conflict and fixed Henry's name everywhere)
+
+Executed PR prompt 2 (model: Opus 5), acting on JXP's three answers in Q&A/PR:
+apply the resolution, use the badge row, fix the script and regenerate both
+figures now. **No git state-changing commands were run** — JXP does the git.
+Verified the tree was still mid-merge and unchanged since prompt 1 before
+touching anything (`README.md` still `UU`, `MERGE_HEAD` still `76a7b9a`).
+
+**`README.md` — resolved.** Rather than `git checkout --ours`, I wrote the
+resolved file directly: dumped the branch version with the read-only
+`git show HEAD:README.md` and applied the two edits to it, so the index entry
+stays `UU` for JXP to `git add`. Both edits were made under assertions that
+the target text appeared exactly once, then the result was checked for
+leftover conflict markers (0) and for the string "Housekeeper" (absent).
+
+1. *Badge row* (README.md:11–14) — the Zenodo DOI badge now sits beside CI in
+   the existing centered `<p>`, as HTML `<a><img></a>` to match its neighbour
+   rather than as main's markdown line. The graphic stays flush against the
+   `---`.
+2. *Name* (README.md:97) — `Housekeeper` → `Houskeeper`.
+
+Everything else is the branch version verbatim: CI badge, scope paragraph,
+"What exists today", the docs link, the expanded Package layout, the
+working-documents table, and the **Development** block that `main` had
+deleted. Nothing from `main` is lost — checked by diffing the resolved file
+against `git show MERGE_HEAD:README.md`. All 13 relative links and the local
+image path resolve on disk (verified by script, not by eye).
+
+**Henry's name — fixed in three more places.** The README was only the most
+visible one:
+
+- `docs/scripts/rob_graphic.py:69` — the `TEAM` footer string.
+- `claude_prompts/websites.md:23` — the team list (incoming from `main`).
+- `claude_prompts/schmidt_vicc_prompts.md:128` — question VQ6 of a *different*
+  effort's prompt doc, found by grepping the whole repo. Flagging it
+  explicitly since it lies outside this PR and edits a historical Q&A record;
+  trivial to revert if unwanted.
+
+The only remaining "Housekeeper" in the repo is inside this file's own Logs
+section, where the 2026-09-18 prompt-1 entry quotes the typo as evidence. Left
+as-is deliberately: it is a record of what the string *was*.
+
+**Figures regenerated** with `ocean14` (Python 3.14.6, invoked as
+`/Users/xavier/miniforge3/envs/ocean14/bin/python` — `conda activate` fails in
+a non-interactive shell without `conda init`). `docs/scripts/rob_graphic.py`
+writes *both* renders in one run, so a single invocation refreshed
+`rob_graphic_talk.png` and `rob_graphic_readme.png`. MD5s changed on both, and
+I read the two PNGs back to confirm the footer now reads "Bontemps · Dierssen
+· **Houskeeper** · Frouin · Kavanaugh · Kudela · Prochaska" — the rendered
+pixels were checked, not just the source string. The README's own header image
+is therefore correct now.
+
+**Next:** JXP runs `git add README.md docs/figs/ docs/scripts/rob_graphic.py
+claude_prompts/websites.md claude_prompts/schmidt_vicc_prompts.md` (plus this
+prompt doc) and commits to complete the merge.
