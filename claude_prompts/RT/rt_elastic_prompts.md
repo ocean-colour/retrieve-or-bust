@@ -82,6 +82,55 @@ Use Fable if you can.  Log your work.
 answers and proceed to resolve the conflicts.
 Use Fable if you can.  Log your work.
 
+4. The merge is committed and the tree is clean.  Now do the code-and-numbers
+half of the punch list, in this order because the order matters:
+
+   a. Fix the three `:func:`robust.rt.forward`` cross-reference targets that the
+   docs sweep renamed to `:func:`~robust.rt.hybrid.forward`` everywhere else —
+   `robust/tests/conftest.py:267`, `robust/rt/conventions.py:757`,
+   `robust/rt/types.py:277`.  The `-W`/nitpicky Sphinx job is red until they go.
+
+   b. Fix the PQ10 contamination.  `robust/rt/files/surface_pb24.npz` was fitted
+   under a 400-realisation split while the benchmark splits 200 and the gate 800,
+   and `make_splits` permutes whatever set it is given — so `SPLIT_SEED = 23`
+   does not name a partition (`design/m5_report.md` §6).  Refit the transfer on
+   each consumer's own train mask, regenerate the artefact, and say in
+   `design/m5_report.md` §6 that it is fixed and how.  Do this **before** (c):
+   it moves the PB24 numbers.
+
+   c. Re-run and regenerate, per PQ11 — `pytest robust/tests`, then
+   `design/py/run_validation.py` (elastic and `--inelastic`) into
+   `design/validation/`, then `design/py/run_pb24_validation.py` into
+   `design/validation_pb24/`.  **Commit only what moved.**  Report every number
+   that changed and why, and say plainly if one moved that you cannot explain.
+   Note that `design/py/train_emulator_pb24.py` exits 1 by design when the gate
+   fails — that is M5 working, not a regression.
+
+   Use Fable if you can.  Log your work.
+
+5. Now the documentation half, and Route C with it.
+
+   a. PQ7, prose only: `docs/model/forward.md` and `docs/using/limitations.md`
+   present `on_out_of_domain="ztt"` as a safe degradation.  Add the measurement
+   that qualifies it — off-nadir the backbone it falls back to is non-physical on
+   22.3% of PB24 (`design/m5_report.md` §2.1).  Do not change the policy's
+   behaviour.
+
+   b. Give M5 its documentation: an `automodule` for `robust.rt.data.pb24` in
+   `docs/api.rst`, and a `docs/model/surface.md` for the geometry-aware surface
+   transfer, the OLCI grid, and the per-model `Envelope`.
+
+   c. Execute Q18 Route C, which I have approved: state the envelope where the
+   backbone is valid (ψ ≳ 134°, `bb/a` ≤ 0.1), report the coverage honestly, and
+   per Q19 make the current model's failing clear in `design/prototype_summary.md`.
+   Scope the claim to (a) from PQ8 — all processes, nadir, L23-like water.
+
+   d. Confirm `cd docs && make html` passes with `-W`, then draft the PR
+   description: what the branch brings, what it does not claim, and what M6 is
+   now that Route C is done and the HydroLight runs are the next major task.
+
+   Use Fable if you can.  Log your work.
+
 #### Forensics
 
 **Report of 2026-09-19. Working tree is mid-merge** (`.git/MERGE_HEAD` present,
