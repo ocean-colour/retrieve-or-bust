@@ -187,12 +187,28 @@ from pathlib import Path  # noqa: E402
 
 #: The frozen call surface of ``robust.rt.forward``: name -> (kind, default).
 #: ``inspect.Parameter.empty`` means "no default", i.e. the caller must supply it.
+#:
+#: **Re-baselined at the origin/main merge (2026-09-20).** The freeze was written
+#: at M5 task 15 on this branch; the inelastic and CDOM work happened in parallel
+#: on `RT` and never saw it. Merging the two is the first time the two surfaces
+#: meet, and the deltas are exactly what §8 permits, which is why this is an
+#: update rather than a conflict:
+#:
+#: * ``inelastic`` and ``corrections`` -- **added**, keyword-only, defaulting to
+#:   ``None``. Elastic-only behaviour is bit-identical without them (the inelastic
+#:   report's own claim), so no existing caller changes.
+#: * the five positional parameters are **untouched** in name, order and default.
+#:
+#: Nothing was renamed, reordered, removed, or given a different default. A future
+#: change that cannot say the same sentence is the one this tuple exists to stop.
 FROZEN_FORWARD = (
     ("iops", "POSITIONAL_OR_KEYWORD", inspect.Parameter.empty),
     ("phase_params", "POSITIONAL_OR_KEYWORD", inspect.Parameter.empty),
     ("geometry", "POSITIONAL_OR_KEYWORD", inspect.Parameter.empty),
     ("wave", "POSITIONAL_OR_KEYWORD", None),
     ("mode", "POSITIONAL_OR_KEYWORD", "hybrid"),
+    ("inelastic", "KEYWORD_ONLY", None),
+    ("corrections", "KEYWORD_ONLY", None),
     ("emulator", "KEYWORD_ONLY", None),
     ("check_domain", "KEYWORD_ONLY", True),
     ("on_out_of_domain", "KEYWORD_ONLY", "warn"),
@@ -201,10 +217,19 @@ FROZEN_FORWARD = (
 #: The frozen field order of the three argument containers. Order matters as much
 #: as membership: these are registered pytrees, so a reordering silently changes
 #: what ``tree_flatten`` produces and would misalign anything that zips leaves.
+#:
+#: Re-baselined with :data:`FROZEN_FORWARD` at the same merge, and for the same
+#: reason: ``IOPs`` gained ``a_ph``/``a_cdom`` (the fluorescence and CDOM source
+#: terms) and ``Geometry`` gained ``Ed``, all three **appended** and all three
+#: defaulting to ``None`` -- the one mutation M1 designed these containers for and
+#: the freeze explicitly permits.
+#: ``test_the_optional_container_fields_all_default_to_none`` is what keeps that
+#: permission honest: appending is safe only while the new field changes nothing
+#: for a caller who does not set it.
 FROZEN_CONTAINERS = {
-    "IOPs": ("a", "bb_w", "bb_p"),
+    "IOPs": ("a", "bb_w", "bb_p", "a_ph", "a_cdom"),
     "PhaseParams": ("B_p", "beta_tilde_pi", "backward_slope"),
-    "Geometry": ("theta_s", "theta_v", "dphi", "wind"),
+    "Geometry": ("theta_s", "theta_v", "dphi", "wind", "Ed"),
 }
 
 

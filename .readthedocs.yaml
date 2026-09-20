@@ -1,0 +1,47 @@
+# Read the Docs build configuration for the retrieve-or-bust documentation site.
+# https://docs.readthedocs.io/en/stable/config-file/v2.html
+#
+# Project slug: retrieve-or-bust  ->  https://retrieve-or-bust.readthedocs.io/
+#
+# Builds the Sphinx site rooted at docs/ (flat layout, docs/conf.py).
+
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.12"          # matches the project floor (setup.py: >= 3.12)
+
+sphinx:
+  configuration: docs/conf.py
+  builder: html
+  # The strict gate (`sphinx-build -W --keep-going`) lives in CI, where a
+  # broken cross-reference fails a pull request. Keep the RTD build lenient so
+  # a stray *environment* warning -- an intersphinx inventory that times out on
+  # the RTD runner, say -- never blocks publication of the docs.
+  fail_on_warning: false
+
+python:
+  install:
+    # 1. The package itself, so autodoc can import robust.rt. `--no-deps` is
+    #    not expressible here, so this pulls the whole of setup.py's
+    #    install_requires: it omits the JAX stack (docs/requirements.txt below
+    #    supplies jax/jaxtyping/numpy and flax/optax) but it is NOT light --
+    #    matplotlib, seaborn, bokeh, scikit-learn, xarray, h5netcdf, pandas,
+    #    scipy, emcee, corner, IPython and pytest all come with it, and no page
+    #    needs any of them. It has built green every time, so it is left alone;
+    #    the honest cost is build minutes, and the honest gap is that CI's docs
+    #    job installs `-e . --no-deps` and therefore never resolves this tree,
+    #    so a dependency-resolution failure here would not be caught by CI.
+    - method: pip
+      path: .
+    # 2. The Sphinx toolchain plus the real import-time stack. autodoc is NOT
+    #    mocked (docs/conf.py: autodoc_mock_imports = []), by decision (DocQ2),
+    #    so the rendered signatures and jaxtyping shapes are the real ones.
+    #    Note this is docs/requirements.txt, never the root requirements.txt --
+    #    the latter's two `git+` lines would pull ocpy's heavy geospatial tree,
+    #    which no page needs and which is a build-breaking risk here.
+    - requirements: docs/requirements.txt
+
+# No `formats:` block on purpose. BING builds pdf+epub; nobody asked for them
+# here, and each is another way for the build to fail.

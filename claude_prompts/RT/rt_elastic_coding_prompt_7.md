@@ -133,6 +133,8 @@ diffuse attenuation (or the asymptotic mean cosine directly), and that vary the 
 *family* rather than only the Fournier-Forand parameter — which would close the one
 headline gap M5 left untouched. — *Blocking: task 0's output depends on the answer.*
 
+>A. Let us follow your recommendation.  We are going to perform a set of HydroLight runs to obtain the reference data eventually.  But start with C
+
 **Q19 (M5 → M6 hand-off, Claude → JXP). Does the prototype's headline claim need
 restating?**
 
@@ -144,6 +146,8 @@ I have added an update note there rather than rewriting the claim.
 
 Worth your view on whether the prototype summary should be revised more strongly before it
 goes to anyone outside the project. — *Not blocking.*
+
+>A. As long as the failing of the current model is clear, that is fine.
 
 ## Next
 

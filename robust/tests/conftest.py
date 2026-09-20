@@ -29,6 +29,20 @@ import pytest
 #: Y = 0/30/60 deg. The prototype needs all three (coding plan M1).
 L23_ELASTIC_FILES = ("Hydrolight100.nc", "Hydrolight130.nc", "Hydrolight160.nc")
 
+#: The L23 *inelastic* files: X=2 (+ Raman) and X=4 (+ Raman and chlorophyll
+#: fluorescence) at the same three zeniths. Guarded separately from
+#: :data:`L23_ELASTIC_FILES` because a machine can legitimately hold the elastic
+#: three without these six — the inelastic effort's raw-netCDF tests must then
+#: skip, not fail (inelastic coding plan, M1).
+L23_INELASTIC_FILES = (
+    "Hydrolight200.nc",
+    "Hydrolight230.nc",
+    "Hydrolight260.nc",
+    "Hydrolight400.nc",
+    "Hydrolight430.nc",
+    "Hydrolight460.nc",
+)
+
 #: Fixtures directory (BING layout).
 FILES = pathlib.Path(__file__).parent / "files"
 
@@ -38,6 +52,13 @@ FILES = pathlib.Path(__file__).parent / "files"
 #: file is present -- CI included, with no ``$OS_COLOR`` mount. Regenerate with
 #: ``l23.write_fixture(path, n_scene=50)``.
 L23_SMALL_FIXTURE = FILES / "l23_small.npz"
+
+#: The inelastic **sibling** fixture (coding plan CQ4): the same 50 scenes and
+#: zeniths, adding ``aph`` and the X=2/X=4 ``Rrs`` channels (plus ``a``/``bb``/
+#: ``Rrs1`` copies the reader uses to prove the two files describe the same
+#: water). The elastic fixture's bytes are untouched -- a test pins its hash.
+#: Regenerate with ``design/py/gen_inelastic_fixture.py``.
+L23_INELASTIC_FIXTURE = FILES / "l23_inelastic_fixture.npz"
 
 
 def l23_available():
@@ -128,6 +149,57 @@ def pb24_small_batch(pb24_reader):
     return pb24.load_batch(realisations=PB24_FIXTURE_REALISATIONS, reader=pb24_reader)
 
 
+def l23_inelastic_available():
+    """Whether the L23 inelastic (X=2/X=4) dataset is on disk.
+
+    Returns
+    -------
+    bool
+        True when ``ocpy`` imports *and* every file in
+        :data:`L23_INELASTIC_FILES` is present in its L23 directory.
+    """
+    try:
+        from ocpy.hydrolight import loisel23
+    except Exception:  # noqa: BLE001 - any failure here means "no data", by design
+        return False
+    return all(
+        os.path.isfile(os.path.join(loisel23.l23_path, name))
+        for name in L23_INELASTIC_FILES
+    )
+
+
+#: Skip a test that needs the L23 inelastic (X=2/X=4) reference data.
+needs_l23_inelastic = pytest.mark.skipif(
+    not l23_inelastic_available(),
+    reason="L23 inelastic Hydrolight data (X=2/X=4) not available ($OS_COLOR)",
+)
+
+
+def _correction_weights_committed():
+    """Whether the M3 trained correction heads are on disk.
+
+    A function so the (cheap — flax loads lazily) ``robust.rt`` import happens
+    at collection, not at this module's import.
+    """
+    from robust.rt import inelastic_corr
+
+    return (
+        inelastic_corr.DEFAULT_RAMAN_WEIGHTS.exists()
+        and inelastic_corr.DEFAULT_FL_WEIGHTS.exists()
+    )
+
+
+#: Skip a test that needs the committed M3 correction weights. Defined once
+#: here (M4 review finding: three test modules carried verbatim copies) so a
+#: change to the weight layout or the regenerate message cannot leave stale
+#: copies skipping — or running — for the wrong reason.
+needs_weights = pytest.mark.skipif(
+    not _correction_weights_committed(),
+    reason="committed correction weights missing — run "
+    "design/py/train_inelastic_corr.py",
+)
+
+
 @pytest.fixture(scope="session")
 def l23_small_batch():
     """A 50-scene L23 batch, loaded through the real loader from the committed fixture.
@@ -166,6 +238,56 @@ def l23_batch():
     from robust.rt.data import l23
 
     return l23.load_batch()
+
+
+@pytest.fixture(scope="session")
+def l23_small_inelastic_batch():
+    """A 50-scene inelastic batch, loaded through the real loader from fixtures.
+
+    Needs no ``$OS_COLOR``: the sibling fixture supplies ``aph`` and the
+    X=2/X=4 channels, the elastic fixture supplies ``bbnw``/``bnw``, and
+    :func:`robust.rt.data.l23.load_inelastic_batch` genuinely runs.
+
+    Returns
+    -------
+    robust.rt.data.l23.L23InelasticBatch
+    """
+    for fixture in (L23_INELASTIC_FIXTURE, L23_SMALL_FIXTURE):
+        if not fixture.is_file():
+            pytest.skip(f"cached L23 fixture missing: {fixture}")
+
+    from robust.rt.data import l23
+
+    return l23.load_inelastic_batch(
+        reader=l23.inelastic_npz_reader(L23_INELASTIC_FIXTURE, L23_SMALL_FIXTURE)
+    )
+
+
+def tiny_args():
+    """Minimal synthetic :func:`robust.rt.forward` inputs (2 wavelengths).
+
+    A plain function, not a fixture, so tests can call it several times and
+    mutate copies freely. Lives here because two modules were maintaining
+    byte-identical private copies (PR #14 review) — when these inputs must
+    change, there is now exactly one place.
+    """
+    import jax.numpy as jnp
+
+    from robust.rt import conventions
+    from robust.rt.types import Geometry, IOPs, PhaseParams
+
+    wave = jnp.asarray([440.0, 550.0])
+    iops = IOPs(
+        a=jnp.asarray([0.15, 0.12]),
+        bb_w=conventions.bb_w(wave),
+        bb_p=jnp.asarray([0.003, 0.003]),
+    )
+    return (
+        iops,
+        PhaseParams(B_p=jnp.asarray(0.0126)),
+        Geometry.nadir(jnp.asarray(30.0)),
+        wave,
+    )
 
 
 @pytest.fixture
