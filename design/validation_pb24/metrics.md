@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|---|---|
 | standard Gordon | 20.99 | 20.41 | 20.89 | 20.81 | 20.87 | 45.46 | 0.00 |
 | ZTT backbone | 41116.22 | 7060.89 | 25840.01 | 64352.21 | 36910.79 | 20333.89 | 22.32 |
-| O25 form, refit on PB24 | 6.38 | 6.53 | 6.48 | 6.02 | 6.41 | 22.46 | 0.00 |
+| O25 form, refit on PB24 | 6.37 | 6.48 | 6.45 | 5.99 | 6.38 | 24.64 | 0.00 |
 
 The last column is the share of predicted `rrs` values that are **zero or negative**. A model producing those is not inaccurate, it is outside its domain, and an rRMS cannot say so — the same handful of samples that dominate the RMS also conceal how many there are.
 
@@ -28,7 +28,7 @@ So the ZTT row above is **not a statement about the backbone's accuracy**; it is
 |---|---|---|---|---|---|---|---|---|---|---|
 | standard Gordon | 9.23 | 9.52 | 10.49 | 12.84 | 17.18 | 23.60 | 31.74 | 40.99 | 50.52 | 57.51 |
 | ZTT backbone | 695.40 | 5555.49 | 11090.33 | 6466.29 | 7365.41 | 8394.76 | 4585.52 | 5130.05 | 13939.43 | 27855.88 |
-| O25 form, refit on PB24 | 2.83 | 2.91 | 3.29 | 4.52 | 6.05 | 8.02 | 9.72 | 11.29 | 17.52 | 34.53 |
+| O25 form, refit on PB24 | 3.13 | 3.17 | 3.41 | 4.44 | 5.89 | 7.86 | 9.75 | 11.82 | 24.25 | 35.86 |
 
 ## Per solar zenith (held-out realisations)
 
@@ -36,7 +36,7 @@ So the ZTT row above is **not a statement about the backbone's accuracy**; it is
 |---|---|---|---|---|---|---|---|---|---|---|
 | standard Gordon | 21.25 | 22.10 | 23.81 | 25.95 | 29.20 | 32.34 | 35.20 | 38.14 | 40.02 | 38.42 |
 | ZTT backbone | 1591.98 | 3074.77 | 12857.71 | 10722.82 | 7987.00 | 12905.09 | 5068.15 | 4914.80 | 4711.06 | 27267.78 |
-| O25 form, refit on PB24 | 13.12 | 13.12 | 13.08 | 13.03 | 12.84 | 12.62 | 12.49 | 13.12 | 18.38 | 13.96 |
+| O25 form, refit on PB24 | 12.33 | 12.55 | 12.96 | 13.43 | 14.05 | 14.64 | 15.24 | 16.23 | 19.40 | 17.74 |
 
 ## Per `B_p` bin (held-out realisations, equal-count bins)
 
@@ -46,5 +46,5 @@ Bin edges: 0.00306, 0.01165, 0.01445, 0.01741, 0.02976 — a factor 9.72 in tota
 |---|---|---|---|---|
 | standard Gordon | 35.14 | 32.78 | 32.18 | 27.37 |
 | ZTT backbone | 10895.15 | 9755.89 | 7982.34 | 14496.04 |
-| O25 form, refit on PB24 | 10.91 | 10.86 | 11.42 | 17.54 |
+| O25 form, refit on PB24 | 15.47 | 16.38 | 15.79 | 13.18 |
 

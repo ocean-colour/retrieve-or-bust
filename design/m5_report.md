@@ -131,16 +131,36 @@ realisations; O25's geometry table is 1.67× better than the zenith-only refit; 
 5. **O25's PB24 numbers are refits**, on its own calibration set, and must never be set
    beside its 0.69% on L23 — that would compare datasets and call it models.
 
-## 6. Two contaminations noted and not fixed
+## 6. Two contaminations — one fixed, one recorded
 
-- **The shipped surface transfer overlaps this milestone's held-out sets.** It was fitted on
-  a 400-realisation split under `SPLIT_SEED = 23`; the PB24 benchmark splits 200 and the
-  gate 800, and `make_splits` permutes whatever set it is given — so **"seed 23" does not
-  name one partition**. 31 of the benchmark's 40 held-out realisations were in the
-  transfer's training set. The transfer sits only in O25's scoring path, so the bias
-  favours the rival and every hybrid FAIL is conservative; the residual is ~1.8% median.
-  Unquantified rather than harmless, and it should be fixed by refitting the transfer on
-  each consumer's own train mask.
+- **The shipped surface transfer overlapped this milestone's held-out sets — fixed
+  2026-09-20.** It was fitted on a 400-realisation split under `SPLIT_SEED = 23`; the PB24
+  benchmark splits 200 and the gate 800, and `make_splits` permutes whatever set it is
+  given — so **"seed 23" does not name one partition**. 31 of the benchmark's 40 held-out
+  realisations were in the transfer's training set. The transfer sits only in O25's scoring
+  path, so the bias favoured the rival and every hybrid FAIL was conservative; the residual
+  is ~1.8% median.
+
+  **How it was fixed.** `pb24.fit_transfer(batch, train)` fits the Lee-form table from a
+  batch's own training rows and is now what both consumers call:
+  `run_pb24_validation.py` refits once per split kind on that split's train mask, and
+  `train_emulator_pb24.py` refits per `(stride, kind)` for the `Rrs`-converted O25 column.
+  Neither calls `conventions.default_transfer()` any more, so no held-out realisation
+  reaches the table that scores it. The grid is built from the angles present in the
+  training rows, not from the batch's full grid — under the geometry split the held-out
+  nodes must not appear in the table at all, and scoring there then interpolates or clamps,
+  which is what asking a fitted table about an unseen geometry honestly costs.
+
+  **The packaged table itself did not move.** Regenerating it through the same helper
+  reproduced `A` and `B` **bit-identically** (max |ΔA| = 0, max |ΔB| = 0); only its
+  provenance string changed, from `"320 training realisations"` to
+  `"320 training realisations (1-400), 1300 geometry cells, 415982 samples"`. That is the
+  real lesson: the artefact was never numerically wrong, and the count-without-a-set is
+  exactly why the overlap was invisible from the file. `conventions.default_transfer()`
+  remains the package default for a caller with no PB24 split of their own; it is simply no
+  longer in any scoring path. Three regression tests in `test_pb24.py` hold the fix: the
+  table must be built from the training rows alone, must record which those were, and must
+  raise rather than interpolate across a grid cell the mask emptied.
 - **`B_p` span is quoted at three sample sizes** across the milestone (6.2× from ~50 files,
   9.7× from 200, 12.4× from 600). Each is honest at its own size; none said so. The
   dataset-level figure is the largest sample's.

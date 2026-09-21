@@ -48,7 +48,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from robust.rt import baselines as B  # noqa: E402
-from robust.rt import conventions as C  # noqa: E402
 from robust.rt import validation as V  # noqa: E402
 from robust.rt import ztt as Z  # noqa: E402
 from robust.rt.data import pb24 as P  # noqa: E402
@@ -231,7 +230,6 @@ def main() -> int:
     for kind in P.SPLIT_KINDS:
         print(f"  {splits.reports[kind].summary()}")
 
-    transfer = C.default_transfer()
     truth = batch.rrs
     theta_v = batch.theta_v
     theta_s = batch.theta_s
@@ -255,6 +253,15 @@ def main() -> int:
     for kind in P.SPLIT_KINDS:
         keep = restrict[kind]
         train, test = splits.train(kind) & keep, splits.test(kind) & keep
+        # **The surface transfer is refit here too, on this split's own train
+        # mask** (m5_report.md §6). It used to be `C.default_transfer()`, the
+        # packaged table -- fitted under a 400-realisation split while this
+        # script splits 200, and `make_splits` permutes whatever set it is
+        # given, so 31 of the 40 held-out realisations had been in its training
+        # set. O25 is the only model that touches the transfer, so the bias
+        # favoured the rival and the FAILs were conservative; that made the
+        # contamination harmless, not measured.
+        transfer = P.fit_transfer(batch, train)
         models, _ = build_models(batch, train, transfer)
         scores = V.score_models(models, truth, {"train": train, "test": test})
         for name, by_split in scores.items():
@@ -265,6 +272,11 @@ def main() -> int:
     # These keep the full angle range on purpose: the per-view-angle cut is the
     # point, and cutting it off at 70 deg would hide the shell it exists to show.
     train, held = splits.train("realisation"), splits.test("realisation")
+    # Fitted in-window, then asked about the shell along with everything else:
+    # the per-view-angle cut below reaches past 70 deg on purpose, and what a
+    # table fitted inside the window costs outside it is part of the answer.
+    transfer = P.fit_transfer(batch, train & in_window)
+    print(f"  surface transfer: {transfer.provenance}")
     models, _ = build_models(batch, train & in_window, transfer)
 
     # A model that returns a non-physical reflectance is not "inaccurate", it is

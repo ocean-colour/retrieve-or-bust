@@ -123,6 +123,14 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "LINEAR_CONFIG",
     "DOMAIN_TOL",
     "DomainBreach",
+    # The sanctioned-angle envelope (M5 task 10). Public, and referenced by
+    # docstrings across the package, so it has to be in `__all__`: autodoc
+    # documents only what `__all__` names, and an undocumented class makes
+    # every `:class:`Envelope`` reference a nitpicky-build failure.
+    "Envelope",
+    "DEFAULT_ENVELOPE",
+    "SUPPORTED_THETA_S",
+    "SUPPORTED_THETA_V",
     "Emulator",
     "History",
     "features",
@@ -276,8 +284,8 @@ class Envelope:
         return "; ".join(parts)
 
 
-#: The envelope M0-M4 behaved as if it had: the sanctioned solar-zenith span, and
-#: the trained range for everything else.
+#: Envelope: The envelope M0-M4 behaved as if it had -- the sanctioned
+#: solar-zenith span, and the trained range for everything else.
 DEFAULT_ENVELOPE = Envelope()
 
 #: Sentinel for "use the emulator's own envelope", so that an explicit ``None``
@@ -1184,8 +1192,8 @@ def fit_l23(
     )
 
 
-#: Q14's sanctioned angles for a PB24-trained model: 0-70 degrees in both zeniths,
-#: with the 80/87.75 shell held out as the extrapolation test.
+#: Envelope: Q14's sanctioned angles for a PB24-trained model -- 0-70 degrees in
+#: both zeniths, with the 80/87.75 shell held out as the extrapolation test.
 PB24_ENVELOPE = Envelope(theta_s=(0.0, 70.0), theta_v=(0.0, 70.0))
 
 

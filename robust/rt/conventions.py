@@ -240,7 +240,7 @@ class WaveGrid:
     ----------
     name : str
         Registry key, e.g. ``"l23"``.
-    wave : ndarray
+    wave : numpy.ndarray
         Band centres (nm), ascending.
     description : str
         One line, for error messages.
@@ -398,7 +398,7 @@ def bb_w(
     wave : Array, optional
         Wavelengths (nm). Defaults to the canonical grid, where the table is
         returned exactly.
-    mode : {"clamp", "extrapolate", "raise"}, optional
+    mode : str, optional
         What to do outside :data:`BB_W_RANGE`. ``"clamp"`` (default) holds the
         end points, which is ``jnp.interp``'s behaviour and what M0-M4 relied on;
         ``"extrapolate"`` continues the fitted red tail
@@ -754,7 +754,7 @@ class SurfaceTransfer:
       assumed ~3.5, and PB24 tabulates the real ``Q`` (0.9-6.0). Refitting with
       it in place -- ``1 - rbar Q rrs`` -- scores 1.71% against 1.74% for simply
       fitting ``B`` per geometry. It is not worth carrying, which is fortunate:
-      :func:`robust.rt.forward` has no ``Q`` to offer.
+      :func:`~robust.rt.hybrid.forward` has no ``Q`` to offer.
     - **The residual does not go to zero.** Even fitting both coefficients at
       every geometry leaves a median 1.8%, so the Lee *form* is the floor here,
       not the coefficients. Reported rather than papered over.

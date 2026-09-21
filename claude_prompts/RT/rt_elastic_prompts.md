@@ -1554,3 +1554,96 @@ the `pb24` API page; the PQ7 prose note on the `on_out_of_domain="ztt"` guidance
 the PQ10 surface-transfer refit; and the PQ11 re-runs.
 
 Next: `git add` the nine files, then the docs and re-run work.
+
+### 2026-09-20 (PR prompt 4: xrefs, the §6 contamination fixed, everything re-run)
+
+Executed the 4th PR prompt, (a) → (b) → (c) in the order it asks for. 19 files
+changed, nothing staged.
+
+**(a) The three `:func:` targets — and eleven more I had not found.** The three
+named targets went to `:func:`~robust.rt.hybrid.forward``. Then I built the docs
+to check the claim in the prompt, which came from my own Forensics report, and it
+was wrong: **17 nitpicky warnings, not 3.** Every one traced to M5 code, none to
+main's — M5 predates the docs gate by five weeks, so nothing had ever linted its
+docstrings. Fixed at source, in the style `docs/conf.py` argues for at length
+("an ignore list whose entries are English sentences is a list of defects
+promoted to exceptions"):
+
+* `wave : ndarray` → `numpy.ndarray`; `names : iterable of str` → `sequence of
+  str` (the sanctioned napoleon family).
+* `mode : {"clamp", "extrapolate", "raise"}, optional` → `mode : str, optional`,
+  options in prose — main's own spelling for `on_out_of_domain`.
+* `PB24_ENVELOPE` and `DEFAULT_ENVELOPE`: a `#:` comment whose first line
+  contains a colon has its left half read as a *type*, so both were being parsed
+  as classes named "Q14's sanctioned angles for a PB24-trained model" and "The
+  envelope M0-M4 behaved as if it had". Rewritten in the `#: Type: text` form.
+* **`Envelope`, `DEFAULT_ENVELOPE`, `SUPPORTED_THETA_S`, `SUPPORTED_THETA_V` were
+  missing from `emulator.__all__`.** autodoc documents only what `__all__` names,
+  so M5's headline class was undocumented and every `:class:`Envelope`` reference
+  in the package dangled. That is the one that mattered: the fix is a public-API
+  correction, not a docstring tweak.
+
+17 → **2 warnings**, and both remaining are `robust.rt.data.pb24.PB24Batch` /
+`Splits`, which need the `automodule` that prompt 5(b) adds. Left deliberately.
+
+**(b) The §6 contamination, fixed.** Added `pb24.fit_transfer(batch, train)` —
+the table fitted from a batch's own training rows — and pointed both consumers at
+it: `run_pb24_validation.py` refits per split kind, `train_emulator_pb24.py` per
+`(stride, kind)`. Neither calls `conventions.default_transfer()` now. The grid is
+built from the angles *present in* `train`, so under the geometry split the
+held-out nodes cannot appear in the table at all. Three regression tests in
+`test_pb24.py`; `fit_surface.py` routed through the same helper so the shipped
+table and the consumers share one code path.
+
+**The packaged artefact did not move numerically.** Regenerating reproduced `A`
+and `B` bit-identically — max |ΔA| = max |ΔB| = 0 — and only the provenance
+string changed, from `"320 training realisations"` to `"320 training realisations
+(1-400), 1300 geometry cells, 415982 samples"`. That is the whole lesson: the
+file was never wrong, and a count-without-a-set is exactly why the overlap was
+invisible from it. §6 rewritten to say fixed, how, and this.
+
+**(c) Re-ran everything, and committed only one of the three.** The attribution
+matters more than the diffs:
+
+* **PB24 — committed.** Gordon's and ZTT's columns came out **bit-identical** to
+  the committed numbers across every file; only O25's moved. That is the proof
+  the machine is not a variable here (the PB24 path trains nothing — lstsq and
+  analytic throughout), so every change is attributable to the refit. Headline
+  held-out 6.53 → **6.48**; `bp_band` 6.02 → 5.99; **geometry split 22.46 →
+  24.64**, the leak closing: the shipped table had seen the very geometry nodes
+  that split holds out.
+* **Elastic — restored, not committed.** Only the freshly-trained MLP columns
+  moved; Gordon/ZTT/O25 are identical to 4 decimals at all 81 wavelengths. I
+  checked run-to-run determinism (two runs, bitwise identical here) and diffed
+  `build_models`, `zenith_study`, `fit` and `features` against the merge base —
+  code-identical. The committed artefacts date from **2026-08-07** and the repo
+  already documents why they will not reproduce here: `strict_bits_on_anchor`
+  says "the elastic pins were computed on the tank server", this host anchors
+  nothing, and all four bitwise pins skip. Throughput moved 3.76 → 2.25 ms for
+  ZTT, which is the same statement in plainer form. Committing would replace tank
+  numbers with this laptop's and they would flip back on the next tank run.
+* **Inelastic — restored, not committed.** The accuracy metrics *reproduce*: three
+  values differ in the 4th decimal and nothing else. Only wall-clock moved —
+  median speed ratio 1.59× → 1.90×, absolute times ~3.5× faster — and the gate
+  still PASSes (≤ 2×). Same machine-stamp argument.
+
+`pytest robust/tests` **677 passed, 5 skipped** (674 → 677 = the new
+`fit_transfer` tests); ruff clean over `robust/` and `design/py/`. Smoke-ran the
+edited gate script (`--quick --dry-run`): still FAILs and still exits 1, as
+designed, with the fairness line now reading "O25 fitted in rrs 5.07% vs via
+Rrs+transfer 5.66%" through the per-split table.
+
+**One thing to look at before the PR.** The breakdown figures now fit the
+transfer in-window (matching O25's own coefficients, which were already fitted
+`train & in_window`) and score across the full angle range, so O25 looks worse
+past 70°: 17.52 → 24.25 at θv = 80°. I tested the mechanism rather than asserting
+it — restricted to the sanctioned 0-70° window the old and new tables agree to
+**≤ 1% at every wavelength** (6.53 vs 6.48 total), and the entire divergence lives
+in the shell (21.06 → 23.50). So the fix costs nothing where the model is claimed
+to work, and what changed is a number about angles we do not claim. The old state
+was incoherent — in-window coefficients, all-geometry transfer — but this is a
+rival's number moving, and m5_report §7's third defect was exactly that, so it is
+JXP's call rather than mine.
+
+Next: prompt 5 — the `pb24` automodule (which clears the last 2 warnings),
+`docs/model/surface.md`, the PQ7 prose, Route C, and the PR description.

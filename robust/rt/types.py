@@ -274,7 +274,7 @@ class PhaseParams:
     (design §4.2). M5 task 14 added the fuller ZTT backward-VSF parameters as
     *additional optional fields defaulting to ``None``* -- which is why the design
     insisted the phase function be a container rather than a bare array. Adding
-    them changed neither :func:`robust.rt.forward`'s signature nor any existing
+    them changed neither :func:`~robust.rt.hybrid.forward`'s signature nor any existing
     call site, and every test written before them passed untouched.
 
     Two consequences of the ``None`` default worth knowing. A field left ``None``

@@ -36,7 +36,6 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from robust.rt import baselines as B  # noqa: E402
-from robust.rt import conventions as C  # noqa: E402
 from robust.rt import emulator as E  # noqa: E402
 from robust.rt import validation as V  # noqa: E402
 from robust.rt import ztt as Z  # noqa: E402
@@ -122,6 +121,7 @@ def main() -> int:
 
     results = {}
     loaded = {}
+    transfers: dict[tuple[int, str], object] = {}
     for stride, delta_max in runs:
         print(
             f"\n=== stride {stride} (theta_s, theta_v, dphi), delta_max {delta_max} ==="
@@ -137,7 +137,6 @@ def main() -> int:
             loaded[stride] = (batch, splits, rrs_ztt)
             print(f"  {batch.report.summary()}")
         batch, splits, rrs_ztt = loaded[stride]
-        transfer = C.default_transfer()
         truth = batch.rrs
         usable_all = E.backbone_is_usable(rrs_ztt)
 
@@ -159,9 +158,7 @@ def main() -> int:
                 # training set, so that number would have been training error
                 # compared against an honestly held-out rival. `fit_pb24` takes
                 # `kind` precisely so this is a one-word choice.
-                config = E.EmulatorConfig(
-                    steps=steps, seed=seed, delta_max=delta_max
-                )
+                config = E.EmulatorConfig(steps=steps, seed=seed, delta_max=delta_max)
                 emulator, _, coverage = E.fit_pb24(
                     batch, splits, kind, config=config, rrs_ztt=rrs_ztt
                 )
@@ -196,11 +193,19 @@ def main() -> int:
                 o25_Rrs = B.fit_o25_table(
                     batch.iops, batch.Rrs, batch.geometry, train=train
                 )
+                # **And the transfer it is converted through, on the same mask**
+                # (m5_report.md §6). This was `C.default_transfer()`, the
+                # packaged table, whose 400-realisation training set overlapped
+                # the held-out realisations of both splits scored here -- the
+                # gate splits 800. Cached per (stride, kind) because the mask
+                # does not depend on the seed and the fit is the slow part.
+                key = (stride, kind)
+                if key not in transfers:
+                    transfers[key] = P.fit_transfer(batch, train)
+                transfer = transfers[key]
                 args_m = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
                 pred_o25_rrs = B.Rrs_o25(*args_m, coeffs=o25_rrs)
-                pred_o25_Rrs = B.rrs_o25(
-                    *args_m, coeffs=o25_Rrs, transfer=transfer
-                )
+                pred_o25_Rrs = B.rrs_o25(*args_m, coeffs=o25_Rrs, transfer=transfer)
 
                 row[kind] = {
                     "hybrid": score(pred, truth, test),

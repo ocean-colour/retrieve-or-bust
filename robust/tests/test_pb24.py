@@ -670,3 +670,67 @@ def test_the_bp_confound_is_real_at_scale():
     detail = P.make_splits(batch, kinds=("bp_band",)).reports["bp_band"].detail
     assert detail["n_train_inside_band"] == 0.0
     assert detail["B_p_span_all"] > 5.0
+
+
+# ------------------------------------ the per-consumer surface transfer ------
+# `fit_transfer` is the fix for `design/m5_report.md` §6: the shipped table was
+# fitted under one realisation split and scored by consumers that had drawn
+# another. These three tests are what stop that recurring -- the table must be
+# built from the training rows alone, it must say which those were, and a
+# restriction that leaves a grid cell empty must fail loudly rather than be
+# filled by interpolation.
+
+
+def test_fit_transfer_sees_only_the_training_rows(pb24_small_batch):
+    """**The gate.** Held-out realisations must not reach the fitted table."""
+    batch = pb24_small_batch
+    train = batch.realisation != 993
+
+    transfer = P.fit_transfer(batch, train)
+
+    # Refitting on the same rows through the low-level entry point must agree
+    # exactly -- so `fit_transfer` is a selection helper, not a second fit.
+    sub = P.select(batch, train)
+    direct = C.fit_surface_transfer(
+        np.asarray(sub.rrs),
+        np.asarray(sub.Rrs),
+        sub.theta_s,
+        sub.theta_v,
+        sub.dphi,
+    )
+
+    np.testing.assert_array_equal(transfer.A, direct.A)
+    np.testing.assert_array_equal(transfer.B, direct.B)
+
+
+def test_fit_transfer_records_which_realisations_it_used(pb24_small_batch):
+    """Provenance is what makes a later overlap check possible at all.
+
+    The §6 contamination was invisible because the shipped table said only
+    "400 training realisations" -- a count, not a set.
+    """
+    batch = pb24_small_batch
+    train = batch.realisation != 993
+
+    transfer = P.fit_transfer(batch, train)
+
+    kept = np.unique(batch.realisation[train])
+    assert f"{kept.size} training realisations" in transfer.provenance
+    assert f"({kept.min()}-{kept.max()})" in transfer.provenance
+    assert "geometry cells" in transfer.provenance
+
+
+def test_fit_transfer_refuses_a_mask_that_empties_a_grid_cell(pb24_small_batch):
+    """A hole in the table interpolates across itself silently; raise instead."""
+    batch = pb24_small_batch
+    # Keep one solar zenith's rows only for a single view angle, so that
+    # (theta_s, theta_v, dphi) cell exists in the node vectors but not in the
+    # data for every combination.
+    theta_v = batch.theta_v
+    train = np.ones(batch.n_sample, dtype=bool)
+    train[(theta_v == np.unique(theta_v)[1]) & (batch.theta_s == batch.theta_s[0])] = (
+        False
+    )
+
+    with pytest.raises(ValueError, match="had no samples"):
+        P.fit_transfer(batch, train)

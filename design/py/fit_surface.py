@@ -16,6 +16,13 @@ Fitted on the **training** side of the realisation split, and reported on the
 held-out side, because a table with 2600 free numbers fitted and scored on the
 same water bodies would tell us nothing.
 
+The table this ships is the package *default* -- what
+``conventions.default_transfer()`` returns for a caller who has no PB24 split of
+their own. It is deliberately **not** what the two PB24 consumers score through
+any more: ``run_pb24_validation.py`` and ``train_emulator_pb24.py`` each refit on
+their own training mask via ``pb24.fit_transfer`` (``design/m5_report.md`` §6),
+because this table's training realisations overlapped their held-out sets.
+
     python design/py/fit_surface.py                # fit, report, write
     python design/py/fit_surface.py --quick        # fewer realisations
     python design/py/fit_surface.py --dry-run      # report without writing
@@ -79,22 +86,18 @@ def main() -> int:
 
     rrs = np.asarray(batch.rrs)
     Rrs = np.asarray(batch.Rrs)
-    transfer = C.fit_surface_transfer(
-        rrs[train],
-        Rrs[train],
-        batch.theta_s[train],
-        batch.theta_v[train],
-        batch.dphi[train],
-        provenance=(
-            f"PB24 OLCI, {int(np.unique(batch.realisation[train]).size)} training "
-            f"realisations, all {batch.report.n_geometry_available} geometries; "
-            "one lstsq per grid cell"
-        ),
-    )
+    # Through `pb24.fit_transfer` rather than `conventions.fit_surface_transfer`
+    # directly, so the shipped table is built by the *same* code path every
+    # consumer now uses, and inherits its provenance string -- which records the
+    # training realisations as a range rather than a bare count. That count was
+    # why the §6 contamination could not be seen from the file: "400 training
+    # realisations" does not say *which* 400.
+    transfer = P.fit_transfer(batch, train)
     print(
         f"  table {transfer.shape}, A {transfer.A.min():.4f}-{transfer.A.max():.4f}, "
         f"B {transfer.B.min():.3f}-{transfer.B.max():.3f}"
     )
+    print(f"  provenance: {transfer.provenance}")
 
     # Report on HELD-OUT realisations only.
     from robust.rt.types import Geometry

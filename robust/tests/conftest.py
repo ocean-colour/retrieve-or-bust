@@ -264,7 +264,7 @@ def l23_small_inelastic_batch():
 
 
 def tiny_args():
-    """Minimal synthetic :func:`robust.rt.forward` inputs (2 wavelengths).
+    """Minimal synthetic :func:`~robust.rt.hybrid.forward` inputs (2 wavelengths).
 
     A plain function, not a fixture, so tests can call it several times and
     mutate copies freely. Lives here because two modules were maintaining

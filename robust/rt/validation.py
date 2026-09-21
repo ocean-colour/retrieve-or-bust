@@ -206,7 +206,7 @@ def default_steps(names) -> dict[str, float]:
 
     Parameters
     ----------
-    names : iterable of str
+    names : sequence of str
         Variable names.
 
     Returns

@@ -95,6 +95,7 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "make_splits",
     "confound_reference",
     "select",
+    "fit_transfer",
     "data_dir",
     "file_path",
     "read_classes",
@@ -1477,3 +1478,74 @@ def confound_reference(
         name: (float(np.median(v)), float(np.min(v)), float(np.max(v)))
         for name, v in collected.items()
     }
+
+
+def fit_transfer(
+    batch: PB24Batch, train: np.ndarray, *, provenance: str = ""
+) -> conventions.SurfaceTransfer:
+    """Fit a surface transfer on a batch's **own training rows**.
+
+    The packaged table (:func:`robust.rt.conventions.default_transfer`) was
+    fitted under one 400-realisation split while its consumers split 200 and 800
+    -- and :func:`make_splits` permutes whatever realisation set it is given, so
+    ``SPLIT_SEED`` names a *procedure*, not a partition. 31 of one consumer's 40
+    held-out realisations turned out to be in the shipped table's training set
+    (``design/m5_report.md`` §6). The bias favoured the rival, so the conclusions
+    survived, but "survived" is not "measured".
+
+    The fix is for every consumer to fit its own table on its own ``train`` mask,
+    and this function exists so that is a single call rather than five lines each
+    consumer could get subtly wrong. A held-out geometry or realisation that the
+    transfer never saw is then genuinely held out.
+
+    Parameters
+    ----------
+    batch : PB24Batch
+        The batch being scored.
+    train : numpy.ndarray
+        Boolean training mask over ``batch.n_sample`` -- the *same* mask the
+        consumer fits its models on, restrictions included.
+    provenance : str, optional
+        Overrides the generated description. The default records the number and
+        range of training realisations and the grid shape, which is what makes a
+        later overlap check possible at all.
+
+    Returns
+    -------
+    robust.rt.conventions.SurfaceTransfer
+
+    Raises
+    ------
+    ValueError
+        Propagated from :func:`robust.rt.conventions.fit_surface_transfer` when a
+        grid cell in the *selected* rows has no samples. A restriction that
+        empties a cell is a real problem -- the table would interpolate across
+        the hole silently -- so it is raised rather than filled.
+
+    Notes
+    -----
+    The grid is built from the angles **present in** ``train``, not from the
+    batch's full grid. That is deliberate: under a geometry split the held-out
+    nodes must not appear in the table, or the split would leak. Scoring at those
+    angles then interpolates or clamps, which is what asking a fitted table about
+    an unseen geometry honestly costs.
+    """
+    sub = select(batch, train)
+    if not provenance:
+        ids = np.unique(sub.realisation)
+        n_cell = np.unique(
+            np.stack([sub.theta_s, sub.theta_v, sub.dphi], axis=1), axis=0
+        ).shape[0]
+        provenance = (
+            f"PB24 OLCI, {ids.size} training realisations "
+            f"({ids.min()}-{ids.max()}), {n_cell} geometry cells, "
+            f"{sub.n_sample} samples; one lstsq per cell"
+        )
+    return conventions.fit_surface_transfer(
+        np.asarray(sub.rrs),
+        np.asarray(sub.Rrs),
+        sub.theta_s,
+        sub.theta_v,
+        sub.dphi,
+        provenance=provenance,
+    )
