@@ -126,7 +126,8 @@ RESOLUTIONS = {
 CLASSES_FILE = "classes_Rrs_OLCI_v5_20240214.mat"
 N_CLASS = 12
 
-#: Q14: train and sanction 0-70 degrees in both zeniths; hold the rest out.
+#: float: Q14's angle window -- train and sanction 0-70 degrees in both
+#: zeniths, and hold the rest out.
 ANGLE_WINDOW_MAX = 70.0
 
 #: Angle-selection modes for :func:`load_batch`.
@@ -261,7 +262,7 @@ class LoadReport:
     n_zero_bands : int
         Individual ``(sample, band)`` values that were zero -- always at least
         ``n_dropped_zero_rrs``, and the gap is what dropping whole spectra costs.
-    coverage : dict of str to tuple
+    coverage : dict
         ``{axis: (kept, available)}`` distinct angle values per axis, after the
         stride. Present because a stride over a flattened grid can **alias**:
         the azimuth axis has 13 values, so ``geometry_stride=13`` keeps a single
@@ -330,7 +331,7 @@ class PB24Batch:
         Wavelengths (nm).
     realisation : numpy.ndarray
         1-based realisation index per sample, matching the file names.
-    labels : dict of str to numpy.ndarray
+    labels : dict
         ``C`` (chlorophyll), ``N`` (NAP) and ``Y`` (a_cdom(440)) per sample, as
         NumPy. Called *labels* rather than parameters on purpose: they do not
         determine the IOPs (see the module docstring), and their job here is to
@@ -339,7 +340,7 @@ class PB24Batch:
     water_class : numpy.ndarray or None
         Optical water class in ``[1, N_CLASS]`` per sample, if the sidecar was
         read.
-    aops : dict of str to Array
+    aops : dict
         Extra per-sample spectra -- ``Q`` always, plus whichever of
         :data:`EXTRA_FIELDS` was requested.
     report : LoadReport or None
@@ -790,7 +791,7 @@ def load_batch(
         indices; ``None`` takes all :data:`N_REALISATION`. **There is no default
         subsample** -- ``None`` really means all 5000, which is ~1 GB and a few
         minutes of netCDF reads, so pass a cache via ``reader`` for repeat work.
-    angles : {"window", "shell", "all"}, optional
+    angles : str, optional
         Which geometries to keep. ``"window"`` (default) is Q14's sanctioned
         envelope, ``theta_s`` and ``theta_v`` both <= :data:`ANGLE_WINDOW_MAX`;
         ``"shell"`` is its complement, the deliberate extrapolation set; ``"all"``
@@ -799,7 +800,7 @@ def load_batch(
         Thin the selected geometries. An ``int`` strides the flattened list; a
         3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each angle axis and
         **keeps the full product**, which is what a gridded fit on the same batch
-        needs (see :func:`_apply_stride`). Either way this is the subsampling knob
+        needs (see ``_apply_stride``). Either way this is the subsampling knob
         Q12 sanctioned and it is **explicit** by design: what it drops is reported
         in :class:`LoadReport`, never assumed.
     extras : tuple of str, optional
@@ -809,7 +810,7 @@ def load_batch(
     drop_zero_rrs : bool, optional
         Drop samples whose spectrum contains a zero ``rrs`` (default True).
         See the Notes -- this is a lossy choice, and it is reported.
-    water_classes : array_like or "auto", optional
+    water_classes : array_like or str, optional
         Per-realisation classes, 1-based, as :func:`read_classes` returns.
         ``None`` (the default) attaches none; ``"auto"`` reads the ``.mat``
         sidecar and warns if it cannot. The default is *not* "auto" on purpose --
@@ -1215,10 +1216,10 @@ class Splits:
 
     Attributes
     ----------
-    masks : dict of str to tuple
+    masks : dict
         ``{kind: (train, test)}``, each a boolean array of length
         ``batch.n_sample``.
-    reports : dict of str to SplitReport
+    reports : dict
         One per kind.
     seed : int
         The seed the random draws used.
@@ -1453,7 +1454,7 @@ def confound_reference(
         The batch the comparison is about.
     test_fraction : float, optional
         Hold-out size, matching the split being judged.
-    seeds : iterable of int, optional
+    seeds : sequence of int, optional
         Random seeds to average over. More seeds, tighter band.
 
     Returns

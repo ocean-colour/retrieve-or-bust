@@ -788,7 +788,11 @@ def mu_infinity_tt2017(bb_over_a, eta_bb):
     ----------
     bb_over_a : Array
         ``bb / a``. Fitted over ``MU_INF_TT2017_BB_OVER_A_RANGE``; larger
-        values extrapolate (L23 reaches ~0.31).
+        values extrapolate. Measured on the full 9960-sample L23 batch: median
+        0.03, 99th percentile 0.31, **maximum 0.59**, with 23.6% of values above
+        the fitted 0.1. (An earlier version of this line quoted the 99th
+        percentile as what L23 "reaches", which understated the extrapolation
+        by a factor of two.)
     eta_bb : Array
         ``η_bb = bbw / (bbp + bbw)``. Fitted over
         ``MU_INF_TT2017_ETA_RANGE``; outside it the coefficients clamp.

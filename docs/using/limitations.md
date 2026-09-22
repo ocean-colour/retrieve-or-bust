@@ -161,6 +161,90 @@ machine-precision gradients, at ~5× the cost of its analytic backbone.
    TT2017 µ<sub>∞</sub>".
 :::
 
+## Measured after both reports were written: the backbone off-nadir
+
+Nothing above changes — both boxes stay verbatim — but the elastic list's item 5
+("*Any off-nadir capability … the domain check correctly flags any off-nadir
+view*") has since been given a sharper edge, and a reader relying on that
+sentence should have the rest of it.
+
+M5 took the model to [PB24](gh:design/m5_report.md), a 5000-realisation
+HydroLight release with 1300 viewing geometries per realisation, and found that
+**the ZTT backbone is evaluated far outside the range its own authors fitted**
+as soon as the sensor leaves nadir. $\Psi_{K_{Lu}}(\psi)$, a quartic in the
+in-water scattering angle, is fitted for $\psi \gtrsim 134°$ and **crosses zero
+at 110.4°**, flipping the sign of the ZTT denominator below that. Inside PB24's
+own sanctioned 0–70° window:
+
+| | |
+|---|---|
+| geometries with $\psi < 134°$ (extrapolation) | **42 %** |
+| geometries with $\psi < 110.4°$ (sign-flipped) | **16 %** |
+| ZTT's predicted $r_{rs}$ that are **zero or negative** | **22.3 %** |
+
+Two consequences for a reader of this site:
+
+- **The domain check flags off-nadir views, and that is the whole of its job.**
+  It speaks for the *emulator*. It does not, and cannot, tell you that the
+  analytic backbone is also out of its depth there.
+- **`on_out_of_domain="ztt"` is therefore a safe degradation only within the
+  nadir domain documented here.** Off-nadir it degrades to a model that can
+  return a non-physical reflectance rather than an imprecise one. See
+  {doc}`../model/forward`.
+
+**No number on this site moves because of this.** L23 fixes the sensor at nadir,
+so its minimum $\psi$ is 139.7° and every result documented here sits inside
+ZTT's fitted range. That is also why nadir-only work could not have found it.
+
+## Where the model *is* valid, with the coverage measured
+
+The counterpart to the section above, because a page of limits that never says
+where the model works is not usable either. Two conditions bound the analytic
+backbone, and they are not of the same kind.
+
+> **Validated:** nadir viewing ($\theta_v = 0$, $\Delta\varphi = 0$), solar
+> zenith 0–60°, L23-like water, the 350–750 nm grid, all processes on. Inside
+> it the backbone is physical on **every** sample and the hybrid reaches 0.30 %
+> on held-out water bodies.
+>
+> **Disclosed, not gated:** $b_b/a$ exceeds the 0.1 that TT2017 fitted
+> $\mu_\infty$ over on **23.6 %** of L23 values (median 0.03, 99th percentile
+> 0.31, maximum 0.59). Results are "ZTT with the TT2017 $\mu_\infty$",
+> extrapolated in the blue for clear water.
+>
+> **Not claimed:** any off-nadir view, for the reasons in the section above.
+
+The coverage, measured on the full 9960-sample L23 batch and on PB24 inside its
+own 0–70° window:
+
+| | L23 (nadir) | PB24 (0–70°) |
+|---|---|---|
+| $\psi \ge 134°$ | **100 %** of samples | 58.1 % |
+| $b_b/a \le 0.1$ at every band | 25.0 % of samples | 6.7 % |
+| **backbone physical** | **100 %** of samples | 75.0 % |
+
+Those rows have to be read together. Taken literally, "valid where
+$\psi \gtrsim 134°$ *and* $b_b/a \le 0.1$" would put **75 % of L23 out of
+envelope**, including most of the data the 0.30 % is measured on — and it would
+be the wrong conclusion, because the backbone is physical on 100 % of L23
+anyway. The $\mu_\infty$ extrapolation at nadir is real and benign; the
+scattering-angle one off-nadir is neither. That asymmetry is the whole content
+of this page's two sections, and it is why only one of the two conditions is
+stated as a boundary.
+
+Full derivation: [`design/prototype_summary.md`](gh:design/prototype_summary.md).
+
+## M5's attempt, and why it failed
+
+M5's attempt to repair the off-nadir gap with the existing machinery **failed its
+acceptance gate** and shipped no weights: the hybrid's correction is *bounded* and
+*relative* ($|\delta| \le 0.5$), so $1 + \delta$ can never reach a negative
+backbone, and the oracle correction — chosen with the truth in hand, then
+clipped — scores 5324 % where the trained model scores 5484 %. The functional
+form is the limit, not the network. `load_default()` is unchanged and remains
+the L23 nadir model. The full chain, including the options rejected and why, is
+[`design/m5_report.md`](gh:design/m5_report.md).
+
 ## Also in the API, and not validated
 
 {mod}`robust.rt.cdom_fl` — CDOM fluorescence — is exported by `robust.rt`, is

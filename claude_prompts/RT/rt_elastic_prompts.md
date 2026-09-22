@@ -1647,3 +1647,76 @@ JXP's call rather than mine.
 
 Next: prompt 5 — the `pb24` automodule (which clears the last 2 warnings),
 `docs/model/surface.md`, the PQ7 prose, Route C, and the PR description.
+
+### 2026-09-22 (PR prompt 5: the docs half, Route C, and the PR draft)
+
+Executed the 5th PR prompt, (a) → (d). `cd docs && make html` **succeeds** under
+`-W --keep-going` with `nitpicky = True`; `pytest robust/tests` 677 passed, 5
+skipped; ruff clean.
+
+**(a) The `on_out_of_domain="ztt"` qualification, prose only.** A warning box in
+`docs/model/forward.md` directly under the policy's definition, and a new section
+in `docs/using/limitations.md`. Neither touches the two verbatim quote boxes on
+that page — its whole premise is character-for-character quotation, so the M5
+finding goes in a section that says plainly it postdates both reports. The
+policy's behaviour is untouched, as asked. The framing I settled on: the domain
+check speaks for the *emulator*, and cannot tell you the backbone is also out of
+its depth — which is why a policy named after the backbone is the trap.
+
+**(b) M5's documentation.** A `data.pb24` section in `docs/api.rst` and a new
+`docs/model/surface.md` covering the surface transfer, the second wavelength
+grid, and the per-model envelope, added to the model toctree. Adding pb24 to
+autodoc immediately exposed **ten more nitpicky failures** in its docstrings —
+the same families as prompt 4's: `dict of str to X` (napoleon reads "str to X"
+as a class), braced enums, a `:func:` pointing at a private function, `iterable`
+where `sequence` is the sanctioned noun, and one more `#:` comment whose first
+line carried a colon so "Q14" was being parsed as a type. Fixed at source. The
+page ends with a section called *What none of this bought*, because documenting
+infrastructure built for a milestone that failed without saying so would be the
+wrong page.
+
+**(c) Route C — and the literal version of it would have backfired.** The prompt
+doc says "declare the model valid where the backbone is (ψ ≳ 134°, bb/a ≤ 0.1)".
+I measured the coverage of that statement instead of asserting it, on the full
+9960-sample L23 batch and on PB24 inside its own 0-70° window:
+
+| | L23 (nadir) | PB24 (0-70°) |
+|---|---|---|
+| ψ ≥ 134° | **100 %** | 58.1 % |
+| bb/a ≤ 0.1 at every band | **25.0 %** | 6.7 % |
+| both | 25.0 % | 3.9 % |
+| backbone physical | **100 %** | 75.0 % |
+
+**Taken literally, Route C would have declared 75 % of L23 out of envelope** —
+including most of the data the 0.30 % headline is measured on. And it would have
+been the wrong call: the backbone is physical on **100 %** of L23 regardless,
+so the µ∞ extrapolation at nadir is real and benign, which M5's own attribution
+already implied (µ∞ ~1-5 % of the non-physical predictions against ~68-71 % for
+`Ψ_KLu`). So I implemented it as an asymmetry, argued rather than asserted: **ψ
+is a boundary, bb/a is a disclosure.** Written into `design/prototype_summary.md`
+as a new envelope section with the scope from PQ8 stated once and meant
+literally, and onto the public site as *Where the model is valid, with the
+coverage measured*. Q19 is satisfied in the same pass — the gate failure, the
+oracle number, and "no PB24 weights exist" are now on both documents.
+
+Two provenance corrections fell out of the measuring, both small and both real:
+
+- `ztt.py` said L23's bb/a "reaches ~0.31". Measured, that is the **99th
+  percentile**; the maximum is **0.59** and 23.6 % of values exceed the fitted
+  0.1. The line understated the extrapolation by a factor of two. Corrected, with
+  the median and percentile spelled out so the next reader cannot repeat it.
+- My own first draft of `surface.md` claimed every number on it had been
+  re-measured in this environment. Three had not — they are quoted from the
+  `SurfaceTransfer` docstring. Reworded to say which are which.
+
+**(d) The PR description**, drafted to `design/pr_description.md`. It leads with
+the negative result rather than the infrastructure, because that is the finding;
+states what the branch does not claim as five numbered items; records Route C
+with the coverage table and the reason the literal version was not used; and says
+M6 is now Route A — the HydroLight runs — with the two requirements M5 measured
+(reference data tabulating an **asymptotic** K, and the VSF *family* varied, not
+just the Fournier-Forand parameter), noting that Robert's review asks for the
+same thing from the other direction. It closes with a reviewer's note flagging
+the one judgment call from prompt 4 that moves a rival's number.
+
+Next: JXP reviews, commits, and opens the PR.
