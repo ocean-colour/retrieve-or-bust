@@ -27,6 +27,7 @@ zenith effect stays where it was measured.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 
 import jax
 import jax.numpy as jnp
@@ -36,6 +37,7 @@ import pytest
 from robust.rt import conventions as C
 from robust.rt import ztt as Z
 from robust.rt.types import Geometry, IOPs, PhaseParams
+from robust.tests.conftest import needs_l23, needs_pb24
 
 N = C.N_WAVE
 
@@ -526,3 +528,297 @@ def test_runs_on_the_cached_l23_fixture(l23_small_batch):
     assert rrs.shape == l23_small_batch.Rrs.shape
     assert np.all(np.isfinite(np.asarray(rrs)))
     assert float(jnp.min(rrs)) > 0.0
+
+
+# ------------------------ ZTT's internals against HydroLight (M5 task 13) ----
+# Three questions, and the answers are more useful than the milestone expected:
+# where mu_d stands, why the backbone collapses on PB24, and whether the standing
+# Equation-(8) caveat can be closed with this data. (It cannot.)
+
+
+def test_F_psi_goes_negative_below_the_range_its_paper_fitted():
+    """**The dominant cause of the backbone's collapse on PB24.**
+
+    ``F_psi`` is a quartic in the in-water scattering angle, and its own docstring
+    records the paper's fitted range: ψ ≳ 134°, ">95% of the angles a polar
+    orbiter sees". Below that it is extrapolation, and ``Ψ_KLu = 1 + F(ψ)`` turns
+    negative — which flips the sign of the ZTT denominator's leading term and with
+    it the whole model. Nadir viewing pins ψ near backscatter, so L23 could never
+    have exposed this.
+    """
+    psi = np.linspace(40.0, 180.0, 1401)
+    psi_k = np.asarray(Z.psi_KLu(jnp.asarray(psi)))
+
+    assert np.all(psi_k[psi >= 134.0] > 0.0), "positive throughout the fitted range"
+
+    # It is negative for *everything* below the crossing, not on some interval:
+    # the quartic simply has no business being evaluated there.
+    negative = psi[psi_k < 0.0]
+    assert negative.size > 0
+    assert negative.min() == pytest.approx(psi.min())
+    assert 105.0 < negative.max() < 115.0, (
+        f"psi_KLu crosses zero at {negative.max():.1f} deg; the record quotes "
+        "~110, comfortably below the paper's fitted range of psi >~ 134"
+    )
+
+
+@needs_l23
+def test_l23_geometry_never_leaves_the_fitted_scattering_range(l23_batch):
+    """Why the prototype could not have found this. Nadir pins ψ near 180°."""
+    _, _, _, psi = Z.geometry_to_paper_angles(l23_batch.geometry)
+
+    assert float(jnp.min(psi)) > 134.0
+
+
+@needs_pb24
+def test_pb24_leaves_the_fitted_scattering_range_on_much_of_the_window():
+    """And why PB24 does: a full BRDF sweeps ψ through 90°, not just backscatter."""
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=4, angles="all")
+    _, _, _, psi = Z.geometry_to_paper_angles(batch.geometry)
+    psi = np.asarray(psi)
+    window = (batch.theta_s <= 70.0) & (batch.theta_v <= 70.0)
+
+    assert psi.min() < 60.0  # the full grid reaches deep forward scattering
+    outside = float(np.mean(psi[window] < 134.0))
+    assert 0.3 < outside < 0.6, (
+        f"{100 * outside:.0f}% of the sanctioned window is outside ZTT's fitted "
+        "scattering range; the record quotes ~42%"
+    )
+
+
+@needs_pb24
+def test_mu_d_against_pb24s_tabulated_value():
+    """**The gate's measurable half.** Pinned so a change to ``mu_d`` announces itself.
+
+    The 2018 paper puts Equation (14)'s error below 1%. Against PB24 the median
+    is ~4% and it degrades with solar zenith — ~1.6% at 40°, ~14% at 70-80°. That
+    is a real disagreement rather than a defect here: ZTT's ``Md_star`` is itself
+    a fit over a narrower IOP range than PB24 spans.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(realisations=25, angles="all", extras=("mu_d",))
+    bb_over_a = batch.iops.bb / batch.iops.a
+    eta = batch.iops.bb_w / batch.iops.bb
+    _, theta_s_air, _, _ = Z.geometry_to_paper_angles(batch.geometry)
+
+    ours = np.asarray(Z.mu_d(jnp.asarray(theta_s_air)[:, None], bb_over_a, eta))
+    theirs = np.asarray(batch.aops["mu_d"])
+    rel = np.abs(ours / theirs - 1.0)
+
+    assert 0.02 < np.median(rel) < 0.08, f"median {np.median(rel) * 100:.2f}%"
+
+    # and it is worse at large solar zenith, which is the shape of the finding
+    at_40 = float(np.median(rel[batch.theta_s == 40.0]))
+    at_70 = float(np.median(rel[batch.theta_s == 70.0]))
+    assert at_70 > 3 * at_40
+
+
+@needs_pb24
+def test_mu_infinity_cannot_be_refit_from_pb24():
+    """**Q17 option 3 is closed, and this is why.**
+
+    µ∞ is the *asymptotic* mean cosine: by definition the light field at depth has
+    forgotten the boundary, so µ∞ = a / K∞ with K∞ independent of the solar
+    zenith. PB24 tabulates seven K's — and **every one of them varies by ~1.4x
+    across solar zenith**, so none of them is K∞. There is therefore no asymptotic
+    quantity in this dataset from which µ∞ could be derived, and the standing
+    Equation-(8) caveat cannot be closed with it.
+    """
+    from robust.rt.data import pb24 as P
+
+    batch = P.load_batch(
+        realisations=8,
+        angles="window",
+        geometry_stride=(1, 8, 13),
+        extras=("Kd", "Ku", "Ko", "Kod", "Kou", "Knet", "KLu"),
+    )
+    assert len(set(batch.theta_s.tolist())) >= 6, "need several zeniths to test this"
+
+    for name, values in batch.aops.items():
+        if not name.startswith("K"):
+            continue
+        K = np.asarray(values)
+        spreads = []
+        for realisation in np.unique(batch.realisation):
+            rows = K[batch.realisation == realisation]
+            spreads.append(rows.max(axis=0) / np.maximum(rows.min(axis=0), 1e-30))
+        spread = float(np.median(np.concatenate(spreads)))
+
+        assert spread > 1.1, (
+            f"{name} barely varies with solar zenith ({spread:.3f}) -- if it is "
+            "asymptotic after all, mu_infinity could be refit from it and Q17's "
+            "option 3 reopens"
+        )
+
+
+# ---------------- the backward-VSF parameterization (M5 task 14) -------------
+# PhaseParams was designed at M1 to be extended without changing forward()'s
+# signature. This is the extension, and these are the three things that have to
+# be true for it to have cost nothing: None reproduces M0-M4 exactly, the fields
+# reach the model, and they are differentiable.
+
+
+def _reference_inputs():
+    """A small concrete batch for the M5 task-14 tests."""
+    iops = simple_iops()
+    phase = simple_params()
+    geometry = Geometry(
+        theta_s=jnp.asarray(30.0), theta_v=jnp.asarray(20.0), dphi=jnp.asarray(90.0)
+    )
+    return iops, phase, geometry, C.canonical_wave()
+
+
+def test_none_fields_reproduce_the_fixed_sullivan_shape_exactly():
+    """**The gate.** The default path is the M0-M4 path, bit for bit."""
+    psi = jnp.linspace(90.0, 180.0, 37)
+    phase = PhaseParams(B_p=jnp.asarray(0.012))
+
+    np.testing.assert_array_equal(
+        np.asarray(Z.P_bb_from_phase(phase, psi)),
+        np.asarray(Z.P_bb_sullivan(psi)),
+    )
+    # and a container with no such fields at all still works
+    np.testing.assert_array_equal(
+        np.asarray(Z.P_bb_from_phase(None, psi)),
+        np.asarray(Z.P_bb_sullivan(psi)),
+    )
+
+
+def test_rrs_ZTT_is_bit_identical_with_the_new_fields_none():
+    """`forward`'s numbers cannot move because a field was added."""
+    iops, phase, geometry, wave = _reference_inputs()
+    extended = PhaseParams(B_p=phase.B_p, beta_tilde_pi=None, backward_slope=None)
+
+    np.testing.assert_array_equal(
+        np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave)),
+        np.asarray(Z.rrs_ZTT(iops, extended, geometry, wave)),
+    )
+
+
+def test_beta_tilde_pi_sets_the_value_at_exact_backscatter():
+    """The parameter means what it says: ``Pbb(180 deg) == beta_tilde_pi``."""
+    for value in (0.10, 0.153, 0.25):
+        phase = PhaseParams(B_p=jnp.asarray(0.012), beta_tilde_pi=jnp.asarray(value))
+        got = float(Z.P_bb_from_phase(phase, jnp.asarray(180.0)))
+
+        assert got == pytest.approx(value, rel=1e-6)
+
+    # Sullivan's own value therefore reproduces the fixed shape everywhere
+    sullivan = float(Z.P_bb_sullivan(jnp.asarray(180.0)))
+    psi = jnp.linspace(90.0, 180.0, 19)
+    matched = PhaseParams(B_p=jnp.asarray(0.012), beta_tilde_pi=jnp.asarray(sullivan))
+    np.testing.assert_allclose(
+        np.asarray(Z.P_bb_from_phase(matched, psi)),
+        np.asarray(Z.P_bb_sullivan(psi)),
+        rtol=1e-6,
+    )
+
+
+def test_the_two_parameters_are_independent():
+    """The tilt pivots at 180 deg, so it cannot move ``beta_tilde_pi``."""
+    phase = PhaseParams(
+        B_p=jnp.asarray(0.012),
+        beta_tilde_pi=jnp.asarray(0.20),
+        backward_slope=jnp.asarray(1.5),
+    )
+
+    assert float(Z.P_bb_from_phase(phase, jnp.asarray(180.0))) == pytest.approx(0.20)
+
+    # and the tilt does change the shape away from the pivot
+    flat = PhaseParams(B_p=jnp.asarray(0.012), beta_tilde_pi=jnp.asarray(0.20))
+    at_120 = float(Z.P_bb_from_phase(phase, jnp.asarray(120.0)))
+    flat_120 = float(Z.P_bb_from_phase(flat, jnp.asarray(120.0)))
+    assert at_120 > flat_120 * 1.05
+
+
+def test_the_new_fields_reach_rrs_ZTT():
+    """A field that changes nothing downstream is a field that is being dropped."""
+    iops, phase, geometry, wave = _reference_inputs()
+    base = np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave))
+
+    for field, value in (("beta_tilde_pi", 0.25), ("backward_slope", 1.0)):
+        moved = Z.rrs_ZTT(
+            iops,
+            dataclasses.replace(phase, **{field: jnp.asarray(value)}),
+            geometry,
+            wave,
+        )
+        assert not np.allclose(base, np.asarray(moved)), field
+
+
+def test_the_new_fields_pass_the_gradient_gate(jax_x64):
+    """**The gate.** Checked through task 6's extended ``gradient_report``.
+
+    Two things at once. The gradient must be correct, and the perturbation must
+    provably *arrive* — before M5 task 6, ``gradient_report``'s closure rebuilt
+    ``PhaseParams(B_p=...)`` and silently discarded exactly these fields, which
+    would have certified the model at the wrong phase function and reported a
+    flawless 0.0 while doing it.
+    """
+    from robust.rt import validation as V
+
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+    n, n_wave = 3, 4
+    iops = IOPs(
+        a=f64(np.full((n, n_wave), 0.08)),
+        bb_w=f64(np.full((n, n_wave), 2e-3)),
+        bb_p=f64(np.full((n, n_wave), 4e-3)),
+    )
+    phase = PhaseParams(
+        B_p=f64(np.full((n, n_wave), 0.012)),
+        beta_tilde_pi=f64(np.full(n, 0.16)),
+        backward_slope=f64(np.full(n, 0.5)),
+    )
+    geometry = Geometry(
+        theta_s=f64(np.full(n, 35.0)),
+        theta_v=f64(np.full(n, 25.0)),
+        dphi=f64(np.full(n, 100.0)),
+    )
+
+    report = V.gradient_report(
+        lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w),
+        iops,
+        phase,
+        geometry,
+        f64(np.linspace(440.0, 600.0, n_wave)),
+        steps={"beta_tilde_pi": 1e-8, "backward_slope": 1e-7, "B_p": 1e-8},
+    )
+
+    assert set(report) == {"beta_tilde_pi", "backward_slope", "B_p"}
+    for name, value in report.items():
+        assert value < V.GRADIENT_TOL, f"{name}: {value}"
+        assert value != 0.0, f"{name} was never perturbed"
+
+
+def test_a_per_sample_backward_parameter_broadcasts_against_wavelength():
+    """**Regression.** ``(n, 1) * (n,)`` broadcasts to ``(n, n)``, silently.
+
+    ``rrs_ZTT`` hands the scattering angle in as ``(n_sample, 1)`` so it spreads
+    across wavelength. A per-sample phase parameter arrives as ``(n_sample,)``,
+    and NumPy broadcasting turns that pair into a square matrix rather than
+    raising — which would have produced a plausibly-shaped answer only when
+    ``n_sample`` happened to equal ``n_wave``.
+    """
+    n, n_wave = 3, 5
+    iops = IOPs(
+        a=jnp.full((n, n_wave), 0.1),
+        bb_w=jnp.full((n, n_wave), 2e-3),
+        bb_p=jnp.full((n, n_wave), 4e-3),
+    )
+    phase = PhaseParams(
+        B_p=jnp.full((n, n_wave), 0.012),
+        beta_tilde_pi=jnp.full(n, 0.16),
+        backward_slope=jnp.full(n, 0.4),
+    )
+    geometry = Geometry(
+        theta_s=jnp.full(n, 30.0),
+        theta_v=jnp.full(n, 20.0),
+        dphi=jnp.full(n, 90.0),
+    )
+
+    out = Z.rrs_ZTT(iops, phase, geometry, jnp.linspace(440.0, 600.0, n_wave))
+
+    assert out.shape == (n, n_wave)

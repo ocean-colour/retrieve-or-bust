@@ -182,6 +182,37 @@ difference between them matters.
   numbers, and a model whose output depends on a flag nobody set is its own
   kind of trap.
 
+:::{warning}
+**`"ztt"` is a safe degradation only inside the nadir domain this site
+documents.** The policy hands the sample to the analytic backbone — and M5
+subsequently measured that the backbone is *itself* outside its validity domain
+off-nadir, which is a stronger failure than the inaccuracy this policy was
+written to avoid.
+
+ZTT's $\Psi_{K_{Lu}}(\psi)$ is a quartic in the in-water scattering angle,
+fitted by its authors for $\psi \gtrsim 134°$. It **crosses zero at 110.4°**
+and is negative below, flipping the sign of the ZTT denominator. Measured on
+PB24, a 5000-realisation multi-angular HydroLight release, inside its own
+sanctioned 0–70° window:
+
+| | |
+|---|---|
+| geometries with $\psi < 134°$ (extrapolation) | **42 %** |
+| geometries with $\psi < 110.4°$ (sign-flipped) | **16 %** |
+| predicted $r_{rs}$ that are **zero or negative** | **22.3 %** |
+
+So off-nadir the fallback can return a non-physical reflectance rather than a
+merely imprecise one, and it does so without a second warning — `check_domain`
+speaks for the *emulator*, not for the backbone.
+
+None of this touches any number on this site. L23's minimum $\psi$ is 139.7°,
+because nadir viewing pins the scattering angle near backscatter, so every
+result documented here sits inside ZTT's fitted range and the nadir-only
+prototype could not have found this at any level of care. It is recorded here
+because the policy's name invites use in exactly the geometry where it stops
+being safe. Full chain: [`design/m5_report.md`](gh:design/m5_report.md) §2.1.
+:::
+
 :::{important}
 **The warning is skipped under `jit` and under `grad`; the policy is not.**
 `check_domain` inspects concrete values, so it is skipped automatically

@@ -31,6 +31,7 @@ bitwise equality the wrong instrument.
 from __future__ import annotations
 
 import csv
+import dataclasses
 import warnings
 from pathlib import Path
 
@@ -809,21 +810,32 @@ def test_gradient_report_keeps_the_callers_geometry(jax_x64):
 
 
 @pytest.mark.parametrize(
-    "steps",
-    [{"a": 1e-6}, {**V.FD_STEPS, "bb_w": 1e-9}],
-    ids=["missing-a-variable", "an-extra-variable"],
+    "steps, why",
+    [
+        ({"a": 1e-6, "theta_S": 1e-3}, "a typo in a variable name"),
+        ({"chlorophyll": 1e-3}, "a variable that is not a field at all"),
+        ({"wind": 1e-3}, "a field that is None on these inputs"),
+    ],
 )
-def test_gradient_report_rejects_a_steps_dict_it_cannot_honour(jax_x64, steps):
-    """**Regression.** A wrong ``steps`` dict raises instead of misreporting.
+def test_gradient_report_rejects_a_variable_it_cannot_perturb(jax_x64, steps, why):
+    """**Regression, restated for M5.** An unknown variable raises.
 
-    A missing key used to raise ``KeyError`` from deep inside a closure. The extra
-    key was worse: it reported **0.0** — "perfect agreement" — for a variable the
-    function never perturbs at all.
+    The guard this replaces demanded *exactly* M2's four variables, so no gate
+    could check ``theta_v``, ``dphi`` or a new ``PhaseParams`` field — the reason
+    M5 task 6 exists. What it was really protecting against was an extra key
+    reporting **0.0**, "perfect agreement", for a variable that was never
+    perturbed; that is now structural rather than enforced, since every name is
+    resolved to a real field and perturbed through ``dataclasses.replace``.
+
+    So subsets and extra *known* variables are now legal (see the tests below),
+    and what must still raise is a name the inputs cannot offer — including
+    ``wind``, which is a real field but ``None`` here and would otherwise be
+    ``None + 1e-3``.
     """
     iops, phase, geometry, wave = synthetic(n_sample=3)
     f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
 
-    with pytest.raises(ValueError, match="steps must name exactly"):
+    with pytest.raises(ValueError, match="cannot perturb"):
         V.gradient_report(
             lambda i, p, g, w: B.rrs_gordon(i, p, g, w),
             IOPs(a=f64(iops.a), bb_w=f64(iops.bb_w), bb_p=f64(iops.bb_p)),
@@ -831,6 +843,22 @@ def test_gradient_report_rejects_a_steps_dict_it_cannot_honour(jax_x64, steps):
             geometry,
             f64(wave),
             steps=steps,
+        )
+
+
+def test_gradient_report_rejects_an_empty_steps_dict(jax_x64):
+    """Checking nothing must not read as checking everything."""
+    iops, phase, geometry, wave = synthetic(n_sample=3)
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+
+    with pytest.raises(ValueError, match="names no variables"):
+        V.gradient_report(
+            lambda i, p, g, w: B.rrs_gordon(i, p, g, w),
+            IOPs(a=f64(iops.a), bb_w=f64(iops.bb_w), bb_p=f64(iops.bb_p)),
+            PhaseParams(B_p=f64(phase.B_p)),
+            geometry,
+            f64(wave),
+            steps={},
         )
 
 
@@ -847,6 +875,278 @@ def test_throughput_rejects_zero_repeats():
             wave,
             repeats=0,
         )
+
+
+# ------------------------------------------------- M5 task 6: the toolkit ----
+# Three limits, each a reasonable choice while L23 was the only dataset, each
+# blocking a gate M5 needs. One regression test apiece, and each one fails
+# against the pre-task-6 code: the first two call keyword arguments that did not
+# exist, and the third perturbs a field the old closure silently discarded.
+
+
+def test_rrms_mask_excludes_bad_bands_instead_of_whole_spectra():
+    """**Regression.** ``rrms`` divides by truth; PB24 has exactly-zero ``rrs``.
+
+    Without a mask the only choices were an ``inf`` or dropping the whole
+    spectrum -- eleven good bands to exclude one bad value (`pb24.load_batch`'s
+    ``drop_zero_rrs``). Now the bad band alone can go.
+    """
+    truth = jnp.array([[1.0, 2.0, 0.0], [1.0, 1.0, 1.0]])
+    pred = jnp.array([[1.1, 2.0, 5.0], [1.0, 1.0, 1.0]])
+    keep = jnp.array([[True, True, False], [True, True, True]])
+
+    assert not np.isfinite(float(V.rrms(truth, pred)))
+
+    masked = float(V.rrms(truth, pred, where=keep))
+    by_hand = 100.0 * np.sqrt(np.mean([0.1**2, 0.0, 0.0, 0.0, 0.0]))
+
+    assert masked == pytest.approx(by_hand, rel=1e-5)
+
+
+def test_rrms_mask_keeps_the_gradient_finite():
+    """The double-``where``: masking after the division would train to NaN.
+
+    ``rrms`` doubles as a training loss (M3), so a mask that hides a NaN in the
+    forward pass while leaking it into the backward pass would be worse than no
+    mask at all -- the loss would look healthy and the gradient would be NaN.
+    """
+    truth = jnp.array([[1.0, 2.0, 0.0]])
+    pred = jnp.array([[1.1, 2.0, 5.0]])
+    keep = jnp.array([[True, True, False]])
+
+    masked = jax.grad(lambda p: V.rrms(truth, p, where=keep))(pred)
+    unmasked = jax.grad(lambda p: V.rrms(truth, p))(pred)
+
+    assert bool(np.isfinite(np.asarray(masked)).all())
+    assert not bool(np.isfinite(np.asarray(unmasked)).all())
+
+
+def test_rrms_reports_nan_for_a_wholly_masked_group():
+    """An empty selection must announce itself, not arrive as a zero."""
+    truth = jnp.ones((2, 3))
+    pred = jnp.ones((2, 3)) * 1.5
+
+    assert np.isnan(float(V.rrms(truth, pred, where=jnp.zeros((2, 3), bool))))
+
+
+def test_group_rrms_keeps_a_column_the_data_does_not_have():
+    """**Regression.** A missing group used to shift every column to its left.
+
+    ``np.unique`` can only produce non-empty groups, so this function could not
+    return a short dict -- which is why ``run_validation.py`` zipped its
+    ``.values()`` against hard-coded headers. On PB24, with eight zeniths and
+    eight view angles, a split may legitimately omit one.
+    """
+    truth = jnp.ones((4, 2))
+    pred = jnp.ones((4, 2)) * 1.1
+    labels = np.array([0.0, 0.0, 30.0, 30.0])
+
+    without = V.group_rrms(truth, pred, labels)
+    with_expected = V.group_rrms(truth, pred, labels, expected=[0.0, 30.0, 60.0])
+
+    assert list(without) == [0.0, 30.0]
+    assert list(with_expected) == [0.0, 30.0, 60.0]
+    assert np.isnan(with_expected[60.0])
+    assert with_expected[0.0] == pytest.approx(without[0.0])
+
+
+def test_group_rrms_passes_the_mask_through_per_group():
+    """A per-band mask has to be sliced with the samples, not applied to all."""
+    truth = jnp.array([[1.0, 0.0], [1.0, 1.0]])
+    pred = jnp.array([[1.1, 9.0], [1.2, 1.0]])
+    labels = np.array([0.0, 1.0])
+    keep = jnp.array([[True, False], [True, True]])
+
+    got = V.group_rrms(truth, pred, labels, where=keep)
+
+    assert got[0.0] == pytest.approx(10.0, rel=1e-4)  # only the good band
+    assert np.isfinite(got[1.0])
+
+
+@dataclasses.dataclass(frozen=True)
+class _RichPhase:
+    """A ``PhaseParams`` with a field this module has never heard of.
+
+    Stands in for what M5 task 14 will add when ``PhaseParams`` is promoted to
+    the ZTT backward-VSF parameterization. Deliberately *not* the real class: the
+    point is to prove ``gradient_report`` carries fields it does not know about.
+    """
+
+    B_p: object
+    gamma: object
+
+
+def test_gradient_report_carries_a_phase_field_it_has_never_seen(jax_x64):
+    """**Regression.** The closure used to rebuild ``PhaseParams(B_p=...)``.
+
+    That construction silently dropped every other field, so a task-14 model
+    would have been certified at the wrong phase function with no symptom.
+    Rebuilding with ``dataclasses.replace`` keeps whatever the caller passed --
+    and this test proves the new field both survives *and* is perturbed, since a
+    model that reads it gets a non-zero derivative.
+    """
+    iops, phase, geometry, wave = synthetic(n_sample=3)
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+    rich = _RichPhase(B_p=f64(phase.B_p), gamma=f64(np.full(3, 2.0)))
+
+    seen = []
+
+    def model(i, p, g, w):
+        seen.append(type(p).__name__)
+        # depends on gamma, so a dropped field shows up as a zero derivative
+        return B.rrs_gordon(i, PhaseParams(B_p=p.B_p), g, w) * p.gamma[:, None]
+
+    report = V.gradient_report(
+        model,
+        IOPs(a=f64(iops.a), bb_w=f64(iops.bb_w), bb_p=f64(iops.bb_p)),
+        rich,
+        geometry,
+        f64(wave),
+        steps={"gamma": 1e-6, "B_p": 1e-8},
+    )
+
+    assert set(seen) == {"_RichPhase"}, "the container type was not preserved"
+    # 0.0 would mean the model ignores gamma -- i.e. the perturbation never
+    # arrived. A real agreement is a small relative difference, not an identity.
+    assert report["gamma"] < V.GRADIENT_TOL
+    assert report["gamma"] != 0.0
+
+
+def test_gradient_report_can_check_the_view_angles(jax_x64):
+    """**Regression.** ``theta_v`` and ``dphi`` were inexpressible before task 6.
+
+    Task 11 trains the emulator with the view angles live, and its gate is a
+    gradient check; that check could not have been written against the old
+    ``steps`` guard.
+    """
+    iops, phase, geometry, wave = synthetic(n_sample=3)
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+    off_nadir = Geometry(
+        theta_s=f64(np.full(3, 30.0)),
+        theta_v=f64(np.full(3, 25.0)),
+        dphi=f64(np.full(3, 90.0)),
+    )
+
+    def model(i, p, g, w):
+        # A stand-in with a genuine, smooth dependence on both view angles.
+        tilt = jnp.cos(jnp.deg2rad(g.theta_v)) + 0.1 * jnp.cos(jnp.deg2rad(g.dphi))
+        return B.rrs_gordon(i, p, g, w) * tilt[:, None]
+
+    report = V.gradient_report(
+        model,
+        IOPs(a=f64(iops.a), bb_w=f64(iops.bb_w), bb_p=f64(iops.bb_p)),
+        PhaseParams(B_p=f64(phase.B_p)),
+        off_nadir,
+        f64(wave),
+        steps=V.default_steps(["theta_v", "dphi"]),
+    )
+
+    assert set(report) == {"theta_v", "dphi"}
+    for name, value in report.items():
+        assert value < V.GRADIENT_TOL, f"{name}: {value}"
+        assert value != 0.0, f"{name} was never perturbed"
+
+
+def test_default_steps_refuses_to_invent_one():
+    """A guessed step turns a gradient gate into a statement about step size."""
+    assert V.default_steps(["theta_v"]) == {"theta_v": V.FD_STEPS_EXTRA["theta_v"]}
+    assert V.default_steps(["a"]) == {"a": V.FD_STEPS["a"]}
+
+    with pytest.raises(KeyError, match="no measured step"):
+        V.default_steps(["gamma"])
+
+
+# ------------------------------------ M5 task 9: the PB24 benchmark artefacts -
+# The gate is about the artefacts being consumable and self-consistent, which is
+# what M4's review found they were not: a stale figure, two malformed CSVs, and a
+# per-cut table whose columns could silently shift.
+
+PB24_VALIDATION = Path(__file__).resolve().parents[2] / "design" / "validation_pb24"
+
+
+def _read_committed_csv(name):
+    path = PB24_VALIDATION / name
+    if not path.is_file():
+        pytest.skip(f"PB24 benchmark artefact missing: {path}")
+    with path.open(newline="") as handle:
+        rows = list(csv.reader(handle))
+    return rows[0], rows[1:]
+
+
+def test_pb24_metrics_csv_parses_with_the_columns_it_promises():
+    """**Regression.** Model names contain commas; hand-joining broke this once."""
+    header, rows = _read_committed_csv("metrics.csv")
+
+    assert header[0] == "model"
+    assert rows, "no data rows"
+    for row in rows:
+        assert len(row) == len(header), (
+            f"{row[0]}: {len(row)} fields, header has {len(header)}"
+        )
+        for cell in row[1:]:
+            float(cell)
+
+
+def test_pb24_o25_is_labelled_a_refit_everywhere():
+    """It has seen the training data; a table that hides that is misleading."""
+    _, rows = _read_committed_csv("metrics.csv")
+    names = [row[0] for row in rows]
+
+    o25 = [name for name in names if "O25" in name]
+    assert o25, f"no O25 row among {names}"
+    for name in o25:
+        assert "refit" in name.lower(), name
+
+    text = (PB24_VALIDATION / "metrics.md").read_text()
+    assert "refit" in text.lower()
+    assert "not the published model" in text.lower()
+
+
+def test_pb24_view_angle_table_headers_match_its_values():
+    """**Regression (task 6).** A missing group used to shift every column left."""
+    header, rows = _read_committed_csv("rrms_per_view_angle.csv")
+
+    angles = [float(h.split()[0]) for h in header[1:]]
+    assert angles == sorted(angles)
+    assert angles[0] == 0.0
+    assert angles[-1] == pytest.approx(87.5)
+    for row in rows:
+        assert len(row) == len(header)
+
+
+def test_pb24_per_wavelength_csv_covers_the_olci_grid():
+    header, rows = _read_committed_csv("rrms_per_wavelength.csv")
+
+    waves = [float(row[0]) for row in rows]
+    np.testing.assert_allclose(waves, C.OLCI_WAVE, atol=1e-6)
+    assert header[0] == "wavelength_nm"
+    assert len(header) - 1 == len(rows[0]) - 1
+
+
+def test_pb24_non_physical_column_reports_ztt_and_not_the_others():
+    """The honesty column: ZTT leaves its domain on PB24, the others do not.
+
+    Pinned because it is the milestone's most consequential finding and the one a
+    future refactor is most likely to quietly drop.
+    """
+    header, rows = _read_committed_csv("metrics.csv")
+    assert header[-1] == "non_physical_pct"
+
+    values = {row[0]: float(row[-1]) for row in rows}
+    assert values["ZTT backbone"] > 10.0
+    assert values["standard Gordon"] == 0.0
+    assert any(v == 0.0 for k, v in values.items() if "O25" in k)
+
+
+def test_pb24_markdown_and_csv_agree():
+    """The stale-figure lesson: two artefacts of one run must not drift apart."""
+    header, rows = _read_committed_csv("metrics.csv")
+    text = (PB24_VALIDATION / "metrics.md").read_text()
+
+    for row in rows:
+        # the markdown rounds to two decimals; the CSV keeps four
+        rendered = f"| {row[0]} | " + " | ".join(f"{float(c):.2f}" for c in row[1:])
+        assert rendered in text, f"markdown and CSV disagree for {row[0]!r}"
 
 
 # ----------------------------------------- the inelastic protocol (M4 task 1) --
