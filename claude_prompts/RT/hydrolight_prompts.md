@@ -1332,3 +1332,102 @@ batch (pilot+R0, A, B, and the B-dependent R4/R5/R8), metadata contract attached
 to each, the deck-generation interface named, Henry's question list folded in as
 batch zero, plus the note to Robert (A-RF). Round 3 does not block it: if the six
 questions come back as recommended, or blank, the spec is written on the defaults.
+
+### 2026-09-22 (Spec prompt 1 — wrote `design/hydrolight_runs.md`, the commissioning specification)
+
+Executed the Spec prompt (model: **Opus 5**, not Fable — same note as the three
+previous entries). Round 3's six questions came back blank, which round 3 §4 had
+committed to mean "write the spec on the recommended defaults"; that is what was
+done. **Wrote `design/hydrolight_runs.md`** (887 lines). No package code changed.
+
+**Shape.** Four self-contained batch specs — batch 0 (pilot + R0, 172 runs),
+batch A (R1+R2, 16,659), batch B (R3+R6, 130,140), batch C (R4+R5+R8, 9,720) —
+**≈156,700 runs total, 3.1× the compute that produced PB24**, with the metadata
+contract attached to each batch and stated per-item as *ours by construction*
+(because we author the decks) versus *the operator's*. Plus shared conventions,
+the run-count model on page one, a five-stage delivery plan, a ten-question list
+for Henry, a departures-from-the-catalogue table, and three appendices — the IOP
+grid derivation, the VSF design set, and the drafted note to Robert (A-RF).
+
+**Four things were computed rather than asserted, and two of them changed the
+spec.**
+
+1. **33 of R1's 96 IOP-grid nodes are not physical water.** Since `a ≥ a_w`, the
+   design coordinates obey `η_bb · (bb/a) ≤ bb_w(λ)/a_w(λ)` — a ceiling that is a
+   property of pure water alone. Computed from `conventions.BB_W_L23` and
+   `ocpy.water.absorption.a_water`, it is 0.498 at 400 nm, 0.346 at 440 and
+   **0.0151 at 550**, so the choice of reference wavelength matters enormously:
+   91/96 nodes realizable at 400 nm against 67/96 at 550. Adopted λ_ref = 400 nm;
+   adding physical caps (`a_nw ≤ 20`, `b_p ≤ 100` m⁻¹) leaves **63 of 96 nodes**,
+   independent of `B_p`. The catalogue's "~12 × 8 nodes" was not achievable as
+   written. What rescues it: because `a_w` and `bb_w` vary strongly across
+   330–750 nm, each water body traces a *curve* through `(bb/a, η_bb)`, so the 63
+   nodes still occupy **86 of the 96 target cells (90 %)**. The ten empty cells
+   are named rather than hidden.
+2. **Fournier–Forand is a two-parameter family, and I had said otherwise.** HD3
+   claimed FF is "a one-parameter family in which `B_p` and the forward slope are
+   coupled". FF is derived from `(n, µ)`, and distinct pairs give the same `B_p`
+   with different shapes — computed three branches at each of five target `B_p`,
+   e.g. `B_p = 0.012` at (1.055, 3.68), (1.095, 3.47) and (1.190, 3.24). This is
+   better than round 2's Mie-mixture plan: no new scattering code, and HydroLight
+   has FF built in.
+3. **But the backward hemisphere barely moves at matched `B_p` — and this
+   revises R2's stated purpose.** Evaluating `β̃(ψ)` for those three branches:
+   **49 % spread at ψ = 1°, 35 % at 10°, but only 1–3 % beyond 120°.** A
+   two-component mixture does better and not much — 5.2 % at 180°, 3.1 % at 135°,
+   against 26 % at the forward peak. So at matched bulk `B_p`, nature leaves very
+   little freedom in the backscatter hemisphere. R2 will calibrate the
+   **forward**-shape axis strongly and the backward axis weakly; "calibrating the
+   backward-VSF axis" is not what these runs can deliver at matched `B_p`, and
+   the spec says so in §11 and Appendix B rather than discovering it later. The
+   design set grew to **27 VSFs** (15 FF branches + 10 mixtures + 2 out-of-family
+   anchors) and the honest lever on the backward axis is the out-of-family
+   anchors and the designs that deliberately break `B_p` matching.
+4. **The campaign re-priced to 156,691 runs** on the round-2 run-count model, up
+   slightly from round 3's 152,900 because the IOP grid lost unrealizable nodes
+   but gained a 150-body fill set and the VSF axis grew from 16 to 27 designs.
+   Batch B is 83 % of it. Wall-clock 6.8 / 20 / 34 days on 16 cores at 1 / 3 / 5
+   min per run; 310–780 GB in ~17,400 files.
+
+**The pilot's centrepiece is the L23 reproduction test**, which fell out of the
+round-2 finding that A2 is not a blocker. Ten L23 water bodies rebuilt from their
+own published IOPs, run at 0/30/60° under S1/S2/S4, compared against the L23
+`Rrs` we already load. If they match, **every convention is validated at once** —
+sky model, wind, surface, band structure, Raman and fluorescence constants, and
+the output convention (metadata item 8, which is thereby *verified* rather than
+trusted). Gate: median `|ΔRrs|/Rrs` ≤ 2 % over 400–700 nm at nadir, and the
+per-process differences agreeing in sign at every band and within 10 %. The 2 %
+allows for the two known approximations — L23's FF parameter inferred from `B_p`,
+and the sky matched at three `Ed` anchors only. A failure is diagnostic: it
+localises which convention is wrong while it still costs 90 runs to re-run. And
+the same check then runs on all 3,320 scenes when batch B lands, for free.
+
+**One deliberate change to an approved decision, recorded rather than made
+silently:** round 2 said one netCDF per `(water body, scenario, θ_s)`; the spec
+groups the nine solar zeniths inside each file instead, cutting the file count
+from ~157,000 to ~17,400 and storing each water body's IOPs once rather than nine
+times. Made under A4 ("request what you prefer"), and flagged in §2.1.
+
+**Also settled in the spec:** 330–750 nm at 5 nm, whose 350–750 subset is
+bit-compatible with `conventions.WAVE` — which is what makes the L23 comparison
+meaningful *and* folds R6 in for free; nine solar zeniths 0–80° @ 10° shared by
+every batch, with 80° held out as an extrapolation shell the way PB24 holds
+80/87.75°; scenario names S1/S2/S4/S5 with the X-mapping in the manifest; depth
+profiles to ≥ 25 optical depths for **batch A only**, which is most of the
+difference between 310 GB and 780 GB; and `robust/rt/hydrolight/` as the deck
+generator plus `robust/rt/data/hh26.py` as the loader, with a held-out-**VSF
+design** split that is a far stronger claim than M5's held-out-`B_p` split.
+
+**The note to Robert (Appendix C)** puts three things to him: that the hybrid he
+proposed fails off-nadir because of the ZTT term (68 % of non-physical
+predictions charged to `Ψ_KLu` against 1 % to µ∞, and the oracle within 3 % of
+the trained hybrid — so the form is the limitation, not the network); that batch
+A is deliberately specified so its value does not depend on ZTT surviving; and
+the measured caution that phase-function freedom at matched `B_p` appears to be
+largely a forward-scattering freedom, with a direct ask for measured VSF sets
+that break that.
+
+Next: the Ingest prompt, once batch 0 arrives — `robust/rt/data/hh26.py`,
+following `l23.py` and `pb24.py`. Before that, the two in-house tasks the spec
+carves out: R7 analytically through the `Geometry.Ed` seam (§8.3) and the `µ∞`
+eigenvalue solve (§8.4), neither of which waits on HydroLight.
