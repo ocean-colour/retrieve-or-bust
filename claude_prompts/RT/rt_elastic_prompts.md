@@ -131,6 +131,8 @@ half of the punch list, in this order because the order matters:
 
    Use Fable if you can.  Log your work.
 
+6. I generate the PR and am ready to merge it.  Please now generate a new prompt doc named `hydrolight_prompts.md` in `RT/`.  Have it collect all of the HydroLight runs that we need to perform to complete our RT model.  Include inelastic processes.  Use Fable if you can.  Log your work.
+
 #### Forensics
 
 **Report of 2026-09-19. Working tree is mid-merge** (`.git/MERGE_HEAD` present,
@@ -1720,3 +1722,66 @@ same thing from the other direction. It closes with a reviewer's note flagging
 the one judgment call from prompt 4 that moves a rival's number.
 
 Next: JXP reviews, commits, and opens the PR.
+
+### 2026-09-22 (PR prompt 6: wrote claude_prompts/RT/hydrolight_prompts.md)
+
+Executed the 6th PR prompt. New doc, 362 lines, eight run requests (R1–R8)
+grouped into three commissioning batches. Nothing else in the tree touched.
+
+**What I read first.** The existing asks were already scattered across four
+documents and written at four different levels of specificity: the inelastic
+design §8 has a six-item wishlist in one line each; the CDOM design §7 already
+expands one of them into a proper commissioning spec; the inelastic report §7
+ranks them; and M5's Route A requirement lives only in `m5_report.md` §3 and
+prompt 7's Q18. So the job was less "invent runs" than "reconcile four lists,
+make them specific, and put the elastic and inelastic asks in one campaign" —
+which is the whole point, because they want the same geometry grid.
+
+**The finding that organised the document.** Tabulating what L23 and PB24 each
+cover made the gap obvious in a way the prose never did: **the axes are
+disjoint.** L23 has Raman and fluorescence but is nadir-only, three zeniths, one
+fixed Fournier–Forand. PB24 has 1300 geometries and a varying `B_p` but its files
+are literally `SD_*_no_R_*` — **no Raman, no fluorescence, no CDOM**. So *no
+dataset this project holds has an inelastic process at any off-nadir geometry, or
+at any solar zenith other than three, or under more than one phase function.* The
+correction heads were trained at nadir and interpolate three anchors; the elastic
+emulator has the geometry and no inelastic physics to learn from. That crossing
+(R3) is the most valuable inelastic run and it closes both reports' sharpest
+caveat at once.
+
+Underneath both sits the absence that closed Route A: **neither dataset tabulates
+an asymptotic `K∞`**, and both `µ∞ = a/K∞` and `F(ψ) = K_Lu/K∞ − 1` are defined
+against it. Hence R1 leads, and the doc says plainly that if only one run is
+possible it is R1 — every other item assumes the backbone question is answerable.
+
+**Specifics I pinned rather than left vague**, since a wishlist item nobody can
+price does not get run: R1 asks for an *IOP grid* on homogeneous water (the
+asymptotic regime only exists there — deliberately *simpler* than L23's
+stratified scenes) spanning `bb/a` 1e-4 to ≥ 3 against TT2017's fitted 1e-4–0.1,
+`η_bb` 0.01–0.98, ≥ 25 optical depths, and geometry reaching ψ ≤ 70°. R2 asks for
+**three VSF families at matched `B_p`** — the matching *is* the experiment, or a
+family effect is confounded with a backscatter-ratio effect. R3 asks 0–75° in 15°
+steps with off-nadir views and X=1/2/4 on the same water bodies, so `X2−X1` and
+`X4−X2` stay the clean per-process truth channels the current model is built on.
+
+**A metadata contract, ten items**, because most of it is unrecoverable after the
+fact — and one item is a live foot-gun the CDOM design already identified:
+published Hawes quantum-efficiency constants exist in several variants, and
+picking a different one than the truth runs used would silently reintroduce
+exactly the mismatch that design took care to avoid.
+
+**Two things I hedged deliberately.** I asserted that HydroLight reports
+asymptotic quantities for homogeneous water bodies, then walked it back to "an
+assumption to check with the operator before the spec is signed off, not a fact
+this project has verified" — I am not certain of the switch, and R1 is the run
+that must not be mis-specified. And cost is left open with a recommendation to
+price batch B at two sizes first and find out which axis dominates run time,
+rather than my guessing.
+
+Also noted for JXP to put to Robert directly: his proposed
+`Rrs(model) = Rrs(ZTT) + deltaRrs(simulator)` is the architecture we built, and
+M5 showed it fails off-nadir **because of the ZTT term**, not the emulator. That
+is a result he would want, and it sharpens the case for R1.
+
+Next: prompt Setup/1 in the new doc — the Q&A round before anything is
+commissioned.
