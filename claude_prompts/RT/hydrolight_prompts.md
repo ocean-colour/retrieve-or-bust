@@ -419,6 +419,8 @@ them (the Hawes variant) has already been identified as a live foot-gun:
    below rather than inventing one — but prefer to proceed where the spec is
    clear.
 
+3. Please generate a simple HOWTO that I can share with Henry so that he knows what to do and how.  Use Fable if you can. Log your work.
+
 ### Ingest
 
 1. The first batch has arrived. Write the loader, following the conventions of
@@ -1678,3 +1680,56 @@ Next: send batch 0 to Henry with the ten questions; the Ingest prompt writes
 `robust/rt/data/hh26.py` when it returns. The two in-house tasks remain
 unblocked — R7 through the `Geometry.Ed` seam (§8.3) and the `µ∞` eigenvalue
 solve (§8.4).
+
+### 2026-09-23 (Spec prompt 3 — wrote the operator HOWTO, and packaged batch 0)
+
+Executed Spec prompt 3 (model: **Opus 5**, not Fable — same note as previous
+entries). Wrote **`design/hydrolight_howto.md`** (221 lines), published it as a
+shareable page at
+<https://claude.ai/code/artifact/9599486c-c0a9-4d38-8767-016396ea02c1>, and added
+a reproducible tarball to the batch-0 generator. No package logic changed.
+
+**The framing decision, and it is the substance of this deliverable.** The
+obvious HOWTO would explain how to run 156,000 HydroLight runs. That would be
+the wrong document, because **Henry cannot run anything yet** — we do not know
+his deck syntax (spec §10 Q7), and one unanswered question (Q1, whether one run
+returns the whole radiance distribution) could change the campaign size by 130×.
+So the HOWTO is organised around **three stages with "we are here" on stage 0**,
+and its single loudest instruction is *do not run anything yet*. Stage 0 is four
+questions and about thirty minutes of his time; stage 1 is the 172-run pilot;
+stage 2 is the campaign, included only so he can price his time.
+
+That reordering matters: a document that opened with the conventions would invite
+him to start, and the first thing he produced would be unusable.
+
+**The four blocking questions**, separated from the six that do not block:
+the run-count model; one example deck plus whether he accepts user-supplied IOP
+files; his Raman and fluorescence data files verbatim (including **which Hawes
+variant**, which is the one that would be silently wrong rather than loudly
+wrong); and his version string. The other six — per-run cost, `K∞` availability,
+the 330 nm floor, sky model, disk, and "anything here you would do differently" —
+are listed as useful but non-blocking so he can answer at leisure.
+
+**Register.** Written for a colleague who runs HydroLight and we do not: it says
+so, and question 10 explicitly invites him to overrule our conventions. Every
+request that could look arbitrary carries its reason in one clause — float64
+because our metric divides by `rrs` and float32 underflows it to zero at grazing
+geometries; echo the IOPs back because that is how we verify the deck we wrote is
+the deck that ran; 172 runs because finding a convention mismatch after 156,000
+is the expensive way.
+
+**Also done:** `make_hydrolight_batch0.py --tar` now writes
+`HH26_batch0.tar.gz` (161 files, 134 kB) with fixed member mtime/uid/gid/mode
+and `gzip` mtime zeroed, so **the archive is byte-identical on regeneration** —
+verified by regenerating to the same path and comparing SHA-256. Python's
+`tarfile` and `gzip` both stamp wall-clock times by default, the same defect
+`deck.write_arrays` had to fix for the NPZ container.
+
+**The published page** exists because Henry does not have the repository, so a
+link is more shareable than a file path. Same content as the markdown; the
+markdown stays the source of truth in `design/` alongside the spec it condenses.
+
+Next: send Henry the link and the tarball. The Ingest prompt writes
+`robust/rt/data/hh26.py` when batch 0 returns. The two in-house tasks remain
+unblocked — R7 through the `Geometry.Ed` seam (spec §8.3) and the `µ∞`
+eigenvalue solve (§8.4), neither of which waits on any of this.

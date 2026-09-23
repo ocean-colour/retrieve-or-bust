@@ -233,6 +233,31 @@ QUESTIONS = """\
 """
 
 
+def _write_tarball(archive, root, mtime=0):
+    """Tar the delivery tree with fixed metadata, so the archive is reproducible.
+
+    ``tarfile`` records each member's mtime, uid, gid and name; left alone they
+    make two archives of identical content differ. Everything is pinned here for
+    the same reason :func:`robust.rt.hydrolight.deck.write_arrays` pins its zip
+    timestamps -- an archive whose bytes move for no reason cannot be checked.
+    """
+    import gzip
+    import tarfile
+
+    paths = sorted(q for q in root.rglob("*") if q.is_file())
+    with gzip.GzipFile(archive, "wb", mtime=mtime) as gz:
+        with tarfile.open(fileobj=gz, mode="w", format=tarfile.USTAR_FORMAT) as tf:
+            for q in paths:
+                info = tf.gettarinfo(q, arcname=str(q.relative_to(root.parent)))
+                info.mtime = mtime
+                info.uid = info.gid = 0
+                info.uname = info.gname = ""
+                info.mode = 0o644
+                with open(q, "rb") as fh:
+                    tf.addfile(info, fh)
+    return archive
+
+
 def main(argv=None):
     """Select batch 0 and write the delivery tree."""
     ap = argparse.ArgumentParser(description=__doc__)
@@ -242,6 +267,9 @@ def main(argv=None):
         "--created", default="2026-09-23", help="manifest date; fixed for determinism"
     )
     ap.add_argument("--generator-version", default="spec-prompt-2")
+    ap.add_argument(
+        "--tar", action="store_true", help="also write a reproducible .tar.gz"
+    )
     args = ap.parse_args(argv)
 
     from robust.rt.hydrolight import deck, l23_recon, manifest, vsf
@@ -326,6 +354,11 @@ def main(argv=None):
             questions=QUESTIONS,
         )
     )
+
+    if args.tar:
+        archive = out.parent / f"{manifest.RELEASE}_batch0.tar.gz"
+        _write_tarball(archive, out, mtime=0)
+        print(f"tarball: {archive} ({archive.stat().st_size / 1024:.0f} kB)")
 
     print(f"batch 0 written to {out}")
     for label, group in (("P1", p1), ("P2", p2), ("P3", p3)):
