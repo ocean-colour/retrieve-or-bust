@@ -1,7 +1,7 @@
 # HydroLight Runs — Commissioning Specification
 
 *The reference data the `robust.rt` forward model still needs: four batches,
-≈157,000 HydroLight runs, one release.*
+≈156,100 HydroLight runs, one release.*
 
 **Date:** 2026-09-22. **Authors:** J. Xavier Prochaska and Claude.
 **Operator:** Henry Houskeeper (full HydroLight, latest build).
@@ -27,10 +27,10 @@ every place they do.
 | Batch | Runs | Contents | Blocks |
 |---|---|---|---|
 | **0 — pilot** | **172** | L23 reproduction test, R0 convergence sweep, grid corners | everything; nothing else starts until it passes |
-| **A — backbone** | **16,659** | R1 (asymptotic quantities, low scattering angles) + R2 (VSF designs) | the elastic backbone off-nadir; the emulator's IOP×geometry×VSF training set |
+| **A — backbone** | **16,092** | R1 (asymptotic quantities, low scattering angles) + R2 (VSF designs) | the elastic backbone off-nadir; the emulator's IOP×geometry×VSF training set |
 | **B — crossing** | **130,140** | R3 (dense zeniths × off-nadir × X1/X2/X4) + R6 (330 nm floor) | every inelastic caveat; supersedes L23 |
 | **C — dependents** | **9,720** | R4 (φ_C), R5 (CDOM fluorescence), R8 (vertical structure) | φ_C linearity; δ_C training; the homogeneity bias |
-| | **≈156,700** | ≈3.1× the compute that produced PB24 | |
+| | **≈156,100** | ≈3.1× the compute that produced PB24 | |
 
 Wall-clock at 1 / 3 / 5 minutes per run on 16 cores: **6.8 / 20 / 34 days**.
 Delivered volume at 2–5 MB per run: **310–780 GB**, in **≈17,400 files**.
@@ -75,7 +75,7 @@ specified and must be re-scoped before anything is committed.
 - **One netCDF4 file per `(water body, scenario)`, containing all nine solar
   zeniths.** This groups the solar-zenith axis inside the file rather than
   across files, which stores each water body's IOPs once instead of nine times
-  and cuts the file count from ~157,000 to **~17,400**. *(This is a change from
+  and cuts the file count from ~156,100 to **~17,400**. *(This is a change from
   the round-2 statement of one file per `(water body, scenario, θ_s)`, made
   under A4 "request what you prefer"; the reason is file count and IOP
   duplication, and it is recorded here rather than made silently.)*
@@ -153,7 +153,7 @@ Chlorophyll fluorescence quantum yield is **φ_C = 0.02** everywhere except R4.
 - **The sky is validated, not assumed.** `robust/rt/data/ed_l23.npz` holds
   L23's own `Ed(0+)` spectra at θ_s = 0/30/60°. Batch 0 compares the delivered
   `Ed(0+)` against them at those three anchors; a mismatch there is a sky-model
-  mismatch and is far cheaper to find in 172 runs than in 157,000.
+  mismatch and is far cheaper to find in 172 runs than in 156,100.
 
 ### 2.6 Outputs required from every run
 
@@ -302,7 +302,7 @@ than trusted.
 
 ## 5. Batch A — the backbone (R1 + R2)
 
-**16,659 runs. 1,851 water bodies × 9 solar zeniths × 1 scenario (S1).**
+**16,092 runs. 1,788 water bodies × 9 solar zeniths × 1 scenario (S1).**
 
 ### 5.1 Purpose, and what it unblocks
 
@@ -340,14 +340,17 @@ scattering `b_p`:
 
 so that `a(λ) = a_w(λ) + a_nw` and `b(λ) = b_w(λ) + b_p`. Because `a_w` and
 `bb_w` both vary strongly across 330–750 nm, **each water body traces a curve
-through `(bb/a, η_bb)` across the 85 bands**: the 63 nodes deliver coverage of
-**90 % of the full 12 × 8 target box**, not 63 isolated points. The ten
+through `(bb/a, η_bb)` across the 85 bands**: the 63 nodes plus the fill set deliver coverage of
+**92 % of the full 12 × 8 target box** (measured by
+`robust.rt.hydrolight.grid.box_occupancy`), not 63 isolated points. The eight
 unreachable cells are named in Appendix A.
 
-- **63 realizable nodes × 27 VSF designs = 1,701 water bodies** (Appendix B).
+- **63 realizable nodes × 26 tabulated VSF designs = 1,638 water bodies**
+  (Appendix B; the two built-ins carry no declared `B_p`, so a node's
+  realizability cannot be evaluated for them).
 - **+ 150 fill bodies**, drawn directly in `(a_nw, b_p)` by Latin hypercube, to
   densify regions the node grid leaves sparse at wavelengths away from λ_ref.
-- **= 1,851 water bodies.**
+- **= 1,788 water bodies.**
 
 Homogeneous, optically deep, no bottom.
 
@@ -442,7 +445,7 @@ Batch 0's P1 gate is what turns these three caveats into a measured number.
 **Block B-design — 1,500 new water bodies.** Latin-hypercube draws over
 `a_ph(440)`, `a_g(440)`, `S_g`, `a_NAP(440)`, `S_NAP`, `b_p(550)` and the
 particle scattering slope, with ranges **deliberately wider than L23's**, and one
-of the 27 VSF designs assigned round-robin so the phase-function axis is crossed
+of the 26 tabulated VSF designs assigned round-robin so the phase-function axis is crossed
 with the inelastic physics. This block is what makes the release a superset of
 L23 rather than a re-run of it.
 
@@ -566,16 +569,37 @@ Item 7 (depth grid) is load-bearing for R8 in a way it is not for R4 or R5.
 
 ### 8.1 `robust/rt/hydrolight/` — the deck generator (A-R2Q3)
 
+*Built 2026-09-23. The modules below exist, batch 0's 172 runs are generated,
+and the measurements they produced are what revised Appendix A, Appendix B and
+§11 of this document.*
+
 The operator will run any input files we give them (A5), which makes deck
-generation **our** engineering, not theirs: ~157,000 decks plus the IOP tables
+generation **our** engineering, not theirs: ~156,100 decks plus the IOP tables
 and tabulated `β̃(ψ)` files they reference. It lives in the package, under test,
 because the loader must later cross-check every delivered file against the deck
 that produced it.
 
-Contents: the VSF library (Appendix B), the IOP-grid and ensemble designers
-(§5.2, §6.2), the L23 reconstruction, the deck writer, and the manifest writer.
-Tests pin the realizability mask, the VSF `B_p` values, and the round-trip
-deck → manifest → loader.
+Contents: `vsf.py` (the design set and its deliverability criterion), `grid.py`
+(the IOP grid, its realizability mask and the fill set), `l23_recon.py` (L23's
+water bodies rebuilt from their own IOPs), `ensemble.py` (batch B's design block
+and batch C's subsets), `deck.py` (the format-neutral run IR, a deterministic
+serialiser, and the adapter seam that waits on §10 Q7), and `manifest.py`.
+
+**The adapter is deliberately unwritten.** `deck.render_deck` raises until the
+operator's template arrives, because a deck that is *nearly* right is worse than
+none — it would run, and quietly answer a different question. What ships in the
+meantime is the IR plus the `β̃(ψ)` and IOP tables, which are the physics and are
+format-light.
+
+Two scripts drive it: `design/py/make_hydrolight_batch0.py` writes the batch-0
+delivery (reproducibly selected, byte-identical on regeneration), and
+`design/py/hydrolight_precheck.py` is the in-house pre-check: it pushes the
+reconstructed L23 water bodies through the package's existing `forward` and
+compares against L23's published `Rrs`, validating the **reconstruction**, not
+HydroLight, at no compute cost. Measured on the committed fixtures: IOPs
+round-trip to 1.4e-7, `forward` agrees with itself to 4.6e-7, and the rRMS
+against L23's X=1 `Rrs` is **0.2576 %** by either route — identical, which is
+the point.
 
 **This is what collapses the metadata contract**: items 1, 2, 6, 7, 8, 9 and 10
 become ours by construction and *testable*, instead of asserted in an email.
@@ -603,14 +627,14 @@ day or two with **no compute**; HydroLight would add only the second-order
 coupling where the altered in-water field feeds back on the source terms.
 
 R7 leaves the campaign for **speed, not cost** (A-HD6): it turns DQ5 from
-"unquantified" into a number now, rather than in a month behind 157,000 runs.
+"unquantified" into a number now, rather than in a month behind 156,100 runs.
 
 ### 8.4 `µ∞` by eigenvalue solve, in parallel
 
 The asymptotic radiance distribution is determined by the IOPs alone — which is
 *why* `K∞` is θ_s-independent, the very fact that ruled PB24 out. So `µ∞` is
 obtainable from an eigenvalue solve of the asymptotic RTE for a given
-`(a, b, β̃)`, over any grid we like, including all 27 VSF designs at a density no
+`(a, b, β̃)`, over any grid we like, including all 26 tabulated VSF designs at a density no
 run buys.
 
 This runs **in parallel with commissioning, not as a gate on it** (A-HD1, round
@@ -629,7 +653,7 @@ retraining begin long before the campaign finishes.
 | # | Deliverable | Runs | Gate | What starts on arrival |
 |---|---|---|---|---|
 | 1 | **Batch 0** | 172 | §4.3 — all four gates | the loader; the conventions are frozen |
-| 2 | **Batch A** | 16,659 | §5.5 | `F(ψ)` and `µ∞` refit; the emulator's IOP×VSF training |
+| 2 | **Batch A** | 16,092 | §5.5 | `F(ψ)` and `µ∞` refit; the emulator's IOP×VSF training |
 | 3 | **Batch B, block B-L23** | 89,640 | §6.5 | retraining the inelastic heads; the zenith-interpolation gate |
 | 4 | **Batch B, block B-design** | 40,500 | §6.5 | the held-out-VSF-design split |
 | 5 | **Batch C** | 9,720 | §7.1–7.3 | φ_C linearity; δ_C training; the homogeneity bound |
@@ -659,9 +683,9 @@ Ordered by how much of this specification each answer moves.
    discretised `β̃(ψ)` per water body — and in what format?
 6. **What does a run cost** in wall-clock, for an 81-band elastic run and for an
    inelastic one, and how many run in parallel? This is the number that turns
-   157,000 runs into a date.
+   156,100 runs into a date.
 7. **One example deck and its outputs** from the working setup, as the template
-   we generate 157,000 of.
+   we generate 156,100 of.
 8. **Sub-350 nm.** Can the band set start at 330 nm, and does the Raman
    implementation handle excitation at the band-set floor by clipping or by
    extrapolation (§2.2)?
@@ -679,7 +703,7 @@ Ordered by how much of this specification each answer moves.
 | Cost model | "multiply by geometries **and** by scenario for the run count" | runs = water bodies × **solar zeniths** × scenarios | §1. View geometry is free; the catalogue's own PB24 figures confirm it |
 | R1 water bodies | "simpler than L23's **stratified** scenes" | L23 is **homogeneous**; no simplification is involved | `rt_inelastic_model.md` §8 and R8 both say so |
 | R1 grid | "~12 × 8 nodes" over the stated ranges | **63 of 96 nodes**, plus a 150-body fill set; 90 % box coverage via the spectral sweep | Appendix A — 33 nodes are not physical water |
-| R2 | "three distinct VSF **families** at matched `B_p`" | 27 designs; **the forward-shape axis is the strong one** | Appendix B — at matched `B_p` the backward hemisphere barely moves |
+| R2 | "three distinct VSF **families** at matched `B_p`" | **28 designs (26 tabulated)**, with an uneven branch count per `B_p` | Appendix B — half of Fournier–Forand's parameter space cannot be shipped as a table, and at `B_p = 0.004` only one design survives |
 | R3 water bodies | "the L23 scene ensemble" (needs their decks) | **reconstructed from L23's published IOPs** | A2; §6.2 — the decks are unobtainable and unnecessary |
 | R5 | "adopt §7 verbatim" | rewritten against batch B's grid and subset | A-HD8; §7.2 — §7 and the batching contradicted each other |
 | R7 | a run | **analytic, in-house** | A-HD6; §8.3 |
@@ -698,11 +722,14 @@ project's own 0.30 % and 0.34 % gates actually mean.
 
 ### What it will not settle
 
-- **The backward-VSF axis, fully.** Appendix B measures why: at matched bulk
-  `B_p`, `β̃(ψ)` in the backscatter hemisphere moves by only a few percent across
-  every family we can construct. `PhaseParams.beta_tilde_pi` and
-  `backward_slope` will be better constrained than today — but the honest claim
-  will be about the **forward** shape, which moves by 25–50 % at matched `B_p`.
+- **The backward-VSF axis at low `B_p`.** Appendix B measures why: at
+  `B_p = 0.004` exactly **one** deliverable Fournier–Forand design exists, so
+  there is no matched-`B_p` shape experiment to run at the clear-water end at
+  all. Where the experiment does run (`B_p ≥ 0.012`) the backward contrast is
+  **12–16 % at `β̃(180°)`**, which is enough to calibrate
+  `PhaseParams.beta_tilde_pi` and `backward_slope` — but the forward peak still
+  moves two to four times more, so the **forward** shape remains the stronger
+  claim.
 - **Real skies and atmospheres.** One sky model, one wind speed, clear sky.
 - **Anything below 330 nm**, or above 750 nm.
 - **Bottom effects, or optically shallow water.** Deep water only.
@@ -744,71 +771,101 @@ Because `a_w` and `bb_w` vary strongly across 330–750 nm (`bb_w` by 25× over
 350–750 alone, slope −4.345), each water body traces a curve through
 `(bb/a, η_bb)`. Over the 63 nodes × 5 `B_p` values × 85 bands the delivered
 samples span `bb/a` from 1.9 × 10⁻⁵ to 4.0 and `η_bb` from 0.0007 to 0.991, and
-occupy **86 of the 96 cells (90 %)** of the original target box. Ten cells remain
-empty and are listed by the generator's test, not hidden.
+occupy **88 of the 96 cells (92 %)** of the original target box once the
+150-body fill set is included. Eight cells remain empty and are listed by the
+generator's test, not hidden.
 
-*Reproduce:* `robust/rt/hydrolight/grid.py` (to be written), or the derivation
-above from the two packaged water tables.
+*Reproduce:* `robust/rt/hydrolight/grid.py` — `water_tables`, `realize_node`,
+`grid_bodies`, `fill_bodies`, `box_occupancy`; pinned by
+`robust/tests/test_hydrolight.py`.
 
 ---
 
 ## Appendix B — the VSF design set, and what it can and cannot vary
 
-**27 designs**, all deliverable to HydroLight as a tabulated `β̃(ψ)`:
+*Revised 2026-09-23, when the generator was built. The first version of this
+appendix was computed from Fournier-Forand parameters that cannot be shipped as
+a discrete table at all, and it understated the backward contrast by about a
+factor of five. Both the design set and the conclusion below have changed; §11's
+"what it will not settle" was rewritten with them.*
+
+**28 designs**, 26 of them tabulated by `robust/rt/hydrolight/vsf.py` and
+delivered as a discrete `β̃(ψ)` on 740 angles from 10⁻³° to 180°:
 
 | group | count | construction |
 |---|---|---|
-| **Fournier–Forand, two-parameter sweep** | **15** | 5 target `B_p` × 3 distinct `(n, µ)` branches |
-| **Two-component mixtures** | **10** | 5 target `B_p` × 2 recipes, mixing a large/forward-peaked component with a small/high-backscatter one |
-| **Out-of-family anchors** | **2** | Petzold average-particle (`B_p ≈ 0.0183`); one measured Sullivan–Twardowski-style VSF if the operator has one tabulated |
+| **Fournier–Forand, two-parameter sweep** | **17** | 5 target `B_p`, with as many distinct `(n, µ)` branches at each as are *deliverable* — 1, 2, 3, 5, 6 |
+| **Two-component mixtures** | **9** | 2 recipes × the targets each recipe's components bracket |
+| **Out-of-family anchors** | **2** | Petzold average-particle and one measured Sullivan–Twardowski-style VSF — **by name**, not tabulated here |
 
-### FF is a two-parameter family, and that matters
+The two anchors are *data we do not hold*. HydroLight ships the Petzold table
+itself, so the IR references it by name and the operator's own copy is used;
+inventing numbers for an out-of-family anchor would defeat the only thing it is
+for. The Sullivan–Twardowski entry is marked optional and drops out if the
+operator has no tabulated copy.
+
+### FF is a two-parameter family — but half of it cannot be shipped
 
 Fournier–Forand is usually *used* as a one-parameter family indexed by `B_p`, but
-it is derived from two — the real refractive index `n` and the Junge slope `µ` —
-so **distinct `(n, µ)` pairs give the same `B_p` with different shapes**.
-Computed solutions, `|ΔB_p| < 4 × 10⁻⁴`:
+it is derived from the real refractive index `n` and the Junge slope `µ`, so
+distinct `(n, µ)` pairs give the same `B_p` with different shapes. That is what
+makes a matched-`B_p` shape experiment possible without any new scattering code.
 
-| target `B_p` | branch A | branch B | branch C |
-|---|---|---|---|
-| 0.004 | n=1.080, µ=3.26 | n=1.115, µ=3.17 | n=1.230, µ=3.07 |
-| 0.007 | n=1.020, µ=3.86 | n=1.100, µ=3.31 | n=1.190, µ=3.15 |
-| 0.012 | n=1.055, µ=3.68 | n=1.095, µ=3.47 | n=1.190, µ=3.24 |
-| 0.020 | n=1.075, µ=3.73 | n=1.150, µ=3.45 | n=1.210, µ=3.33 |
-| 0.030 | n=1.040, µ=4.08 | n=1.150, µ=3.59 | n=1.165, µ=3.55 |
+**It is also where the design nearly went wrong.** For `µ` near 3 the forward
+peak behaves like `ψ^−1.93`: the integral converges, but so slowly that at
+`ψ_min = 10⁻⁵°` the table still holds only **64 %** of the scattering and its
+quadrature `B_p` is out by a **factor of three**. Those designs are not
+deliverable on any finite angular grid, and the deliverable set turns out to
+require **`µ ≥ 3.52`**. The criterion — normalisation ≥ 0.995 *and*
+`|B_p(quadrature) − B_p(closed form)| < 4×10⁻⁴` — is applied in code
+(`vsf.deliverable`), not assumed.
 
-This is better than the round-2 plan (which proposed Mie-computed two-component
-mixtures as the primary design) because it needs no new scattering code and
-HydroLight has FF built in.
+Applying it leaves an **uneven** branch count, and the unevenness is itself the
+finding:
 
-### But the backward hemisphere barely moves — measured, not assumed
+| target `B_p` | deliverable branches | `(n, µ)` |
+|---|---|---|
+| 0.004 | **1** | (1.020, 3.72) |
+| 0.007 | 2 | (1.020, 3.86), (1.040, 3.64) |
+| 0.012 | 3 | (1.020, 4.00), (1.040, 3.80), (1.060, 3.64) |
+| 0.020 | 5 | (1.020, 4.14) … (1.105, 3.60) |
+| 0.030 | **6** | (1.025, 4.20) … (1.160, 3.56) |
 
-`β̃(ψ)` for the three branches at matched `B_p = 0.012`, relative to branch B:
+**Low backscatter fractions pin the phase-function shape almost completely.** At
+`B_p = 0.004` exactly one deliverable Fournier–Forand design exists, so there is
+no matched-`B_p` shape experiment to run there at all. The experiment has
+leverage only at the higher `B_p` end.
+
+### What the shape axis actually moves — measured
+
+`β̃(ψ)` across the deliverable branches at matched `B_p`, as `max/min − 1`
+(regenerated by `vsf.shape_table`, which the test suite asserts rather than
+quotes):
 
 | ψ | 1° | 10° | 45° | 90° | 120° | 135° | 160° | 180° |
 |---|---|---|---|---|---|---|---|---|
-| branch A / B | **1.147** | **1.023** | 0.927 | 0.966 | 1.004 | 1.019 | 1.032 | 1.034 |
-| branch C / B | **0.771** | **0.758** | 0.967 | 1.005 | 1.000 | 0.995 | 0.991 | 0.990 |
+| **`B_p` = 0.030** (6 branches) | **0.54** | 0.27 | 0.44 | 0.15 | 0.03 | 0.10 | 0.15 | **0.16** |
+| **`B_p` = 0.012** (3 branches) | 0.31 | 0.30 | 0.29 | 0.09 | 0.05 | 0.07 | 0.11 | **0.12** |
 
-A **49 % spread at ψ = 1°** and **35 % at 10°**, against **1–3 % everywhere
-beyond 120°**. A two-component mixture does better but not much: at matched
-`B_p = 0.012` it moves `β̃(180°)` by 5.2 % and `β̃(135°)` by 3.1 %, while moving
-the forward peak by 26 %.
+**This corrects the earlier claim.** Computed from the undeliverable branches,
+the backward contrast read 1–3 % and the appendix concluded that "at matched
+bulk `B_p`, nature leaves very little freedom in the backscatter hemisphere".
+Computed from the designs we can actually ship, it is **12–16 % at `β̃(180°)`**
+and 10 % at 135°. The forward peak still moves more — 31–54 % at 1° — so the
+forward axis remains the stronger lever, but the backward axis is a *real*
+measurable effect rather than a rounding error, and `beta_tilde_pi` and
+`backward_slope` can be calibrated against it.
 
-**The conclusion, stated plainly because it revises R2's premise.** At matched
-bulk `B_p`, nature leaves very little freedom in the backscatter hemisphere. R2
-will therefore calibrate the **forward**-shape axis strongly and the backward
-axis weakly — which is still a real and valuable experiment, since the forward
-peak drives multiple scattering and propagates into `Rrs`, but it is not the
-"calibrating the backward-VSF axis" the catalogue promised. The out-of-family
-anchors and the designs that deliberately **break** `B_p` matching are what bound
-the backward axis, by contrast rather than at matched `B_p`.
+There is a structure worth noting in those rows: the spread is **smallest near
+120°** and rises toward both 90° and 180°. Matched `B_p` constrains the
+*integral* over the backward hemisphere, not its shape, and 120° is near where
+the solid-angle weighting makes that constraint bite hardest. The information
+about backward shape is therefore concentrated at 160–180° and near 90°, which
+is where a fit should be weighted.
 
-*Reproduce:* the FF backscatter fraction and phase function, `B_p(n, µ)` and
-`β̃(ψ; n, µ)`, are closed-form (Fournier & Forand 1994; Mobley, *Light and
-Water*); the tables above are computed from them.
-
----
+*Reproduce:* `robust/rt/hydrolight/vsf.py` — `ff_backscatter_fraction`,
+`ff_phase`, `deliverable`, `solve_ff_branches`, `shape_table`; pinned by
+`robust/tests/test_hydrolight.py`.
 
 ## Appendix C — note to Robert Frouin (A-RF)
 
@@ -817,7 +874,7 @@ Water*); the tables above are computed from them.
 > Your recommendation — use HydroLight as the reference forward model with
 > particle phase-function parameters explicitly varied, and build a fast
 > differentiable emulator of it — is what we are now commissioning. The
-> specification is ≈157,000 runs in four batches; the phase-function axis is 27
+> specification is ≈156,100 runs in four batches; the phase-function axis is 26
 > distinct tabulated VSFs crossed with a 63-node IOP grid and, for the first
 > time, crossed with the inelastic processes as well.
 >
@@ -850,15 +907,22 @@ Water*); the tables above are computed from them.
 > Does that match your intent — and would you still put ZTT at the centre, given
 > that the interpretable backbone is precisely the part that breaks off-nadir?
 >
-> One measured caution on the phase-function axis, since it is your central
-> point. At matched bulk `B_p`, we find `β̃(ψ)` in the backscatter hemisphere
-> moves by only a few percent across every family we can construct — 1–3 % beyond
-> 120° for Fournier–Forand at matched `B_p`, ~5 % for two-component mixtures —
-> while the forward peak moves by 25–50 %. So "independent variability in
-> phase-function shape" appears to be largely a *forward*-scattering freedom once
-> `B_p` is fixed. If you know of measured VSF sets that break that, they would
-> change the design of batch A, and we would rather hear it now than after the
-> runs.
+> Two measured notes on the phase-function axis, since it is your central point.
+>
+> First, **Fournier–Forand's low-`µ` half cannot be shipped as a discrete table
+> at all.** For `µ` near 3 the forward peak behaves like `ψ^−1.93`, and at
+> `ψ_min = 10⁻⁵°` a tabulated phase function still holds only 64 % of the
+> scattering, with its backscatter fraction wrong by a factor of three. Requiring
+> the delivered table to carry the `B_p` it claims forces `µ ≥ 3.52`. We would be
+> glad to be told we are being too strict here.
+>
+> Second, and consequently, **the matched-`B_p` shape experiment has no leverage
+> at low `B_p`**: at `B_p = 0.004` exactly one deliverable design exists. Where it
+> does run, the contrast at matched `B_p` is 12–16 % at `β̃(180°)` and 31–54 % at
+> 1° — so the freedom is real in both hemispheres but two to four times larger in
+> the forward one. If you know of measured VSF sets that would widen the backward
+> axis at matched `B_p`, they would change the design of batch A, and we would
+> rather hear it now than after the runs.
 
 ---
 

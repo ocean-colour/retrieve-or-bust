@@ -320,6 +320,7 @@ them (the Hawes variant) has already been identified as a live foot-gun:
    react accordingly. Ask another round if needed. Use Fable if you can. Log your
    work.
 
+4. Henry is going to need input files to run from.  Generate a prompt in the `Spec` section below to generate them.  Use Fable if you can. Log your work.
 
 ### Spec
 
@@ -327,6 +328,96 @@ them (the Hawes variant) has already been identified as a live foot-gun:
    form whoever runs HydroLight will actually work from, with the metadata
    contract attached to each. Name it `design/hydrolight_runs.md`. Use Fable if
    you can. Log your work.
+
+2. **Henry needs input files.** Build the deck generator and produce batch 0's.
+   Work from [`design/hydrolight_runs.md`](../../design/hydrolight_runs.md) — it
+   settles the conventions, the water bodies, the VSF designs and the metadata
+   contract, so this prompt is about *building* them, not re-deciding them. Use
+   Fable if you can. Log your work.
+
+   **The ordering problem, and the architecture it forces.** We do not yet know
+   HydroLight 6's exact deck syntax — that is §10 Q7, "one example deck and its
+   outputs from the working setup". Do **not** block on it. Split the generator
+   in two:
+
+   - a **format-neutral intermediate representation** (the "run IR"): one record
+     per water body carrying `a(λ)`, `b(λ)`, `bb(λ)`, the tabulated `β̃(ψ, λ)`,
+     the depth/bottom specification, the sky and wind parameters, the scenario
+     switches and the solar-zenith list — everything physical, in SI, on the
+     85-band 330–750 nm grid of spec §2.2. Serialise it as one JSON sidecar plus
+     one NPZ of arrays per water body. **All the hard work lives here**, and none
+     of it depends on deck syntax;
+   - a **thin format adapter** that renders the IR into whatever HydroLight
+     actually wants, written last and replaceable in an afternoon once Henry's
+     template arrives.
+
+   If the adapter cannot be finished, the IR plus the `β̃(ψ)` and IOP tables are
+   *still* shippable — they are the physics, and they are format-light.
+
+   **Where it lives** (A-R2Q3, spec §8.1): a new `robust/rt/hydrolight/` package
+   —
+
+   - `grid.py` — the batch-A `(bb/a, η_bb)` grid, the realizability mask of spec
+     Appendix A, and the 150-body Latin-hypercube fill set;
+   - `vsf.py` — the 27 VSF designs of spec Appendix B: the Fournier–Forand
+     closed forms `B_p(n, µ)` and `β̃(ψ; n, µ)`, the 15 two-parameter branches,
+     the 10 two-component mixtures, and the Petzold anchor. Emit each as a
+     tabulated `β̃(ψ)` on the angular grid HydroLight wants;
+   - `ensemble.py` — the batch-B design block (1,500 Latin-hypercube water
+     bodies) and the batch-C subsets (R4's 100, R5's 500 CDOM-stratified with the
+     tail oversampled, R8's 60 profiles);
+   - `l23_recon.py` — the batch-B L23 block: rebuild all 3,320 L23 water bodies
+     from their own published `a`, `bb`, `bbnw`, `bnw`, `aph`, `ag`, with the FF
+     parameter inferred from `B_p = bbnw/bnw` (spec §6.2), carrying the three
+     caveats as recorded fields, not as comments;
+   - `deck.py` — the IR, its serialiser, and the format adapter;
+   - `manifest.py` — the per-batch manifest of spec §2.7, including the SHA-256
+     of every input file.
+
+   **Milestones.**
+
+   - **M0 — the IR and the VSF library.** `vsf.py` complete and tested: the 27
+     designs, each reproducing its target `B_p` to < 4e-4, and the Appendix B
+     shape table (the 49 % spread at ψ = 1° against 1–3 % beyond 120°)
+     regenerated as a test rather than quoted from the spec.
+   - **M1 — the grid and the ensembles.** `grid.py` reproducing **63 of 96
+     realizable nodes at λ_ref = 400 nm** and the **90 % box occupancy**, with
+     the ten empty cells enumerated by the test. `ensemble.py` and `l23_recon.py`
+     producing their water-body sets.
+   - **M2 — batch 0's 21 water bodies**, chosen and *justified in writing*: the
+     10 L23 scenes spanning `a_ph(440)`, the 5 for the R0 convergence sweep
+     spanning `bb/a` and trophic state, and the 6 batch-A grid corners. Selection
+     must be reproducible from a seed, not hand-picked.
+   - **M3 — the in-house pre-check, before Henry runs anything.** Push the
+     reconstructed L23 IOPs through our existing `robust.rt.forward` and compare
+     against L23's published `Rrs` for the same scenes. This does not validate
+     HydroLight — it validates *our reconstruction pipeline*, and it costs no
+     compute. If the reconstruction is broken we find it here rather than in the
+     pilot's 90 runs. Report the number; a disagreement materially larger than
+     the model's own known accuracy on L23 is a bug in `l23_recon.py`.
+   - **M4 — the batch 0 delivery.** A tarball for Henry: the run IR, the
+     `β̃(ψ)` tables, the IOP tables, the decks if the adapter exists, the
+     manifest, and a short `README` stating the conventions of spec §2 in the
+     operator's terms and listing the ten questions of spec §10.
+
+   **Tests that must exist**, pinning measured properties rather than
+   documentation, in the style of `robust/tests/test_l23.py` and `test_pb24.py`:
+   the realizability mask and its count; each VSF design's `B_p`; the
+   matched-`B_p` shape table; the L23 round-trip (reconstructed IOPs equal the
+   file's IOPs to float tolerance); manifest completeness against the ten items
+   of spec §3, with the operator-supplied items 1/3/4/5 explicitly marked absent
+   until batch 0 returns; and **byte-identical regeneration** — running the
+   generator twice must produce identical files, or the manifest hashes are
+   worthless.
+
+   **Do not** generate all ~157,000 decks in this pass. Batch 0 is 21 water
+   bodies and 172 runs; build the machinery so the rest is a parameter change,
+   and generate the rest only when batch 0 has passed its gates.
+
+   Conventions: `ocean14`, clear docstrings, no git commands. If you hit a
+   decision `design/hydrolight_runs.md` does not settle, ask in **Q&A/Decks**
+   below rather than inventing one — but prefer to proceed where the spec is
+   clear.
 
 ### Ingest
 
@@ -1097,6 +1188,11 @@ interface named, and the Henry email checklist folded in as the batch-zero
 question list; plus the note to Robert (A-RF).
 
 
+### Decks
+
+*(For Spec prompt 2. Empty until the deck-generator work raises something
+`design/hydrolight_runs.md` does not settle.)*
+
 ## Logging
 
 Record work in the Logs section below, format:
@@ -1431,3 +1527,154 @@ Next: the Ingest prompt, once batch 0 arrives — `robust/rt/data/hh26.py`,
 following `l23.py` and `pb24.py`. Before that, the two in-house tasks the spec
 carves out: R7 analytically through the `Geometry.Ed` seam (§8.3) and the `µ∞`
 eigenvalue solve (§8.4), neither of which waits on HydroLight.
+
+### 2026-09-23 (Setup prompt 4 — wrote Spec prompt 2, the deck-generator prompt)
+
+Executed Setup prompt 4 (model: **Opus 5**, not Fable — same note as the four
+previous entries). Deliverable is a prompt, not code: **Spec prompt 2** now sits
+in the Spec section, and an empty **Q&A/Decks** heading was added for it to post
+questions into. No package code changed, no decks generated.
+
+**The problem the prompt has to solve.** Henry needs input files, but we do not
+yet know HydroLight 6's deck syntax — that is spec §10 Q7, "one example deck and
+its outputs from the working setup", and it will not be answered until he
+replies. A prompt that says "write the decks" would stall on it. So the prompt
+**mandates a two-phase split**:
+
+- a **format-neutral run IR** — one record per water body with `a(λ)`, `b(λ)`,
+  `bb(λ)`, the tabulated `β̃(ψ, λ)`, depth/bottom, sky and wind, scenario
+  switches and the solar-zenith list, on the 85-band grid — serialised as JSON +
+  NPZ. All the physics lives here and none of it depends on deck syntax;
+- a **thin format adapter** written last and replaceable in an afternoon once the
+  template arrives.
+
+The payoff: if the adapter cannot be finished, the IR plus the `β̃(ψ)` and IOP
+tables are still shippable, because they are the physics and they are
+format-light. That is the whole reason the prompt is shaped this way rather than
+as a single "generate the decks" instruction.
+
+**Structure.** Module layout under `robust/rt/hydrolight/` (A-R2Q3) — `grid.py`,
+`vsf.py`, `ensemble.py`, `l23_recon.py`, `deck.py`, `manifest.py` — then five
+milestones: M0 the VSF library and IR, M1 the grid and ensembles, M2 batch 0's
+21 water bodies chosen reproducibly from a seed rather than hand-picked, M3 an
+in-house pre-check, M4 the batch-0 tarball for Henry with a README stating the
+conventions in the operator's terms and carrying the ten questions of spec §10.
+
+**M3 is the part I would not have thought to ask for a week ago.** Before Henry
+runs anything, push the reconstructed L23 IOPs through our *existing*
+`robust.rt.forward` and compare against L23's published `Rrs`. That validates the
+**reconstruction pipeline**, not HydroLight, and it costs no compute — so a bug
+in `l23_recon.py` surfaces before it consumes the pilot's 90 runs. It is the
+cheapest gate in the chain and it sits upstream of the cheapest gate in the spec.
+
+**Tests demanded**, in the style of `test_l23.py`/`test_pb24.py` and pinning
+measured properties rather than documentation: the realizability mask and its
+count (63 of 96 at λ_ref = 400 nm, 90 % box occupancy, the ten empty cells
+enumerated); each VSF design's `B_p` to < 4e-4; the Appendix B matched-`B_p`
+shape table **regenerated as a test rather than quoted from the spec** — so if
+the FF algebra is wrong, the spec's central claim about the backward hemisphere
+fails loudly; the L23 round-trip; manifest completeness against the ten metadata
+items with the operator-supplied 1/3/4/5 explicitly marked absent until batch 0
+returns; and **byte-identical regeneration**, without which the manifest hashes
+are decorative.
+
+**Scoped deliberately narrow:** do *not* generate ~157,000 decks in this pass.
+Batch 0 is 21 water bodies and 172 runs; build the machinery so the rest is a
+parameter change, and generate the rest only once batch 0 has passed. That
+matches the spec's own staging (§9) and keeps the first delivery small enough to
+iterate on with Henry.
+
+Next: Spec prompt 2 itself, then the Ingest prompt when batch 0 returns. The two
+in-house tasks the spec carves out (R7 through the `Geometry.Ed` seam, §8.3; the
+`µ∞` eigenvalue solve, §8.4) remain unblocked and independent of all of this.
+
+### 2026-09-23 (Spec prompt 2 — built the deck generator; batch 0's 172 runs generated; three measured findings revised the spec)
+
+Executed Spec prompt 2 (model: **Opus 5**, not Fable — same note as previous
+entries). All five milestones delivered. **712 tests pass** (35 new), `ruff
+check` and `ruff format --check` clean. Nothing asked in Q&A/Decks: the spec
+settled everything the build needed.
+
+**What landed.** `robust/rt/hydrolight/` — `vsf.py` (the design set and its
+deliverability criterion), `grid.py` (the IOP grid, realizability mask, fill
+set), `l23_recon.py` (L23's water bodies rebuilt from their own IOPs),
+`ensemble.py` (batch B's design block, batch C's three subsets), `deck.py` (the
+format-neutral run IR + a deterministic serialiser + the adapter seam),
+`manifest.py`. Two scripts: `design/py/make_hydrolight_batch0.py` and
+`design/py/hydrolight_precheck.py`. Tests in `robust/tests/test_hydrolight.py`.
+
+**Batch 0 generates to exactly 172 runs** — P1 10 bodies/90 runs, P2 5/70, P3
+6/12 — 21 water bodies, 161 files, 880 kB, written to `build/hydrolight/batch0`
+and **byte-identical on regeneration** (verified by `diff -r` of two independent
+runs). `np.savez` had to be replaced: its zip entries carry wall-clock times, so
+two runs of the same generator produce different bytes and every manifest hash
+becomes decorative.
+
+**Three findings from building it, two of which the spec had wrong.**
+
+1. **Half of Fournier–Forand's parameter space cannot be shipped as a table.**
+   The first `designs()` produced tables whose quadrature `B_p` was out by a
+   factor of three. Cause: for `µ` near 3 the forward peak behaves like
+   `ψ^−1.93` — the integral converges, but so slowly that at `ψ_min = 1e-5°` the
+   table still holds only **64 %** of the scattering. Requiring the delivered
+   table to carry the `B_p` it claims (normalisation ≥ 0.995 *and*
+   `|B_p(quadrature) − B_p(closed form)| < 4e-4`) forces **`µ ≥ 3.52`**, and the
+   consequence is an **uneven** branch count: **one** deliverable design at
+   `B_p = 0.004`, six at 0.030. The spec's "5 targets × 3 branches = 15" was not
+   achievable; the real set is 17 FF + 9 mixtures + 2 named built-ins = 28
+   designs, 26 tabulated.
+2. **The spec's central claim about the backscatter hemisphere was wrong by
+   about a factor of five, and this is exactly what the prompt's "regenerate the
+   shape table as a test rather than quoting it" was written to catch.** Appendix
+   B reported 1–3 % backward contrast at matched `B_p` — computed from the
+   `(n, µ)` pairs that `deliverable()` later rejected. From the designs we can
+   actually ship it is **12–16 % at `β̃(180°)`** and 10 % at 135°, against 31–54 %
+   at 1°. So the backward axis is a real measurable effect rather than a rounding
+   error, and `beta_tilde_pi`/`backward_slope` *can* be calibrated — the forward
+   axis is still two to four times stronger. Appendix B, §11's "what it will not
+   settle", the R2 row of the departures table and the note to Robert were all
+   rewritten; the note now asks him about the `µ ≥ 3.52` constraint directly,
+   which is a better question than the one it replaced. A number quoted into a
+   document cannot fail; a test can.
+   There is also a shape in the measurement worth keeping: the spread is
+   **smallest near 120°** and rises toward both 90° and 180°, because matched
+   `B_p` constrains the *integral* over the backward hemisphere rather than its
+   shape. The backward-shape information is concentrated at 160–180° and near
+   90°, which is where a fit should be weighted.
+3. **Reconstructing L23's total absorption from components corrupted it by up to
+   150 % in the red.** `a_nap = clip(a − a_w − a_ph − a_g, 0)` goes negative
+   wherever our pure-water table differs from L23's, and the clip then leaks into
+   `a` — the one quantity radiative transfer actually uses. Fixed by carrying
+   `a(λ)` **verbatim** at and above 350 nm and letting the components do the
+   extending only below it, where L23 is silent. The most negative residual is
+   now recorded per scene in the provenance rather than absorbed. Caught by M3,
+   before any HydroLight run — which is what M3 is for.
+
+**M3, the in-house pre-check, on the committed fixtures:** IOPs round-trip to
+**1.4e-7** (the fixtures' float32 precision; `a` and `b_p` are exact),
+`forward(reconstructed)` agrees with `forward(loader IOPs)` to **4.6e-7**, and
+the rRMS against L23's published X=1 `Rrs` is **0.2576 %** by either route —
+identical, which is the point. The reconstruction preserves the water.
+
+**Spec updated** rather than left stale: totals 156,691 → **156,124** (batch A
+1,788 bodies / 16,092 runs, since the grid crosses the 26 *tabulated* designs —
+the two built-ins declare no `B_p`, so a node's realizability cannot be
+evaluated for them); box occupancy 90 % → **92 %** measured, with eight empty
+cells rather than ten; Appendix A and B now point at the code that reproduces
+them; §8.1 records that the generator exists and why the adapter does not.
+
+**The adapter is deliberately unwritten.** `deck.render_deck` raises with a
+message naming spec §10 Q7. A deck that is *nearly* right is worse than none —
+it would run, and quietly answer a different question. What ships instead is the
+run IR (JSON + deterministic NPZ), the `β̃(ψ)` tables, the IOP tables, a
+human-readable *provisional* description per run that is labelled in three
+places as not being a deck, and a `README.txt` stating the conventions in the
+operator's terms with the ten questions appended.
+
+**Deliberately not done:** the other ~156,000 decks. Batch 0 is 21 water bodies;
+the rest is a parameter change once batch 0 passes its gates, per spec §9.
+
+Next: send batch 0 to Henry with the ten questions; the Ingest prompt writes
+`robust/rt/data/hh26.py` when it returns. The two in-house tasks remain
+unblocked — R7 through the `Geometry.Ed` seam (§8.3) and the `µ∞` eigenvalue
+solve (§8.4).
