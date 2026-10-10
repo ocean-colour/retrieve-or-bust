@@ -1,6 +1,7 @@
 # The Week-1 elastic RT prototype — what it is, what it shows, what it does not
 
 **Branch `rt-elastic-prototype` · milestones M0–M4 · 2026-08-07**
+*Envelope and M5 outcome added 2026-09-21; the M0–M4 numbers below are unchanged and still reproduce.*
 
 A differentiable forward model for elastic remote-sensing reflectance,
 `Rrs = Rrs_ZTT + ΔRrs`: an analytic radiative-transfer backbone with a small learned
@@ -49,6 +50,12 @@ On held-out water bodies it reaches **0.30% rRMS**, uniform across the spectrum 
 across the three solar zeniths, differentiable in every input, at ~5× the cost of the
 analytic backbone alone.
 
+**Scope, stated once and meant literally:** *all processes, nadir viewing, L23-like
+water.* The model composes elastic scattering, Raman and chlorophyll fluorescence into
+one differentiable forward call and reproduces the reference ocean to a fraction of a
+percent — with the sensor at nadir, the azimuth at zero, and the water drawn from the
+L23 ensemble. It is not a BRDF model. See the envelope below.
+
 ## What it may not claim — read this before quoting the number above
 
 1. **The margin over the state of the art is 2.3×, not 24×.** Against standard Gordon
@@ -74,8 +81,88 @@ analytic backbone alone.
    axes are untested. The emulator's domain check now flags **any** off-nadir view —
    which is correct, and means the hybrid falls back to the backbone there under
    `on_out_of_domain="ztt"`.
+
+   **Update (M5):** that fallback is now known to be unsafe off-nadir. Measured on PB24,
+   the ZTT backbone returns a **non-physical (≤ 0) `rrs` on 22% of samples**, because the
+   scattering angle leaves the range `F(ψ)` was fitted over (item 6). Falling back to it
+   off-nadir substitutes one wrong answer for another.
 6. **ZTT's µ∞ is from Twardowski & Tonizzo (2017)**, because the 2018 paper's Equation
    (8) coefficients are not published. Report as *ZTT with the TT2017 µ∞*.
+
+   **Update (M5 task 13): this caveat cannot be closed with the data in hand, and it is
+   not the largest one.** µ∞ is the *asymptotic* mean cosine, `µ∞ = a/K∞`, and `K∞` is by
+   definition independent of the sun angle; PB24 tabulates seven diffuse-attenuation
+   coefficients and **every one varies by ~1.4× across solar zenith**, so none is `K∞` and
+   µ∞ cannot be refit from it. Meanwhile M5 measured that µ∞ accounts for **1%** of ZTT's
+   non-physical predictions on PB24 against **68%** for `Ψ_KLu`, whose quartic `F(ψ)` is
+   fitted only for scattering angles **ψ ≳ 134°** and crosses zero at **110.4°**. Nadir
+   viewing pins ψ above 134° (L23's minimum is 139.7°), which is why the Week-1 prototype's
+   numbers are unaffected — and why they say nothing about off-nadir use. A second axis
+   compounds it: `Md_star` and the TT2017 µ∞ are fitted for `bb/a` ≤ 0.1, which **36%** of
+   PB24 exceeds, and ZTT's `mu_d` goes **negative** there. See record §7.16.
+
+## The validity envelope, and its honest coverage (M5 Route C)
+
+M5 tried to extend the model to the full BRDF and **failed its acceptance gate** — on
+both splits, at every seed, shipping no weights (`load_default()` is still the L23 nadir
+model). The cause is that the ZTT backbone is evaluated far outside the range its own
+authors fitted as soon as the sensor leaves nadir, and the hybrid's *bounded relative*
+correction cannot repair a backbone that has gone negative:
+[`m5_report.md`](m5_report.md). Route C is the response JXP chose — declare where the
+model is valid, report the coverage without flattering it, and leave the backbone
+question to the HydroLight runs.
+
+Two conditions bound the backbone. They are **not** of the same kind, and the coverage
+is why.
+
+**ψ ≥ 134° — the hard one.** `Ψ_KLu(ψ) = 1 + F(ψ)` is a quartic fitted for ψ ≳ 134°; it
+crosses zero at **110.4°** and is negative below, flipping the sign of the ZTT
+denominator. Below the crossing the model does not become imprecise, it becomes
+**non-physical**.
+
+**bb/a ≤ 0.1 — the soft one.** `Md_star` and the TT2017 µ∞ were fitted over that range.
+Outside it the parameterization extrapolates.
+
+Measured coverage, on the full 9960-sample L23 batch and on PB24 inside its own
+sanctioned 0–70° window (60 realisations, 49920 samples):
+
+| | L23 (nadir) | PB24 (0–70° window) |
+|---|---|---|
+| ψ range | 139.7 – 180.0° | **65.5** – 180.0° |
+| ψ ≥ 134° | **100 %** of samples | **58.1 %** |
+| bb/a range | 0.0001 – 0.59 | 0.0001 – 3.54 |
+| bb/a ≤ 0.1 at *every* band | **25.0 %** of samples | 6.7 % |
+| bb/a ≤ 0.1 per band | 76.4 % of values | 59.9 % |
+| **both conditions** | **25.0 %** of samples | **3.9 %** |
+| **backbone physical** (`rrs_ZTT > 0` at every band) | **100 %** of samples | **75.0 %** |
+
+**Read the last two rows together, because they are the result.** Taken literally, "valid
+where ψ ≳ 134° and bb/a ≤ 0.1" would declare **75 % of L23 out of envelope** — including
+most of the data the 0.30 % headline is measured on. That statement would be
+self-defeating, and it would also be wrong: on L23 the backbone is physical on **100 %**
+of samples despite three quarters of them carrying at least one band above bb/a = 0.1. The
+µ∞ extrapolation at nadir is real and benign; M5's own attribution agrees, charging µ∞
+with ~1–5 % of the non-physical predictions against ~68–71 % for `Ψ_KLu`.
+
+So the envelope this prototype declares is:
+
+> **Validated:** nadir viewing (θ_v = 0, Δφ = 0), solar zenith 0–60°, L23-like water, the
+> 350–750 nm grid, all processes on. Within it the backbone is physical on every sample
+> and the hybrid reaches 0.30 % on held-out water bodies.
+>
+> **Disclosed, not gated:** bb/a exceeds TT2017's fitted 0.1 on 23.6 % of L23 values
+> (median 0.03, 99th percentile 0.31, maximum 0.59). Results are "ZTT with the TT2017 µ∞",
+> extrapolated in the blue for clear water.
+>
+> **Outside the envelope, and not claimed:** any off-nadir view. ψ falls below 134° on
+> 42 % of PB24's sanctioned window and below the 110.4° zero-crossing on 16 %, and the
+> backbone returns a non-physical reflectance on 22 % of it. `on_out_of_domain="ztt"`
+> does not rescue this — it degrades *to* the failing model (item 5).
+
+The machinery to express that envelope exists — `emulator.Envelope` is carried per model,
+and `emulator.backbone_is_usable` is the per-sample predicate the last row above is
+computed from — so a future PB24-trained model can state a wider one without widening
+this one.
 
 ## The acceptance gate, as amended
 

@@ -65,6 +65,497 @@ If you need to run Python use the `ocean14` conda environment.
 
 2. I have answered your questions in the Q&A section below.  Please review them.  Then proceed to write the report.  Use Fable if you can.  Log your work.
 
+### PR
+
+1. As you will note, I am on the `rt-eleastic-prototype` branch of the RoB repo.
+I have just pulled in `origin/main` and with it a slew of conflicts.  Please examine
+where things have diverged and why.  Write a report in Forensics below and offer 
+suggestions on how to resolve this.  If you have any questions, put them in the
+Prompts/PR/Q&A section.  
+Use Fable if you can.  Log your work.
+
+2. I have answered the questions in the Q&A section below.  Please review my
+answers and ask another round to continue the Discussion.
+Use Fable if you can.  Log your work.
+
+3. I have answered the questions in the Q&A section below.  Please review my
+answers and proceed to resolve the conflicts.
+Use Fable if you can.  Log your work.
+
+4. The merge is committed and the tree is clean.  Now do the code-and-numbers
+half of the punch list, in this order because the order matters:
+
+   a. Fix the three `:func:`robust.rt.forward`` cross-reference targets that the
+   docs sweep renamed to `:func:`~robust.rt.hybrid.forward`` everywhere else —
+   `robust/tests/conftest.py:267`, `robust/rt/conventions.py:757`,
+   `robust/rt/types.py:277`.  The `-W`/nitpicky Sphinx job is red until they go.
+
+   b. Fix the PQ10 contamination.  `robust/rt/files/surface_pb24.npz` was fitted
+   under a 400-realisation split while the benchmark splits 200 and the gate 800,
+   and `make_splits` permutes whatever set it is given — so `SPLIT_SEED = 23`
+   does not name a partition (`design/m5_report.md` §6).  Refit the transfer on
+   each consumer's own train mask, regenerate the artefact, and say in
+   `design/m5_report.md` §6 that it is fixed and how.  Do this **before** (c):
+   it moves the PB24 numbers.
+
+   c. Re-run and regenerate, per PQ11 — `pytest robust/tests`, then
+   `design/py/run_validation.py` (elastic and `--inelastic`) into
+   `design/validation/`, then `design/py/run_pb24_validation.py` into
+   `design/validation_pb24/`.  **Commit only what moved.**  Report every number
+   that changed and why, and say plainly if one moved that you cannot explain.
+   Note that `design/py/train_emulator_pb24.py` exits 1 by design when the gate
+   fails — that is M5 working, not a regression.
+
+   Use Fable if you can.  Log your work.
+
+5. Now the documentation half, and Route C with it.
+
+   a. PQ7, prose only: `docs/model/forward.md` and `docs/using/limitations.md`
+   present `on_out_of_domain="ztt"` as a safe degradation.  Add the measurement
+   that qualifies it — off-nadir the backbone it falls back to is non-physical on
+   22.3% of PB24 (`design/m5_report.md` §2.1).  Do not change the policy's
+   behaviour.
+
+   b. Give M5 its documentation: an `automodule` for `robust.rt.data.pb24` in
+   `docs/api.rst`, and a `docs/model/surface.md` for the geometry-aware surface
+   transfer, the OLCI grid, and the per-model `Envelope`.
+
+   c. Execute Q18 Route C, which I have approved: state the envelope where the
+   backbone is valid (ψ ≳ 134°, `bb/a` ≤ 0.1), report the coverage honestly, and
+   per Q19 make the current model's failing clear in `design/prototype_summary.md`.
+   Scope the claim to (a) from PQ8 — all processes, nadir, L23-like water.
+
+   d. Confirm `cd docs && make html` passes with `-W`, then draft the PR
+   description: what the branch brings, what it does not claim, and what M6 is
+   now that Route C is done and the HydroLight runs are the next major task.
+
+   Use Fable if you can.  Log your work.
+
+6. I generate the PR and am ready to merge it.  Please now generate a new prompt doc named `hydrolight_prompts.md` in `RT/`.  Have it collect all of the HydroLight runs that we need to perform to complete our RT model.  Include inelastic processes.  Use Fable if you can.  Log your work.
+
+#### Forensics
+
+**Report of 2026-09-19. Working tree is mid-merge** (`.git/MERGE_HEAD` present,
+`Merge remote-tracking branch 'origin/main' into rt-elastic-prototype`), 9 files
+unmerged. Nothing below has been resolved or committed — this is diagnosis only.
+
+##### 1. The short version
+
+Nothing is lost and nothing is duplicated. This is a **stale-fork** merge, not a
+collision of two implementations. The branch was merged away on 2026-08-06,
+kept going for another week (M5), and was never merged again; everything else
+moved on without it for five weeks. The two sides touched 12 of the same files,
+9 of which conflict, and **every conflict is "both sides added different things
+in the same place"** — union resolutions, except for exactly one hunk that
+needs a two-word edit (§5.1). There is no case where the two sides disagree
+about what the code should do.
+
+##### 2. Where the fork is
+
+```
+12cbcbf  2026-08-06  "mo"   <-- merge base, and the tip that PR #12 merged
+   |
+   |  OURS: rt-elastic-prototype, 10 commits, 2026-08-08 .. 2026-08-13
+   |        39 files, +10,679 / -175   (M5: PB24 + off-nadir)
+   |        8295fec setting up the tasks ... 69d577f "M5 done"
+   |
+   |  THEIRS: origin/main, 84 non-merge commits, 2026-08-21 .. 2026-09-18
+   |          167 files, +49,352 / -567 (inelastic, CDOM, Ed/solar, docs, proposals)
+   v
+3863b3f  2026-09-18  Merge pull request #24 from vicc-proposal  <-- origin/main
+```
+
+`git cherry origin/main rt-elastic-prototype` reports all 10 local commits as
+`+` — **none of the M5 work is on main in any form.** Conversely none of
+main's 84 commits are here.
+
+##### 3. Why it diverged
+
+The PR chain tells the story. PRs #9–#12 merged `rt-elastic-prototype` into the
+long-lived **`RT`** branch, not into `main`:
+
+| merge | date | what it merged |
+|---|---|---|
+| PR #9, #10, #11 | 2026-08-01 … 08-04 | `rt-elastic-prototype` → `RT` |
+| **PR #12** | **2026-08-06** | `rt-elastic-prototype` @ `12cbcbf` → `RT` |
+| PR #14 | 2026-08-23 | `inelastic-rt` → `RT` |
+| PR #21 | 2026-09-11 | `cdom-rt` → `RT` |
+| PR #13 | 2026-09-18 | **`RT` → `main`** (the whole five weeks, at once) |
+| PR #22, #23, #24 | 2026-09-18 | `profxj-patch-1`, `inelastic-rt`, `vicc-proposal` → `main` |
+
+So:
+
+1. **2026-08-06** — PR #12 takes the prototype at `12cbcbf` into `RT`. At that
+   point the two lines are identical. This commit is the merge base.
+2. **2026-08-08 → 08-13** — M5 is developed *here*, on `rt-elastic-prototype`,
+   and never PR'd. `inelastic-rt` and `cdom-rt` were cut from `RT` at or after
+   PR #12, i.e. **without M5**.
+3. **2026-08-21 onwards** — the inelastic and CDOM work edits the very same
+   modules M5 was editing (`types.py`, `validation.py`, `conventions.py`,
+   `conftest.py`), unaware of it. First `RT`-side commit to touch `robust/rt/`
+   after the base is `1d85f48`, 2026-08-21 — eight days after M5 finished.
+4. **2026-09-11 → 09-18** — the docs effort (`rt_docs_prompt_1.md`) sweeps
+   every module for Sphinx cleanliness, touching another two (`ztt.py`,
+   `baselines.py`).
+5. **2026-09-18** — PR #13 lands five weeks of `RT` on `main` in one merge, and
+   `git pull` now confronts a branch whose last common ancestor is 08-06.
+
+There is no rebase, no force-push, no rewritten history, and no duplicated
+implementation. **One fact explains all nine conflicts: M5 never went back.**
+
+##### 4. What each side actually added
+
+| file | ours (M5) | theirs (inelastic / CDOM / docs) | conflicts |
+|---|---|---|---|
+| `robust/rt/types.py` | `bb_w_mode` kwarg on `IOPs.from_total_bb`; `PhaseParams` extension | `a_ph`, `a_cdom` fields + kwargs | 3 |
+| `robust/rt/validation.py` | `FD_STEPS_EXTRA`, `default_steps`, masked `rrms`, `group_rrms(expected=)` | `_grad_vs_fd` refactor, `inelastic_gradient_report`, `cdom_gradient_report`, gate constants | 3 |
+| `robust/rt/conventions.py` | `SurfaceTransfer`, `SURFACE_TABLE`, `OLCI_GRID`, `wave_grid`, `bb_w(mode=)` | Raman excitation grid, `interp_spectrum` | 1 (`__all__`) |
+| `robust/rt/emulator.py` | per-model `Envelope` replacing the module constant | docstring/Sphinx polish | 2 (docstrings) |
+| `robust/rt/hybrid.py` | envelope wording | inelastic composition + docstring polish | 1 (comment) |
+| `robust/tests/conftest.py` | PB24 fixture + `needs_pb24` | `needs_l23_inelastic`, `needs_weights` | 2 |
+| `robust/tests/test_{conventions,emulator,validation}.py` | new M5 blocks appended | new inelastic blocks appended | 1 each |
+| `robust/rt/ztt.py` | `P_bb_from_phase`, `P_BB_PIVOT_DEG` | docstring polish only | auto-merged |
+| `robust/rt/baselines.py` | `O25Table`, `fit_o25_table` | docstring polish only | auto-merged |
+| `design/py/run_validation.py` | named-group tables (25 lines) | `inelastic_main`, figures (+684) | auto-merged |
+
+Everything else is disjoint: M5 alone owns `robust/rt/data/pb24.py` (1,479
+lines), `robust/rt/files/surface_pb24.npz`, `robust/tests/test_pb24.py`,
+`design/validation_pb24/`, `design/m5_report.md`,
+`claude_prompts/RT/rt_elastic_coding_prompt_7.md`; main alone owns
+`inelastic.py`, `inelastic_corr.py`, `cdom_fl.py`, `ed.py`, `solar.py`, all of
+`docs/`, `reports/`, and `proposals/`.
+
+Note that main *anticipated* M5 without implementing it — `emulator.py:738`
+("This keeps the M5 seam intact"), `validation.py:643` ("…the moment M5 goes
+off-nadir"), `test_validation.py:714`, and the `pb24` references throughout
+`design/` and `docs/using/limitations.md` are all placeholders written against
+the plan. M5 fills those seams; it does not contradict them.
+
+##### 5. Conflict-by-conflict resolution
+
+**Take the union** for eight of the nine files — the two sides added different
+kwargs, different `__all__` entries, different fixtures, or appended different
+test blocks at the same end-of-file:
+
+- `types.py` ×3 — keep `bb_w_mode` **and** `a_ph`/`a_cdom` in the signature and
+  in the numpydoc block. The *bodies* already auto-merged with both (`mode=bb_w_mode`
+  and `if a_ph is not None:` both survive below the marker), so dropping either
+  side of the signature yields a `NameError` at import. For the `PhaseParams`
+  docstring take HEAD's past tense ("M5 task 14 added…") — it is the same claim,
+  now true.
+- `conventions.py` ×1 — both `__all__` blocks, in order.
+- `conftest.py` ×2 — both fixture sets; they share no names.
+- `test_conventions.py`, `test_emulator.py`, `test_validation.py` ×1 each — both
+  appended blocks; no shared test names, no shared helper names
+  (`_in_domain`/`_wide_envelope` are M5-only).
+- `emulator.py` ×2, `hybrid.py` ×1 — prose only. **Take HEAD**: M5 genuinely
+  replaced `SUPPORTED_THETA_S` with the per-model `Envelope`, so main's text is
+  now stale. The constant itself survives as `DEFAULT_ENVELOPE`'s default
+  (`emulator.py:204,248`, asserted by `test_emulator.py:805`), so main's two
+  code-level references (`test_validation.py:295,579`) keep working.
+
+**5.1 The one hunk with teeth — `validation.py:846`.** Main refactored
+`gradient_report`'s comparison loop into a shared `_grad_vs_fd` helper so the
+three reports cannot drift; M5 rewrote the *setup* above it (the `perturbable`
+dispatch that made `theta_v`/`dphi`/`bb_w` expressible). Both changes are
+wanted, but main's replacement line reads
+
+```python
+dtype = jnp.asarray(a0).dtype
+```
+
+and `a0` is a local that only exists in **main's** version of the function —
+M5's rewrite removed that binding. A literal `--theirs` on this hunk gives a
+`NameError` the moment any gate runs. Resolve as:
+
+```python
+    dtype = jnp.asarray(iops.a).dtype
+    return {
+        name: _grad_vs_fd(scalar, name, step, dtype) for name, step in steps.items()
+    }
+```
+
+I diffed `_grad_vs_fd` (`validation.py:729`) against HEAD's inline loop: it is
+line-for-line the same arithmetic and the same two edge cases (`inf` for a step
+that left the domain, `0.0` for a genuinely-ignored variable), so this loses no
+M5 behaviour. After it, `partial` and `np` both remain used.
+
+##### 6. What will still be broken after the markers are gone
+
+The merge will be *clean* before it is *green*. Three items, in the order they
+will bite:
+
+1. **The docs build will fail, and it is a required job.** Main added a
+   `sphinx (-W)` CI job (`ci.yml:96`) and `conf.py` sets `nitpicky = True`
+   (`conf.py:197`), so a dangling cross-reference is an error. M5 was written
+   five weeks before that existed and still spells the old target:
+   `robust/rt/types.py:284`, `robust/rt/conventions.py:760` and
+   `robust/tests/conftest.py:267` say `:func:`robust.rt.forward``, which the
+   docs sweep renamed to `:func:`~robust.rt.hybrid.forward`` everywhere else.
+   Three edits.
+2. **`docs/api.rst` has no page for M5.** It carries an `automodule` for
+   `robust.rt.data.l23` but none for `robust.rt.data.pb24`, and nothing under
+   `docs/model/` mentions PB24, the OLCI grid, `SurfaceTransfer` or the
+   `Envelope`. Not a build failure, but the published API would silently omit
+   the largest module on this branch. Roughly a `pb24` section in `api.rst`
+   plus a `docs/model/surface.md`.
+3. **Cross-checks nobody has run.** `types.IOPs` now carries five optional
+   leaves from two independent authors; `hybrid.forward` composes inelastic
+   processes that have never seen an off-nadir geometry or a 12-band OLCI grid;
+   `run_validation.py` has an elastic path (ours) and an `inelastic_main`
+   (theirs) that were merged by text alone. The full suite plus both
+   validation drivers is the only thing that will tell us.
+
+##### 7. Recommendation
+
+**Resolve in place on this branch and PR it into `main`** — do not rebase, do
+not cherry-pick, do not restart M5 on a fresh branch off `main`.
+
+Rebasing 10 commits over 84 would replay these same nine conflicts up to ten
+times with no benefit; the merge commit is also the honest record of what
+happened. Cherry-picking M5 onto a fresh branch is the same work minus the
+history. The conflicts are small and all of them are additive.
+
+Suggested order:
+
+1. Resolve the eight union files; do `validation.py:846` per §5.1.
+2. `ruff check robust/ && ruff format --check robust/` (main's CI runs both).
+3. `pytest robust/tests` under `ocean14` — expect the PB24 tests to run from
+   the committed fixture and the inelastic ones from the committed weights, so
+   a green run needs no `$OS_COLOR`.
+4. Fix the three `:func:` targets, then `cd docs && make html` (that Makefile
+   target already passes `-W --keep-going`).
+5. Re-run both validation drivers and diff the committed tables — `design/py/run_validation.py`
+   (elastic + `--inelastic`) and `design/py/run_pb24_validation.py` — to confirm
+   the merge moved no numbers.
+6. Add the `api.rst`/`docs/model` pages for M5, then open the PR.
+
+Items 1–3 are the merge. Items 4–6 are the price of arriving five weeks late
+into a repo that grew a docs gate while we were away, and they are worth doing
+inside this PR rather than after it.
+
+**And the process fix, which matters more than the merge:** the prototype
+branch was treated as long-lived while `RT` was the actual integration branch.
+The Q&A/Report round in this very document (2026-08-15) and the report it
+produced (`reports/report_rt_elastic_model.md`) were written on the `RT` line —
+i.e. the elastic *narrative* moved on without the elastic *code*. Whatever M6
+looks like, cutting it from `main` after this PR lands, and PR'ing it back
+within days rather than weeks, avoids a repeat.
+
+#### Q&A
+
+**PQ1.** §7 recommends resolving in place and PR'ing this branch into `main`.
+Is that what you want, or would you rather I produce the resolution as a patch
+for you to inspect before anything touches the working tree? (You own all git
+commands; I would resolve files and stop before `git add`/`git commit` either
+way — the question is whether you want the resolved files written into the tree
+now.)
+
+>A. Yes, a PR into `main` sounds sensible.  We will do that.
+
+**PQ2.** §5 says "take HEAD" for the `emulator.py`/`hybrid.py` prose conflicts,
+on the grounds that M5's per-model `Envelope` superseded the `SUPPORTED_THETA_S`
+narrative. That silently retires wording that shipped in the published docs.
+Confirm that is the intent — or would you rather keep main's sentence and have
+M5's envelope described in an added paragraph?
+
+>A. I will follow your recommendation here.
+
+**PQ3.** How much of §6 belongs in this PR? My instinct is items 1 (the three
+`:func:` fixes, mandatory — CI is red without them) and 2 (the `pb24` API page,
+because an undocumented 1,479-line module is how modules stay undocumented), and
+to defer a `docs/model/surface.md` narrative page to its own prompt. Your call.
+
+>A. Let us do all of the work on this branch with 1 PR into `main`
+
+**PQ4.** Do you want the merged state *validated numerically* before the PR —
+i.e. re-run `run_validation.py` and `run_pb24_validation.py` and diff the
+committed tables in `design/validation/` and `design/validation_pb24/` — or is a
+green `pytest` enough for the PR, with the regeneration left to a follow-up?
+Re-running needs `$OS_COLOR/SD/v5` (PB24) and the L23 netCDFs; confirm both are
+on this laptop.
+
+>A. yes, we will re-run.  If the files aren't on this laptop, I will run on 
+the `profx` worksation when the time comes.
+
+**PQ5.** The inelastic/CDOM work has never been exercised off-nadir or on the
+12-band OLCI grid, and M5 has never seen a Raman or fluorescence term. Nothing
+about the merge forces those to meet — but they now live in one `hybrid.forward`.
+Do you want a cross-check (even a smoke test: inelastic on, `theta_v = 40°`)
+added as part of this PR, or is that M6's problem?
+
+>A. Is there actually an M6 waiting for us?  As you will note, I have already merged
+in the inelastic processes.  Our goal now is to provide a complete forward model
+with all of the processes.
+
+##### Round 2 (2026-09-19)
+
+**Where your answers leave us.** A1/A3 settle the shape: one branch, one PR into
+`main`, carrying the merge *and* the docs debt. A2 keeps the "take HEAD" prose
+resolutions. A4 says re-run — and I can report that nothing needs `profx`:
+
+| | |
+|---|---|
+| `$OS_COLOR` | `/Users/xavier/Projects/Oceanography/data/Color/` |
+| PB24 | `SD/v5/` — **10,001 files**, `SD_OLCI_no_R_0001.nc` onward ✅ |
+| L23 elastic (X=1) | `Loisel2023/Hydrolight1{00,30,60}.nc` ✅ |
+| L23 inelastic (X=2/X=4) | `Hydrolight2{00,30,60}.nc`, `Hydrolight4{00,30,60}.nc` ✅ |
+| `ocpy` resolution | `loisel23.l23_path` resolves under `ocean14` and all six inelastic files test `True` ✅ |
+
+So both validation drivers and the full test suite can run here. (`$OS_COLOR_DATA`,
+which the Setup prompts referenced, is unset — `ocpy` finds L23 through `$OS_COLOR`,
+so nothing is broken, but the prompt doc's path is stale.)
+
+**A5 is the one that changes the plan, so I want to answer it before asking
+anything else.**
+
+*Yes — there is an M6, and it is already written.* `claude_prompts/RT/rt_elastic_coding_prompt_7.md`
+exists **only on this branch** (main has prompts 1–6), so this PR is what would
+carry it to `main`. It is a scoping prompt: its task 0 is "decide what M6 is",
+and it carries two questions to you — **Q18** (which route, and are HydroLight
+runs on the table) and **Q19** (does the prototype's headline claim need
+restating) — posed 2026-08-13 and never answered, because the work moved to the
+`RT` line the following week.
+
+And the reason M6 needs scoping is the part I should have led with in the
+Forensics report. I read `design/m5_report.md` in full for this round:
+
+> **M5's gate FAILED, on both splits, at every seed. No PB24 weights exist.
+> `load_default()` is still the L23 nadir model.**
+
+The cause is not the network. `Ψ_KLu(ψ)` — ZTT's quartic, fitted for ψ ≳ 134° —
+crosses zero at **110.4°**, so in PB24's own sanctioned window 42% of geometries
+extrapolate, 16% are sign-flipped, and **22.3% of ZTT's predicted `rrs` are zero
+or negative**. The hybrid's correction is *bounded and relative* (`|δ| ≤ 0.5`), so
+`1 + δ` can never reach a negative backbone. The oracle correction — chosen with
+the truth in hand — scores 5324% where the trained model scores 5484%: the model
+is within 3% of the best its functional form permits. L23's minimum ψ is 139.7°,
+which is why nadir-only Week-1 could not have found this and why none of the
+0.30% numbers are affected.
+
+So the merge brings to `main` a large, gated **infrastructure** delivery (PB24
+loader and splits, the geometry-aware surface transfer — 7.2× better than Lee's
+nadir constants at θv = 60°, `O25Table` over the full grid, per-model `Envelope`,
+`rrms` masking, 279 → 416 tests) **plus a negative result**, not a BRDF-capable
+forward model.
+
+**Which is why I want to check A5's goal against it.** "A complete forward model
+with all of the processes" is true today along the *process* axis — elastic +
+Raman + chlorophyll fluorescence + CDOM fluorescence all compose in one
+`hybrid.forward` — but every one of those processes is **nadir-only**. I checked:
+`inelastic.py`, `inelastic_corr.py`, `cdom_fl.py` and `ed.py` contain no reference
+to `theta_v` or `dphi` at all; they interpolate over three solar-zenith anchors and
+default to the L23 grid. The BRDF axis is the one M5 went after and did not get,
+and it is blocked on the backbone, not on effort.
+
+**One concrete contradiction the merge creates.** `docs/model/forward.md:173–180`
+tells readers that `on_out_of_domain="ztt"` makes the model "degrade to the
+analytic backbone exactly where the emulator was measured to be unreliable", and
+the elastic report's §5 item 5 says "the domain check correctly flags any
+off-nadir view". Both were written 2026-08-15, on the `RT` line, two days *after*
+M5 measured that the thing it degrades *to* returns non-physical `rrs` on 22.3%
+of off-nadir geometries. Neither statement was wrong when written and neither
+author could have known. After this merge they sit in one tree with the
+measurement that contradicts them, and the published site is the one place a
+reader outside the project would look.
+
+---
+
+**PQ6 — Q18 and Q19 have been open since 2026-08-13. Answer them in this PR's
+discussion, or after it lands?**
+
+My recommendation is **now, at least provisionally**, because Q18's Route C
+("restrict the claim and ship what works") is largely a *documentation* action —
+and this PR is already opening `docs/`. Doing C here costs almost nothing extra
+and makes the merged state honestly describable; B (change the correction's form
+from bounded-relative to additive or unbounded) is a few days of experiment and
+is a separate PR; A (replace or repair the backbone) is the real answer and is
+not ours alone to make. If you would rather keep the PR purely mechanical, say so
+and I will carry Q18/Q19 forward untouched.
+
+>A. I have answered Q18 and Q19 in the coding prompt.  Proceed accordingly
+
+**PQ7 — Does this PR correct the `on_out_of_domain="ztt"` guidance?**
+
+Smallest honest fix: a note on `docs/model/forward.md` and in
+`docs/using/limitations.md` saying the `"ztt"` policy is a safe degradation
+*within the nadir domain the site documents*, and that off-nadir the backbone it
+falls back to is measured non-physical on 22.3% of PB24 — citing
+`design/m5_report.md` §2.1. Alternative, if you would rather the code carry it
+than the prose: make the policy refuse (or warn separately) when
+`backbone_is_usable` is False, which M5 already built. **Prose, code, or both?**
+I lean prose-only in this PR — changing a shipped policy's behaviour inside a
+merge PR is how a merge PR stops being reviewable.
+
+>A. Prose only for now
+
+**PQ8 — Which reading of "complete forward model with all of the processes" is
+the goal we are working to?**
+
+(a) **All processes, nadir, L23-like water** — essentially what `main` has today,
+plus M5's infrastructure and an honest envelope. Reachable in this PR.
+(b) **All processes across the BRDF** — needs the backbone question settled
+(Q18 Route A or B) before any of the inelastic heads can be asked for an
+off-nadir geometry they have never seen.
+
+I have been assuming the goal is (b) and the PR delivers (a) as a way-station.
+If (a) *is* the goal, then M6 is much smaller than prompt 7 assumes and Q18
+collapses to Route C. Worth being explicit, because it decides whether M6 is a
+documentation milestone or a physics one.
+
+>A. Yes, let us make (a) the goal for now.
+
+**PQ9 — Are HydroLight runs on the table?** (This is Q18's blocking half, and it
+now has a second sponsor.)
+
+Robert Frouin's comment in this document says it directly: *"use a full
+radiative-transfer solver (most naturally HydroLight) as the reference forward
+model, with particle phase-function parameters explicitly varied"*, with a fast
+differentiable emulator on top — which is the architecture we have. M5 arrived at
+the same requirement from the other end: Route A needs reference data that
+tabulates an **asymptotic** K (PB24 tabulates seven K's and all seven vary ~1.4×
+with solar zenith, so they are surface K's — µ∞ cannot be refit from it), and it
+needs the VSF *family* varied rather than only the Fournier–Forand parameter,
+which is the one headline gap M5 never reached. Two independent routes to the
+same ask is the strongest argument this project has for commissioning them. **Is
+that possible — and if so, on what timescale?**
+
+>A. Yes, it is possible and will be the next major development task.
+
+**PQ10 — Two known contaminations ship with this PR unless we fix them.**
+`design/m5_report.md` §6 records that the shipped `robust/rt/files/surface_pb24.npz`
+was fitted on a 400-realisation split while the benchmark split 200 and the gate
+800 — and `make_splits` permutes whatever set it is given, so `SPLIT_SEED = 23`
+does not name a partition. 31 of the benchmark's 40 held-out realisations were in
+the transfer's training set; residual ~1.8% median, and it biases *toward* O25, so
+every hybrid FAIL is conservative. The fix is to refit the transfer on each
+consumer's own train mask. **Fix in this PR, or merge it as recorded debt with an
+issue?** I lean fix-it-here — that `.npz` is a shipped artefact of the package,
+and "known-contaminated" is a bad property for a file to acquire by being merged
+to `main`.
+
+>A. Fix it here
+
+**PQ11 — What exactly gets re-run, and do the regenerated tables get committed?**
+
+Proposed, in order, all under `ocean14`:
+1. `pytest robust/tests` — expect ~416 + main's inelastic/CDOM tests, now with
+   `$OS_COLOR` present so the 44 previously-skipped ones run too.
+2. `python design/py/run_validation.py` (elastic) and `--inelastic` → diff
+   `design/validation/`.
+3. `python design/py/run_pb24_validation.py` → diff `design/validation_pb24/`.
+4. `cd docs && make html` (that target already passes `-W --keep-going`).
+
+Two flags on this. **`train_emulator_pb24.py` exits 1 by design** when the gate
+fails — that is M5's correct behaviour, not a regression, and whoever reviews the
+PR needs to know before they see a red exit code. And `design/py/fit_surface.py`
+is only re-run if PQ10 says fix. **Do we commit regenerated tables even where the
+numbers are unchanged**, or only where they move? I lean commit-only-if-moved, so
+the PR diff stays readable and any movement is visible rather than buried in
+timestamp churn.
+
+>A. Commit-only-if-moved
+
 ## Comments
 
 ### Robert's
@@ -871,3 +1362,426 @@ document map; references. Links to the sibling docs are relative
 
 Next: JXP reviews the report and dispatches §6's open items; prompt doc 6 (M5)
 gets detailed from §7.
+
+### 2026-09-19 (Merge forensics: why `origin/main` conflicts with `rt-elastic-prototype`)
+
+Executed the 1st PR prompt. Read-only git throughout — the working tree was left
+exactly as found, mid-merge with `MERGE_HEAD` present and nine files unmerged.
+No file was staged, committed, or resolved.
+
+**What I examined.** `git merge-base` → `12cbcbf` (2026-08-06), the tip PR #12
+merged. `git cherry origin/main rt-elastic-prototype` → all ten local commits
+marked `+`, so none of M5 exists on main in any form. Walked the PR chain's
+parents (`git log --format='%h %P'` on #9–#14, #21–#24) to establish that #9–#12
+targeted the long-lived `RT` branch rather than `main`, and that `RT` reached
+`main` only on 2026-09-18 via PR #13. Compared the three `robust/` trees at base,
+HEAD and `MERGE_HEAD`. Listed the twelve files touched on both sides (`comm -12`
+over the two name-only diffs) and read every conflict hunk, plus the full
+base→main diffs of the three files that auto-merged (`ztt.py`, `baselines.py`,
+`run_validation.py`) to check for silent semantic conflicts.
+
+**Finding.** A stale fork, not a collision: M5 was developed here 08-08 → 08-13
+and never PR'd back, while `inelastic-rt`, `cdom-rt` and the docs sweep edited
+the same four modules from 08-21 onwards, unaware of it. Ours +10,679 over 10
+commits; theirs +49,352 over 84. Eight of the nine conflicts are pure unions
+(different kwargs, different `__all__` entries, different fixtures, test blocks
+appended at the same EOF). The two auto-merged code files were docstring-only on
+main's side, so nothing silent got through there.
+
+**The one hunk with teeth**, worth recording because a literal `--theirs` would
+import fine and fail at runtime: `validation.py:846`. Main refactored
+`gradient_report`'s comparison loop into a shared `_grad_vs_fd`; M5 rewrote the
+setup above it. Both are wanted, but main's replacement reads
+`dtype = jnp.asarray(a0).dtype` and `a0` is a binding M5's rewrite removed —
+`NameError` on the first gate. Resolution is `jnp.asarray(iops.a).dtype`. I
+diffed `_grad_vs_fd` against HEAD's inline loop first: identical arithmetic and
+identical edge cases, so taking main's helper loses no M5 behaviour.
+
+**Also flagged**, because clean ≠ green: main added a `sphinx (-W)` CI job with
+`nitpicky = True`, and M5 predates it — three surviving `:func:`robust.rt.forward``
+targets (`types.py:284`, `conventions.py:760`, `conftest.py:267`) that the docs
+sweep renamed everywhere else will turn that required job red. `docs/api.rst`
+also has no `automodule` for the 1,479-line `robust/rt/data/pb24.py`.
+
+Recommended resolving in place and PR'ing this branch into `main` — a rebase
+would replay the same nine conflicts up to ten times for nothing — and noted the
+process cause: this branch was treated as long-lived while `RT` was the real
+integration branch, which is why the elastic *report* (2026-08-15) advanced on a
+line that did not carry the elastic *code*.
+
+Wrote Forensics above (timeline, per-file table, per-conflict resolutions, the
+post-merge punch list, a six-step order of work) and posed PQ1–PQ5 in
+Prompts/PR/Q&A: whether to write resolutions into the tree now, how to treat the
+superseded `SUPPORTED_THETA_S` prose, how much of the docs debt belongs in this
+PR, whether to re-run both validation drivers before it, and whether an
+inelastic × off-nadir smoke test is this PR's job or M6's.
+
+Next: JXP answers PQ1–PQ5; then resolve, lint, test, fix the docs targets, and PR.
+
+### 2026-09-19 (Reviewed PA1–PA5; posed Round 2 before touching the conflicts)
+
+Executed the 2nd PR prompt. No conflict was resolved and no file outside this
+prompt doc was edited — the tree is still mid-merge exactly as in the previous
+entry.
+
+**Checked the data claim rather than asserting it** (PQ4). `$OS_COLOR` is
+`/Users/xavier/Projects/Oceanography/data/Color/`; `SD/v5/` holds 10,001 PB24
+files; `Loisel2023/` holds the elastic X=1 set (`Hydrolight1{00,30,60}.nc`) and
+all six X=2/X=4 files `conftest.L23_INELASTIC_FILES` wants. Imported `ocpy` under
+`ocean14` and confirmed `loisel23.l23_path` resolves to that directory with all
+six files present. **Nothing needs `profx`.** Noted in passing that
+`$OS_COLOR_DATA`, which the Setup prompts cite, is unset — harmless, `ocpy` goes
+through `$OS_COLOR`, but the prompt doc's path is stale.
+
+**A5 sent me to read `design/m5_report.md` and `rt_elastic_coding_prompt_7.md`,
+and that is the substance of this round.** Yes, M6 exists — prompt 7 is on this
+branch only (main has 1–6), it is a *scoping* prompt whose task 0 is "decide what
+M6 is", and it carries Q18 (route A/B/C; are HydroLight runs on the table) and
+Q19 (restate the headline claim?) unanswered since 2026-08-13.
+
+The thing I should have put in the Forensics report and did not: **M5's gate
+failed.** Both splits, every seed; no PB24 weights exist; `load_default()` is
+still the L23 nadir model. `Ψ_KLu(ψ)` is fitted for ψ ≳ 134° and crosses zero at
+110.4°, so 42% of PB24's sanctioned geometries extrapolate, 16% are sign-flipped,
+and 22.3% of ZTT's `rrs` come out zero or negative. The hybrid's bounded
+*relative* correction (`|δ| ≤ 0.5`) cannot reach a negative backbone, and the
+oracle proves the form rather than the network is the limit — 5324% oracle vs
+5484% trained, within 3%. L23's minimum ψ is 139.7°, so none of the Week-1
+numbers are touched, and nadir-only work could not have found it. Consequence for
+the merge: what goes to `main` is gated *infrastructure* (PB24 loader/splits,
+surface transfer 7.2× better off-nadir, full-grid `O25Table`, per-model
+`Envelope`, `rrms` masking, 416 tests) **plus a negative result** — not a
+BRDF-capable model.
+
+**Tested A5's goal against the code instead of taking it at its word.**
+"Complete forward model with all of the processes" holds on the *process* axis
+today, but `grep` shows `inelastic.py`, `inelastic_corr.py`, `cdom_fl.py` and
+`ed.py` contain **no occurrence of `theta_v` or `dphi`** — every process is
+nadir-only, interpolating three solar-zenith anchors. So PQ8 asks which reading
+is the goal: all-processes-at-nadir (reachable in this PR) or all-processes
+across the BRDF (blocked on Q18).
+
+**Found one concrete contradiction the merge creates.** `docs/model/forward.md:173–180`
+presents `on_out_of_domain="ztt"` as degrading "to the analytic backbone exactly
+where the emulator was measured to be unreliable", and the elastic report §5 item
+5 says the domain check "correctly flags any off-nadir view". Both written
+2026-08-15 on the `RT` line — two days *after* M5 measured that the fallback
+target is non-physical on 22.3% of off-nadir geometries. Neither was wrong when
+written; after this merge they share a tree with the measurement that refutes
+them, on the published site.
+
+**Posed PQ6–PQ11**: answer Q18/Q19 now or after the merge (I recommend now, since
+Route C is mostly a docs action and this PR already opens `docs/`); fix the
+`on_out_of_domain` guidance in prose, in code, or both (I lean prose — changing a
+shipped policy inside a merge PR makes it unreviewable); which reading of
+"complete forward model"; whether HydroLight runs are on the table (Q18's
+blocking half, and Robert Frouin's comment in this doc asks for exactly the same
+thing from the other direction — two independent routes to one ask); whether to
+fix the two `m5_report.md` §6 contaminations before `surface_pb24.npz` ships to
+`main` (I lean fix); and the exact re-run list, flagging that
+`train_emulator_pb24.py` exits 1 *by design* so a reviewer does not read the gate
+working as a regression.
+
+Next: JXP answers PQ6–PQ11; then resolve the nine conflicts, lint, test, docs,
+re-run, PR.
+
+### 2026-09-20 (Resolved the nine merge conflicts; 674 tests pass, ruff clean)
+
+Executed the 3rd PR prompt. All nine conflicted files are resolved **in the
+working tree**; nothing was staged or committed — `git status` still shows them
+`UU`, and `git add` is yours.
+
+**Resolutions.** Eight went the way the Forensics report predicted:
+
+| file | resolution |
+|---|---|
+| `types.py` ×3 | union on the signature and the numpydoc block (`bb_w_mode` **and** `a_ph`/`a_cdom` — the *bodies* had already auto-merged with both, so dropping either half was a `NameError`); HEAD's past-tense `PhaseParams` docstring |
+| `conventions.py` ×1 | union of both `__all__` groups |
+| `emulator.py` ×2, `hybrid.py` ×1 | HEAD — per PA2, M5's per-model `Envelope` supersedes the `SUPPORTED_THETA_S` prose; the constant itself survives as `DEFAULT_ENVELOPE`'s default, so main's two code references still resolve |
+| `test_{conventions,emulator,validation}.py` ×1 each | union. Checked first for name collisions between the two appended blocks and against the rest of each file: **none**, 0 of 66 names |
+| `validation.py` ×2 | union of `__all__` and of the constants block |
+| `validation.py` ×1 | the custom resolution from Forensics §5.1 |
+
+**`conftest.py` was not a union, and a union would have been wrong.** The two
+conflict hunks *interleave* two different functions that happen to share a
+`Returns/-------/bool` docstring block between them — concatenating ours+theirs
+yields `def pb24_available():` immediately followed by `def l23_inelastic_available():`
+with one body between them. Hand-wrote the region instead, emitting both function
+families complete: PB24 (`PB24_SMALL_FIXTURE`, `pb24_available`, `needs_pb24`,
+`pb24_reader`, `pb24_small_batch`) then L23-inelastic (`l23_inelastic_available`,
+`needs_l23_inelastic`, `_correction_weights_committed`, `needs_weights`). This is
+the one conflict a mechanical resolver would have silently broken.
+
+**Two things the mechanical pass got wrong, both caught by ruff, not by me.**
+Recording them because the pattern is the point:
+
+1. `validation.py`'s third hunk carried more than it looked like. Main's side of
+   the marker was not just the four-line tail of `gradient_report` — it was that
+   tail **plus the whole of `inelastic_gradient_report` and `cdom_gradient_report`**,
+   ~200 lines. Replacing the block with the corrected tail deleted both functions;
+   `F822 Undefined name 'cdom_gradient_report' in __all__` is what said so. Restored
+   them verbatim from `MERGE_HEAD`.
+2. They then wanted `from . import types`, which main added and M5 removed (M5's
+   rewrite uses `dataclasses.replace` and constructs no containers). Git's
+   auto-merge of the import block took M5's. Re-added; `types` imports
+   `conventions` only, so no cycle.
+
+The §5.1 fix itself held: `dtype = jnp.asarray(iops.a).dtype` in place of main's
+`a0`, which M5's rewrite had removed.
+
+**The freeze fired, which is the merge's only real decision.** `test_env.py` —
+M5 task 15, and on this branch only, so main's inelastic work never saw it —
+failed three ways: `forward`/`rrs_forward` gained `inelastic` and `corrections`,
+`IOPs` gained `a_ph`/`a_cdom`, `Geometry` gained `Ed`. Checked each against what
+§8 permits before touching anything: all five are keyword-only or appended, all
+default to `None`, the five positional parameters are untouched in name, order
+and default, and nothing was renamed, reordered or removed. So this is a
+permitted mutation and the constants needed re-baselining, not the merge
+rethinking. Updated `FROZEN_FORWARD` and `FROZEN_CONTAINERS` with a comment
+recording the delta and why it qualifies — a freeze that is re-baselined without
+a written reason is not a freeze.
+
+**Verification** (all under `ocean14`): `ruff check robust/` clean;
+`ruff format` reformatted three files (union joins wanted blank lines) and now
+passes `--check`; `pytest robust/tests` → **674 passed, 5 skipped, 0 failed**,
+1m46s. The 5 skips are all principled — three machine-anchored bitwise hash pins
+(`ROBUST_HASH_ANCHOR` is `tank`/`mac`, not this laptop), one removed fallback
+path, one undefined azimuth at the poles. **No data skips**, confirming both PB24
+and L23 are genuinely in play rather than quietly absent.
+
+Still to do, from the answers already given and untouched by this prompt: the
+three `:func:`robust.rt.forward`` targets (`conftest.py:267`,
+`conventions.py:757`, `types.py:277`) that the `-W`/nitpicky docs job will reject;
+the `pb24` API page; the PQ7 prose note on the `on_out_of_domain="ztt"` guidance;
+the PQ10 surface-transfer refit; and the PQ11 re-runs.
+
+Next: `git add` the nine files, then the docs and re-run work.
+
+### 2026-09-20 (PR prompt 4: xrefs, the §6 contamination fixed, everything re-run)
+
+Executed the 4th PR prompt, (a) → (b) → (c) in the order it asks for. 19 files
+changed, nothing staged.
+
+**(a) The three `:func:` targets — and eleven more I had not found.** The three
+named targets went to `:func:`~robust.rt.hybrid.forward``. Then I built the docs
+to check the claim in the prompt, which came from my own Forensics report, and it
+was wrong: **17 nitpicky warnings, not 3.** Every one traced to M5 code, none to
+main's — M5 predates the docs gate by five weeks, so nothing had ever linted its
+docstrings. Fixed at source, in the style `docs/conf.py` argues for at length
+("an ignore list whose entries are English sentences is a list of defects
+promoted to exceptions"):
+
+* `wave : ndarray` → `numpy.ndarray`; `names : iterable of str` → `sequence of
+  str` (the sanctioned napoleon family).
+* `mode : {"clamp", "extrapolate", "raise"}, optional` → `mode : str, optional`,
+  options in prose — main's own spelling for `on_out_of_domain`.
+* `PB24_ENVELOPE` and `DEFAULT_ENVELOPE`: a `#:` comment whose first line
+  contains a colon has its left half read as a *type*, so both were being parsed
+  as classes named "Q14's sanctioned angles for a PB24-trained model" and "The
+  envelope M0-M4 behaved as if it had". Rewritten in the `#: Type: text` form.
+* **`Envelope`, `DEFAULT_ENVELOPE`, `SUPPORTED_THETA_S`, `SUPPORTED_THETA_V` were
+  missing from `emulator.__all__`.** autodoc documents only what `__all__` names,
+  so M5's headline class was undocumented and every `:class:`Envelope`` reference
+  in the package dangled. That is the one that mattered: the fix is a public-API
+  correction, not a docstring tweak.
+
+17 → **2 warnings**, and both remaining are `robust.rt.data.pb24.PB24Batch` /
+`Splits`, which need the `automodule` that prompt 5(b) adds. Left deliberately.
+
+**(b) The §6 contamination, fixed.** Added `pb24.fit_transfer(batch, train)` —
+the table fitted from a batch's own training rows — and pointed both consumers at
+it: `run_pb24_validation.py` refits per split kind, `train_emulator_pb24.py` per
+`(stride, kind)`. Neither calls `conventions.default_transfer()` now. The grid is
+built from the angles *present in* `train`, so under the geometry split the
+held-out nodes cannot appear in the table at all. Three regression tests in
+`test_pb24.py`; `fit_surface.py` routed through the same helper so the shipped
+table and the consumers share one code path.
+
+**The packaged artefact did not move numerically.** Regenerating reproduced `A`
+and `B` bit-identically — max |ΔA| = max |ΔB| = 0 — and only the provenance
+string changed, from `"320 training realisations"` to `"320 training realisations
+(1-400), 1300 geometry cells, 415982 samples"`. That is the whole lesson: the
+file was never wrong, and a count-without-a-set is exactly why the overlap was
+invisible from it. §6 rewritten to say fixed, how, and this.
+
+**(c) Re-ran everything, and committed only one of the three.** The attribution
+matters more than the diffs:
+
+* **PB24 — committed.** Gordon's and ZTT's columns came out **bit-identical** to
+  the committed numbers across every file; only O25's moved. That is the proof
+  the machine is not a variable here (the PB24 path trains nothing — lstsq and
+  analytic throughout), so every change is attributable to the refit. Headline
+  held-out 6.53 → **6.48**; `bp_band` 6.02 → 5.99; **geometry split 22.46 →
+  24.64**, the leak closing: the shipped table had seen the very geometry nodes
+  that split holds out.
+* **Elastic — restored, not committed.** Only the freshly-trained MLP columns
+  moved; Gordon/ZTT/O25 are identical to 4 decimals at all 81 wavelengths. I
+  checked run-to-run determinism (two runs, bitwise identical here) and diffed
+  `build_models`, `zenith_study`, `fit` and `features` against the merge base —
+  code-identical. The committed artefacts date from **2026-08-07** and the repo
+  already documents why they will not reproduce here: `strict_bits_on_anchor`
+  says "the elastic pins were computed on the tank server", this host anchors
+  nothing, and all four bitwise pins skip. Throughput moved 3.76 → 2.25 ms for
+  ZTT, which is the same statement in plainer form. Committing would replace tank
+  numbers with this laptop's and they would flip back on the next tank run.
+* **Inelastic — restored, not committed.** The accuracy metrics *reproduce*: three
+  values differ in the 4th decimal and nothing else. Only wall-clock moved —
+  median speed ratio 1.59× → 1.90×, absolute times ~3.5× faster — and the gate
+  still PASSes (≤ 2×). Same machine-stamp argument.
+
+`pytest robust/tests` **677 passed, 5 skipped** (674 → 677 = the new
+`fit_transfer` tests); ruff clean over `robust/` and `design/py/`. Smoke-ran the
+edited gate script (`--quick --dry-run`): still FAILs and still exits 1, as
+designed, with the fairness line now reading "O25 fitted in rrs 5.07% vs via
+Rrs+transfer 5.66%" through the per-split table.
+
+**One thing to look at before the PR.** The breakdown figures now fit the
+transfer in-window (matching O25's own coefficients, which were already fitted
+`train & in_window`) and score across the full angle range, so O25 looks worse
+past 70°: 17.52 → 24.25 at θv = 80°. I tested the mechanism rather than asserting
+it — restricted to the sanctioned 0-70° window the old and new tables agree to
+**≤ 1% at every wavelength** (6.53 vs 6.48 total), and the entire divergence lives
+in the shell (21.06 → 23.50). So the fix costs nothing where the model is claimed
+to work, and what changed is a number about angles we do not claim. The old state
+was incoherent — in-window coefficients, all-geometry transfer — but this is a
+rival's number moving, and m5_report §7's third defect was exactly that, so it is
+JXP's call rather than mine.
+
+Next: prompt 5 — the `pb24` automodule (which clears the last 2 warnings),
+`docs/model/surface.md`, the PQ7 prose, Route C, and the PR description.
+
+### 2026-09-22 (PR prompt 5: the docs half, Route C, and the PR draft)
+
+Executed the 5th PR prompt, (a) → (d). `cd docs && make html` **succeeds** under
+`-W --keep-going` with `nitpicky = True`; `pytest robust/tests` 677 passed, 5
+skipped; ruff clean.
+
+**(a) The `on_out_of_domain="ztt"` qualification, prose only.** A warning box in
+`docs/model/forward.md` directly under the policy's definition, and a new section
+in `docs/using/limitations.md`. Neither touches the two verbatim quote boxes on
+that page — its whole premise is character-for-character quotation, so the M5
+finding goes in a section that says plainly it postdates both reports. The
+policy's behaviour is untouched, as asked. The framing I settled on: the domain
+check speaks for the *emulator*, and cannot tell you the backbone is also out of
+its depth — which is why a policy named after the backbone is the trap.
+
+**(b) M5's documentation.** A `data.pb24` section in `docs/api.rst` and a new
+`docs/model/surface.md` covering the surface transfer, the second wavelength
+grid, and the per-model envelope, added to the model toctree. Adding pb24 to
+autodoc immediately exposed **ten more nitpicky failures** in its docstrings —
+the same families as prompt 4's: `dict of str to X` (napoleon reads "str to X"
+as a class), braced enums, a `:func:` pointing at a private function, `iterable`
+where `sequence` is the sanctioned noun, and one more `#:` comment whose first
+line carried a colon so "Q14" was being parsed as a type. Fixed at source. The
+page ends with a section called *What none of this bought*, because documenting
+infrastructure built for a milestone that failed without saying so would be the
+wrong page.
+
+**(c) Route C — and the literal version of it would have backfired.** The prompt
+doc says "declare the model valid where the backbone is (ψ ≳ 134°, bb/a ≤ 0.1)".
+I measured the coverage of that statement instead of asserting it, on the full
+9960-sample L23 batch and on PB24 inside its own 0-70° window:
+
+| | L23 (nadir) | PB24 (0-70°) |
+|---|---|---|
+| ψ ≥ 134° | **100 %** | 58.1 % |
+| bb/a ≤ 0.1 at every band | **25.0 %** | 6.7 % |
+| both | 25.0 % | 3.9 % |
+| backbone physical | **100 %** | 75.0 % |
+
+**Taken literally, Route C would have declared 75 % of L23 out of envelope** —
+including most of the data the 0.30 % headline is measured on. And it would have
+been the wrong call: the backbone is physical on **100 %** of L23 regardless,
+so the µ∞ extrapolation at nadir is real and benign, which M5's own attribution
+already implied (µ∞ ~1-5 % of the non-physical predictions against ~68-71 % for
+`Ψ_KLu`). So I implemented it as an asymmetry, argued rather than asserted: **ψ
+is a boundary, bb/a is a disclosure.** Written into `design/prototype_summary.md`
+as a new envelope section with the scope from PQ8 stated once and meant
+literally, and onto the public site as *Where the model is valid, with the
+coverage measured*. Q19 is satisfied in the same pass — the gate failure, the
+oracle number, and "no PB24 weights exist" are now on both documents.
+
+Two provenance corrections fell out of the measuring, both small and both real:
+
+- `ztt.py` said L23's bb/a "reaches ~0.31". Measured, that is the **99th
+  percentile**; the maximum is **0.59** and 23.6 % of values exceed the fitted
+  0.1. The line understated the extrapolation by a factor of two. Corrected, with
+  the median and percentile spelled out so the next reader cannot repeat it.
+- My own first draft of `surface.md` claimed every number on it had been
+  re-measured in this environment. Three had not — they are quoted from the
+  `SurfaceTransfer` docstring. Reworded to say which are which.
+
+**(d) The PR description**, drafted to `design/pr_description.md`. It leads with
+the negative result rather than the infrastructure, because that is the finding;
+states what the branch does not claim as five numbered items; records Route C
+with the coverage table and the reason the literal version was not used; and says
+M6 is now Route A — the HydroLight runs — with the two requirements M5 measured
+(reference data tabulating an **asymptotic** K, and the VSF *family* varied, not
+just the Fournier-Forand parameter), noting that Robert's review asks for the
+same thing from the other direction. It closes with a reviewer's note flagging
+the one judgment call from prompt 4 that moves a rival's number.
+
+Next: JXP reviews, commits, and opens the PR.
+
+### 2026-09-22 (PR prompt 6: wrote claude_prompts/RT/hydrolight_prompts.md)
+
+Executed the 6th PR prompt. New doc, 362 lines, eight run requests (R1–R8)
+grouped into three commissioning batches. Nothing else in the tree touched.
+
+**What I read first.** The existing asks were already scattered across four
+documents and written at four different levels of specificity: the inelastic
+design §8 has a six-item wishlist in one line each; the CDOM design §7 already
+expands one of them into a proper commissioning spec; the inelastic report §7
+ranks them; and M5's Route A requirement lives only in `m5_report.md` §3 and
+prompt 7's Q18. So the job was less "invent runs" than "reconcile four lists,
+make them specific, and put the elastic and inelastic asks in one campaign" —
+which is the whole point, because they want the same geometry grid.
+
+**The finding that organised the document.** Tabulating what L23 and PB24 each
+cover made the gap obvious in a way the prose never did: **the axes are
+disjoint.** L23 has Raman and fluorescence but is nadir-only, three zeniths, one
+fixed Fournier–Forand. PB24 has 1300 geometries and a varying `B_p` but its files
+are literally `SD_*_no_R_*` — **no Raman, no fluorescence, no CDOM**. So *no
+dataset this project holds has an inelastic process at any off-nadir geometry, or
+at any solar zenith other than three, or under more than one phase function.* The
+correction heads were trained at nadir and interpolate three anchors; the elastic
+emulator has the geometry and no inelastic physics to learn from. That crossing
+(R3) is the most valuable inelastic run and it closes both reports' sharpest
+caveat at once.
+
+Underneath both sits the absence that closed Route A: **neither dataset tabulates
+an asymptotic `K∞`**, and both `µ∞ = a/K∞` and `F(ψ) = K_Lu/K∞ − 1` are defined
+against it. Hence R1 leads, and the doc says plainly that if only one run is
+possible it is R1 — every other item assumes the backbone question is answerable.
+
+**Specifics I pinned rather than left vague**, since a wishlist item nobody can
+price does not get run: R1 asks for an *IOP grid* on homogeneous water (the
+asymptotic regime only exists there — deliberately *simpler* than L23's
+stratified scenes) spanning `bb/a` 1e-4 to ≥ 3 against TT2017's fitted 1e-4–0.1,
+`η_bb` 0.01–0.98, ≥ 25 optical depths, and geometry reaching ψ ≤ 70°. R2 asks for
+**three VSF families at matched `B_p`** — the matching *is* the experiment, or a
+family effect is confounded with a backscatter-ratio effect. R3 asks 0–75° in 15°
+steps with off-nadir views and X=1/2/4 on the same water bodies, so `X2−X1` and
+`X4−X2` stay the clean per-process truth channels the current model is built on.
+
+**A metadata contract, ten items**, because most of it is unrecoverable after the
+fact — and one item is a live foot-gun the CDOM design already identified:
+published Hawes quantum-efficiency constants exist in several variants, and
+picking a different one than the truth runs used would silently reintroduce
+exactly the mismatch that design took care to avoid.
+
+**Two things I hedged deliberately.** I asserted that HydroLight reports
+asymptotic quantities for homogeneous water bodies, then walked it back to "an
+assumption to check with the operator before the spec is signed off, not a fact
+this project has verified" — I am not certain of the switch, and R1 is the run
+that must not be mis-specified. And cost is left open with a recommendation to
+price batch B at two sizes first and find out which axis dominates run time,
+rather than my guessing.
+
+Also noted for JXP to put to Robert directly: his proposed
+`Rrs(model) = Rrs(ZTT) + deltaRrs(simulator)` is the architecture we built, and
+M5 showed it fails off-nadir **because of the ZTT term**, not the emulator. That
+is a result he would want, and it sharpens the case for R1.
+
+Next: prompt Setup/1 in the new doc — the Q&A round before anything is
+commissioned.

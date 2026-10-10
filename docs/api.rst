@@ -100,6 +100,26 @@ against, plus the seeded held-out splits the acceptance gate needs.
    :show-inheritance:
 
 
+data.pb24 -- the multi-angular reference
+----------------------------------------
+
+Bozorgmehr+2024 (PB24), a 5000-realisation HydroLight release carrying 1300
+viewing geometries per realisation on the 12 OLCI bands -- the dataset that
+supplies the BRDF axis L23 cannot. Loader, the three held-out splits
+(realisation, ``B_p`` band, geometry), per-axis geometry subsampling, and
+``fit_transfer``, which fits a surface transfer on a consumer's own training
+rows.
+
+No accuracy claim on this site rests on PB24. It is here because the elastic
+model was *measured* against it and the result was negative --- see
+:doc:`using/limitations` and ``design/m5_report.md``.
+
+.. automodule:: robust.rt.data.pb24
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 ed -- downwelling irradiance
 ----------------------------
 

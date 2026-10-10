@@ -27,6 +27,11 @@ package -- the loader, a public constructor -- and leave ``forward`` clean.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
@@ -45,9 +50,27 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "N_WAVE",
     "WAVE",
     "canonical_wave",
+    # Named grids (M5: a second dataset)
+    "WaveGrid",
+    "OLCI_WAVE",
+    "L23_GRID",
+    "OLCI_GRID",
+    "GRIDS",
+    "wave_grid",
+    "grid_wave",
     # Pure water
     "BB_W_L23",
+    "BB_W_RANGE",
+    "BB_W_TAIL_EXPONENT",
     "bb_w",
+    # Geometry-aware surface transfer (M5)
+    "SurfaceTransfer",
+    "SURFACE_TABLE",
+    "interp_geometry",
+    "fit_surface_transfer",
+    "save_transfer",
+    "load_transfer",
+    "default_transfer",
     # Raman excitation grid (inelastic M1)
     "RAMAN_SHIFT",
     "RAMAN_WAVE_MIN_OFFICIAL",
@@ -56,6 +79,7 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "interp_spectrum",
     # Validators
     "check_wave",
+    "check_bb_w_range",
     "check_iop",
     "check_rrs",
 ]
@@ -78,7 +102,27 @@ B_RRS = 1.7
 RRS_POLE = 1.0 / B_RRS
 
 
-def Rrs_to_rrs(Rrs: Float[Array, "..."]) -> Float[Array, "..."]:
+def _coefficients(geometry, transfer):
+    """``(A, B)`` for a conversion: the nadir constants, or a fitted table.
+
+    Passing neither is the M0-M4 path and returns :data:`A_RRS`, :data:`B_RRS`
+    unchanged, so every existing number is reproducible from a clean checkout.
+    """
+    if geometry is None and transfer is None:
+        return A_RRS, B_RRS
+    if geometry is None:
+        raise ValueError(
+            "conventions: a surface transfer needs a geometry; pass geometry= "
+            "or neither"
+        )
+    table = default_transfer() if transfer is None else transfer
+    A, B = table.coefficients(geometry)
+    return A[..., None], B[..., None]
+
+
+def Rrs_to_rrs(
+    Rrs: Float[Array, "..."], *, geometry=None, transfer=None
+) -> Float[Array, "..."]:
     """Subsurface remote-sensing reflectance from the above-water value.
 
     ``rrs = Rrs / (A + B * Rrs)``.
@@ -87,33 +131,50 @@ def Rrs_to_rrs(Rrs: Float[Array, "..."]) -> Float[Array, "..."]:
     ----------
     Rrs : Array
         Above-water remote-sensing reflectance (sr^-1).
+    geometry : robust.rt.types.Geometry, optional
+        Viewing geometry. **Omit it and nothing changes**: the nadir constants
+        :data:`A_RRS` / :data:`B_RRS` are used, which is what M0-M4 measured and
+        what keeps their numbers reproducible. Supply it to use a fitted
+        geometry-dependent transfer, which off-nadir is worth up to a factor of
+        six -- see :class:`SurfaceTransfer`.
+    transfer : SurfaceTransfer, optional
+        Which table to use; defaults to :func:`default_transfer` when a geometry
+        is given.
 
     Returns
     -------
     Array
-        Subsurface remote-sensing reflectance (sr^-1).
+        Subsurface remote-sensing reflectance (sr^-1). With a geometry, the
+        trailing axis of ``Rrs`` is taken to be wavelength and the coefficients
+        broadcast across it.
     """
-    return Rrs / (A_RRS + B_RRS * Rrs)
+    A, B = _coefficients(geometry, transfer)
+    return Rrs / (A + B * Rrs)
 
 
-def rrs_to_Rrs(rrs: Float[Array, "..."]) -> Float[Array, "..."]:
+def rrs_to_Rrs(
+    rrs: Float[Array, "..."], *, geometry=None, transfer=None
+) -> Float[Array, "..."]:
     """Above-water remote-sensing reflectance from the subsurface value.
 
     ``Rrs = A * rrs / (1 - B * rrs)``, the exact inverse of
-    :func:`Rrs_to_rrs`. Diverges at ``rrs = RRS_POLE`` and returns *negative*
+    :func:`Rrs_to_rrs`. Diverges at ``rrs = 1 / B`` and returns *negative*
     values beyond it; see :func:`check_rrs`.
 
     Parameters
     ----------
     rrs : Array
         Subsurface remote-sensing reflectance (sr^-1).
+    geometry, transfer
+        As :func:`Rrs_to_rrs`; omitting both is the nadir path and is unchanged.
 
     Returns
     -------
     Array
         Above-water remote-sensing reflectance (sr^-1).
     """
-    return A_RRS * rrs / (1.0 - B_RRS * rrs)
+    A, B = _coefficients(geometry, transfer)
+    return A * rrs / (1.0 - B * rrs)
 
 
 # ----------------------------------------------------------- wavelength grid -
@@ -150,6 +211,116 @@ def canonical_wave(dtype=None) -> Float[Array, " 81"]:
         Shape ``(81,)``, 350-750 nm in 5 nm steps.
     """
     return jnp.asarray(WAVE, dtype=dtype)
+
+
+# ---------------------------------------------------------------- named grids -
+#: PB24's OLCI band centres (nm), read from the files themselves rather than
+#: transcribed: every ``SD_OLCI_no_R_*.nc`` carries this identical ``lambda``
+#: coordinate. Note it is **not** a subsample of :data:`WAVE` -- half its bands
+#: (412, 443, 673, 681, 709, 753) fall between 5 nm nodes -- and its last band
+#: lies 3 nm beyond :data:`WAVE_MAX`, which is what :func:`check_bb_w_range` is
+#: for.
+OLCI_WAVE = np.array(
+    [400.0, 412.0, 443.0, 490.0, 510.0, 560.0, 620.0, 665.0, 673.0, 681.0, 709.0, 753.0]
+)
+
+
+@dataclass(frozen=True)
+class WaveGrid:
+    """A named wavelength grid a dataset is defined on.
+
+    M0-M4 had exactly one grid, so "the canonical grid" and "the wavelength grid"
+    were the same sentence and :func:`check_wave` could hard-code it. M5 adds a
+    second dataset on different bands, and the fix is deliberately *not* to
+    loosen the check: a grid mismatch has caught real bugs, and it should keep
+    catching them **per grid**. So the check gains a grid rather than losing its
+    teeth.
+
+    Attributes
+    ----------
+    name : str
+        Registry key, e.g. ``"l23"``.
+    wave : numpy.ndarray
+        Band centres (nm), ascending.
+    description : str
+        One line, for error messages.
+    """
+
+    name: str
+    wave: np.ndarray
+    description: str = ""
+
+    @property
+    def n_wave(self) -> int:
+        """Number of bands."""
+        return int(self.wave.shape[0])
+
+    @property
+    def span(self) -> tuple[float, float]:
+        """``(min, max)`` band centre, nm."""
+        return float(self.wave[0]), float(self.wave[-1])
+
+
+#: L23's grid -- the canonical one, and the default everywhere a grid is optional.
+#: Named ``"canonical"`` rather than ``"l23"`` so the validator messages M0-M4
+#: wrote (and their tests match on) are unchanged; ``"l23"`` is an alias.
+L23_GRID = WaveGrid("canonical", WAVE, "L23 elastic release, 350-750 nm at 5 nm")
+
+#: PB24's OLCI grid (Pitarch & Brando; see the M5 hand-off).
+OLCI_GRID = WaveGrid("olci", OLCI_WAVE, "PB24 OLCI bands, 400-753 nm")
+
+#: Every grid the package knows by name, plus the ``"l23"`` alias.
+GRIDS = {g.name: g for g in (L23_GRID, OLCI_GRID)} | {"l23": L23_GRID}
+
+
+def wave_grid(grid=None) -> WaveGrid:
+    """Resolve a grid specification to a :class:`WaveGrid`.
+
+    Parameters
+    ----------
+    grid : None, str, or WaveGrid, optional
+        ``None`` (the default) means :data:`L23_GRID`, so every pre-M5 call site
+        keeps its meaning. A string is looked up in :data:`GRIDS`; a
+        :class:`WaveGrid` is returned unchanged.
+
+    Returns
+    -------
+    WaveGrid
+
+    Raises
+    ------
+    KeyError
+        On an unknown name, listing the ones that exist -- a typo should not
+        silently fall back to the canonical grid.
+    """
+    if grid is None:
+        return L23_GRID
+    if isinstance(grid, WaveGrid):
+        return grid
+    try:
+        return GRIDS[grid]
+    except KeyError:
+        raise KeyError(
+            f"unknown wavelength grid {grid!r}; known grids: {sorted(GRIDS)}"
+        ) from None
+
+
+def grid_wave(grid=None, dtype=None) -> Float[Array, " wave"]:
+    """A named grid's band centres as a JAX array.
+
+    Parameters
+    ----------
+    grid : None, str, or WaveGrid, optional
+        As :func:`wave_grid`.
+    dtype : optional
+        Passed to ``jnp.asarray``.
+
+    Returns
+    -------
+    Array
+        Shape ``(n_wave,)``.
+    """
+    return jnp.asarray(wave_grid(grid).wave, dtype=dtype)
 
 
 # --------------------------------------------------- pure-water backscattering
@@ -201,7 +372,22 @@ BB_W_L23 = np.array(
 )  # fmt: skip
 
 
-def bb_w(wave: Float[Array, "..."] | None = None) -> Float[Array, "..."]:
+#: The range :data:`BB_W_L23` actually supports, nm. Outside it, every answer is
+#: a choice rather than a lookup -- see :func:`bb_w`'s ``mode``.
+BB_W_RANGE = (WAVE_MIN, WAVE_MAX)
+
+#: Power-law exponent of :data:`BB_W_L23` over its **red tail** (650-750 nm),
+#: fitted in log-log: ``bb_w ~ lambda ** BB_W_TAIL_EXPONENT``. Measured, not
+#: quoted -- it reproduces the tabulated tail to 2.2e-4 relative, and a test
+#: re-derives it from the table. The whole-range fit gives -4.215 and the
+#: literature's molecular value is -4.32 (Morel 1974); the tail fit is the right
+#: one for extrapolating *past* 750 nm, which is the only thing it is used for.
+BB_W_TAIL_EXPONENT = -4.140855
+
+
+def bb_w(
+    wave: Float[Array, "..."] | None = None, *, mode: str = "clamp"
+) -> Float[Array, "..."]:
     """Pure-water backscattering coefficient.
 
     Linearly interpolates :data:`BB_W_L23`. Differentiable in ``wave`` and safe
@@ -211,18 +397,55 @@ def bb_w(wave: Float[Array, "..."] | None = None) -> Float[Array, "..."]:
     ----------
     wave : Array, optional
         Wavelengths (nm). Defaults to the canonical grid, where the table is
-        returned exactly. Values outside 350-750 nm are clamped to the end
-        points by ``jnp.interp`` rather than extrapolated -- the L23 reference
-        says nothing beyond its own range.
+        returned exactly.
+    mode : str, optional
+        What to do outside :data:`BB_W_RANGE`. ``"clamp"`` (default) holds the
+        end points, which is ``jnp.interp``'s behaviour and what M0-M4 relied on;
+        ``"extrapolate"`` continues the fitted red tail
+        (:data:`BB_W_TAIL_EXPONENT`); ``"raise"`` refuses, and is a **boundary**
+        option only -- it inspects concrete values, so it cannot run under
+        ``jit``.
 
     Returns
     -------
     Array
         ``bb_w(wave)`` in m^-1.
+
+    Raises
+    ------
+    ValueError
+        For an unknown ``mode``, or under ``mode="raise"`` when any wavelength
+        falls outside the table.
+
+    Notes
+    -----
+    **Why this has a mode at all.** On L23's grid the question never arose: the
+    table's support *is* the grid, so the clamp could not fire. PB24's OLCI grid
+    ends at 753 nm, 3 nm past the table, where clamping overstates ``bb_w`` by
+    1.6% -- small, but silent, and it grows to 23% at 800 nm where the
+    hyperspectral files reach. Making the choice explicit is cheaper than
+    discovering later which one a number was computed with.
+
+    PB24 tabulates its own ``bbw`` per band, so its loader should prefer the
+    file's values over this table entirely; the mode exists for callers that
+    cannot.
     """
+    if mode not in ("clamp", "extrapolate", "raise"):
+        raise ValueError(
+            f"bb_w: mode must be 'clamp', 'extrapolate' or 'raise'; got {mode!r}"
+        )
     if wave is None:
         return jnp.asarray(BB_W_L23)
-    return jnp.interp(jnp.asarray(wave), jnp.asarray(WAVE), jnp.asarray(BB_W_L23))
+    if mode == "raise":
+        check_bb_w_range(wave, name="bb_w wave")
+    x = jnp.asarray(wave)
+    table = jnp.interp(x, jnp.asarray(WAVE), jnp.asarray(BB_W_L23))
+    if mode != "extrapolate":
+        return table
+    lo, hi = BB_W_RANGE
+    tail = jnp.asarray(BB_W_L23)[-1] * (x / hi) ** BB_W_TAIL_EXPONENT
+    head = jnp.asarray(BB_W_L23)[0] * (x / lo) ** BB_W_TAIL_EXPONENT
+    return jnp.where(x > hi, tail, jnp.where(x < lo, head, table))
 
 
 # -------------------------------------------------- Raman excitation grid ----
@@ -368,8 +591,8 @@ def interp_spectrum(
 
 
 # ------------------------------------------------------------------ validators
-def check_wave(wave, *, name: str = "wave", atol: float = 1e-3) -> None:
-    """Raise unless ``wave`` is the canonical grid.
+def check_wave(wave, *, name: str = "wave", atol: float = 1e-3, grid=None) -> None:
+    """Raise unless ``wave`` is the expected grid.
 
     Parameters
     ----------
@@ -380,23 +603,65 @@ def check_wave(wave, *, name: str = "wave", atol: float = 1e-3) -> None:
     atol : float, optional
         Absolute tolerance in nm. The default 1e-3 nm is far tighter than any
         real grid difference but loose enough for float32 round-tripping.
+    grid : None, str, or WaveGrid, optional
+        Which grid to check against; ``None`` means :data:`L23_GRID`, so every
+        pre-M5 call site is unchanged. The check is **per grid**, not relaxed:
+        passing PB24's bands while expecting L23's still fails, which is the
+        point.
 
     Raises
     ------
     ValueError
-        If the shape or the values differ from :data:`WAVE`.
+        If the shape or the values differ from the grid.
+    KeyError
+        If ``grid`` names a grid that does not exist.
+    """
+    g = wave_grid(grid)
+    arr = np.asarray(wave, dtype=float)
+    if arr.shape != (g.n_wave,):
+        raise ValueError(
+            f"{name}: expected the {g.name} grid of shape ({g.n_wave},), "
+            f"got {arr.shape}"
+        )
+    if not np.allclose(arr, g.wave, atol=atol, rtol=0.0):
+        worst = int(np.argmax(np.abs(arr - g.wave)))
+        lo, hi = g.span
+        raise ValueError(
+            f"{name}: not the {g.name} {lo:.0f}-{hi:.0f} nm grid; "
+            f"largest difference {arr[worst] - g.wave[worst]:+.4g} nm at index "
+            f"{worst} (got {arr[worst]:.4g}, expected {g.wave[worst]:.4g})"
+        )
+
+
+def check_bb_w_range(wave, *, name: str = "wave") -> None:
+    """Raise if any wavelength falls outside :data:`BB_W_L23`'s support.
+
+    The boundary counterpart to :func:`bb_w`'s ``mode``: call it where a grid
+    enters the package, so that a clamp -- which is silent by construction, being
+    ``jnp.interp``'s default -- cannot be the thing nobody noticed.
+
+    Parameters
+    ----------
+    wave : array_like
+        Wavelengths (nm).
+    name : str, optional
+        Name used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If any wavelength lies outside :data:`BB_W_RANGE`.
     """
     arr = np.asarray(wave, dtype=float)
-    if arr.shape != (N_WAVE,):
+    lo, hi = BB_W_RANGE
+    outside = (arr < lo) | (arr > hi)
+    if np.any(outside):
+        bad = arr[outside]
         raise ValueError(
-            f"{name}: expected the canonical grid of shape ({N_WAVE},), got {arr.shape}"
-        )
-    if not np.allclose(arr, WAVE, atol=atol, rtol=0.0):
-        worst = int(np.argmax(np.abs(arr - WAVE)))
-        raise ValueError(
-            f"{name}: not the canonical {WAVE_MIN:.0f}-{WAVE_MAX:.0f} nm grid; "
-            f"largest difference {arr[worst] - WAVE[worst]:+.4g} nm at index "
-            f"{worst} (got {arr[worst]:.4g}, expected {WAVE[worst]:.4g})"
+            f"{name}: {bad.size} wavelength(s) outside the bb_w table's "
+            f"{lo:.0f}-{hi:.0f} nm support (e.g. {bad.min():.4g}, {bad.max():.4g} nm); "
+            "bb_w would clamp there. Pass mode='extrapolate' to continue the fitted "
+            "tail, or use the dataset's own bb_w."
         )
 
 
@@ -460,3 +725,320 @@ def check_rrs(values, name: str = "rrs", subsurface: bool = True) -> None:
             f"rrs_to_Rrs pole {RRS_POLE:.4g} (maximum {arr.max():.6g}); "
             "ocean rrs is ~1e-3 to 5e-2, so check the units"
         )
+
+
+# ----------------------------------------------- geometry-aware surface transfer
+#: Where the fitted transfer table ships, relative to this package.
+SURFACE_TABLE = "files/surface_pb24.npz"
+
+
+@dataclass(frozen=True)
+class SurfaceTransfer:
+    """Lee-form coefficients ``A``, ``B`` tabulated against viewing geometry.
+
+    :data:`A_RRS` and :data:`B_RRS` are *nadir* constants. Measured against PB24,
+    ``Rrs = A rrs / (1 - B rrs)`` with those values is good at nadir and fails
+    progressively off-nadir -- a median 6.6% over the sanctioned 0-70 degree
+    window and 27% at ``theta_v = 60`` alone, because the true ``A`` falls from
+    0.53 at nadir to 0.34 at 70 degrees as the Fresnel transmittance drops.
+
+    So ``A`` and ``B`` become functions of ``(theta_s, theta_v, dphi)``,
+    tabulated on the reference grid and interpolated trilinearly. Three findings
+    shaped this:
+
+    - **All three angles earn their place.** At ``theta_v = 60`` the per-geometry
+      ``A`` still spans 0.28-0.46 across solar zenith and azimuth, so a
+      ``A(theta_v)`` table alone leaves a median 3.4% and up to 70% error against
+      the full one.
+    - **``Q`` does not.** Lee's ``B = 1.7`` is really ``rbar * Q`` with ``Q``
+      assumed ~3.5, and PB24 tabulates the real ``Q`` (0.9-6.0). Refitting with
+      it in place -- ``1 - rbar Q rrs`` -- scores 1.71% against 1.74% for simply
+      fitting ``B`` per geometry. It is not worth carrying, which is fortunate:
+      :func:`~robust.rt.hybrid.forward` has no ``Q`` to offer.
+    - **The residual does not go to zero.** Even fitting both coefficients at
+      every geometry leaves a median 1.8%, so the Lee *form* is the floor here,
+      not the coefficients. Reported rather than papered over.
+
+    Attributes
+    ----------
+    theta_s, theta_v, dphi : numpy.ndarray
+        Ascending node vectors, degrees.
+    A, B : numpy.ndarray
+        Coefficients of shape ``(n_theta_s, n_theta_v, n_dphi)``.
+    provenance : str
+        What was fitted, on what, and when.
+    """
+
+    theta_s: np.ndarray
+    theta_v: np.ndarray
+    dphi: np.ndarray
+    A: np.ndarray
+    B: np.ndarray
+    provenance: str = ""
+
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        """``(n_theta_s, n_theta_v, n_dphi)``."""
+        return (self.theta_s.size, self.theta_v.size, self.dphi.size)
+
+    def coefficients(self, geometry):
+        """``(A, B)`` at a geometry, by trilinear interpolation.
+
+        Parameters
+        ----------
+        geometry : robust.rt.types.Geometry
+            Angles in degrees; any batch shape.
+
+        Returns
+        -------
+        tuple of Array
+            ``A`` and ``B``, broadcast to ``geometry.theta_s``'s shape.
+
+        Notes
+        -----
+        Differentiable and ``jit``-safe. Values outside the node range clamp to
+        the edge rather than extrapolating -- past 87.75 degrees the sun is below
+        the horizon, so there is nothing to extrapolate *to*.
+
+        **Piecewise linear means kinks at the nodes.** ``jax.grad`` returns a
+        one-sided slope there while a central difference averages both sides, and
+        they disagree by O(1) at an exact node. Gradient checks must be run
+        *between* nodes -- the same care ``o25_coefficients`` needs (M4 gotcha 4).
+        """
+        nodes = (self.theta_s, self.theta_v, self.dphi)
+        return (
+            interp_geometry(self.A, nodes, geometry),
+            interp_geometry(self.B, nodes, geometry),
+        )
+
+
+def _axis_weights(x, nodes):
+    """Lower index and fractional weight for linear interpolation along one axis.
+
+    A single-node axis degenerates to that node with zero weight, so a table that
+    does not resolve an angle -- L23 is nadir-only, so its O25 refit has one
+    ``theta_v`` node -- still evaluates rather than indexing out of bounds.
+    """
+    nodes = jnp.asarray(nodes)
+    x = jnp.asarray(x)
+    n = nodes.shape[0]
+    if n == 1:
+        return (
+            jnp.zeros(jnp.shape(x), dtype=int),
+            jnp.zeros(jnp.shape(x), dtype=jnp.asarray(x).dtype),
+        )
+    idx = jnp.clip(jnp.searchsorted(nodes, x, side="right") - 1, 0, n - 2)
+    lo = nodes[idx]
+    hi = nodes[idx + 1]
+    return idx, jnp.clip((x - lo) / (hi - lo), 0.0, 1.0)
+
+
+def interp_geometry(table, nodes, geometry):
+    """Trilinear interpolation of a geometry-indexed table.
+
+    Shared by :class:`SurfaceTransfer` and :class:`robust.rt.baselines.O25Table`,
+    which index the same three angles on the same reference grid -- one
+    implementation, tested once.
+
+    Parameters
+    ----------
+    table : array_like
+        Shape ``(n_theta_s, n_theta_v, n_dphi, ...)``; trailing axes are carried
+        through, so a table of four O25 coefficients works as well as a scalar.
+    nodes : tuple of array_like
+        ``(theta_s, theta_v, dphi)`` node vectors, ascending, degrees.
+    geometry : robust.rt.types.Geometry
+        Angles in degrees, any batch shape.
+
+    Returns
+    -------
+    Array
+        Shape ``geometry.theta_s.shape + table.shape[3:]``.
+
+    Notes
+    -----
+    Differentiable and ``jit``-safe. Values outside the nodes **clamp** rather
+    than extrapolating. Piecewise linear, so there are kinks at the nodes: run
+    gradient checks *between* them (M4 gotcha 4).
+    """
+    values = jnp.asarray(table)
+    trailing = values.ndim - 3
+    i_s, w_s = _axis_weights(geometry.theta_s, nodes[0])
+    i_v, w_v = _axis_weights(geometry.theta_v, nodes[1])
+    i_d, w_d = _axis_weights(geometry.dphi, nodes[2])
+    if trailing:
+        expand = (...,) + (None,) * trailing
+        w_s, w_v, w_d = w_s[expand], w_v[expand], w_d[expand]
+
+    total = 0.0
+    for ds, ws in ((0, 1.0 - w_s), (1, w_s)):
+        for dv, wv in ((0, 1.0 - w_v), (1, w_v)):
+            for dd, wd in ((0, 1.0 - w_d), (1, w_d)):
+                total = (
+                    total
+                    + ws
+                    * wv
+                    * wd
+                    * values[
+                        jnp.minimum(i_s + ds, values.shape[0] - 1),
+                        jnp.minimum(i_v + dv, values.shape[1] - 1),
+                        jnp.minimum(i_d + dd, values.shape[2] - 1),
+                    ]
+                )
+    return total
+
+
+def fit_surface_transfer(
+    rrs, Rrs, theta_s, theta_v, dphi, *, provenance: str = ""
+) -> SurfaceTransfer:
+    """Fit ``A`` and ``B`` per geometry by least squares.
+
+    ``Rrs = A rrs + B (Rrs rrs)`` is **linear in both coefficients**, so this is
+    one ``lstsq`` per geometry -- no seed, no learning rate, no stopping rule, and
+    the same fairness argument that applies to :func:`robust.rt.baselines.fit_o25`
+    applies here.
+
+    Parameters
+    ----------
+    rrs, Rrs : array_like
+        Shape ``(n_sample, n_wave)``, paired subsurface and above-water
+        reflectance.
+    theta_s, theta_v, dphi : array_like
+        Per-sample angles, shape ``(n_sample,)``, degrees.
+    provenance : str, optional
+        Recorded on the result.
+
+    Returns
+    -------
+    SurfaceTransfer
+
+    Raises
+    ------
+    ValueError
+        If any grid cell has no samples -- a table with a hole would interpolate
+        across it silently.
+    """
+    rrs = np.asarray(rrs, dtype=float)
+    Rrs = np.asarray(Rrs, dtype=float)
+    nodes = [np.unique(np.asarray(a, dtype=float)) for a in (theta_s, theta_v, dphi)]
+    index = [
+        np.searchsorted(node, np.asarray(a, dtype=float))
+        for node, a in zip(nodes, (theta_s, theta_v, dphi), strict=True)
+    ]
+
+    shape = tuple(node.size for node in nodes)
+    A = np.full(shape, np.nan)
+    B = np.full(shape, np.nan)
+    flat = (index[0] * shape[1] + index[1]) * shape[2] + index[2]
+    for cell in np.unique(flat):
+        mask = flat == cell
+        r = rrs[mask].ravel()
+        R = Rrs[mask].ravel()
+        design = np.stack([r, R * r], axis=1)
+        coef, *_ = np.linalg.lstsq(design, R, rcond=None)
+        i = np.unravel_index(cell, shape)
+        A[i], B[i] = coef
+
+    if not np.isfinite(A).all():
+        missing = int((~np.isfinite(A)).sum())
+        raise ValueError(
+            f"fit_surface_transfer: {missing} of {A.size} grid cells had no "
+            "samples; a table with holes interpolates across them silently"
+        )
+    return SurfaceTransfer(
+        theta_s=nodes[0],
+        theta_v=nodes[1],
+        dphi=nodes[2],
+        A=A,
+        B=B,
+        provenance=provenance,
+    )
+
+
+def save_transfer(path, transfer: SurfaceTransfer) -> None:
+    """Write a :class:`SurfaceTransfer` to ``.npz``, atomically.
+
+    Temp file -> load back -> verify -> :func:`os.replace`, the pattern PR #11
+    settled on: validate first, overwrite second.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+    transfer : SurfaceTransfer
+    """
+    path = Path(path)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(
+            tmp,
+            theta_s=transfer.theta_s,
+            theta_v=transfer.theta_v,
+            dphi=transfer.dphi,
+            A=transfer.A,
+            B=transfer.B,
+            provenance=np.asarray(transfer.provenance),
+        )
+        back = load_transfer(tmp)
+        if back.shape != transfer.shape or not np.allclose(back.A, transfer.A):
+            raise ValueError(
+                f"save_transfer: the written table does not load back equal; "
+                f"{path} left untouched"
+            )
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def load_transfer(path) -> SurfaceTransfer:
+    """Read a :class:`SurfaceTransfer` from ``.npz``.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+
+    Returns
+    -------
+    SurfaceTransfer
+    """
+    data = np.load(path)
+    return SurfaceTransfer(
+        theta_s=data["theta_s"],
+        theta_v=data["theta_v"],
+        dphi=data["dphi"],
+        A=data["A"],
+        B=data["B"],
+        provenance=str(data["provenance"]),
+    )
+
+
+def default_transfer() -> SurfaceTransfer:
+    """The table shipped with the package, read once and cached.
+
+    Returns
+    -------
+    SurfaceTransfer
+
+    Raises
+    ------
+    FileNotFoundError
+        If the table is absent -- regenerate with ``design/py/fit_surface.py``.
+    """
+    global _DEFAULT_TRANSFER
+    if _DEFAULT_TRANSFER is None:
+        path = Path(__file__).parent / SURFACE_TABLE
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"conventions: no fitted surface table at {path}; regenerate it "
+                "with design/py/fit_surface.py"
+            )
+        _DEFAULT_TRANSFER = load_transfer(path)
+    return _DEFAULT_TRANSFER
+
+
+#: Cache for :func:`default_transfer`.
+_DEFAULT_TRANSFER: SurfaceTransfer | None = None

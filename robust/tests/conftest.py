@@ -86,6 +86,69 @@ needs_l23 = pytest.mark.skipif(
 )
 
 
+#: A committed 3-realisation snapshot of the **raw** PB24 fields, ~460 kB, keeping
+#: each realisation's *whole* 1300-geometry grid so the angle window and its shell
+#: are both exercisable. Realisation 993 is in there deliberately: it carries the
+#: only defect in the OLCI set -- two exactly-zero ``rrs`` values at 753 nm,
+#: ``theta_s = 80``, ``theta = 87.5`` -- so the filter that removes them has
+#: something to bite on. Regenerate with
+#: ``pb24.write_fixture(path, realisations=(1, 993, 2500))``.
+PB24_SMALL_FIXTURE = FILES / "pb24_small.npz"
+
+#: The realisations in :data:`PB24_SMALL_FIXTURE`, in order.
+PB24_FIXTURE_REALISATIONS = (1, 993, 2500)
+
+
+def pb24_available():
+    """Whether the PB24 release is on disk under ``$OS_COLOR``.
+
+    Returns
+    -------
+    bool
+        True when ``$OS_COLOR/SD/v5`` exists and holds the first OLCI file.
+    """
+    root = os.environ.get("OS_COLOR")
+    if not root:
+        return False
+    return os.path.isfile(os.path.join(root, "SD", "v5", "SD_OLCI_no_R_0001.nc"))
+
+
+#: Skip a test that needs the PB24 reference data.
+needs_pb24 = pytest.mark.skipif(
+    not pb24_available(), reason="PB24 release not available ($OS_COLOR/SD/v5)"
+)
+
+
+@pytest.fixture(scope="session")
+def pb24_reader():
+    """A reader over the committed PB24 fixture -- no ``$OS_COLOR`` required.
+
+    Returns
+    -------
+    callable
+        Suitable for ``pb24.load_batch(reader=...)``.
+    """
+    if not PB24_SMALL_FIXTURE.is_file():
+        pytest.skip(f"cached PB24 fixture missing: {PB24_SMALL_FIXTURE}")
+
+    from robust.rt.data import pb24
+
+    return pb24.npz_reader(PB24_SMALL_FIXTURE)
+
+
+@pytest.fixture(scope="session")
+def pb24_small_batch(pb24_reader):
+    """A 3-realisation PB24 batch on the Q14 window, through the real loader.
+
+    Returns
+    -------
+    robust.rt.data.pb24.PB24Batch
+    """
+    from robust.rt.data import pb24
+
+    return pb24.load_batch(realisations=PB24_FIXTURE_REALISATIONS, reader=pb24_reader)
+
+
 def l23_inelastic_available():
     """Whether the L23 inelastic (X=2/X=4) dataset is on disk.
 
@@ -201,7 +264,7 @@ def l23_small_inelastic_batch():
 
 
 def tiny_args():
-    """Minimal synthetic :func:`robust.rt.forward` inputs (2 wavelengths).
+    """Minimal synthetic :func:`~robust.rt.hybrid.forward` inputs (2 wavelengths).
 
     A plain function, not a fixture, so tests can call it several times and
     mutate copies freely. Lives here because two modules were maintaining

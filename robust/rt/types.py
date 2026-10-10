@@ -134,6 +134,7 @@ class IOPs:
         bb: Spectrum,
         wave: Float[Array, " wave"] | None = None,
         *,
+        bb_w_mode: str = "clamp",
         a_ph: Spectrum | None = None,
         a_cdom: Spectrum | None = None,
     ) -> IOPs:
@@ -158,6 +159,11 @@ class IOPs:
             Total backscattering (m^-1), same shape as ``a``.
         wave : Array, optional
             Wavelengths (nm); defaults to the canonical grid.
+        bb_w_mode : str, optional
+            Passed to :func:`~robust.rt.conventions.bb_w`. The default
+            ``"clamp"`` is what M0-M4 used and keeps every existing number
+            identical; a grid reaching past 750 nm should say whether it wants
+            ``"extrapolate"`` instead, because the clamp is otherwise silent.
         a_ph : Array, optional
             Phytoplankton absorption (m^-1), passed through unchanged.
         a_cdom : Array, optional
@@ -172,10 +178,16 @@ class IOPs:
         Does not validate. ``bb < bb_w`` yields a negative ``bb_p``, which is
         physically impossible and usually means ``bb`` was already the non-water
         part; call :meth:`validate` to catch it.
+
+        A dataset that tabulates its own pure-water backscattering (PB24 does)
+        should use those values rather than this constructor -- the table here is
+        L23's water column, and nothing guarantees another campaign shares it.
         """
         a = jnp.asarray(a)
         bb = jnp.asarray(bb)
-        bb_w = conventions.bb_w(conventions.canonical_wave() if wave is None else wave)
+        bb_w = conventions.bb_w(
+            conventions.canonical_wave() if wave is None else wave, mode=bb_w_mode
+        )
         bb_w = jnp.broadcast_to(bb_w, a.shape)
         if a_ph is not None:
             # Broadcast like bb_w, for the same reason: every leaf shares the
@@ -187,7 +199,7 @@ class IOPs:
             a_cdom = jnp.broadcast_to(jnp.asarray(a_cdom), a.shape)
         return cls(a=a, bb_w=bb_w, bb_p=bb - bb_w, a_ph=a_ph, a_cdom=a_cdom)
 
-    def validate(self, wave: Float[Array, " wave"] | None = None) -> None:
+    def validate(self, wave: Float[Array, " wave"] | None = None, *, grid=None) -> None:
         """Raise ``ValueError`` unless the IOPs are physical and consistent.
 
         Boundary check only -- do not call inside ``jit``/``vmap``; see the module
@@ -196,8 +208,14 @@ class IOPs:
         Parameters
         ----------
         wave : Array, optional
-            If given, also require it to be the canonical grid and to match the
+            If given, also require it to be a known grid and to match the
             trailing axis.
+        grid : None, str, or WaveGrid, optional
+            Which grid ``wave`` must be; ``None`` means L23's canonical grid, so
+            every pre-M5 call site keeps its meaning. The trailing axis is
+            checked against **that grid's** band count rather than against
+            :data:`~robust.rt.conventions.N_WAVE`, which is what let this check
+            be L23-only.
 
         Raises
         ------
@@ -237,11 +255,12 @@ class IOPs:
                     "is a *component* of a, so this is a unit or bookkeeping error"
                 )
         if wave is not None:
-            conventions.check_wave(wave)
-            if self.n_wave != conventions.N_WAVE:
+            g = conventions.wave_grid(grid)
+            conventions.check_wave(wave, grid=g)
+            if self.n_wave != g.n_wave:
                 raise ValueError(
                     f"IOPs: trailing axis {self.n_wave} does not match the "
-                    f"canonical grid ({conventions.N_WAVE})"
+                    f"{g.name} grid ({g.n_wave})"
                 )
 
 
@@ -250,12 +269,13 @@ class IOPs:
 class PhaseParams:
     """Explicit phase-function descriptor.
 
-    **This class is the extension point of the whole API.** Week 1 carries a
-    single scalar, the particulate backscattering ratio ``B_p`` (design §4.2). At
-    M5 the fuller ZTT backward-VSF parameters join it as *additional optional
-    fields defaulting to ``None``* -- which is why the design insists the phase
-    function be a container rather than a bare array. Adding a field changes
-    neither :func:`~robust.rt.hybrid.forward`'s signature nor any existing call site.
+    **This class is the extension point of the whole API, and M5 exercised it.**
+    Week 1 carried a single scalar, the particulate backscattering ratio ``B_p``
+    (design §4.2). M5 task 14 added the fuller ZTT backward-VSF parameters as
+    *additional optional fields defaulting to ``None``* -- which is why the design
+    insisted the phase function be a container rather than a bare array. Adding
+    them changed neither :func:`~robust.rt.hybrid.forward`'s signature nor any existing
+    call site, and every test written before them passed untouched.
 
     Two consequences of the ``None`` default worth knowing. A field left ``None``
     contributes no leaves, so gradients and ``tree_map`` ignore it. But the
@@ -265,6 +285,24 @@ class PhaseParams:
 
     Attributes
     ----------
+    beta_tilde_pi : Array or None
+        **M5 (task 14).** The particulate backward phase function at exact
+        backscatter, ``Pbb(180°) = βp(180°)/bb_p``, in sr^-1 — the ``β̃(π)`` the
+        design names as the first of the fuller ZTT backward-VSF parameters
+        (design §4.2). ``None`` means "use the fixed Sullivan & Twardowski (2009)
+        shape", which is what M0-M4 did, so a ``None`` here reproduces every
+        earlier number exactly.
+    backward_slope : Array or None
+        **M5 (task 14).** The second backward-VSF parameter: a dimensionless tilt
+        of the shape across the backward hemisphere, 0 meaning "Sullivan's shape
+        unchanged". See :func:`robust.rt.ztt.P_bb_from_phase` for the exact form
+        and for what it does and does not claim.
+
+        **Neither field is calibrated.** They are the *axis* the design asked for,
+        plumbed through and gradient-checked; nothing in this repository has
+        fitted them, because PB24 prescribes its phase functions and does not
+        tabulate ``βp(ψ)``. Treat them as inputs to sweep, not as retrieved
+        quantities.
     B_p : Array
         Particulate backscattering ratio ``bb_p / b_p``, dimensionless, typically
         ~0.005-0.03. Realized through a Fournier-Forand phase function. May be a
@@ -273,6 +311,8 @@ class PhaseParams:
     """
 
     B_p: Float[Array, "..."]
+    beta_tilde_pi: Float[Array, "..."] | None = None
+    backward_slope: Float[Array, "..."] | None = None
 
     def validate(self) -> None:
         """Raise ``ValueError`` unless ``B_p`` is a physical ratio.
@@ -289,6 +329,15 @@ class PhaseParams:
         """
         arr = np.asarray(self.B_p, dtype=float)
         conventions.check_iop(arr, "PhaseParams.B_p")
+        # The M5 fields get the same treatment: a negative beta_tilde_pi flows
+        # straight into a negative Pbb and a negative rrs with no symptom, which
+        # is the silent path this method exists to close.
+        if self.beta_tilde_pi is not None:
+            conventions.check_iop(self.beta_tilde_pi, "PhaseParams.beta_tilde_pi")
+        if self.backward_slope is not None:
+            values = np.asarray(self.backward_slope, dtype=float)
+            if not np.all(np.isfinite(values)):
+                raise ValueError("PhaseParams.backward_slope: non-finite value(s)")
         if np.any(arr <= 0.0) or np.any(arr > 1.0):
             raise ValueError(
                 f"PhaseParams.B_p: must lie in (0, 1]; got range "
