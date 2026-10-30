@@ -223,12 +223,15 @@ FROZEN_FORWARD = (
 #: terms) and ``Geometry`` gained ``Ed``, all three **appended** and all three
 #: defaulting to ``None`` -- the one mutation M1 designed these containers for and
 #: the freeze explicitly permits.
+#: Re-baselined deliberately again for M7 task 2 (``rt_fit_ztt.md``):
+#: ``PhaseParams`` gained ``ff_B`` and ``ff_weight``, appended, ``None`` by
+#: default, and inert unless ZTT is asked for its FF phase function.
 #: ``test_the_optional_container_fields_all_default_to_none`` is what keeps that
 #: permission honest: appending is safe only while the new field changes nothing
 #: for a caller who does not set it.
 FROZEN_CONTAINERS = {
     "IOPs": ("a", "bb_w", "bb_p", "a_ph", "a_cdom"),
-    "PhaseParams": ("B_p", "beta_tilde_pi", "backward_slope"),
+    "PhaseParams": ("B_p", "beta_tilde_pi", "backward_slope", "ff_B", "ff_weight"),
     "Geometry": ("theta_s", "theta_v", "dphi", "wind", "Ed"),
 }
 

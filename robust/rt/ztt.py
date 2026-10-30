@@ -73,6 +73,7 @@ import numpy as np
 from jaxtyping import Array, Float
 
 from . import conventions
+from . import phase as _phase
 
 __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     # Coefficient tables (Appendix A)
@@ -451,7 +452,9 @@ def P_bb_sullivan(psi_deg: Float[Array, "..."]) -> Float[Array, "..."]:
 P_BB_PIVOT_DEG = 180.0
 
 
-def P_bb_from_phase(phase_params, psi_deg) -> Float[Array, "..."]:
+def P_bb_from_phase(
+    phase_params, psi_deg, *, use_ff: bool = False
+) -> Float[Array, "..."]:
     """``Pbb(ψ) = βp(ψ)/bb_p`` from the phase-function container (M5 task 14).
 
     ZTT takes the particulate backward phase function as a **required model
@@ -474,16 +477,34 @@ def P_bb_from_phase(phase_params, psi_deg) -> Float[Array, "..."]:
     ``P_bb_from_phase(PhaseParams(B_p=...), psi)`` **is** ``P_bb_sullivan(psi)``,
     bit for bit. That is what keeps every M0-M4 number reproducible.
 
+    **M7 task 2: a Fournier–Forand mixture instead of Sullivan.** With
+    ``use_ff=True`` *and* ``phase_params.ff_B`` set, the shape is
+    :func:`robust.rt.phase.P_bb_ff` -- for L23, its own two-component FF phase
+    function -- in place of Sullivan's. Without ``ff_B`` it falls back to
+    Sullivan **silently** (Q9): most callers have no component information. The
+    switch is an explicit keyword, off by default, because the L23 loader now
+    fills ``ff_B``. If ``rrs_ZTT`` honoured it unasked, every pinned hybrid
+    number would move. M7 task 4's ``variant="l23"`` turns it on. The FF shape
+    is not combined with the M5 tilt/rescale fields: asking for both raises.
+
     Parameters
     ----------
     phase_params : robust.rt.types.PhaseParams
     psi_deg : Array
         Scattering angle (degrees).
+    use_ff : bool, optional
+        Use the FF mixture when ``phase_params`` carries one (default False).
 
     Returns
     -------
     Array
         ``Pbb(ψ)`` in sr^-1.
+
+    Raises
+    ------
+    ValueError
+        If ``use_ff`` selects the FF mixture while ``beta_tilde_pi`` or
+        ``backward_slope`` is also set.
 
     Notes
     -----
@@ -495,6 +516,22 @@ def P_bb_from_phase(phase_params, psi_deg) -> Float[Array, "..."]:
     sweep and an interface to build against, not a fitted model. Any result that
     varies these fields must say which values it used and that they are inputs.
     """
+    if (
+        use_ff
+        and phase_params is not None
+        and getattr(phase_params, "ff_B", None) is not None
+    ):
+        if (
+            getattr(phase_params, "beta_tilde_pi", None) is not None
+            or getattr(phase_params, "backward_slope", None) is not None
+        ):
+            raise ValueError(
+                "P_bb_from_phase: the FF mixture (ff_B) and the M5 Sullivan "
+                "tilt/rescale (beta_tilde_pi, backward_slope) are alternatives; "
+                "set one or the other"
+            )
+        return _phase.P_bb_ff(psi_deg, phase_params.ff_B, phase_params.ff_weight)
+
     shape = P_bb_sullivan(psi_deg)
     if phase_params is None:
         return shape
