@@ -194,9 +194,10 @@ def test_ff_and_m5_tilt_are_alternatives():
     Z.P_bb_from_phase(phase, 180.0)
 
 
-def test_rrs_ztt_unchanged_by_ff_fields():
-    """Today's ``rrs_ZTT`` ignores the new fields: identical output."""
-    from robust.rt.types import IOPs
+def test_rrs_ztt_tt2017_ignores_ff_fields_l23_uses_them():
+    """``variant="tt2017"`` is blind to the FF fields (bit for bit); the default
+    ``"l23"`` variant uses them (M7 task 4)."""
+    from robust.rt.types import Geometry, IOPs
 
     n, W = 3, 4
     wave = jnp.linspace(400.0, 700.0, W)
@@ -205,12 +206,14 @@ def test_rrs_ztt_unchanged_by_ff_fields():
         bb_w=jnp.full((n, W), 0.002),
         bb_p=jnp.full((n, W), 0.003),
     )
-    from robust.rt.types import Geometry
-
     geometry = Geometry.nadir(jnp.asarray([0.0, 30.0, 60.0]))
     with_ff = l23_like_phase(n, W)
     without = PhaseParams(B_p=with_ff.B_p)
     np.testing.assert_array_equal(
+        np.asarray(Z.rrs_ZTT(iops, with_ff, geometry, wave, variant="tt2017")),
+        np.asarray(Z.rrs_ZTT(iops, without, geometry, wave, variant="tt2017")),
+    )
+    assert not np.array_equal(
         np.asarray(Z.rrs_ZTT(iops, with_ff, geometry, wave)),
         np.asarray(Z.rrs_ZTT(iops, without, geometry, wave)),
     )

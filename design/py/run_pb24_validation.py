@@ -134,7 +134,7 @@ def build_models(batch, train, transfer):
     o25 = B.fit_o25_table(batch.iops, batch.Rrs, batch.geometry, train=train)
     return {
         "standard Gordon": B.rrs_gordon(*args),
-        "ZTT backbone": Z.rrs_ZTT(*args),
+        "ZTT backbone": Z.rrs_ZTT(*args, variant="tt2017"),  # M7: M5 record
         "O25 form, refit on PB24": B.rrs_o25(*args, coeffs=o25, transfer=transfer),
     }, o25
 

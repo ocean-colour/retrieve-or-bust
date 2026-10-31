@@ -89,7 +89,12 @@ def main() -> int:
     held = splits.scene_test
     wave = np.asarray(batch.wave)
     truth = np.asarray(C.Rrs_to_rrs(batch.Rrs))
-    ztt = np.asarray(Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, wave))
+    # M7 task 4: the hybrid under test is TT2017-based, so its backbone is too.
+    ztt = np.asarray(
+        Z.rrs_ZTT(
+            batch.iops, batch.phase_params, batch.geometry, wave, variant="tt2017"
+        )
+    )
 
     flagged = np.asarray(
         emulator.out_of_domain_mask(

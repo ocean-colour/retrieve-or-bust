@@ -261,6 +261,67 @@ data as the prompt allowed, in a new `derived/` folder. It rebuilds in 7 s.
 Is that folder OK?
 **JXP:** Yes, that is ok.  Also remind me to rclone it to the `RoB` shared Google Drive folder.
 
+**Q16 (task 3 → tasks 4/6, Claude → JXP, *not blocking task 4*). TT's Ψ_KLu
+is ~13% high against L23. Correct it, or measure first?**
+
+The Ψ_KLu diagnostic (record §7b.7) turned up something the plan didn't
+expect. At nadir, ZTT needs only the product Ψ_KLu/µ∞ = KLu(0⁻)/a, and L23
+measures that directly. TT's 1 + F(ψ) is about **13% high** at all three ψ
+(180°, 158°, 140°) once the L23 µ∞ is used, against about 9% with TT2017. So
+TT2017's µ∞, which is too high, partly cancels TT's Ψ_KLu error. My prediction,
+recorded before task 6 measures it: **the L23 µ∞ alone will lower nadir rrs by
+about 2% where a/bb dominates, and could make the backbone worse.**
+
+Options:
+(a) Measure first. Task 6's ladder adds a diagnostic rung with KLu(0⁻)/a taken
+straight from L23 (an oracle) to size the prize, then we decide.
+(b) Add a nadir Ψ_KLu correction now: a multiplicative s(ψ) fitted at the three
+ψ, the way c(θs′) was. The ratio is nearly constant in ψ (~1.13), so even a
+single scale would capture most of it. It can't be validated off-nadir with
+L23, and it ignores the ±10% IOP-driven spread.
+(c) As (b), but with an IOP-dependent form, since the measured Ψ_KLu varies
+±10% with the IOPs where TT assume < 2%.
+
+**I recommend (a).** It costs one extra rung in task 6 and turns the decision
+into a measurement. Task 4 doesn't depend on the answer.
+**JXP:** Yes, let's do option (a).
+
+**Q17 (task 3, Claude → JXP, *not blocking*). An output guard I added.** L23
+fills only a triangle of the (log bb/a, log η_bb) clamp box, and in the box's
+empty corners the fitted µ∞ polynomial reaches −1.1 and 1.6. So both refit
+polynomials also carry a smooth output bound: their training range plus a
+small margin, kept below 1 for µ∞. It is invisible on L23 (held-out median
+error 0.209% with or without it). It matters for inputs outside L23's
+distribution, such as an inversion wandering, or PB24 with η_bb down to 4e-6.
+OK to keep?
+**JXP:** That is fine.
+
+**Q18 (task 4, Claude → JXP, *not blocking*). Two backbones in `forward`
+until the emulator is retrained.** Since `rrs_ZTT` now defaults to "l23",
+`forward(mode="ztt")` is "ZTT (L23 µ∞)", while `forward(mode="hybrid")` is
+still "ZTT (TT2017 µ∞)" plus the shipped δ (pinned, Q2a). That is correct
+for each mode, but `hybrid − ztt` is no longer the emulator term, and a reader
+comparing the two modes would be comparing two backbones. It ends when the
+emulator is retrained on "l23" (Q2b). When should that happen: right after
+task 6, or as part of task 7's hand-off? I suggest straight after task 6,
+because task 6 also tells us whether the Ψ_KLu correction (Q16) should land
+first. Retraining on a backbone that is about to change would waste a training
+run.
+**JXP:**
+
+**Q19 (task 4, Claude → JXP, *not blocking*). The shipped weights no longer
+regenerate bit for bit, and this predates M7.** `design/py/train_emulator.py`
+run from your last commit (`9f3328a`, via `git archive`, so independent of my
+changes) writes a file that differs from the committed `emulator_l23.npz`. It
+adds the M5 `envelope/*` keys, and the weights differ by up to 0.02. The
+current tree gives the identical file, so M7 is not the cause. The elastic
+report (§8) still says "bit-identical committed weights". Options: (a) leave
+the shipped file (its SHA is pinned and every number is reproducible *from
+the file*) and correct the report's wording; (b) regenerate and re-pin. That
+would move every hybrid value pin, so I'd rather fold it into the Q2b retrain.
+I recommend (a) now.
+**JXP:**
+
 ### Design
 
 *Written by Claude (Opus 5.5), 2026-10-30, in response to Plan prompt #1.
@@ -694,3 +755,96 @@ same end state.
 4. At nadir backscatter, L23's two FF components bracket Sullivan within 2%.
 
 No new questions.
+
+### 2026-10-30 — Fit L23 task 3: the fits (Claude Opus 5.5)
+
+No new answers to read. Q13–Q15 were already applied.
+
+**Built.**
+- `robust/rt/asymptotic.py`: the eigen µ∞ (Q13a, Q14).
+- `ztt.py` evaluators (`box`, `out_range`, `md_plus_correction`, `mu_d`'s
+  refit keywords, `smooth_clip`, `log_inputs`); defaults are unchanged bit for
+  bit.
+- `design/py/fit_ztt_l23.py` with `--dry-run`, `--check` and
+  `--recompute-eigen`.
+- `design/ztt_l23/{coefficients,metrics,probes}.json`, `metrics.md`, and two
+  residual figures.
+- Tests: `test_asymptotic.py` (16) and `test_ztt_l23.py` (11). Record §7b.7.
+
+**Gates.**
+- Bit-identical rerun ✅: `--check` identical, eigen recompute identical.
+- Held-out errors reported ✅:
+  - µ∞ refit: median |err| **0.21%** (TT2017: 1.08%, with 84th/99th
+    percentiles of +8.6% / +23.9%);
+  - µd refit: **0.34 / 0.22 / 0.46%** at 0° / 30° / 60° (TT: 2.05 / 0.50 /
+    **8.75%**).
+- Shipped evaluators reproduce the script's own numbers ✅: 5.5e-7 / 1.4e-7
+  where no guard acts, and the committed probes reproduce through `ztt` to
+  1e-12.
+- Suite ✅: **725 passed, 26 skipped** with the data (the skips are PB24, off disk); **681 passed, 70 skipped** with `$OS_COLOR` unset. `ruff check` and `ruff format --check` are clean.
+
+**Learned.**
+1. A test caught a wrong claim of mine. The δ-truncation angle is not
+   "irrelevant": 5° biased µ∞ by +8e-4. Moved to 2° after a convergence study;
+   the Q13 offset is now +1.34%.
+2. The discrete-ordinate error grows at low albedo (−7e-4 at ω₀ = 0.1). It is
+   pinned against the exact isotropic solution.
+3. A rectangular clamp box doesn't protect a polynomial fitted on a triangle of
+   data, so I added output guards (Q17).
+4. **TT's Ψ_KLu is ~13% high against L23 at all three nadir ψ**, and TT2017's
+   µ∞ error partly cancels it. Prediction written down: the L23 µ∞ alone will
+   lower nadir rrs by ~2%. Raised as **Q16**, recommending (a): measure in
+   task 6 with an oracle KLu/a rung.
+
+### 2026-10-30 — Fit L23 task 4: the L23 variant wired in, the hybrid pinned (Claude Opus 5.5)
+
+> **⚠ Deliberate re-baseline.** `rrs_ZTT` now defaults to `variant="l23"`
+> ("ZTT (L23 µ∞)"), so **`forward(mode="ztt")` returns different numbers.** That
+> path had no value pin before. A new pin records the new values beside the
+> old (`test_env.test_the_backbone_path_produces_pinned_numbers`). The hybrid
+> (`mode="hybrid"`, the default) is **unchanged**: its value pin, the elastic
+> hash pins and the emulator SHA-256 all pass untouched.
+
+Read JXP's answers: Q16 (a), measure in task 6 with an oracle KLu/a rung;
+Q17, keep the output guards.
+
+**Built** (record §7b.8):
+- **`ztt.py`:**
+  - the L23 constants with provenance;
+  - `mu_infinity_l23` and `mu_d_l23`;
+  - `variant` (default "l23"), `mu_inf_model` and `mu_d_model` on
+    `rrs_ZTT` / `Rrs_ZTT`, with precedence and validation;
+  - `"l23_closure"` reserved for task 5.
+- **`emulator.py`:** `Emulator.backbone_variant`, a static field. A missing
+  key loads as "tt2017", and `save` omits the key for "tt2017", so the shipped
+  file and a TT2017 retrain are byte-unchanged.
+- **`hybrid.forward`:** the emulator is resolved before the backbone, and the
+  hybrid uses the emulator's variant.
+- **Call-site audit** (table in §7b.8): `design/py` scripts name "tt2017";
+  the inelastic heads and the surface transfer are backbone-independent.
+
+**Gates.**
+- `variant="tt2017"` is bit-identical to the committed `ztt.py` ✅ (hash
+  pinned).
+- Hybrid pins and the emulator SHA are unchanged ✅.
+- Finite at and beyond the box ✅ (finite, *not* positive: rrs < 0 at
+  bb/a ≈ 25 in both variants, structurally).
+- float64 grad vs FD, L23 variant with FF, for a, bb_p, B_p, θs and w_ph ✅.
+- Suite ✅: **744 passed, 26 skipped** with the data (the skips are PB24, off
+  disk), in three consecutive runs; **700 passed, 70 skipped** with `$OS_COLOR`
+  unset. `ruff check` and `ruff format --check` are clean. One earlier run had
+  1 failure that did not reproduce. That run printed only its summary, so the
+  test isn't known; likely a timing-sensitive test under load. Watch for it.
+
+**Learned.**
+1. The audit was worth it: a test assembled the hybrid by hand from
+   `rrs_ZTT()`'s default and read 4.77% instead of 0.3%. That is exactly the
+   silent mismatch Q2a was about, caught because the default moved.
+2. First look on the fixture: the L23 variant's rRMS is 2.48 / 3.53 / 2.73%
+   at 0° / 30° / 60° (TT2017: 4.19 / 3.73 / 7.26%), and rrs(60°)/rrs(0°) is
+   0.938 against the truth's 0.946 (TT2017: 0.852). 30° is still too strong
+   (0.959 vs 0.990), in line with Q16.
+3. `forward(mode="ztt")` and `mode="hybrid"` now use different backbones until
+   Q2b (raised as **Q18**).
+4. A pre-existing reproducibility gap: the committed emulator weights don't
+   regenerate bit for bit even at the last commit (raised as **Q19**).

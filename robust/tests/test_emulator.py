@@ -753,7 +753,15 @@ def test_hybrid_beats_the_backbone_on_the_fixture(l23_fit, l23_small_batch):
     mask = splits.scene_train
 
     truth = C.Rrs_to_rrs(batch.Rrs)
-    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    # The backbone the emulator was trained against (M7 task 4), not
+    # rrs_ZTT's default -- a relative correction belongs to its own backbone.
+    rrs_ztt = Z.rrs_ZTT(
+        batch.iops,
+        batch.phase_params,
+        batch.geometry,
+        batch.wave,
+        variant=emulator.backbone_variant,
+    )
     delta = emulator.relative_delta(
         batch.iops, batch.phase_params, batch.geometry, batch.wave
     )

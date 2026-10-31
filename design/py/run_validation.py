@@ -282,7 +282,9 @@ def build_models(batch, splits, *, steps: int, seed: int):
     evaluated once on the whole batch and the splits are slices of that.
     """
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
-    rrs_ztt = Z.rrs_ZTT(*args)
+    # M7 task 4: the M4 ladder and its emulators are the TT2017 backbone's;
+    # the L23 variant's ladder is M7 task 6.
+    rrs_ztt = Z.rrs_ZTT(*args, variant="tt2017")
 
     config = E.EmulatorConfig(steps=steps, seed=seed)
     linear = E.EmulatorConfig(hidden=(), steps=steps, seed=seed)
@@ -959,7 +961,7 @@ def main() -> int:
     splits = L.make_splits(batch)
     truth = C.Rrs_to_rrs(batch.Rrs)
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
-    rrs_ztt = Z.rrs_ZTT(*args)
+    rrs_ztt = Z.rrs_ZTT(*args, variant="tt2017")  # M7 task 4: M4 record
     zen = batch.zenith
 
     models, mlp_em = build_models(batch, splits, steps=steps, seed=args_cli.seeds[0])
@@ -1070,7 +1072,10 @@ def main() -> int:
     timings = {}
     for name, fn in (
         ("standard Gordon", lambda i, p, g, w: B.rrs_gordon(i, p, g, w)),
-        ("ZTT backbone", lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w)),
+        (
+            "ZTT backbone",
+            lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w, variant="tt2017"),
+        ),
         ("O25 form", lambda i, p, g, w: B.rrs_o25(i, p, g, w)),
         (
             "hybrid, MLP",
@@ -1118,7 +1123,10 @@ def main() -> int:
         wave64 = jnp.asarray(np.asarray(batch.wave), dtype=jnp.float64)
         grad_rows = []
         for name, fn in (
-            ("ZTT backbone", lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w)),
+            (
+                "ZTT backbone",
+                lambda i, p, g, w: Z.rrs_ZTT(i, p, g, w, variant="tt2017"),
+            ),
             ("O25 form", lambda i, p, g, w: B.rrs_o25(i, p, g, w)),
             (
                 "hybrid, MLP",

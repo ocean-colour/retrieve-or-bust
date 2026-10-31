@@ -118,6 +118,7 @@ from . import conventions, validation
 from . import ztt as _ztt
 
 __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
+    "BACKBONE_VARIANT_UNRECORDED",
     "FEATURES",
     "EmulatorConfig",
     "LINEAR_CONFIG",
@@ -299,6 +300,13 @@ _OWN_ENVELOPE = object()
 #: chunk until this was added. At 1e-24 the floor it puts under the term is 1e-12
 #: percent -- unmeasurable -- while the gradient at ``δ = 0`` becomes a clean zero.
 _RMS_EPS = 1e-24
+
+
+#: The backbone a weights file that records none was trained against. Every
+#: learned artefact made before M7 was fitted on ZTT with the TT2017 µ∞, and
+#: :func:`load` says so explicitly rather than letting the new ``rrs_ZTT``
+#: default silently re-base them (``rt_fit_ztt.md``, Q2a).
+BACKBONE_VARIANT_UNRECORDED = "tt2017"
 
 
 @dataclass(frozen=True)
@@ -589,6 +597,15 @@ class Emulator:
         The angle ranges **this** model is sanctioned over, carried with the
         weights rather than read from a module constant — see :class:`Envelope`
         for why that distinction matters once there is more than one model.
+    backbone_variant : str
+        **M7 task 4.** The ZTT backbone (:data:`robust.rt.ztt.VARIANTS`) this
+        emulator's residual was learned against, and so the one it must be
+        applied to: a relative correction ``δ`` fitted to ``rrs_truth / rrs_ZTT``
+        means nothing on top of a different backbone. Static. A file written
+        before M7 records none and was trained on the TT2017 backbone, so it
+        loads as :data:`BACKBONE_VARIANT_UNRECORDED` = ``"tt2017"``. That is what
+        keeps the shipped hybrid's numbers unchanged now that ``rrs_ZTT``
+        defaults to ``"l23"`` (Q2a).
     domain : Array or None
         Per-feature ``[min; max]`` over the training split, shape
         ``(2, len(FEATURES))``; ``None`` for a hand-built emulator.
@@ -610,6 +627,9 @@ class Emulator:
     config: EmulatorConfig = field(metadata={"static": True})
     domain: Float[Array, "2 feature"] | None = None
     envelope: Envelope = field(default=DEFAULT_ENVELOPE, metadata={"static": True})
+    backbone_variant: str = field(
+        default=BACKBONE_VARIANT_UNRECORDED, metadata={"static": True}
+    )
 
     def relative_delta(
         self,
@@ -653,7 +673,8 @@ class Emulator:
             As :func:`features`.
         rrs_ztt : Array, optional
             The backbone, if already computed — the hybrid has it in hand, and
-            recomputing ZTT is ~12× the cost of everything else here.
+            recomputing ZTT is ~12× the cost of everything else here. It must be
+            the :attr:`backbone_variant` backbone; the caller is trusted on that.
 
         Returns
         -------
@@ -661,7 +682,9 @@ class Emulator:
             ``Δrrs``, sr⁻¹, shape ``(..., n_wave)``.
         """
         if rrs_ztt is None:
-            rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
+            rrs_ztt = _ztt.rrs_ZTT(
+                iops, phase_params, geometry, wave, variant=self.backbone_variant
+            )
         return rrs_ztt * self.relative_delta(iops, phase_params, geometry, wave)
 
     def out_of_domain(
@@ -957,6 +980,7 @@ def fit(
     config: EmulatorConfig | None = None,
     rrs_ztt: Float[Array, "sample wave"] | None = None,
     envelope: Envelope = DEFAULT_ENVELOPE,
+    backbone_variant: str = BACKBONE_VARIANT_UNRECORDED,
 ) -> tuple[Emulator, History]:
     """Train the residual emulator on ``rrs_truth − rrs_ZTT``.
 
@@ -979,7 +1003,16 @@ def fit(
     config : EmulatorConfig, optional
         Defaults to ``EmulatorConfig()``.
     rrs_ztt : Array, optional
-        The backbone on this batch, if already computed.
+        The backbone on this batch, if already computed. It must be the
+        ``backbone_variant`` backbone.
+    envelope : Envelope, optional
+        Sanctioned angles, stored with the weights.
+    backbone_variant : str, optional
+        Which ZTT backbone the residual is learned against, recorded in the
+        returned :class:`Emulator`. Defaults to ``"tt2017"``, the backbone every
+        shipped artefact was trained on, so ``design/py/train_emulator.py``
+        still reproduces the committed weights. Retraining on ``"l23"`` is a
+        deliberate, separate step (``rt_fit_ztt.md``, Q2).
 
     Returns
     -------
@@ -1014,7 +1047,9 @@ def fit(
         raise ValueError("fit: train mask selects no samples")
 
     if rrs_ztt is None:
-        rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
+        rrs_ztt = _ztt.rrs_ZTT(
+            iops, phase_params, geometry, wave, variant=backbone_variant
+        )
     x = features(iops, phase_params, geometry, wave)
 
     # Standardisation from the training split ONLY -- fitting it on everything
@@ -1082,6 +1117,7 @@ def fit(
         config=config,
         domain=domain,
         envelope=envelope,
+        backbone_variant=backbone_variant,
     )
     return emulator, history
 
@@ -1143,6 +1179,7 @@ def fit_l23(
     *,
     config: EmulatorConfig | None = None,
     rrs_ztt: Float[Array, "sample wave"] | None = None,
+    backbone_variant: str = BACKBONE_VARIANT_UNRECORDED,
 ) -> tuple[Emulator, History]:
     """Train on an L23 batch, held out by scene — the M3 training run.
 
@@ -1161,6 +1198,8 @@ def fit_l23(
     config : EmulatorConfig, optional
     rrs_ztt : Array, optional
         The backbone on this batch, if already computed.
+    backbone_variant : str, optional
+        As :func:`fit`.
 
     Returns
     -------
@@ -1189,6 +1228,7 @@ def fit_l23(
         },
         config=config,
         rrs_ztt=rrs_ztt,
+        backbone_variant=backbone_variant,
     )
 
 
@@ -1247,6 +1287,7 @@ def fit_pb24(
     rrs_ztt: Float[Array, "sample wave"] | None = None,
     envelope: Envelope = PB24_ENVELOPE,
     restrict_to_usable_backbone: bool = True,
+    backbone_variant: str = BACKBONE_VARIANT_UNRECORDED,
 ) -> tuple[Emulator, History, dict]:
     """Train on a PB24 batch — the M5 training run.
 
@@ -1293,7 +1334,11 @@ def fit_pb24(
     """
     if rrs_ztt is None:
         rrs_ztt = _ztt.rrs_ZTT(
-            batch.iops, batch.phase_params, batch.geometry, batch.wave
+            batch.iops,
+            batch.phase_params,
+            batch.geometry,
+            batch.wave,
+            variant=backbone_variant,
         )
 
     lo_s, hi_s = envelope.theta_s if envelope.theta_s else (-np.inf, np.inf)
@@ -1349,6 +1394,7 @@ def fit_pb24(
         config=config,
         rrs_ztt=rrs_ztt,
         envelope=envelope,
+        backbone_variant=backbone_variant,
     )
     return emulator, history, coverage
 
@@ -1391,6 +1437,12 @@ def save(emulator: Emulator, path) -> None:
         arrays[f"envelope/{name}"] = np.asarray(
             (np.nan, np.nan) if limits is None else limits, dtype=float
         )
+    # M7 task 4: which backbone the residual was learned against. Written only
+    # when it is not the unrecorded default, "tt2017", so a TT2017 emulator
+    # regenerated by design/py/train_emulator.py is byte-identical to the
+    # committed pre-M7 file. Absence *means* "tt2017" (see load).
+    if emulator.backbone_variant != BACKBONE_VARIANT_UNRECORDED:
+        arrays["backbone_variant"] = np.asarray(emulator.backbone_variant)
     cfg = emulator.config
     arrays["config/hidden"] = np.asarray(cfg.hidden, dtype=np.int64)
     for name in (
@@ -1460,6 +1512,12 @@ def load(path) -> Emulator:
             pair = np.asarray(data[key], dtype=float)
             limits[name] = None if np.isnan(pair).any() else (pair[0], pair[1])
         envelope = DEFAULT_ENVELOPE if limits is None else Envelope(**limits)
+        # A file written before M7 records no backbone: it was trained on TT2017.
+        variant = (
+            str(data["backbone_variant"])
+            if "backbone_variant" in data.files
+            else BACKBONE_VARIANT_UNRECORDED
+        )
 
         return Emulator(
             params=params,
@@ -1468,6 +1526,7 @@ def load(path) -> Emulator:
             config=config,
             domain=jnp.asarray(data["domain"]) if "domain" in data.files else None,
             envelope=envelope,
+            backbone_variant=variant,
         )
 
 

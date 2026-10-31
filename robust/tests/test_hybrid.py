@@ -200,11 +200,17 @@ def test_additivity_holds_exactly_in_rrs_space(toy_fit, l23_small_batch):
     emulator, _ = toy_fit
     args = batch_args(l23_small_batch)
 
-    ztt_part = H.rrs_forward(*args, "ztt")
+    # The decomposition is against the backbone the emulator was trained on (M7
+    # task 4). Since rrs_ZTT's default became "l23", ``mode="ztt"`` evaluates a
+    # *different* backbone from a "tt2017" emulator's hybrid, until the emulator
+    # is retrained (rt_fit_ztt.md Q2b, Q18) -- asserted below so it is visible.
+    ztt_part = Z.rrs_ZTT(*args, variant=emulator.backbone_variant)
     emu_part = H.rrs_forward(*args, "emulator", emulator=emulator, check_domain=False)
     hybrid = H.rrs_forward(*args, "hybrid", emulator=emulator, check_domain=False)
 
     assert jnp.array_equal(hybrid, ztt_part + emu_part)
+    assert emulator.backbone_variant == "tt2017"
+    assert not jnp.array_equal(H.rrs_forward(*args, "ztt"), ztt_part)
 
 
 def test_additivity_fails_in_Rrs_space_by_a_physical_amount(toy_fit, l23_small_batch):

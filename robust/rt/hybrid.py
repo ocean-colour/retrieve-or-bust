@@ -196,10 +196,14 @@ def rrs_forward(
         One of :data:`MODES`. Default ``'hybrid'``.
 
         - ``'ztt'`` — the analytic backbone alone, exactly
-          :func:`robust.rt.ztt.rrs_ZTT`. Takes no emulator and cannot warn.
+          :func:`robust.rt.ztt.rrs_ZTT` with its default variant, which since M7
+          task 4 is ``"l23"`` ("ZTT (L23 µ∞)"). Takes no emulator and cannot warn.
         - ``'emulator'`` — the learned correction ``Δrrs`` **alone**, which is a
           term and not a model; see the module docstring.
-        - ``'hybrid'`` — ``rrs_ZTT + Δrrs``, the M3 deliverable.
+        - ``'hybrid'`` — ``rrs_ZTT + Δrrs``, the M3 deliverable, with the
+          backbone evaluated as the emulator's ``backbone_variant`` (``"tt2017"``
+          for the shipped weights), so the correction is applied to the backbone
+          it was learned against.
     inelastic : robust.rt.types.Inelastic, optional
         Configuration of the inelastic processes (Raman scattering, chlorophyll
         fluorescence — inelastic design §3). ``None`` (the default) is the
@@ -303,11 +307,18 @@ def rrs_forward(
     if inelastic is not None and (inelastic.raman or inelastic.fluorescence):
         heads = _resolve_corrections(corrections)
 
-    rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
     if mode == "ztt":
+        # The backbone alone: rrs_ZTT's default variant ("l23" since M7 task 4).
+        rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
         return _apply_inelastic(rrs_ztt, iops, geometry, wave, inelastic, heads)
 
+    # A learned correction is applied to the backbone it was trained against,
+    # which the emulator carries (M7 task 4, Q2a). The shipped weights record
+    # none, load as "tt2017", and so keep every hybrid number unchanged.
     emulator = _resolve_emulator(emulator)
+    rrs_ztt = _ztt.rrs_ZTT(
+        iops, phase_params, geometry, wave, variant=emulator.backbone_variant
+    )
     if check_domain:
         _check_domain(emulator, iops, phase_params, geometry, wave)
     delta_rrs = emulator.delta_rrs(iops, phase_params, geometry, wave, rrs_ztt=rrs_ztt)
