@@ -187,6 +187,16 @@ before the next.*
    Update the report in `docs/reports/report_rt_elastic_model.md` to include the new results.
    Use Opus 5.5. Log your work.
 
+8. Ok, we are ready to move on to PB24.  I have downloaded their dataset into 
+`$OS_COLOR/SD/v5`.  Generate a new prompt doc `rt_fit_pb24.md` in this folder with a series of Tasks:
+   - Build new code in the `ocpy` Repo to read the PB24 dataset and prepare it for analysis. I am now on a `pb24` branch in that repo.
+   - First assess the RMS of the existing elastic models on the PB24 dataset.
+   - Discuss with me how to improve on the elastic backbone
+   - Implement the new backbone and assess its performance on the PB24 dataset.
+
+   If you have any opening questions, put them in a Q&A section of the new doc.
+   Use Opus 5.5.  Log your work.
+
 ### Next (M7 hand-off)
 
 M7 is complete. From record §7b.11, the next steps:
@@ -994,3 +1004,26 @@ disk); **707 passed, 71 skipped** with `$OS_COLOR` unset. `ruff check` and
 `test_phase` 28, `test_asymptotic` 16, `test_ztt_l23` 36.
 
 No new questions.
+
+### 2026-10-31 — Fit L23 task 8: handing off to PB24 (Claude Opus 5.5)
+
+Created `claude_prompts/RT/rt_fit_pb24.md` (milestone M8): context, a
+description of the data as downloaded, four tasks (an `ocpy` PB24 reader plus
+consolidation caches; a baseline of every elastic model on PB24; a discussion
+of how to improve the backbone; implement and assess), and seven opening
+questions (Q1–Q7) in its Q&A.
+
+Checked before writing:
+- `$OS_COLOR/SD/v5` now holds 5,000 **hyperspectral-only** files (27 GB).
+  The OLCI files and the water-class `.mat` that M5 used are absent, so
+  `robust.rt.data.pb24`'s defaults and the `needs_pb24` marker still treat
+  PB24 as missing.
+- The files carry **no depth profiles**, which answers M7 Q12: µ∞ on PB24
+  comes from the eigenproblem or a closure fit.
+- There is no Raman (`no_R`).
+- There is a new field, `Esdir_Es_ratio` (1 − H), directly relevant to µd's
+  atmospheric factor.
+- `ocpy` is on branch `pb24` (an editable install); `loisel23.py` is the
+  pattern for the new reader.
+
+No code written.
