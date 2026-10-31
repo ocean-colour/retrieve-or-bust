@@ -375,7 +375,10 @@ def test_rrs_is_positive_and_finite():
     assert float(jnp.min(rrs)) > 0.0
 
 
-def mean_rrs_at(zenith, P_bb):
+def mean_rrs_at(zenith, P_bb, variant="tt2017"):
+    """Mean rrs of the synthetic case at one zenith. ``variant`` defaults to
+    "tt2017": the tests below document *that* backbone's zenith behaviour, as
+    measured in M2; the L23 variant's is tested on real L23 scenes further down."""
     return float(
         jnp.mean(
             Z.rrs_ZTT(
@@ -383,6 +386,7 @@ def mean_rrs_at(zenith, P_bb):
                 simple_params(),
                 Geometry.nadir(jnp.asarray(zenith)),
                 P_bb=P_bb,
+                variant=variant,
             )
         )
     )
@@ -400,7 +404,7 @@ def test_rrs_depends_on_solar_zenith_unlike_gordon():
 
 
 def test_zenith_trend_has_the_same_sign_as_L23():
-    """``rrs`` falls with solar zenith, as L23 does.
+    """``rrs`` falls with solar zenith, as L23 does (TT2017 variant).
 
     This test failed until a transcription bug was found in ``Md_plus``: the
     paper's ``µw`` is the cosine of the **in-water** solar zenith (Equation (13)
@@ -418,7 +422,8 @@ def test_zenith_trend_has_the_same_sign_as_L23():
 
 
 def test_zenith_trend_magnitude_is_over_predicted():
-    """Pins what is still imperfect, so it cannot quietly drift.
+    """Pins what is still imperfect in the TT2017 variant, so it cannot quietly
+    drift. (The L23 variant's trend: the test below.)
 
     With the ``µw`` fix and the real ``Pbb,ST(ψ)``, the 60°/0° ratio comes out
     ~0.87 against L23's **0.949** — right sign, too strong by roughly a factor
@@ -429,6 +434,41 @@ def test_zenith_trend_magnitude_is_over_predicted():
     ratio = mean_rrs_at(60.0, None) / mean_rrs_at(0.0, None)
 
     assert 0.83 < ratio < 0.91, f"60/0 ratio {ratio:.4f}"
+
+
+def test_l23_variant_zenith_trend_on_real_scenes():
+    """M7 task 4: the L23 refit (µd's c(θs') above all) fixes most of the
+    over-predicted zenith trend. Measured on the committed 50-scene fixture,
+    median rrs(θ)/rrs(0°):
+
+    =========  ======  ======
+    ratio      30°/0°  60°/0°
+    =========  ======  ======
+    L23 truth  0.990   0.946
+    TT2017     0.942   0.852
+    L23 var.   0.959   0.939
+    =========  ======  ======
+
+    60° is now close; 30° is still too strong. Same sign, so the TT2017 problem
+    has not been traded for a new one. Pinned so either drift shows.
+    """
+    from robust.rt import conventions as C
+    from robust.rt.data import l23 as L
+    from robust.tests.conftest import L23_SMALL_FIXTURE
+
+    if not L23_SMALL_FIXTURE.is_file():
+        pytest.skip("fixture missing")
+    batch = L.load_batch(reader=L.npz_reader(L23_SMALL_FIXTURE))
+    n = int((batch.zenith == 0).sum())
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    truth = np.asarray(C.Rrs_to_rrs(batch.Rrs)).reshape(3, n, -1)
+    model = np.asarray(Z.rrs_ZTT(*args)).reshape(3, n, -1)
+    r30, r60 = (float(np.median(model[k] / model[0])) for k in (1, 2))
+    assert 1.0 > r30 > r60
+    assert 0.950 < r30 < 0.968
+    assert 0.930 < r60 < 0.948
+    t60 = float(np.median(truth[2] / truth[0]))
+    assert abs(r60 - t60) < 0.015  # TT2017: 0.094
 
 
 def test_mu_d_matches_the_papers_quoted_range():

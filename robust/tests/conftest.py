@@ -53,6 +53,13 @@ FILES = pathlib.Path(__file__).parent / "files"
 #: ``l23.write_fixture(path, n_scene=50)``.
 L23_SMALL_FIXTURE = FILES / "l23_small.npz"
 
+#: A 12-scene x 3-zenith elastic snapshot that also carries ``bph`` / ``bd``, so
+#: batches built from it hold L23's two-component FF phase function (M7). The
+#: only real-data fixture on which the default "l23" backbone runs its FF path
+#: (``l23_small.npz`` predates those fields and is hash-pinned). Regenerate
+#: with ``l23.write_fixture(path, n_scene=12, optional=True)``.
+L23_FF_FIXTURE = FILES / "l23_ff_small.npz"
+
 #: The inelastic **sibling** fixture (coding plan CQ4): the same 50 scenes and
 #: zeniths, adding ``aph`` and the X=2/X=4 ``Rrs`` channels (plus ``a``/``bb``/
 #: ``Rrs1`` copies the reader uses to prove the two files describe the same
@@ -83,6 +90,46 @@ def l23_available():
 #: Skip a test that needs the L23 reference data.
 needs_l23 = pytest.mark.skipif(
     not l23_available(), reason="L23 elastic Hydrolight data not available ($OS_COLOR)"
+)
+
+#: The L23 elastic **depth-profile** files (M7 task 1), ~727 MB each. Guarded
+#: separately: a machine can hold the surface files without these.
+L23_PROFILE_FILES = (
+    "Hydrolight100_profile.nc",
+    "Hydrolight130_profile.nc",
+    "Hydrolight160_profile.nc",
+)
+
+#: A committed snapshot of the raw profile fields -- 16 scenes spread over the
+#: release, 8 depths, 3 zeniths, ~560 kB -- holding both the ``asymptotic`` and
+#: ``not_asymptotic`` flags. Regenerate with
+#: ``l23.write_profile_fixture(path)``.
+L23_PROFILE_FIXTURE = FILES / "l23_profile_fixture.npz"
+
+
+def l23_profiles_available():
+    """Whether the L23 elastic profile files are on disk.
+
+    Returns
+    -------
+    bool
+        True when ``ocpy`` imports *and* every file in
+        :data:`L23_PROFILE_FILES` is present.
+    """
+    try:
+        from ocpy.hydrolight import loisel23
+    except Exception:  # noqa: BLE001 - any failure here means "no data", by design
+        return False
+    return l23_available() and all(
+        os.path.isfile(os.path.join(loisel23.l23_path, name))
+        for name in L23_PROFILE_FILES
+    )
+
+
+#: Skip a test that needs the L23 depth profiles (and the surface files).
+needs_l23_profiles = pytest.mark.skipif(
+    not l23_profiles_available(),
+    reason="L23 elastic profile files not available ($OS_COLOR)",
 )
 
 

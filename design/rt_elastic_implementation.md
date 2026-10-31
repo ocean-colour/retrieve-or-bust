@@ -1,7 +1,7 @@
 # Elastic RT Implementation Record
 
-**Version:** 0.32
-**Date:** 2026-08-13
+**Version:** 0.34
+**Date:** 2026-10-31
 **Authors:** JXP and Claude
 
 **Status:** living document — updated as each milestone is implemented.
@@ -31,6 +31,7 @@ every bump.
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 **complete** — tasks 0–16 done; task 11 **failed its gate** and no PB24 weights ship (§7.14, `design/m5_report.md`) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
+| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | ✅ **complete** — acceptance gate passed (held-out 2.91/2.56/3.18% vs 4.26/4.67/8.11%); `rrs_ZTT` defaults to "ZTT (L23 µ∞)"; hybrid pinned to TT2017 (§7b) | `robust.rt.ztt` (variants), `robust.rt.data.l23` (profiles) |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -2288,6 +2289,590 @@ The scale problem the review raised — `fit()` is full-batch and PB24 is 83× L
 
 ---
 
+## 7b. M7 — ZTT refit to L23
+
+*Status: ✅ complete 2026-10-31 (tasks 1–7, §7b.5–11); the acceptance gate
+passed (§7b.10). Decisions Q1–Q12 and their
+reasoning are in [`claude_prompts/RT/rt_fit_ztt.md`](../claude_prompts/RT/rt_fit_ztt.md);
+design [`rt_elastic_model.md`](rt_elastic_model.md) §4.6; tasks in the coding plan's
+M7.*
+
+### 7b.1 Why now, and why L23
+
+§7.16 closed the µ∞ question **for PB24**: it has only surface K's, so it holds
+no asymptotic quantity. L23's `_profile.nc` files, which no loader has read until
+now, do. They tabulate `Ed_z, Eu_z, Eo_z, Eod_z, Eou_z, Lu_z, KEd_z, KEu_z,
+KLu_z, md_z, mu_z` at 61 depths (−1, 0, 0.1 … 1 m, then 1 m steps to 50 m), about
+727 MB per file.
+
+### 7b.2 Measured before any build (scratch scripts, 2026-10-30)
+
+| check | result |
+|---|---|
+| Gershun at 50 m, `(Ed−Eu)/Eo` vs `a/KEd` | median ratio 0.9999 |
+| `md_z(0⁻)` vs `Ed/Eod` at 0⁻ | identical (it *is* µd) |
+| KEd, KEu, KLu within 1% of each other at 50 m | 63% / 82% / 56% of (scene, λ) at 0° / 30° / 60° |
+| median \|µ(50 m, 60°)/µ(50 m, 0°) − 1\| | **9.8%**, so 50 m is often **not** asymptotic: µ∞ needs a depth→∞ extrapolation shared across zeniths |
+| TT2017 µ∞ / L23 µ(50 m, 0°) | median 1.000; 16–84%: 0.975–1.035 |
+| naive Eq. (8) LSQ on "converged" 0° points | MAPE 0.57%, max 92% (the non-asymptotic tail) |
+| ZTT µd / L23 µd(0⁻), median | 0.981 / 0.999 / **1.087** at 0° / 30° / 60° |
+| L23 µd(60°)/µd(0°) across scenes | 0.787–0.820 (Eq. 14's factorization holds to ±2%) |
+| `bbph/bph`, `bbd/bd` | 0.0100 and 0.0180, constant to 1e-6: two FF components (Loisel et al. 2023 §2) |
+| L23 domain | bb/a 1.1e-4–0.59; η_bb 0.017–0.97 |
+
+### 7b.3 Decisions (Q1–Q12)
+
+- **µ∞ default is physical** (from profiles); the closure fit ships as
+  `mu_inf_model="l23_closure"` (Q1).
+- **The hybrid pins to its training backbone**: each learned artefact records
+  its variant, and existing files default to `tt2017`. Retraining comes later
+  (Q2a).
+- **Clamp** log(bb/a) and log η_bb to the fitted box (Q3).
+- **Refit both µ∞ and M*_d** (Q4), with M*_d **jointly with** a two-coefficient
+  atmospheric correction c(θs′) on TT's M⁺_d (Q10b).
+- **L23's own FF phase function** in the L23 variant, falling back silently to
+  Sullivan when `PhaseParams` lacks the FF fields (Q5, Q9). The FF (n, µ)
+  convention is assumed to be HydroLight's (Mobley et al. 2002), since L23 does
+  not state it (Q8).
+- **Ψ_KLu is a diagnostic only** (Q11). **PB24** gets a µd/Ψ_KLu re-check if
+  the new download lands at `$OS_COLOR/SD/v5`; µ∞ from PB24 only if it has
+  profiles (Q12).
+- **Names:** "ZTT (L23 µ∞)", "ZTT (TT2017 µ∞)"; "ZTT 2018" reserved (Q7).
+
+### 7b.4 Interaction with the `forward` freeze (§8.0)
+
+Appending `PhaseParams.ff_B` / `ff_weight` (default `None`) and keyword-only
+arguments to `rrs_ZTT` is **permitted**. Changing what `forward(mode="ztt")`
+returns, by moving the backbone default, counts as *changing what an existing
+default does*. So it is done deliberately: the pinned `mode="ztt"` values are
+re-baselined in the same change, and the hybrid's pinned values must not move.
+
+### 7b.5 Task 1 as built — the profile product, and why it cannot supply µ∞ alone
+
+**Built.** In `robust/rt/data/l23.py` (new section "depth profiles (M7)"):
+
+- `load_mu_profiles(zenith, ...)` returns µ(z) = (Ed − Eu)/Eo at every depth.
+  This is item (a). Irradiances below `PROFILE_E_MIN = 1e-30` come back as NaN.
+- `build_profile_product(...)` returns an `L23ProfileProduct` with, per
+  (scene, λ): `z_deep` (the deepest depth usable at *every* zenith), `mu_deep`
+  (per zenith), `spread` across zeniths, `flag`, `mu_inf` (finite only where
+  asymptotic), `mu_d0` = `md_z(0⁻)`, and `KLu0` = `KLu_z(0⁻)` (per zenith).
+- `save_profile_product` / `load_profile_product` write and read the cache
+  atomically, with a JSON provenance header and no timestamp, so a rebuild is
+  bit-identical. A stale `PROFILE_PRODUCT_VERSION` is refused.
+- `default_profile_product_path()` is
+  `$OS_COLOR/Loisel2023/derived/l23_profile_product_v1.npz` (12.8 MB, next to
+  the data, not committed).
+- The profile reader seam is `(x, zenith, fields, depths) -> dict`. It reads
+  only the named fields and depths (`isel` before `.data`). The full build
+  takes 7 s.
+- `write_profile_fixture` / `profile_npz_reader` serve a committed fixture,
+  `robust/tests/files/l23_profile_fixture.npz` (556 kB: 16 scenes spread over
+  the release × 8 depths × 3 zeniths, raw fields). The writer checks the
+  fixture holds both real flags before replacing anything.
+- `design/py/build_l23_profile_product.py` builds the cache and writes
+  `design/ztt_l23/profile_product.md` and `fig_profile_coverage.png`.
+- `design/py/explore_mu_inf_eigen.py` is **exploratory**, not pipeline: the
+  asymptotic-eigenvalue µ∞ behind Q13.
+
+**Measured.**
+
+- **Zero irradiances at depth.** At 50 m, 1.2% of `Eo_z` values are exactly 0
+  (350–370 and 730–750 nm), and positive values reach float32 denormals
+  (1e-45). Hence `z_deep` is the deepest *usable* depth, not a fixed 50 m. It
+  is 50 m for ≥ 84% of points and never shallower than 18 m, so no point is
+  `unusable` in the full release; tests inject that flag synthetically.
+- **Gershun holds:** median |(Ed−Eu)/Eo ÷ a/KEd − 1| < 1e-3 at 50 m at every
+  zenith (gate).
+- **The profiles reach µ∞ on only 2.4% of (scene, λ).** That is the share
+  where the three zeniths agree to < 1% at depth. The median spread is 9.3%
+  and the 99th percentile 20%. Reaching agreement takes about ≥ 20
+  *scattering* lengths, and the asymptotic points are all particle-dominated:
+  η_bb 0.03–0.58 (median 0.10) against the release's median 0.49, and
+  bb/a 0.002–0.086. Clear blue water, at about 1.5 optical depths by 50 m,
+  never gets there (`fig_profile_coverage.png`).
+- **No extrapolation is trustworthy.** µ(z) approaches its limit
+  non-monotonically: 0° falls from above while 60° falls and then rises, so a
+  single exponential can't describe it, and a multi-mode fit has more freedom
+  than 50 m constrains. The plan's `extrapolated` flag is therefore
+  `not_asymptotic`, and `mu_inf` is NaN there rather than guessed.
+- **µd(0⁻)** medians are 0.950 / 0.888 / 0.752 at 0° / 30° / 60°. These are the
+  task 3 targets; the ZTT comparison is in §7b.2.
+
+**What replaces the profiles as the µ∞ source (Q13, open).** µ∞ is an IOP. It
+is the smallest-attenuation eigenmode of the azimuthally averaged RTE, so it can
+be computed exactly from L23's own inputs: pure water plus the two FF
+components (Mobley-2002 convention, Q8). This is a double-Gauss discrete
+ordinate eigenproblem with a δ-truncated forward peak, at ~0.3–0.8 ms per
+point. On the profile-asymptotic points it reads **1.41% high** (16–84%:
+1.08–1.70%). That figure is numerically converged: it doesn't change with
+quadrature order, truncation angle, or the water depolarization. Of five FF
+conventions tried, Mobley-2002 gives the smallest offset; fixed slope 4.0 or
+fixed *n* give +2.0% to +3.5%. Against this eigen µ∞, TT2017 sits at a median
+ratio of 1.007, but **1.116 at the 84th percentile and 1.29 at the 99th**. So
+TT2017 is worse than the round-1 comparison suggested, because that comparison
+used the non-asymptotic µ(50 m).
+
+**Tests:** `robust/tests/test_l23_profiles.py`, 14 tests (10 run without the
+data on the fixture and synthetic profiles; 4 gates behind
+`needs_l23_profiles`). `needs_l23_profiles` and `L23_PROFILE_FIXTURE` were
+added to `conftest.py`.
+
+### 7b.6 Task 2 as built — Fournier–Forand and L23's phase function
+
+**Q13–Q15 answered (2026-10-30).** µ∞ comes from the asymptotic RTE eigenproblem
+on L23's IOPs, with the +1.4% offset against HydroLight carried as a stated
+systematic (option a). The eigensolver lands at the start of task 3 as a NumPy
+fitting utility built on this task's FF (Q14). The cache folder is accepted
+(Q15).
+
+**Built.**
+
+- **`robust/rt/phase.py`** (new, pure JAX):
+  - `ff_phase(ψ, n, µ)` and `ff_backscatter_ratio(n, µ)`, the Mobley et al.
+    (2002) closed forms;
+  - `mobley_n(µ)`, the HydroLight convention n = 1.01 + 0.1542(µ − 3);
+  - `ff_mu_for_B(B)`: a 4097-point monotone table in log B, then two Newton
+    steps. It returns the **exact implicit derivative**: the iterations run on
+    constants and a final step carries the gradient. Differentiating through
+    the unrolled Newton steps was measured 1.2e-5 off;
+  - `ff_phase_for_B` and `P_bb_ff(ψ, ff_B, ff_weight)` =
+    Σ w p̃(ψ; B) / Σ w B, component axis last.
+- **`PhaseParams.ff_B`, `ff_weight`** are appended and default to `None`.
+  `validate()` checks them: both or neither, B in (0, 1), weights ≥ 0 with a
+  positive sum, shapes that broadcast. The freeze's field-order pin
+  (`test_env.FROZEN_CONTAINERS`) was re-baselined deliberately.
+- **`ztt.P_bb_from_phase(..., use_ff=False)`.** FF is used only when the caller
+  opts in *and* `ff_B` is set; otherwise it is Sullivan, silently (Q9). Asking
+  for FF together with the M5 tilt/rescale fields raises.
+  **Why opt-in rather than automatic** (a deviation from the prompt's
+  wording): the loader now fills `ff_B` on every netCDF batch, and if
+  `rrs_ZTT` honoured it unasked, every full-L23 hybrid number would move
+  before task 4 pins the hybrid to its backbone (Q2a). Task 4's
+  `variant="l23"` will pass `use_ff=True`.
+- **`l23.load_batch`** fills `ff_B` = (0.010, 0.018) and `ff_weight` =
+  (bph, bd)/(bph + bd) as `(sample, wave, 2)` whenever the reader supplies the
+  new `OPTIONAL_RAW_FIELDS = ("bph", "bd")`. The netCDF reader does. The
+  hash-pinned `l23_small.npz` fixture doesn't and is untouched, so its batches
+  carry `None` and every pinned forward value is unchanged. `L23_FF_B` holds
+  the component order.
+- `robust.rt.phase` is exported from `robust.rt`.
+
+**Measured.**
+
+| quantity | value |
+|---|---|
+| (n, µ) for B = 0.010 / 0.018 | (1.08251, 3.47025) / (1.09944, 3.58001) |
+| ∫ p̃ dΩ (quadrature, ψ = π s⁶) | 1 to < 1e-6, B = 0.001–0.035 |
+| backward half by quadrature vs closed-form B | agree to 1e-8 |
+| B → µ → B, float64 / float32 | ≤ 1e-11 / ≤ 2e-5 relative |
+| **FF Pbb(180°)**, B = 0.010 / 0.018 | **0.1506 / 0.1559** sr⁻¹, bracketing Sullivan's **0.1529** |
+| L23 Σ w B vs bulk B_p (full release) | agree to 1e-3 (float32 storage of bbnw) |
+| L23 scenes with bph = 0 | exist; weight (0, 1) handled |
+
+So for nadir viewing, L23's own phase function differs from Sullivan's by only
+about 2% at backscatter. Task 6's ladder will show what that is worth in rrs.
+
+**Tests:** `robust/tests/test_phase.py`, 28 tests: normalization, backward
+fraction, round trip, pinned (n, µ) and Pbb(180°), mixture algebra and
+broadcasting, bit-for-bit Sullivan fallback, inertness of the new fields in
+today's `rrs_ZTT`, jit, float64 grad vs FD for dµ/dB and for ∂Pbb/∂(w, B_ph,
+B_d, ψ), validation, and the loader including `select`.
+
+### 7b.7 Task 3 as built — the fits
+
+**Built.**
+
+- **`robust/rt/asymptotic.py`** (NumPy, fitting-only). µ∞ = a/K∞ from the
+  azimuthally averaged asymptotic RTE eigenproblem: double-Gauss streams, a
+  δ-truncated forward peak, energy-renormalized kernels, and L23's three
+  scatterers precomputed once (water with Zhang δ = 0.039; FF B = 0.010 and
+  0.018). About 0.8 ms per point; the full release takes about 4 minutes and is
+  cached at `$OS_COLOR/Loisel2023/derived/l23_mu_inf_eigen_v2.npz`.
+- **`ztt.py` evaluators**, all keyword-only, with defaults that reproduce the
+  published model bit for bit:
+  - `mu_infinity(..., box=, out_range=)`;
+  - `Md_star(..., box=, out_range=)`;
+  - `mu_d(..., md_star_coeffs=, md_plus_corr=, box=, md_star_range=)`;
+  - `md_plus_correction(θs′, (c1, c2))`;
+  - `log_inputs`;
+  - `smooth_clip` (softplus corners, `CLAMP_WIDTH` = 0.01 decades on inputs,
+    `OUT_CLAMP_WIDTH` = 0.001 on outputs).
+- **`design/py/fit_ztt_l23.py`** writes `design/ztt_l23/coefficients.json`,
+  `metrics.{json,md}`, `probes.json` and two residual-map figures. The fits are
+  linear LSQ on the train scenes:
+  - Eq. (8) with relative residuals, to eigen µ∞ at every point (Q13 made the
+    plan's down-weighted "extrapolated" class moot);
+  - µd's M*_d and c(θs′) **jointly and exactly linearly**: with g = 1/c, the
+    residual M*_d/t − g_θ is linear in (m*, g₃₀, g₆₀), since g₀ = 1.
+  `--check` refits and compares byte for byte.
+
+**Two numerics corrections made during the task.**
+
+1. **δ-truncation 5° → 2°.** I had claimed task 1's sweep showed the angle
+   "barely matters". A test said otherwise: 2° vs 8° differ by 0.24%. A
+   convergence study (300 L23 points, 80 vs 160 streams) puts 0°–2° within
+   1.7e-4 of the reference, with 5° biasing µ∞ high by 8e-4. Production is now
+   2° (eigen cache v2), and the Q13 offset moves from +1.42% to **+1.34%**.
+2. **Low-albedo error, pinned.** Against the exact isotropic solution, 80
+   streams are exact for ω₀ ≥ 0.5 but −7e-4 at ω₀ = 0.1 and −3e-4 at 0.2. That
+   is a ≲ 0.1% low bias on the 16% of L23 points with ω₀ < 0.09.
+
+**Results (held out, 664 scenes × 81 λ; `design/ztt_l23/metrics.md`).**
+
+| | median abs | 16 / 50 / 84 % | 99 % |
+|---|---|---|---|
+| µ∞ **ZTT (L23 µ∞)** vs eigen | **0.21%** | −0.35 / +0.01 / +0.35 | +1.00 |
+| µ∞ ZTT (TT2017 µ∞) vs eigen | 1.08% | +0.00 / +0.65 / **+8.61** | **+23.9** |
+| µd **L23 refit**, 0° / 30° / 60° | **0.34 / 0.22 / 0.46%** | | ≤ 2.0 |
+| µd TT Table A2, 0° / 30° / 60° | 2.05 / 0.50 / **8.75%** | | ≤ 13.1 |
+
+- Mean |error| of the µ∞ refit is 0.30% train and 0.31% held out, against TT's
+  quoted 0.19–3.5% for their own fit. TT2017's error is concentrated at high
+  bb/a and high η_bb (`fig_mu_inf_residuals.png`), beyond its fitted
+  bb/a ≤ 0.1.
+- c(θs′) = 1 − 0.10657u − 0.15865u², i.e. c(30°) = 0.983 and c(60°) = 0.907.
+  This removes the +8.7% at 60° almost exactly (`fig_mu_d_residuals.png`).
+- Against the 6,533 profile-asymptotic points: eigen +1.34%, L23 fit +1.38%,
+  TT2017 +1.49% (median). TT2017's upper tail is much wider there: 99th
+  percentile +4.2%, against +2.7% for the L23 fit.
+
+**A guard the plan didn't anticipate.** L23's points fill a *triangle* in
+(log bb/a, log η_bb), so the clamp box (a rectangle, Q3) has empty corners. In
+those corners the bare 16-term polynomial reaches −1.1 and 1.6. Both refit
+polynomials therefore also carry a smooth **output** bound: the training range
+padded by 5 × `OUT_CLAMP_WIDTH`, capped below 1 for µ∞. It changes held-out µ∞
+by > 1e-4 on 1.5% of points and leaves the median error at 0.209% either way.
+
+**Ψ_KLu diagnostic (Q11; no refit). TT's 1 + F(ψ) is ~13% high against L23.**
+At nadir only the product Ψ_KLu/µ∞ = KLu(0⁻)/a enters rrs, and L23 measures
+that directly:
+
+| θs′ | ψ | TT 1 + F | measured Ψ with L23 µ∞ (16/50/84) | with TT2017 µ∞ |
+|---|---|---|---|---|
+| 0° | 180.0° | 1.024 | 0.822 / 0.909 / 1.010 | 0.874 / 0.945 / 1.007 |
+| 30° | 158.1° | 1.100 | 0.875 / 0.970 / 1.082 | 0.932 / 1.008 / 1.078 |
+| 60° | 139.7° | 1.294 | 1.026 / 1.140 / 1.284 | 1.096 / 1.182 / 1.279 |
+
+TT's Ψ/µ∞ overstates L23's KLu/a by about 13% with the L23 µ∞, against about 9%
+with TT2017's. The TT2017 µ∞, being too high, partly cancels TT's Ψ_KLu being
+too high. Two more observations: the measured Ψ has a ±10% IOP-driven spread
+(TT assume IOP-independence to < 2%), and its ψ dependence matches TT's shape
+closely (the ratio is ~1.13 at all three ψ). **Prediction for task 6, written
+down before it is measured:** swapping in the L23 µ∞ *alone* will lower nadir
+rrs by roughly 2% where a/bb dominates, and may worsen the backbone, unless
+Ψ_KLu is corrected too (Q16).
+
+**Tests:**
+- `test_asymptotic.py` (16): the isotropic transcendental equation, the
+  no-scattering limit, energy conservation, truncation convergence,
+  determinism, monotonicity, and the pinned profile offset (needs data).
+- `test_ztt_l23.py` (11): defaults are the published model, `smooth_clip`
+  properties, clamped polynomials flat outside, **committed coefficients
+  reproduce `probes.json` through `ztt` to 1e-12** (the gate, no data needed),
+  physical over the extended box, the design-matrix order matches `ztt`, and
+  exact recovery of known coefficients by both fits.
+- The eigen recompute and `--check` refit are bit-identical.
+
+### 7b.8 Task 4 as built — the L23 variant wired in, the hybrid pinned
+
+**Re-baseline, flagged.** `rrs_ZTT`'s default is now `variant="l23"`, so
+`forward(mode="ztt")` returns different numbers. Before M7 that path had **no**
+value pin; the freeze's value pin covered only the hybrid default path. So
+nothing was overwritten, and a new pin was added:
+`test_env.test_the_backbone_path_produces_pinned_numbers`. It records the new
+`mode="ztt"` values beside the old ones (reached via `variant="tt2017"`). The
+hybrid's value pin and the emulator SHA-256 are unchanged.
+
+**Built.**
+
+- **`ztt.py`.**
+  - Constants, provenance-docstringed from `design/ztt_l23/coefficients.json`:
+    `MU_INF_L23_COEFFS`, `MD_STAR_L23_COEFFS`, `MD_PLUS_CORR_L23`,
+    `ZTT_L23_BOX`, `MU_INF_L23_RANGE`, `MD_STAR_L23_RANGE`.
+  - New functions `mu_infinity_l23` and `mu_d_l23`.
+  - `rrs_ZTT` / `Rrs_ZTT` gain three keyword-only switches:
+    - `variant` ∈ `VARIANTS = ("l23", "tt2017")`, default **"l23"**;
+    - `mu_inf_model` ∈ `("l23", "l23_closure", "tt2017")`, where
+      `"l23_closure"` raises `NotImplementedError` until task 5;
+    - `mu_d_model` ∈ `("l23", "tt2017")`, added beyond the prompt so task 6's
+      ladder can switch µd alone.
+  - Precedence: `mu_inf` > `mu_inf_coeffs` > `mu_inf_model` > `variant`. The
+    L23 variant passes `use_ff=True` to `P_bb_from_phase`, so a batch carrying
+    `ff_B` gets L23's FF phase function, and Sullivan otherwise. Bad option
+    strings raise.
+- **`emulator.py`.**
+  - `Emulator.backbone_variant`: a static field, default
+    `BACKBONE_VARIANT_UNRECORDED = "tt2017"`.
+  - `delta_rrs`, `fit`, `fit_l23` and `fit_pb24` use and record it.
+  - `save` writes the key **only when it isn't "tt2017"**; `load` reads an
+    absent key as "tt2017". So the committed pre-M7 `emulator_l23.npz` is
+    untouched (same SHA), and a TT2017 retrain writes the same bytes as before
+    M7. Verified: `train_emulator.py` run from the current tree and from a clean
+    `git archive` of the last commit (`9f3328a`) give identical files.
+- **`hybrid.forward`.** `mode="ztt"` uses `rrs_ZTT`'s default. `"emulator"`
+  and `"hybrid"` resolve the emulator *first* and evaluate the backbone with
+  `variant=emulator.backbone_variant`. The out-of-domain fallback therefore
+  returns the emulator's own backbone.
+
+**The `rrs_ZTT` call-site audit** (Q2a: each site's variant, and why):
+
+| site | variant | why |
+|---|---|---|
+| `hybrid.forward`, `mode="ztt"` | default ("l23") | the backbone alone *is* the default model |
+| `hybrid.forward`, `"hybrid"` / `"emulator"` | `emulator.backbone_variant` | a relative δ belongs to its own backbone |
+| `emulator.Emulator.delta_rrs` | `self.backbone_variant` | same |
+| `emulator.fit` / `fit_l23` / `fit_pb24` | `backbone_variant=` argument, default "tt2017" | reproduces the shipped weights; retraining on "l23" is Q2b |
+| `design/py/train_emulator.py`, `train_emulator_pb24.py` | "tt2017" | they regenerate TT2017-era artefacts |
+| `design/py/run_validation.py` (4 sites), `run_pb24_validation.py`, `cross_dataset.py` | "tt2017" | they regenerate the M4/M5 records; the L23 ladder is task 6 |
+| `inelastic_corr` (Raman / fluorescence heads) | none needed | trained on L23 truth *ratios* (X2/X1, X4 − X2), never on the backbone |
+| `surface_pb24.npz`, `ed_l23.npz` | none needed | backbone-independent |
+| tests that rebuild a hybrid by hand (`test_emulator`, `test_hybrid`, `test_validation`) | `emulator.backbone_variant` | the defect class the audit exists for. One test assembled `rrs_ZTT() · (1 + δ)` with the new default and read 4.77% against 0.3% |
+
+**Consequence to know (Q18).** Until an emulator is trained on "l23" (Q2b),
+`forward(mode="ztt")` and `forward(mode="hybrid")` use **different backbones**.
+So `hybrid − ztt ≠ emulator` term; the decomposition is exact only against
+`rrs_ZTT(variant=emulator.backbone_variant)`, and a test asserts both facts.
+
+**First look at the L23 variant** (50-scene fixture, Sullivan Pbb because the
+fixture has no FF fields; task 6 does this properly):
+
+| | rRMS 0° / 30° / 60° | median rrs(30°)/rrs(0°) | rrs(60°)/rrs(0°) |
+|---|---|---|---|
+| L23 truth | — | 0.990 | 0.946 |
+| ZTT (TT2017 µ∞) | 4.19 / 3.73 / 7.26% | 0.942 | 0.852 |
+| **ZTT (L23 µ∞)** | **2.48 / 3.53 / 2.73%** | 0.959 | **0.938** |
+
+The over-predicted zenith trend (M2's standing caveat) is mostly fixed at 60°,
+while 30° is still too strong, consistent with Q16's Ψ_KLu finding. The
+synthetic-case test of rrs(0) > rrs(30) > rrs(60) now applies to the TT2017
+variant only. Under L23 that toy case gives rrs(30°) marginally (0.2%) above
+rrs(0°); the real-scene trend is pinned instead.
+
+**Gates.**
+- `variant="tt2017"` is bit for bit the pre-M7 `rrs_ZTT` ✅: the SHA-256 of
+  fixture rrs is pinned, and it was also checked on a netCDF batch carrying the
+  FF fields.
+- Hybrid value pins and the emulator SHA-256 are unchanged ✅.
+- Finite rrs and gradients at and far beyond the box (bb/a from 2e-6 to 25,
+  η → 0) ✅. *Finite, not positive*: at bb/a ≈ 25 rrs is negative in **both**
+  variants, which is structural (Eq. 12's f_L term once b̃b is small).
+- float64 grad vs FD for a, bb_p, B_p, θs and the FF weight, L23 variant
+  with the FF phase function active, rel < 1e-6 ✅.
+
+**Tests.**
+- `test_ztt_l23.py`: +17 (the TT2017 hash pin, the default, switch
+  composition and precedence, option validation, 5 gradient gates, 4 beyond-box
+  cases, 4 emulator-variant tests).
+- `test_env.py`: +1 (the new `mode="ztt"` value pin).
+- `test_ztt.py`: +1 (L23-variant zenith trend on real scenes); the two TT2017
+  trend tests now name their variant.
+- `test_phase.py`, `test_hybrid.py`, `test_validation.py`, `test_emulator.py`:
+  updated for the variant.
+
+**A pre-existing finding, not caused by M7.** The committed
+`emulator_l23.npz` no longer regenerates bit for bit, at `9f3328a` as well as
+now. A regenerated file adds the M5 `envelope/*` keys and its weights differ by
+up to 0.02. The record's claim of "bit-identical committed weights" (report §8)
+is stale, presumably from the M5 save-format change plus an environment drift.
+The shipped file and its SHA pin are unaffected. **Resolved (Q19, answer (a),
+2026-10-31):** the report's wording was corrected (`reports/report_rt_elastic_model.md`
+§8). The file is regenerated and re-pinned at the next retrain, which waits for
+PB24 (Q18).
+
+### 7b.9 Task 5 as built — the closure µ∞, a ceiling
+
+**Q18/Q19 answered (2026-10-31).** The emulator retrain waits for PB24 (Q18),
+and the report wording was corrected (Q19a; see §7b.8).
+
+**Built.**
+
+- **`ztt.mu_inf_closure(iops, phase_params, geometry, rrs, wave)`.** Eq. (12)
+  solved for the µ∞ that reproduces a reference rrs, with every other term from
+  the L23 variant (refit µd, FF Pbb):
+  µ∞ = −cos θv Ψ_KLu / [(N/(µd rrs) − R)(bb/a) − 1]. It returns unclipped
+  values.
+- **`MU_INF_L23_CLOSURE_COEFFS`, `MU_INF_L23_CLOSURE_RANGE` and
+  `mu_infinity_l23_closure`**, which serve `mu_inf_model="l23_closure"` (never a
+  default). The docstrings say *a ceiling, not physics*.
+- **`fit_ztt_l23.py`, `closure_stage`.** Closure µ∞ for all 806,760 samples
+  (3,320 scenes × 3 zeniths × 81 λ), on the netCDF batch so the FF fields are
+  present. The physical values (0 < µ∞ ≤ 1) on train scenes, all zeniths
+  together, go to Eq. (8) exactly as in task 3. Outputs are added to
+  `coefficients.json` / `metrics.*` / `probes.json`, plus the new figure
+  `fig_mu_inf_closure.png`. Scoring goes through the shipped
+  `mu_inf_model="l23_closure"` path (`scored_through_shipped_constants: true`).
+
+**Results** (`design/ztt_l23/metrics.md`).
+
+| θs′ | closure / eigen µ∞, 16 / 50 / 84% | fit vs closure, held out (median abs) | held-out rRMS, **ZTT (L23 µ∞)** | **closure variant** |
+|---|---|---|---|---|
+| 0° | 0.954 / 0.995 / 1.052 | 0.87% | 2.91% | **1.20%** |
+| 30° | 0.970 / 1.001 / 1.046 | 1.68% | 2.56% | **1.43%** |
+| 60° | 0.938 / 0.997 / 1.042 | 1.78% | 3.18% | **1.47%** |
+
+- **The ceiling.** µ∞ alone, given the rest of the L23 variant, can buy about
+  half of the backbone's remaining rRMS (2.6–3.2% → 1.2–1.5%) on the full
+  release with L23's own phase function. The rest is beyond what a µ∞(bb/a, η)
+  can absorb: it depends on zenith (the closure µ∞ moves by a median 2.8% across
+  the three suns at fixed scene and λ) and isn't smooth in (X, L) (the Eq. (8)
+  fit to it is 0.9–1.8%, against 0.21% for the physical µ∞).
+- **Almost always physical with FF.** Only 2 of 806,760 closure values fall
+  outside (0, 1]. On the fixture (no FF fields, so Sullivan's Pbb), **8.4%**
+  exceed 1. Which phase function is used decides whether µ∞ can carry the
+  remaining error.
+- **The gap is structured, not an offset** (`fig_mu_inf_closure.png`). The
+  closure runs up to +25% above the physical µ∞ in particle-dominated water
+  at moderate bb/a (η_bb ≲ 0.2, bb/a ~ 0.01–0.1), and about 5% below it in
+  clear water. It saturates near 0.92 where the physical µ∞ → 1 (strongly
+  absorbing bands). Read with Q16: the other terms' errors, Ψ_KLu's ~13%
+  included, partly cancel by regime, which is why the median closure/eigen
+  ratio is ~1.00.
+
+**Gates.**
+- Reproducible ✅ (`--check` identical).
+- Self-consistency ✅: (i) the exact closure µ∞ returns the reference rrs to
+  float64 rounding (9e-16 on the release, 1e-12 on the fixture);
+  (ii) on every train sample the closure variant's rrs error lies within the
+  µ∞ fit error that caused it, |e_rrs| ≤ |e_µ|/(1 − |e_µ|). That holds because
+  rrs depends on µ∞ only through D = A + B/µ∞ with 0 < B/µ∞ < D.
+
+**Tests:** `test_ztt_l23.py` +4 (shipped constants match the fit and task 3's
+are unmoved, exact self-consistency with the Sullivan contrast pinned, the
+closure model equals its fit, the closure beats the physical µ∞ in rrs on the
+fixture), and the probes now include the closure value.
+
+### 7b.10 Task 6 as built — the ladder, and the acceptance gate: **PASS**
+
+**Built.** `design/py/run_ztt_l23.py` (deterministic: a rerun's tables are
+byte-identical; about 11 s). It writes `design/ztt_l23/ladder.{md,csv}`,
+`ladder_per_wavelength.csv`, `fig_ladder_per_wavelength.png` and
+`fig_ladder_per_zenith.png`. These are named `ladder.*`, not the prompt's
+`metrics.*`, because `fit_ztt_l23.py` already owns those. The script contains:
+- the additive ladder, through the task-4 switches;
+- the Q16 oracle step (Ψ_KLu/µ∞ replaced by L23's measured KLu/a, via
+  `mu_inf=`), with a depth sweep;
+- order-independent attribution: each term added alone to TT2017, and removed
+  alone from L23;
+- per-λ and per-B_p tables, with Gordon and O25 from the M4 ladder.
+
+**Acceptance** — "ZTT (L23 µ∞)" beats "ZTT (TT2017 µ∞)" on held-out scenes at
+each zenith: **0° 2.91 vs 4.26, 30° 2.56 vs 4.67, 60° 3.18 vs 8.11% — PASS.**
+All held-out scenes: 5.93 → **2.90%**. The TT2017 row reproduces the M4
+record exactly (5.95 / 5.93 / 8.11%).
+
+**The ladder** (held-out rRMS %: all / 0° / 30° / 60°):
+
+| step | all | 0° | 30° | 60° |
+|---|---|---|---|---|
+| ZTT (TT2017 µ∞) | 5.93 | 4.26 | 4.67 | 8.11 |
+| + L23 µd | 4.81 | 4.37 | 5.45 | 4.55 |
+| + L23 µ∞ | 3.68 | 2.96 | 4.52 | 3.37 |
+| **+ FF Pbb = ZTT (L23 µ∞)** | **2.90** | **2.91** | **2.56** | **3.18** |
+| closure µ∞ (ceiling) | 1.37 | 1.20 | 1.43 | 1.47 |
+| oracle KLu/a (diagnostic) | 9.54 | 8.27 | 9.69 | 10.52 |
+| O25 form, refit on L23 | 0.69 | 0.68 | 0.69 | 0.71 |
+| standard Gordon | 7.21 | 6.03 | 6.20 | 9.01 |
+
+**Attribution** (held-out pp; ladder step / added alone to TT2017 / removed
+alone from L23):
+
+- **µd:** −1.12 / −1.12 / +2.97. It does the 60° work (−3.56 pp there) but
+  *hurts* 0° and 30° on its own (+0.12, +0.78) until µ∞ and Pbb join.
+- **µ∞:** −1.14 / **+0.89** / +1.70. Alone it makes TT2017 *worse*: the
+  task-3 prediction (§7b.7), written down before measuring, is confirmed.
+  TT2017's too-high µ∞ was compensating for TT's Ψ_KLu. In the full variant it
+  is worth 1.7 pp.
+- **FF Pbb:** −0.78 / −0.87 / +0.78. Mostly at 30° (−1.96 pp), consistent in
+  both directions.
+- The terms interact: no order-free split adds up. The table carries both
+  orderings so no single number is over-read.
+
+**Q16 answered by measurement: do not correct Ψ_KLu on its own.** Replacing
+ZTT's Ψ_KLu/µ∞ with L23's measured KLu/a, at any sampling depth from 0 to
+20 m, gives **7.8–9.5%** held-out, against 2.90%. Worst in the blue: 16% at
+470 nm. ZTT's implied K_Lu sits ~11–13% above the measured one at every depth.
+So inside Eq. (12), "K_Lu" is an *effective* parameter: TT's other fitted terms
+(f_L above all, fitted on their own synthetic set, §2.5/Eq. 31) are tuned to
+it. Making one term physically right breaks the balance. Any Ψ_KLu change
+would have to be refitted *jointly* with f_L, which is empirical calibration,
+not repair (Q20).
+
+**What remains.**
+- The closure ceiling (1.37%) shows µ∞ could still buy about half the
+  remaining error, but only as an empirical knob.
+- **O25, refit on L23, stays far ahead at 0.69%**, and the TT2017-based hybrid
+  at 0.30%. The analytic backbone is better, not competitive.
+- The residual is concentrated in a hump at 530–590 nm (4.8% at 565 nm, down
+  from 8.5%) that only the closure removes.
+- Per B_p bin the L23 variant reads 2.5–3.2%, with no trend across L23's
+  narrow range.
+
+**Tests:** `test_ztt_l23.py` +2: the committed ladder records a pass (no data
+needed), and the gate recomputed on the release (`l23_available`).
+
+### 7b.11 Task 7 — closing M7: notebook, review pass, report, hand-off
+
+**Notebook.** `notebooks/RT/rt_fit_ztt_l23.ipynb`: 17 cells, 3 figures,
+executed with no errors (via `nbclient`; `nbconvert` isn't in `ocean14`). It
+covers the profile coverage, the eigen µ∞ check, the refits, the phase
+function, the variant, the ladder, the oracle lesson, and what may be claimed.
+
+**Report.** `reports/report_rt_elastic_model.md` is now v1.1:
+- an executive-summary update, a new **§9 "Update (M7)"**, and dated notes on
+  §5 item 6 and §6 item 1;
+- reproducibility commands and the Mobley et al. (2002) reference;
+- a new figure, `reports/fig_ztt_l23_ladder.png`, drawn by
+  `reports/make_report_figures.py` from `design/ztt_l23/ladder.csv` and added
+  to `DOCS_FIGURES` (now eight).
+
+The `docs/` copy was regenerated by `docs/figures/make_docs_figures.py`. It is
+a generated file and is not hand-edited.
+
+**Review pass** (an independent reviewer over the M7 diff, 5e8b79f..tree). No
+serious correctness bug was found on the shipped paths. The FF, eigenproblem,
+closure and joint-µd algebra, the orderings and splits, and the variant
+contracts were all checked. Findings and dispositions:
+
+| # | finding | disposition |
+|---|---|---|
+| 1a | Per-sample `(n, K)` `ff_weight` (accepted by `validate`) broadcast to an `(n, n)` cross-product of samples inside the FF Pbb; silent when n == n_wave. The loader's `(n, W, 2)` layout was unaffected | **fixed**: `P_bb_from_phase` aligns component arrays to ψ; regression test |
+| 1b | A future emulator trained with `backbone_variant="l23"` on FF batches would silently get Sullivan's Pbb on batches without `ff_B` (Q9's silent fallback) | **logged** for the retrain (hand-off item 1); not live, since the shipped weights are tt2017 |
+| 2a | `test_hybrid`'s M3 gate compared tt2017 + δ against `mode="ztt"`, which is now l23 | **fixed**: scored against `rrs_ZTT(variant=emulator.backbone_variant)`; the docstring numbers (4.15/3.90/7.41%) hold again |
+| 2b | `hybrid.py` module docstring still claimed `hybrid == ztt + emulator` exactly | **fixed**: restated against the emulator's backbone, with the M7 caveat |
+| 3a | The real-scene fixture never exercised the FF path | **fixed**: new `robust/tests/files/l23_ff_small.npz` (12 scenes, 79 kB, carries `bph`/`bd`; `write_fixture(optional=True)`, `npz_reader` serves the optional fields). The default backbone with FF is now value-pinned in CI. `l23_small.npz` is byte-untouched |
+| 3b | `test_kernels_conserve_energy` could not fail (row sums are renormalised by construction) | **replaced**: the kernel's first moment must equal the δ-truncated asymmetry parameter g*, computed by independent quadrature (water 2e-8, FF ≤ 4.5e-3) |
+| 3c | `test_asymptotic_points_are_zenith_independent` was circular (it re-tested the flag's own definition) | **replaced**: an independent hallmark of the asymptotic regime. KEd, KEu and KLu coincide at 50 m on flagged points (max 0.44%), with a tighter median than unflagged points at every zenith |
+| 4a | `coefficients.json["about"]` said +1.4% (it is +1.34% since the 2° truncation) | **fixed** (re-run; coefficients byte-identical) |
+| 4b | "Guard invisible on the data" overstated: the µ∞ cap sits ~1 width above the data maximum, and the input box is unpadded | **docs fixed** (`OUT_CLAMP_WIDTH`, `ZTT_L23_BOX`, `output_range`). The measured net effect stays as stated: 1.5% of held-out µ∞ change by > 1e-4, median unchanged |
+| 4c | `profile_npz_reader` docstring misdescribed the scene labels | **fixed** |
+| 4d | `oracle_mu_inf` trusted the product/batch alignment | **fixed**: it checks zeniths, scene coverage and zenith-major order, and raises |
+| — | `ff_mu_for_B`'s second derivative is not exact (the slope is stop-gradient'd) | **logged**: first derivatives are exact and tested; a Hessian user should know |
+
+**Final test counts** (M7 modules): `test_l23_profiles` 14, `test_phase` 28,
+`test_asymptotic` 16, `test_ztt_l23` 36. Full suite: **752 passed, 26 skipped**
+with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
+`$OS_COLOR` unset. Ruff is clean.
+
+**Hand-off: what comes next** (JXP's Q20 answer (a): L23 is done; PB24 next).
+
+1. **PB24, when back at `$OS_COLOR/SD/v5`** (Q12):
+   - re-check c(θs′) over PB24's ten sun angles (Q10c), refitting µd's
+     atmospheric correction if L23's three nodes don't interpolate;
+   - extend the Ψ_KLu diagnostic to off-nadir ψ, where ZTT's quartic is known
+     to fail below 134° (§7.16), and repeat the oracle lesson: change Ψ_KLu
+     only together with f_L;
+   - µ∞ from PB24 is closure-type only unless the release has profiles;
+     otherwise run the eigenproblem on PB24's IOPs, whose phase functions vary
+     (B_p 6×), which also tests the eigen µ∞'s phase-function dependence (Q5).
+2. **Retrain the emulator on the surviving backbone** (Q2b; JXP: after PB24,
+   Q18). Compare with 0.30%, regenerate and re-pin `emulator_l23.npz` (closing
+   Q19's stale-weights gap), and decide review finding 1b: an "l23" emulator
+   should warn, or refuse, when `ff_B` is absent on a batch it was trained with
+   FF.
+3. **Elastic report.** Done in this task (§9 of the report, v1.1). Revisit when
+   PB24 lands.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -2416,9 +3001,14 @@ robust/
     types.py           ✅ M1  IOPs / PhaseParams / Geometry pytrees
     data/
       __init__.py      ✅ re-exports l23
-      l23.py           ✅ M1  L23 elastic batches + seeded splits
-    ztt.py             ✅ M2  ZTT; µ∞ from TT2017 pending Eq. (8) coeffs
-    emulator.py        ✅ M3  relative-δ Flax MLP + Optax training, save/load
+      l23.py           ✅ M1  L23 elastic batches + seeded splits;
+                             M7: depth-profile product, FF fields (§7b.5-6)
+    ztt.py             ✅ M2  ZTT; M7: variant="l23" (default) / "tt2017",
+                             µ∞/µd refits, closure µ∞, clamps (§7b.7-9)
+    phase.py           ✅ M7  Fournier–Forand (Mobley 2002), L23 FF mixture
+    asymptotic.py      ✅ M7  µ∞ from the asymptotic RTE eigenproblem (fitting-only)
+    emulator.py        ✅ M3  relative-δ Flax MLP + Optax training, save/load;
+                             M7: backbone_variant (§7b.8)
     hybrid.py          ✅ M3  forward()/rrs_forward(), MODES, DomainWarning,
                              on_out_of_domain policy (M4)
     validation.py      ✅ M4  rrms(); per-λ/zenith/B_p, throughput, grads
@@ -2438,10 +3028,20 @@ robust/
     test_emulator.py   ✅ 29 tests — M3 task 1
     test_hybrid.py     ✅ 22 tests — M3 task 2 (the strengthened gate)
     files/l23_small.npz ✅ 213 kB, 50 scenes x 3 zeniths (raw fields)
+    files/l23_profile_fixture.npz ✅ M7 556 kB, 16 scenes x 8 depths x 3 zeniths
+    test_l23_profiles.py ✅ M7 14 tests — task 1
+    test_phase.py      ✅ M7 28 tests — task 2
+    test_asymptotic.py ✅ M7 16 tests — task 3
+    test_ztt_l23.py    ✅ M7 34 tests — tasks 3-6 (incl. the acceptance gate)
 
 design/py/
   train_emulator.py          ✅ M3 real training run (~60 s; --dry-run, --out)
   run_validation.py          ✅ M4 the §6 protocol; writes design/validation/
+  build_l23_profile_product.py ✅ M7 caches the profile product; coverage figure
+  fit_ztt_l23.py             ✅ M7 µ∞ (eigen), µd, closure fits; --check
+  run_ztt_l23.py             ✅ M7 the ladder + acceptance gate
+  explore_mu_inf_eigen.py    ✅ M7 exploratory (Q13 evidence), not pipeline
+design/ztt_l23/              ✅ M7 coefficients, metrics, probes, ladder, figures
 design/validation/
   metrics.md                 ✅ M4 every model x split, per zenith, per B_p bin
   metrics.csv                ✅ M4 the same table, machine-readable
@@ -2455,6 +3055,7 @@ notebooks/RT/
   rt_elastic_coding_3.ipynb  ✅ M2 explainer (executed, 3 figures)
   rt_elastic_coding_4.ipynb  ✅ M3 explainer (executed, 6 figures)
   rt_elastic_coding_5.ipynb  ✅ M4 explainer (executed, 3 figures)
+  rt_fit_ztt_l23.ipynb       ✅ M7 explainer (executed, 17 cells, 3 figures)
 
 .github/workflows/
   ci.yml                     ✅ pytest (py3.12, py3.14) + ruff check/format

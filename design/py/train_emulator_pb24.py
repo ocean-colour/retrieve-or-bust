@@ -131,8 +131,12 @@ def main() -> int:
                 realisations=n, angles="window", geometry_stride=stride
             )
             splits = P.make_splits(batch, kinds=("realisation", "bp_band"))
-            rrs_ztt = Z.rrs_ZTT(
-                batch.iops, batch.phase_params, batch.geometry, batch.wave
+            rrs_ztt = Z.rrs_ZTT(  # M7 task 4: M5 ran on the TT2017 backbone
+                batch.iops,
+                batch.phase_params,
+                batch.geometry,
+                batch.wave,
+                variant="tt2017",
             )
             loaded[stride] = (batch, splits, rrs_ztt)
             print(f"  {batch.report.summary()}")

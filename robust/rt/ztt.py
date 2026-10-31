@@ -73,6 +73,7 @@ import numpy as np
 from jaxtyping import Array, Float
 
 from . import conventions
+from . import phase as _phase
 
 __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     # Coefficient tables (Appendix A)
@@ -109,6 +110,11 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     "Md_plus",
     "Md_star",
     "mu_d",
+    "md_plus_correction",
+    "CLAMP_WIDTH",
+    "OUT_CLAMP_WIDTH",
+    "smooth_clip",
+    "log_inputs",
     "mu_infinity",
     "mu_infinity_tt2017",
     "MU_INF_TT2017_TABLE1",
@@ -116,6 +122,23 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     # The model
     "rrs_ZTT",
     "Rrs_ZTT",
+    # The L23 refit (M7)
+    "MU_INF_L23_COEFFS",
+    "MD_STAR_L23_COEFFS",
+    "MD_PLUS_CORR_L23",
+    "ZTT_L23_BOX",
+    "MU_INF_L23_RANGE",
+    "MD_STAR_L23_RANGE",
+    "VARIANTS",
+    "DEFAULT_VARIANT",
+    "MU_INF_MODELS",
+    "MU_D_MODELS",
+    "mu_infinity_l23",
+    "mu_infinity_l23_closure",
+    "MU_INF_L23_CLOSURE_COEFFS",
+    "MU_INF_L23_CLOSURE_RANGE",
+    "mu_d_l23",
+    "mu_inf_closure",
 ]
 
 #: Refractive index of seawater used for Snell refraction (paper §2.1).
@@ -451,7 +474,9 @@ def P_bb_sullivan(psi_deg: Float[Array, "..."]) -> Float[Array, "..."]:
 P_BB_PIVOT_DEG = 180.0
 
 
-def P_bb_from_phase(phase_params, psi_deg) -> Float[Array, "..."]:
+def P_bb_from_phase(
+    phase_params, psi_deg, *, use_ff: bool = False
+) -> Float[Array, "..."]:
     """``Pbb(ψ) = βp(ψ)/bb_p`` from the phase-function container (M5 task 14).
 
     ZTT takes the particulate backward phase function as a **required model
@@ -474,16 +499,34 @@ def P_bb_from_phase(phase_params, psi_deg) -> Float[Array, "..."]:
     ``P_bb_from_phase(PhaseParams(B_p=...), psi)`` **is** ``P_bb_sullivan(psi)``,
     bit for bit. That is what keeps every M0-M4 number reproducible.
 
+    **M7 task 2: a Fournier–Forand mixture instead of Sullivan.** With
+    ``use_ff=True`` *and* ``phase_params.ff_B`` set, the shape is
+    :func:`robust.rt.phase.P_bb_ff` -- for L23, its own two-component FF phase
+    function -- in place of Sullivan's. Without ``ff_B`` it falls back to
+    Sullivan **silently** (Q9): most callers have no component information. The
+    switch is an explicit keyword, off by default, because the L23 loader now
+    fills ``ff_B``. If ``rrs_ZTT`` honoured it unasked, every pinned hybrid
+    number would move. M7 task 4's ``variant="l23"`` turns it on. The FF shape
+    is not combined with the M5 tilt/rescale fields: asking for both raises.
+
     Parameters
     ----------
     phase_params : robust.rt.types.PhaseParams
     psi_deg : Array
         Scattering angle (degrees).
+    use_ff : bool, optional
+        Use the FF mixture when ``phase_params`` carries one (default False).
 
     Returns
     -------
     Array
         ``Pbb(ψ)`` in sr^-1.
+
+    Raises
+    ------
+    ValueError
+        If ``use_ff`` selects the FF mixture while ``beta_tilde_pi`` or
+        ``backward_slope`` is also set.
 
     Notes
     -----
@@ -495,6 +538,45 @@ def P_bb_from_phase(phase_params, psi_deg) -> Float[Array, "..."]:
     sweep and an interface to build against, not a fitted model. Any result that
     varies these fields must say which values it used and that they are inputs.
     """
+    if (
+        use_ff
+        and phase_params is not None
+        and getattr(phase_params, "ff_B", None) is not None
+    ):
+        if (
+            getattr(phase_params, "beta_tilde_pi", None) is not None
+            or getattr(phase_params, "backward_slope", None) is not None
+        ):
+            raise ValueError(
+                "P_bb_from_phase: the FF mixture (ff_B) and the M5 Sullivan "
+                "tilt/rescale (beta_tilde_pi, backward_slope) are alternatives; "
+                "set one or the other"
+            )
+
+        def align_components(value):
+            """Give per-sample component arrays the trailing axes ``psi`` has.
+
+            ``psi`` arrives as ``(n_sample, 1)``. A spectral ``(n, W, K)`` array
+            already lines up, but a per-sample ``(n, K)`` would broadcast against
+            ψ's ``(n, 1, 1)`` to ``(n, n, K)``: a silent cross-product of samples
+            (M7 review, finding 1a). The same trap ``align`` closes below for
+            the M5 fields.
+            """
+            value = jnp.asarray(value)
+            psi_ndim = jnp.ndim(jnp.asarray(psi_deg))
+            batch_ndim = value.ndim - 1
+            if 0 < batch_ndim < psi_ndim:
+                value = value.reshape(
+                    value.shape[:-1] + (1,) * (psi_ndim - batch_ndim) + value.shape[-1:]
+                )
+            return value
+
+        return _phase.P_bb_ff(
+            psi_deg,
+            align_components(phase_params.ff_B),
+            align_components(phase_params.ff_weight),
+        )
+
     shape = P_bb_sullivan(psi_deg)
     if phase_params is None:
         return shape
@@ -669,7 +751,7 @@ def Md_plus(theta_s_air_deg, visibility_km: float = DEFAULT_VISIBILITY_KM):
     return P3_cos(theta) / ((1.0 - H) / mu_w + H / 0.859)
 
 
-def Md_star(bb_over_a, eta_bb, coeffs=MD_STAR_COEFFS):
+def Md_star(bb_over_a, eta_bb, coeffs=MD_STAR_COEFFS, *, box=None, out_range=None):
     """Equation (17) — the IOP-dependent part of ``µd``.
 
     A cubic in ``log10(bb/a)`` whose coefficients are linear in ``log10 η_bb``::
@@ -687,6 +769,13 @@ def Md_star(bb_over_a, eta_bb, coeffs=MD_STAR_COEFFS):
         fitted over ~0.0098 to 0.98.
     coeffs : sequence of float, optional
         The eight ``m*_d`` coefficients.
+    box : sequence of float, optional
+        ``(X_lo, X_hi, L_lo, L_hi)``: clamp the log inputs into the fitted range
+        (:func:`log_inputs`). ``None`` (the Table A2 default) extrapolates.
+    out_range : sequence of float, optional
+        ``(lo, hi)``: smoothly bound the output (:data:`OUT_CLAMP_WIDTH`). The
+        input box is a rectangle but data fill only part of it, so a fitted
+        polynomial can still misbehave in its empty corners.
 
     Returns
     -------
@@ -694,15 +783,17 @@ def Md_star(bb_over_a, eta_bb, coeffs=MD_STAR_COEFFS):
         ``M*_d``, dimensionless.
     """
     m = coeffs
-    X = jnp.log10(jnp.asarray(bb_over_a))
-    L = jnp.log10(jnp.asarray(eta_bb))
-    return (
+    X, L = log_inputs(bb_over_a, eta_bb, box)
+    value = (
         (m[0] * L + m[1]) * X**3
         + (m[2] * L + m[3]) * X**2
         + (m[4] * L + m[5]) * X
         + m[6] * L
         + m[7]
     )
+    if out_range is not None:
+        value = smooth_clip(value, out_range[0], out_range[1], OUT_CLAMP_WIDTH)
+    return value
 
 
 def mu_d(
@@ -710,6 +801,11 @@ def mu_d(
     bb_over_a,
     eta_bb,
     visibility_km: float = DEFAULT_VISIBILITY_KM,
+    *,
+    md_star_coeffs=MD_STAR_COEFFS,
+    md_plus_corr=None,
+    box=None,
+    md_star_range=None,
 ):
     """Equation (14) — ``µd ≈ M+_d(θs', V) × M*_d(bb/a, η_bb)``.
 
@@ -725,13 +821,117 @@ def mu_d(
         As :func:`Md_star`.
     visibility_km : float, optional
         Horizontal visibility V (km).
+    md_star_coeffs : sequence of float, optional
+        Equation (17)'s eight coefficients; Table A2's by default.
+    md_plus_corr : sequence of float, optional
+        ``(c1, c2)`` of :func:`md_plus_correction`, multiplying ``M+_d``; the
+        M7 refit to L23 (Q10b). ``None`` leaves TT's ``M+_d`` as published.
+    box : sequence of float, optional
+        Input clamp for ``M*_d`` (:func:`Md_star`).
+    md_star_range : sequence of float, optional
+        Output bound for ``M*_d`` (:func:`Md_star`'s ``out_range``).
 
     Returns
     -------
     Array
         ``µd``, dimensionless.
+
+    Notes
+    -----
+    With every keyword at its default this is exactly the published Equation
+    (14), bit for bit; the keywords exist for the refit variant (M7 task 3).
     """
-    return Md_plus(theta_s_air_deg, visibility_km) * Md_star(bb_over_a, eta_bb)
+    plus = Md_plus(theta_s_air_deg, visibility_km)
+    if md_plus_corr is not None:
+        plus = plus * md_plus_correction(theta_s_air_deg, md_plus_corr)
+    return plus * Md_star(
+        bb_over_a, eta_bb, md_star_coeffs, box=box, out_range=md_star_range
+    )
+
+
+def md_plus_correction(theta_s_air_deg, corr):
+    """The atmospheric correction ``c(θs') = 1 + c1 u + c2 u²``, ``u = 1 − cos θs'``.
+
+    M7 (``rt_fit_ztt.md``, Q10b). Measured against L23, TT's ``M+_d`` puts ``µd``
+    8.7% high at θs' = 60° and 2% low at 0°: TT's diffuse-fraction fit and
+    ``P3`` term do not describe HydroLight's default clear sky. The correction
+    is fitted *jointly* with ``M*_d``. ``c(0) = 1`` by construction, so the two
+    factors stay separately identified. With L23's three sun angles it is
+    exactly determined, and it is tied to L23's single atmosphere.
+
+    Parameters
+    ----------
+    theta_s_air_deg : Array
+        Above-water solar zenith (degrees).
+    corr : sequence of float
+        ``(c1, c2)``.
+
+    Returns
+    -------
+    Array
+        ``c(θs')``, dimensionless.
+    """
+    u = 1.0 - jnp.cos(jnp.deg2rad(jnp.asarray(theta_s_air_deg)))
+    return 1.0 + corr[0] * u + corr[1] * u**2
+
+
+#: Width (in log10 units) of the soft corners of :func:`smooth_clip`. 0.01 decades
+#: is 2.3% in the ratio itself, small against the fitted boxes' 1-4 decade sides.
+CLAMP_WIDTH = 0.01
+
+
+#: Width of the soft corners when a fitted polynomial's *output* is bounded
+#: (``out_range``): 0.001 in µ. The guard moves a value by
+#: ``width · ln(1 + e^{-d/width})`` at distance ``d`` inside its range: ~7e-6 at
+#: five widths, but up to ~3e-4 within a width of an edge (review pass).
+OUT_CLAMP_WIDTH = 0.001
+
+
+def smooth_clip(x, lo, hi, width=CLAMP_WIDTH):
+    """Clamp ``x`` into ``[lo, hi]`` with softplus corners: smooth, monotone, and
+    the identity to within ``width · e^{-d/width}`` at distance ``d`` inside.
+
+    ``jnp.clip`` would do the clamping, but its gradient is exactly zero
+    outside and undefined at the edges. Here the gradient decays smoothly
+    instead, which keeps an optimizer that strays out of the box informed.
+
+    Parameters
+    ----------
+    x : Array
+    lo, hi : float
+    width : float, optional
+
+    Returns
+    -------
+    Array
+    """
+    x = jnp.asarray(x)
+    return (
+        x
+        - width * jnp.logaddexp(0.0, (x - hi) / width)
+        + width * jnp.logaddexp(0.0, (lo - x) / width)
+    )
+
+
+def log_inputs(bb_over_a, eta_bb, box=None):
+    """``X = log10(bb/a)`` and ``L = log10 η_bb``, optionally clamped to ``box``.
+
+    Parameters
+    ----------
+    bb_over_a, eta_bb : Array
+    box : sequence of float, optional
+        ``(X_lo, X_hi, L_lo, L_hi)`` -- the range a fit was made over (Q3).
+
+    Returns
+    -------
+    X, L : Array
+    """
+    X = jnp.log10(jnp.asarray(bb_over_a))
+    L = jnp.log10(jnp.asarray(eta_bb))
+    if box is not None:
+        X = smooth_clip(X, box[0], box[1])
+        L = smooth_clip(L, box[2], box[3])
+    return X, L
 
 
 # --------------------------------------------------------------------- mu_inf --
@@ -813,7 +1013,7 @@ def mu_infinity_tt2017(bb_over_a, eta_bb):
     return p0 + p1 * L + p2 * L**2
 
 
-def mu_infinity(bb_over_a, eta_bb, coeffs=None):
+def mu_infinity(bb_over_a, eta_bb, coeffs=None, *, box=None, out_range=None):
     """Equation (8) — ``µ∞(bb/a, η_bb)``, the asymptotic average cosine.
 
     A cubic in ``log10(bb/a)`` whose four coefficients are each a cubic in
@@ -841,6 +1041,11 @@ def mu_infinity(bb_over_a, eta_bb, coeffs=None):
     coeffs : sequence of float, optional
         The sixteen coefficients ``m1..m16``. Supply them if you obtain them;
         there is no default.
+    box : sequence of float, optional
+        ``(X_lo, X_hi, L_lo, L_hi)`` input clamp (:func:`log_inputs`), for a
+        fit made over a known range (M7, Q3).
+    out_range : sequence of float, optional
+        ``(lo, hi)`` smooth bound on the output, as :func:`Md_star`'s.
 
     Returns
     -------
@@ -867,8 +1072,7 @@ def mu_infinity(bb_over_a, eta_bb, coeffs=None):
         raise ValueError(f"mu_infinity: expected 16 coefficients, got {len(coeffs)}")
 
     m = coeffs
-    X = jnp.log10(jnp.asarray(bb_over_a))
-    L = jnp.log10(jnp.asarray(eta_bb))
+    X, L = log_inputs(bb_over_a, eta_bb, box)
 
     def cubic_in_L(c0, c1, c2, c3):
         """One cubic in ``L = log10(η_bb)`` -- the inner polynomial of
@@ -876,12 +1080,203 @@ def mu_infinity(bb_over_a, eta_bb, coeffs=None):
         outer cubic in ``X = log10(bb/a)``."""
         return c0 * L**3 + c1 * L**2 + c2 * L + c3
 
-    return (
+    value = (
         cubic_in_L(m[0], m[1], m[2], m[3]) * X**3
         + cubic_in_L(m[4], m[5], m[6], m[7]) * X**2
         + cubic_in_L(m[8], m[9], m[10], m[11]) * X
         + cubic_in_L(m[12], m[13], m[14], m[15])
     )
+    if out_range is not None:
+        value = smooth_clip(value, out_range[0], out_range[1], OUT_CLAMP_WIDTH)
+    return value
+
+
+# ---------------------------------------------------- the L23 refit (M7) --
+#: **"ZTT (L23 µ∞)"**: Equation (8)'s sixteen coefficients ``m1..m16`` refit to
+#: L23 (M7 task 3, ``rt_fit_ztt.md``; record §7b.7). The target was µ∞ from the
+#: asymptotic RTE eigenproblem (:mod:`robust.rt.asymptotic`) on every train-split
+#: (scene, λ). The fit is linear least squares on relative residuals. Held out:
+#: median |error| 0.21%, mean 0.31%. The eigen µ∞ itself reads ~1.3% high
+#: against L23's profiles where those are asymptotic (Q13), a stated systematic.
+#: These are **not** the authors' unpublished 2018 coefficients. Regenerate with
+#: ``design/py/fit_ztt_l23.py``; ``design/ztt_l23/coefficients.json`` is the source.
+MU_INF_L23_COEFFS = (
+    0.07521986047292743,
+    0.10972298647458721,
+    0.0466331524399045,
+    -0.01310755744139963,
+    0.5271551241452678,
+    0.7718313442009022,
+    0.3325466606641836,
+    -0.15564270735585706,
+    1.2846484410844567,
+    1.984711822640948,
+    0.9657426806870779,
+    -0.5574670296121988,
+    1.1404716719460561,
+    1.9912005403862445,
+    1.200812992723473,
+    0.3686930900105536,
+)
+
+#: Equation (17)'s eight ``M*_d`` coefficients, refit to L23's µd(0⁻) *jointly*
+#: with :data:`MD_PLUS_CORR_L23` (M7 task 3, Q10b). Held out: 0.34 / 0.22 /
+#: 0.46% at θs' = 0 / 30 / 60°, where Table A2's reach 2.05 / 0.50 / 8.75%.
+MD_STAR_L23_COEFFS = (
+    -0.003873912293755453,
+    -0.010108051497584048,
+    -0.02673631641171537,
+    -0.08079295562105875,
+    -0.052522890637756475,
+    -0.21002435890920176,
+    -0.026556917867871153,
+    0.8419000299235042,
+)
+
+#: ``(c1, c2)`` of :func:`md_plus_correction` for L23's sky (HydroLight default
+#: clear sky, 5 m/s wind): c(30°) = 0.983 and c(60°) = 0.907. Exactly determined
+#: by L23's three sun angles, so its interpolation between them is untested
+#: until PB24.
+MD_PLUS_CORR_L23 = (-0.10656634715990398, -0.15864703687789908)
+
+#: ``(X_lo, X_hi, L_lo, L_hi)``: the (log10 bb/a, log10 η_bb) range of the
+#: training points. Both L23 refits clamp their inputs to it (Q3). The box is the
+#: exact training range, unpadded, so points *on* its edges are shifted by up to
+#: ``CLAMP_WIDTH · ln 2`` ≈ 0.007 decades (review pass). Measured net effect of
+#: both guards: 1.5% of held-out µ∞ change by > 1e-4, median error unchanged.
+ZTT_L23_BOX = (
+    -3.9656776708214276,
+    -0.22577186428964108,
+    -1.7551743928189434,
+    -0.015010866431198294,
+)
+
+#: Output guards (Q17). L23 fills only a triangle of :data:`ZTT_L23_BOX`, and in
+#: the empty corners the bare Eq. (8) polynomial reaches −1.1 and 1.6. These are
+#: the training ranges plus 5 × :data:`OUT_CLAMP_WIDTH`, with µ∞ capped below 1.
+MU_INF_L23_RANGE = (0.4267627739922664, 0.999)
+#: tuple: The same guard for ``M*_d`` (not a cosine, so not capped at 1).
+MD_STAR_L23_RANGE = (0.881526035775638, 1.039261098123049)
+
+#: **"ZTT (L23 closure µ∞)" -- a ceiling, not physics** (M7 task 5, Q1). Equation
+#: (8)'s form fitted to the *closure* µ∞: for each L23 sample, the µ∞ that makes
+#: the L23 variant reproduce the reference rrs exactly (:func:`mu_inf_closure`),
+#: on train-split rows of all three zeniths. It absorbs the errors of every other
+#: term (Ψ_KLu, f_L, Pbb, the residual µd), so it is not an average cosine of
+#: anything. It is the most rrs that µ∞ alone could buy. Held-out rRMS: 1.20 /
+#: 1.43 / 1.47% at 0 / 30 / 60° against 2.91 / 2.56 / 3.18% for "ZTT (L23 µ∞)".
+#: Selected with ``mu_inf_model="l23_closure"``; never a default.
+MU_INF_L23_CLOSURE_COEFFS = (
+    -0.29563733771899775,
+    -0.2984025525634349,
+    -0.008195819323475718,
+    -0.021091981813251153,
+    -1.8403173054772548,
+    -1.609279630269282,
+    0.18259986740444667,
+    -0.17366791155185418,
+    -3.591180539083864,
+    -2.479918768680893,
+    0.9361370735221088,
+    -0.5057020088394896,
+    -2.139653284152173,
+    -0.8943584651227547,
+    0.9887988450116013,
+    0.3983701582610333,
+)
+#: tuple: Output guard for the closure fit -- its training range plus
+#: 5 × :data:`OUT_CLAMP_WIDTH`, capped below 1 (Q17).
+MU_INF_L23_CLOSURE_RANGE = (0.4135738177525006, 0.994010053503653)
+
+
+#: The backbone variants :func:`rrs_ZTT` knows. ``"l23"`` -- the M7 refit µ∞
+#: and µd, plus L23's FF phase function where ``PhaseParams`` carries it -- is
+#: the default. ``"tt2017"`` is the M0–M6 model, bit for bit.
+VARIANTS = ("l23", "tt2017")
+#: str: The default of :func:`rrs_ZTT`'s ``variant``.
+DEFAULT_VARIANT = "l23"
+#: µ∞ choices for ``mu_inf_model``. ``"l23_closure"`` is M7 task 5's ceiling.
+MU_INF_MODELS = ("l23", "l23_closure", "tt2017")
+#: µd choices for ``mu_d_model`` (the ladder of M7 task 6 toggles it alone).
+MU_D_MODELS = ("l23", "tt2017")
+
+
+def mu_infinity_l23(bb_over_a, eta_bb):
+    """µ∞ from the L23 refit of Equation (8), clamped and guarded.
+
+    Parameters
+    ----------
+    bb_over_a, eta_bb : Array
+
+    Returns
+    -------
+    Array
+        µ∞, dimensionless.
+    """
+    return mu_infinity(
+        bb_over_a,
+        eta_bb,
+        MU_INF_L23_COEFFS,
+        box=ZTT_L23_BOX,
+        out_range=MU_INF_L23_RANGE,
+    )
+
+
+def mu_infinity_l23_closure(bb_over_a, eta_bb):
+    """The closure µ∞ fit (:data:`MU_INF_L23_CLOSURE_COEFFS`): **a ceiling, not
+    physics**. Clamped to :data:`ZTT_L23_BOX` and guarded like
+    :func:`mu_infinity_l23`.
+
+    Parameters
+    ----------
+    bb_over_a, eta_bb : Array
+
+    Returns
+    -------
+    Array
+    """
+    return mu_infinity(
+        bb_over_a,
+        eta_bb,
+        MU_INF_L23_CLOSURE_COEFFS,
+        box=ZTT_L23_BOX,
+        out_range=MU_INF_L23_CLOSURE_RANGE,
+    )
+
+
+def mu_d_l23(theta_s_air_deg, bb_over_a, eta_bb, visibility_km=DEFAULT_VISIBILITY_KM):
+    """µd from the L23 refit: TT's ``M+_d`` × c(θs') × refit ``M*_d``.
+
+    Parameters
+    ----------
+    theta_s_air_deg : Array
+        Above-water solar zenith (degrees).
+    bb_over_a, eta_bb : Array
+    visibility_km : float, optional
+        Enters TT's ``M+_d`` only; the correction was fitted at L23's sky.
+
+    Returns
+    -------
+    Array
+        µd, dimensionless.
+    """
+    return mu_d(
+        theta_s_air_deg,
+        bb_over_a,
+        eta_bb,
+        visibility_km,
+        md_star_coeffs=MD_STAR_L23_COEFFS,
+        md_plus_corr=MD_PLUS_CORR_L23,
+        box=ZTT_L23_BOX,
+        md_star_range=MD_STAR_L23_RANGE,
+    )
+
+
+def _choose(name, value, allowed):
+    """Validate a string option, raising with the allowed set."""
+    if value not in allowed:
+        raise ValueError(f"rrs_ZTT: {name} must be one of {allowed}; got {value!r}")
+    return value
 
 
 # ------------------------------------------------------------------------ f_L --
@@ -922,6 +1317,9 @@ def rrs_ZTT(
     mu_inf=None,
     mu_inf_coeffs=None,
     visibility_km: float = DEFAULT_VISIBILITY_KM,
+    variant: str = DEFAULT_VARIANT,
+    mu_inf_model: str | None = None,
+    mu_d_model: str | None = None,
 ) -> Float[Array, "*batch wave"]:
     """Equation (12) — subsurface ``rrs`` from the ZTT model.
 
@@ -950,14 +1348,24 @@ def rrs_ZTT(
         ``µ∞`` supplied directly — for sensitivity tests. Overrides everything.
     mu_inf_coeffs : sequence of float, optional
         The sixteen Equation (8) coefficients, if you obtain them; this is the
-        path back to the model exactly as published in 2018.
-
-        With neither given, ``µ∞`` falls back to :func:`mu_infinity_tt2017`, the
-        same authors' 2017 parameterization, because the 2018 paper omits its own
-        Equation (8) coefficients. **Report such results as "ZTT with the TT2017
-        µ∞", not as the 2018 model.**
+        path back to the model exactly as published in 2018 ("ZTT 2018").
     visibility_km : float, optional
         Horizontal visibility V (km).
+    variant : {"l23", "tt2017"}, optional
+        **M7.** Which backbone (:data:`VARIANTS`). ``"l23"``, the default, is
+        "ZTT (L23 µ∞)": µ∞ and µd refit to L23 (:func:`mu_infinity_l23`,
+        :func:`mu_d_l23`), and L23's two-component FF phase function wherever
+        ``phase_params`` carries ``ff_B`` (Sullivan otherwise, silently).
+        ``"tt2017"`` is "ZTT (TT2017 µ∞)", the M0–M6 model, bit for bit: the
+        TT2017 µ∞, Table A2's µd, and Sullivan's Pbb.
+    mu_inf_model : {"l23", "l23_closure", "tt2017"}, optional
+        Override the variant's µ∞ alone (:data:`MU_INF_MODELS`).
+        ``"l23_closure"`` (M7 task 5) is the closure fit -- a ceiling, not
+        physics (:func:`mu_infinity_l23_closure`). Precedence:
+        ``mu_inf`` > ``mu_inf_coeffs`` > ``mu_inf_model`` > ``variant``.
+    mu_d_model : {"l23", "tt2017"}, optional
+        Override the variant's µd alone (:data:`MU_D_MODELS`). The Pbb choice
+        has its own override, ``P_bb``.
 
     Returns
     -------
@@ -967,13 +1375,21 @@ def rrs_ZTT(
     Raises
     ------
     ValueError
-        If both ``mu_inf`` and ``mu_inf_coeffs`` are given.
+        If both ``mu_inf`` and ``mu_inf_coeffs`` are given, or an option is not
+        one of its allowed values.
     """
     if mu_inf is not None and mu_inf_coeffs is not None:
         raise ValueError(
             "rrs_ZTT: supply at most one of mu_inf (a value) or mu_inf_coeffs "
             "(Equation (8) coefficients m1..m16)."
         )
+    _choose("variant", variant, VARIANTS)
+    mu_inf_model = _choose(
+        "mu_inf_model", variant if mu_inf_model is None else mu_inf_model, MU_INF_MODELS
+    )
+    mu_d_model = _choose(
+        "mu_d_model", variant if mu_d_model is None else mu_d_model, MU_D_MODELS
+    )
 
     _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(geometry)
 
@@ -997,13 +1413,21 @@ def rrs_ZTT(
         mu_inf_value = jnp.asarray(mu_inf)
     elif mu_inf_coeffs is not None:
         mu_inf_value = mu_infinity(bb_over_a, eta_bb, mu_inf_coeffs)
+    elif mu_inf_model == "l23":
+        mu_inf_value = mu_infinity_l23(bb_over_a, eta_bb)
+    elif mu_inf_model == "l23_closure":
+        mu_inf_value = mu_infinity_l23_closure(bb_over_a, eta_bb)
     else:
         mu_inf_value = mu_infinity_tt2017(bb_over_a, eta_bb)
 
-    # The backward VSF: an explicit override wins, else the phase container -- which
-    # falls back to Sullivan's fixed shape when its M5 fields are None, so this is
-    # the M0-M4 expression unless a caller supplies the new parameters.
-    P_bb_value = P_bb_from_phase(phase_params, psi_b) if P_bb is None else P_bb
+    # The backward VSF: an explicit override wins, else the phase container. That
+    # falls back to Sullivan's fixed shape unless the M5 fields are set, or (the
+    # L23 variant only) the FF mixture of M7 task 2 is present.
+    P_bb_value = (
+        P_bb_from_phase(phase_params, psi_b, use_ff=variant == "l23")
+        if P_bb is None
+        else P_bb
+    )
     numerator = backward_phase_over_bb(iops, P_bb_value, psi_b)
     b_tilde = bb_tilde(iops, phase_params.B_p)
 
@@ -1013,9 +1437,72 @@ def rrs_ZTT(
         + 1.0 / b_tilde
     )
 
-    return numerator / (
-        mu_d(theta_s_air_b, bb_over_a, eta_bb, visibility_km) * denominator
+    if mu_d_model == "l23":
+        mu_d_value = mu_d_l23(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
+    else:
+        mu_d_value = mu_d(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
+    return numerator / (mu_d_value * denominator)
+
+
+def mu_inf_closure(
+    iops,
+    phase_params,
+    geometry,
+    rrs,
+    wave: Float[Array, " wave"] | None = None,
+    *,
+    visibility_km: float = DEFAULT_VISIBILITY_KM,
+):
+    """The µ∞ that makes the L23 variant reproduce ``rrs`` exactly (M7 task 5).
+
+    Equation (12) is ``rrs = N / (µd D)`` with
+    ``D = (a/bb)(1 − cos θv Ψ_KLu/µ∞) + R`` and ``R = f_L(1 − 1/b̃b) + 1/b̃b``.
+    Given a reference ``rrs`` it is linear in ``1/µ∞``:
+
+        µ∞ = −cos θv Ψ_KLu / [ (N / (µd rrs) − R)(bb/a) − 1 ]
+
+    Every other term is the L23 variant's: the refit µd (:func:`mu_d_l23`) and
+    L23's FF phase function where ``phase_params`` carries it. So the closure µ∞
+    absorbs as little else as possible. It still absorbs **everything** else
+    -- Ψ_KLu, f_L, the Pbb shape, the surface -- which is why it is *a ceiling,
+    not physics*. The values can be ≤ 0 or > 1 where those errors are large.
+    They are returned as computed, and the caller decides.
+
+    Parameters
+    ----------
+    iops, phase_params, geometry, wave
+        As :func:`rrs_ZTT`.
+    rrs : Array
+        Reference subsurface reflectance (sr^-1), ``(..., n_wave)``.
+    visibility_km : float, optional
+
+    Returns
+    -------
+    Array
+        µ∞ per sample and wavelength, unclipped.
+    """
+    _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(geometry)
+
+    def spectral(x):
+        """A per-sample angle gains a trailing axis to meet ``(..., wave)``."""
+        x = jnp.asarray(x)
+        return x[..., None] if jnp.ndim(x) else x
+
+    psi_b = spectral(psi)
+    cos_theta_v = spectral(jnp.cos(jnp.deg2rad(theta_v_paper)))
+    theta_s_air_b = spectral(theta_s_air)
+    bb = iops.bb
+    bb_over_a = bb / iops.a
+    eta_bb = iops.bb_w / bb
+
+    numerator = backward_phase_over_bb(
+        iops, P_bb_from_phase(phase_params, psi_b, use_ff=True), psi_b
     )
+    b_tilde = bb_tilde(iops, phase_params.B_p)
+    rest = f_L(psi_b, wave) * (1.0 - 1.0 / b_tilde) + 1.0 / b_tilde
+    mu_d_value = mu_d_l23(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
+    needed = numerator / (mu_d_value * jnp.asarray(rrs))
+    return -cos_theta_v * psi_KLu(psi_b) / ((needed - rest) * bb_over_a - 1.0)
 
 
 def Rrs_ZTT(
@@ -1033,7 +1520,7 @@ def Rrs_ZTT(
         As :func:`rrs_ZTT`.
     **kwargs
         Forwarded to :func:`rrs_ZTT` (``P_bb``, ``mu_inf`` / ``mu_inf_coeffs``,
-        ``visibility_km``).
+        ``visibility_km``, ``variant``, ``mu_inf_model``, ``mu_d_model``).
 
     Returns
     -------

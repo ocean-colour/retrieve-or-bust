@@ -303,6 +303,18 @@ class PhaseParams:
         fitted them, because PB24 prescribes its phase functions and does not
         tabulate ``βp(ψ)``. Treat them as inputs to sweep, not as retrieved
         quantities.
+    ff_B : Array or None
+        **M7 (task 2).** Backscatter ratios of the Fournier–Forand components
+        that make up the particles, **component axis last**. For L23 that is
+        ``(0.010, 0.018)`` -- phytoplankton and non-algal particles (Loisel et
+        al. 2023 §2) -- broadcast per sample and wavelength by the loader. Used
+        only where ZTT is asked for the FF phase function
+        (:func:`robust.rt.ztt.P_bb_from_phase`, ``use_ff=True``); ``None``
+        means "no component information", and ZTT falls back to Sullivan.
+    ff_weight : Array or None
+        **M7 (task 2).** Each component's share of particle *scattering*,
+        ``b_k / Σ b``, component axis last, typically spectral. Set together
+        with ``ff_B`` or not at all.
     B_p : Array
         Particulate backscattering ratio ``bb_p / b_p``, dimensionless, typically
         ~0.005-0.03. Realized through a Fournier-Forand phase function. May be a
@@ -313,6 +325,8 @@ class PhaseParams:
     B_p: Float[Array, "..."]
     beta_tilde_pi: Float[Array, "..."] | None = None
     backward_slope: Float[Array, "..."] | None = None
+    ff_B: Float[Array, "... component"] | None = None
+    ff_weight: Float[Array, "... component"] | None = None
 
     def validate(self) -> None:
         """Raise ``ValueError`` unless ``B_p`` is a physical ratio.
@@ -338,6 +352,31 @@ class PhaseParams:
             values = np.asarray(self.backward_slope, dtype=float)
             if not np.all(np.isfinite(values)):
                 raise ValueError("PhaseParams.backward_slope: non-finite value(s)")
+        if (self.ff_B is None) != (self.ff_weight is None):
+            raise ValueError(
+                "PhaseParams: ff_B and ff_weight are set together or not at all"
+            )
+        if self.ff_B is not None:
+            ff_B = np.asarray(self.ff_B, dtype=float)
+            ff_w = np.asarray(self.ff_weight, dtype=float)
+            if not np.all(np.isfinite(ff_B)) or np.any(ff_B <= 0) or np.any(ff_B >= 1):
+                raise ValueError("PhaseParams.ff_B: must lie in (0, 1)")
+            if not np.all(np.isfinite(ff_w)) or np.any(ff_w < 0):
+                raise ValueError("PhaseParams.ff_weight: must be finite and >= 0")
+            if not np.all(ff_w.sum(axis=-1) > 0):
+                raise ValueError("PhaseParams.ff_weight: weights sum to zero")
+            try:
+                np.broadcast_shapes(ff_B.shape, ff_w.shape)
+            except ValueError as err:
+                raise ValueError(
+                    f"PhaseParams: ff_B {ff_B.shape} and ff_weight {ff_w.shape} "
+                    "do not broadcast"
+                ) from err
+            if ff_B.shape[-1:] != ff_w.shape[-1:]:
+                raise ValueError(
+                    "PhaseParams: ff_B and ff_weight need the same component "
+                    "(last) axis"
+                )
         if np.any(arr <= 0.0) or np.any(arr > 1.0):
             raise ValueError(
                 f"PhaseParams.B_p: must lie in (0, 1]; got range "

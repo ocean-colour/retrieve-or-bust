@@ -56,6 +56,8 @@ design/py/            # figure & validation-run scripts (non-package)
 | **M3** | Emulator + hybrid | hybrid **beats standard Gordon** rRMS (train, 3 zeniths); grad check on `forward`; throughput logged |
 | **M4** | Validation (**prototype done**) | hybrid beats Gordon on **both held-out splits** + passes grad gate; metrics table + figures |
 | **M5** | Beyond week 1 | (coarse) HydroLight PF/BRDF runs; ZTT backward-VSF params; API frozen |
+| **M6** | After the backbone broke (Route C: restrict the claim) | see `rt_elastic_coding_prompt_7.md` |
+| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | L23 variant beats the TT2017 backbone on held-out scenes at every zenith; `tt2017` bit-for-bit; grad gate; hybrid numbers unchanged — ✅ **complete 2026-10-31**; gate passed (record §7b.10–11) |
 
 ---
 
@@ -162,6 +164,38 @@ For that gate to mean anything, O25 must first be given a **geometry-indexed coe
 table**: `fit_o25` as built groups by solar zenith only, which off-nadir handicaps the
 benchmark rather than flattering it (record §7.6, finding 2). Beating a rival we crippled
 is not a result.
+
+---
+
+## M7 — ZTT refit to L23 ("ZTT (L23 µ∞)")
+
+*Added 2026-10-30. Design: [`rt_elastic_model.md`](rt_elastic_model.md) §4.6.
+Decisions: Q1–Q12 in [`claude_prompts/RT/rt_fit_ztt.md`](../claude_prompts/RT/rt_fit_ztt.md).
+Execution prompts: that file's "Fit L23" section, one prompt per task.*
+
+Independent of M6's routes, though it is a partial Route A: it repairs two of
+the backbone's terms using data that M5 lacked.
+
+| task | what | gate (pytest unless noted) |
+|---|---|---|
+| **1** | L23 **profile reader** + derived per-(scene, λ) product: µ(z), µ∞ estimate with quality flag, µd(0⁻), KLu(0⁻) | Gershun `(Ed−Eu)/Eo = a/KEd` to 1e-3; golden rows vs raw netCDF; flags reproducible |
+| **2** | **Fournier–Forand** in JAX + two-component Pbb; `PhaseParams.ff_B`, `ff_weight` (default `None`); L23 loader fills them | p̃FF normalizes to 1 (numerical quadrature); B(µ) round-trips 0.010 / 0.018; `None` = Sullivan, bit for bit; freeze test still green |
+| **3** | **Fit script** `design/py/fit_ztt_l23.py`: Eq. (8) µ∞ and M*_d + c(θs′) by linear LSQ in log space, train split; Ψ_KLu diagnostic | deterministic (bit-identical rerun); held-out µ∞ and µd errors **reported**; coefficients written to `design/ztt_l23/` |
+| **4** | **Wire into `ztt.py`**: coefficient constants, `variant=`, `mu_inf_model=`, clamping; default `"l23"`; **in the same change**, stamp each learned artefact with its backbone variant and have `hybrid` honour it | `variant="tt2017"` reproduces today's rrs bit for bit; hybrid and `forward(mode="hybrid")` pins unchanged; clamp holds; float64 grad vs FD |
+| **5** | **Closure µ∞**: invert Eq. (12) on L23 for µ∞, fit Eq. (8), ship as `mu_inf_model="l23_closure"` | reproducible; documented as a ceiling, not the default |
+| **6** | **Re-score** the backbone ladder (TT2017 → +µd → +µ∞ → +FF Pbb; closure alongside) on train / held-out scenes / per zenith | **acceptance:** the L23 variant beats the TT2017 backbone on held-out scenes **at each of 0°/30°/60°** |
+| **7** | Notebook, record (§7b), review pass, hand-off (PB24 follow-on; emulator retrain on the new backbone) | notebook executes; review findings fixed or logged |
+
+**The `forward` freeze (record §8.0).** `forward(mode="ztt")` evaluates the
+backbone default, so moving that default from `tt2017` to `l23` changes its numbers.
+The freeze makes that a **deliberate act**: task 4 re-baselines the pinned
+`mode="ztt"` values in the same change, and flags this for JXP in the log. The
+hybrid's pinned numbers must **not** move (Q2a).
+
+**Blocked / later.** PB24 (expected at `$OS_COLOR/SD/v5`, not currently on disk):
+re-check c(θs′) and Ψ_KLu over ten sun angles; µ∞ from PB24 can only be the closure
+type (record §7.16). Retraining the emulator on the `l23` backbone (Q2b) follows
+task 6.
 
 ---
 

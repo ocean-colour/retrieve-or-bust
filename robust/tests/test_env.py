@@ -223,12 +223,15 @@ FROZEN_FORWARD = (
 #: terms) and ``Geometry`` gained ``Ed``, all three **appended** and all three
 #: defaulting to ``None`` -- the one mutation M1 designed these containers for and
 #: the freeze explicitly permits.
+#: Re-baselined deliberately again for M7 task 2 (``rt_fit_ztt.md``):
+#: ``PhaseParams`` gained ``ff_B`` and ``ff_weight``, appended, ``None`` by
+#: default, and inert unless ZTT is asked for its FF phase function.
 #: ``test_the_optional_container_fields_all_default_to_none`` is what keeps that
 #: permission honest: appending is safe only while the new field changes nothing
 #: for a caller who does not set it.
 FROZEN_CONTAINERS = {
     "IOPs": ("a", "bb_w", "bb_p", "a_ph", "a_cdom"),
-    "PhaseParams": ("B_p", "beta_tilde_pi", "backward_slope"),
+    "PhaseParams": ("B_p", "beta_tilde_pi", "backward_slope", "ff_B", "ff_weight"),
     "Geometry": ("theta_s", "theta_v", "dphi", "wind", "Ed"),
 }
 
@@ -358,6 +361,32 @@ def test_the_default_path_produces_pinned_numbers(l23_small_batch):
     assert out.dtype == jnp.float32  # dtype is part of the contract too
     assert float(jnp.mean(out)) == pytest.approx(2.943628933281e-03, rel=1e-6)
     assert float(out[0, 40]) == pytest.approx(1.207069493830e-03, rel=1e-6)
+
+
+def test_the_backbone_path_produces_pinned_numbers(l23_small_batch):
+    """``forward(mode="ztt")`` pinned by value, as the hybrid path is above.
+
+    **Deliberately re-baselined at M7 task 4** (``rt_fit_ztt.md``): ``rrs_ZTT``'s
+    default variant moved from "tt2017" to "l23" ("ZTT (L23 µ∞)"), which is
+    exactly the "changing what an existing default does" that the freeze makes
+    a visible act. Before M7 this path had no value pin at all, which is how the
+    move could otherwise have gone unseen. The old numbers are kept beside the
+    new, reached through ``variant="tt2017"``, so the diff is the record.
+    """
+    import jax.numpy as jnp
+
+    import robust.rt as rt
+
+    batch = l23_small_batch
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    out = rt.forward(*args, "ztt")
+    assert out.dtype == jnp.float32
+    assert float(jnp.mean(out)) == pytest.approx(2.891557523981e-03, rel=1e-6)
+    assert float(out[0, 40]) == pytest.approx(1.203589490615e-03, rel=1e-6)
+
+    old = rt.conventions.rrs_to_Rrs(rt.ztt.rrs_ZTT(*args, variant="tt2017"))
+    assert float(jnp.mean(old)) == pytest.approx(2.946892287582e-03, rel=1e-6)
+    assert float(old[0, 40]) == pytest.approx(1.229662448168e-03, rel=1e-6)
 
 
 def test_forward_returns_Rrs_at_off_nadir_geometry_too(l23_small_batch):

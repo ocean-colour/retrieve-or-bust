@@ -146,6 +146,55 @@ standalone against the reference before the emulator is added.
 pure-ZTT, pure-emulator, or hybrid so the three §6-of-synthesis options can be compared
 on identical splits.
 
+### 4.6 ZTT refit to L23 — "ZTT (L23 µ∞)" (M7, added 2026-10-30)
+
+*Decided in Q&A/Design of
+[`claude_prompts/RT/rt_fit_ztt.md`](../claude_prompts/RT/rt_fit_ztt.md) (Q1–Q12).*
+
+The 2018 paper's Equation (8) coefficients for µ∞ were never published (§4.3 has
+used the authors' 2017 Table 1 in their place). M5 showed that µ∞ **cannot** be
+recovered from PB24, which tabulates only surface K's (record §7.16). **L23 can
+provide it:** its `Hydrolight1YY_profile.nc` files carry Ed, Eu, Eo and the K's on
+61 depths down to 50 m. Via Gershun's law, µ(z) = (Ed − Eu)/Eo, and this tends to
+µ∞ at depth. So the backbone gains a second, refit variant alongside the
+transcribed one. Both stay available:
+
+| term | `variant="tt2017"` (today, unchanged) | `variant="l23"` (**new default** of `rrs_ZTT`) |
+|---|---|---|
+| µ∞ (Eq. 8) | TT2017 Table 1, interpolated in log η_bb | Eq. (8)'s 16-coefficient form, **fit to µ∞ from L23 profiles** |
+| µd (Eqs. 14–17) | TT's M⁺_d × Table A2 M*_d | TT's M⁺_d × **c(θs′)** × refit M*_d, with c = 1 + c₁(1−cos θs′) + c₂(1−cos θs′)² |
+| Pbb(ψ) | Sullivan & Twardowski (2009) | **L23's own two-component Fournier–Forand mix** when `PhaseParams` carries it, otherwise Sullivan (silently) |
+| out-of-range inputs | extrapolate | log(bb/a) and log η_bb **clamped** to the fitted box |
+
+A third µ∞ option, `"l23_closure"`, inverts Eq. (12) on L23 rrs for the µ∞ that
+makes ZTT exact, then fits Eq. (8) to those values. It is shipped as a
+diagnostic **ceiling**, not as physics, because it soaks up the errors of every
+other term.
+
+**Why µd is part of this.** Measured before any build: ZTT's µd against L23's
+µd(0⁻) = Ed/Eod has a median ratio of 0.981 / 0.999 / **1.087** at 0° / 30° /
+60° sun. The 60° bias is in the atmospheric factor M⁺_d (L23 has HydroLight's
+default clear-sky atmosphere and 5 m/s wind), and since rrs ∝ 1/µd it accounts
+for most of the backbone's 60° degradation. PB24 shows the same trend (record
+§7.16: 9.2% at 60°). With only three sun angles, the correction c(θs′) is tied
+to L23's single atmosphere; PB24's ten angles are the planned check.
+
+**Phase function.** L23 assumes FF with b̃b = 0.010 for phytoplankton and 0.018
+for non-algal particles (Loisel et al. 2023 §2), so
+Pbb(ψ) = [bph p̃FF(ψ; 0.010) + bd p̃FF(ψ; 0.018)] / (bbph + bbd). The FF (n, µ)
+pair is not stated in the paper. **Assumption:** HydroLight's "FF from bb/b"
+convention, n = 1.01 + 0.1542(µ − 3) (Mobley et al. 2002), stated wherever
+results are quoted and tested by closure.
+
+**Not refit:** Ψ_KLu (Eqs. 4/6) and f_L (Eq. 31). L23's nadir geometry gives Ψ_KLu
+at only three ψ (180°, 158°, 140°), so it is measured as a diagnostic only.
+
+**Naming.** "ZTT (L23 µ∞)" and "ZTT (TT2017 µ∞)", with "ZTT 2018" reserved for
+the authors' own coefficients. **The hybrid is unaffected**: every learned
+artefact records the backbone variant it was trained on, and evaluates that
+variant (§4.5). Retraining the emulator on the new backbone is a separate,
+later step.
+
 ---
 
 ## 5. Software stack & conventions
@@ -219,6 +268,9 @@ Indicative sequence (order, not rigid days):
 - Add wind-speed / surface effects if the reference shows they matter at target accuracy.
 - Freeze the `forward` API as the shared engine for **both** training-data generation and
   the (separately designed) **inversion**.
+- **(M7, added 2026-10-30)** Refit ZTT's µ∞ and µd to L23 and give it L23's own phase
+  function (§4.6); then re-check µd and Ψ_KLu on PB24's ten sun angles once PB24 is back on
+  disk.
 
 ---
 

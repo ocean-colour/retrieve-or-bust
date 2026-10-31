@@ -80,6 +80,8 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "write_fixture",
     "npz_reader",
     # Inelastic scenarios (inelastic coding plan, M1)
+    "OPTIONAL_RAW_FIELDS",
+    "L23_FF_B",
     "INELASTIC_XS",
     "PHI_C_L23",
     "INELASTIC_RAW_FIELDS",
@@ -87,6 +89,26 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "load_inelastic_batch",
     "select_inelastic",
     "inelastic_npz_reader",
+    # Depth profiles (M7 task 1)
+    "PROFILE_FIELDS",
+    "PROFILE_E_MIN",
+    "ASYMPTOTIC_SPREAD",
+    "PROFILE_MIN_DEPTH",
+    "FLAG_UNUSABLE",
+    "FLAG_NOT_ASYMPTOTIC",
+    "FLAG_ASYMPTOTIC",
+    "PROFILE_FLAG_NAMES",
+    "PROFILE_PRODUCT_VERSION",
+    "PROFILE_FIXTURE_DEPTHS",
+    "PROFILE_FIXTURE_SCENES",
+    "load_mu_profiles",
+    "L23ProfileProduct",
+    "build_profile_product",
+    "default_profile_product_path",
+    "save_profile_product",
+    "load_profile_product",
+    "write_profile_fixture",
+    "profile_npz_reader",
 ]
 
 #: L23 scenario index for the **elastic** set (no Raman, no fluorescence).
@@ -227,6 +249,19 @@ class Splits:
 #: The raw per-file fields the loader consumes. A ``reader`` must supply these.
 RAW_FIELDS = ("wave", "Rrs", "a", "bb", "bbnw", "bnw")
 
+#: Fields a ``reader`` *may* supply (M7 task 2). With them, :func:`load_batch`
+#: fills ``PhaseParams.ff_B`` / ``ff_weight`` -- L23's own two-component FF phase
+#: function. They are optional, not part of :data:`RAW_FIELDS`, because the
+#: committed ``l23_small.npz`` predates them and its bytes are hash-pinned; a
+#: fixture-backed batch simply carries no FF information, which ZTT treats as
+#: "use Sullivan".
+OPTIONAL_RAW_FIELDS = ("bph", "bd")
+
+#: Backscatter ratios of L23's two particle components, phytoplankton then
+#: non-algal particles (Loisel et al. 2023, §2 and Eqs. 8, 11) -- the order of
+#: ``PhaseParams.ff_B``'s component axis.
+L23_FF_B = (0.010, 0.018)
+
 
 def _read_file(x: int, zenith: int) -> dict[str, np.ndarray]:
     """Read one L23 file into plain NumPy arrays -- the default ``reader``.
@@ -253,6 +288,8 @@ def _read_file(x: int, zenith: int) -> dict[str, np.ndarray]:
         "bb": np.asarray(ds.bb.data, dtype=float),
         "bbnw": np.asarray(ds.bbnw.data, dtype=float),
         "bnw": np.asarray(ds.bnw.data, dtype=float),
+        "bph": np.asarray(ds.bph.data, dtype=float),
+        "bd": np.asarray(ds.bd.data, dtype=float),
     }
 
 
@@ -262,6 +299,7 @@ def write_fixture(
     zeniths: tuple[int, ...] = ZENITHS,
     x: int = ELASTIC_X,
     n_scene: int = 50,
+    optional: bool = False,
 ) -> None:
     """Snapshot the first ``n_scene`` scenes of the raw L23 fields to an ``.npz``.
 
@@ -281,6 +319,10 @@ def write_fixture(
         L23 scenario index.
     n_scene : int, optional
         Number of leading scenes to keep.
+    optional : bool, optional
+        Also store :data:`OPTIONAL_RAW_FIELDS` (``bph``, ``bd``), so batches
+        from the fixture carry L23's FF phase-function fields (M7). Off by
+        default: ``l23_small.npz`` predates them and its bytes are hash-pinned.
 
     Notes
     -----
@@ -304,7 +346,8 @@ def write_fixture(
     for zenith in zeniths:
         raw = _read_file(x, zenith)
         arrays["wave"] = raw["wave"].astype(np.float32)
-        for field in RAW_FIELDS:
+        fields = RAW_FIELDS + (OPTIONAL_RAW_FIELDS if optional else ())
+        for field in fields:
             if field == "wave":
                 continue
             arrays[f"{field}_{zenith}"] = raw[field][:n_scene].astype(np.float32)
@@ -375,6 +418,11 @@ def npz_reader(path):
             if field == "wave":
                 continue
             out[field] = np.asarray(data[f"{field}_{int(zenith)}"], dtype=float)
+        # Optional M7 fields, served only by a fixture written with them.
+        for field in OPTIONAL_RAW_FIELDS:
+            key = f"{field}_{int(zenith)}"
+            if key in data.files:
+                out[field] = np.asarray(data[key], dtype=float)
         return out
 
     return read
@@ -438,7 +486,7 @@ def load_batch(
     read = _read_file if reader is None else reader
     wave_ref: np.ndarray | None = None
     a_parts, bb_w_parts, bb_p_parts, bp_parts, rrs_parts = [], [], [], [], []
-    theta_parts, scene_parts = [], []
+    theta_parts, scene_parts, ffw_parts = [], [], []
 
     for zenith in zeniths:
         raw = read(x, zenith)
@@ -464,6 +512,10 @@ def load_batch(
         bb_p_parts.append(bbnw)
         bp_parts.append(bbnw / bnw)
         rrs_parts.append(raw["Rrs"][index])
+        if all(field in raw for field in OPTIONAL_RAW_FIELDS):
+            # Scattering fractions, component axis last: (sample, wave, 2).
+            parts = np.stack([raw["bph"][index], raw["bd"][index]], axis=-1)
+            ffw_parts.append(parts / parts.sum(axis=-1, keepdims=True))
         theta_parts.append(np.full(a.shape[0], float(zenith)))
         scene_parts.append(np.arange(raw["a"].shape[0])[index])
 
@@ -476,7 +528,7 @@ def load_batch(
             bb_w=jnp.asarray(np.concatenate(bb_w_parts)),
             bb_p=jnp.asarray(np.concatenate(bb_p_parts)),
         ),
-        phase_params=PhaseParams(B_p=jnp.asarray(B_p)),
+        phase_params=_l23_phase_params(B_p, ffw_parts, len(zeniths)),
         geometry=Geometry.nadir(jnp.asarray(np.concatenate(theta_parts))),
         Rrs=jnp.asarray(np.concatenate(rrs_parts)),
         wave=jnp.asarray(wave_ref),
@@ -486,6 +538,20 @@ def load_batch(
     if validate:
         batch.validate()
     return batch
+
+
+def _l23_phase_params(B_p, ffw_parts, n_zenith) -> PhaseParams:
+    """``PhaseParams`` for an L23 batch: ``B_p``, plus the FF mixture when every
+    zenith's reader supplied the component scattering coefficients."""
+    if len(ffw_parts) != n_zenith:
+        return PhaseParams(B_p=jnp.asarray(B_p))
+    ff_weight = np.concatenate(ffw_parts)
+    ff_B = np.broadcast_to(np.asarray(L23_FF_B), ff_weight.shape)
+    return PhaseParams(
+        B_p=jnp.asarray(B_p),
+        ff_B=jnp.asarray(ff_B),
+        ff_weight=jnp.asarray(ff_weight),
+    )
 
 
 def _warn_if_B_p_unexpected(B_p: np.ndarray) -> None:
@@ -1007,3 +1073,512 @@ def select_inelastic(batch: L23InelasticBatch, mask: np.ndarray) -> L23Inelastic
         wave=batch.wave,
         scene=batch.scene[mask],
     )
+
+
+# --------------------------------------------------------- depth profiles (M7) --
+#
+# The ``Hydrolight1YY_profile.nc`` companions of the elastic files: Ed, Eu, Eo,
+# Eod, Eou, Lu and the K's at 61 depths (-1 = above the surface, 0 = just below,
+# then 0.1 m steps to 1 m and 1 m steps to 50 m). No loader read them before M7
+# task 1 (rt_fit_ztt.md). ~727 MB each, so every read here asks for named fields
+# only and nothing is held beyond what the caller requested.
+
+#: The profile fields :func:`build_profile_product` consumes. A profile ``reader``
+#: must supply each as a ``(z, scene, wave)`` array, plus ``z`` and ``wave``.
+PROFILE_FIELDS = ("Ed_z", "Eu_z", "Eo_z", "md_z", "KLu_z")
+
+#: Smallest irradiance (W m^-2 nm^-1) treated as data. Below it the float32
+#: storage is **denormal or exactly zero** -- measured: at 50 m, 1.2% of
+#: ``Eo_z`` values at 60 deg are exactly 0 (350-370 nm and 730-750 nm, every
+#: scene), and the smallest positive ``Ed_z`` is 1e-45. A ratio of denormals is
+#: noise, so a depth counts only where Ed, Eu and Eo all exceed this.
+PROFILE_E_MIN = 1e-30
+
+#: Relative spread across the three zeniths, ``(max - min) / mean`` of µ at the
+#: deepest usable depth, below which the light field is called **asymptotic**.
+#: µ∞ is an IOP, independent of the incident field, so three suns that agree to
+#: within this have reached it; Q&A Design step 1 set the 1% figure.
+ASYMPTOTIC_SPREAD = 0.01
+
+#: A (scene, λ) whose deepest usable depth is shallower than this (m) is
+#: ``unusable``: there is no "deep" to speak of.
+PROFILE_MIN_DEPTH = 10.0
+
+#: Quality flags of :class:`L23ProfileProduct`. ``not_asymptotic`` is the
+#: honest name for what the plan called "extrapolated": the profiles stop at
+#: 50 m, and M7 task 1 found no extrapolation of them trustworthy (see
+#: :func:`build_profile_product`).
+FLAG_UNUSABLE = 0
+FLAG_NOT_ASYMPTOTIC = 1
+FLAG_ASYMPTOTIC = 2
+#: dict: Flag value -> name, for reports.
+PROFILE_FLAG_NAMES = {
+    FLAG_UNUSABLE: "unusable",
+    FLAG_NOT_ASYMPTOTIC: "not_asymptotic",
+    FLAG_ASYMPTOTIC: "asymptotic",
+}
+
+#: Bumped whenever the product's definition changes, so a stale cache is refused
+#: rather than silently reused.
+PROFILE_PRODUCT_VERSION = 1
+
+#: Depths (m) kept by :func:`write_profile_fixture`: the surface, a spread
+#: through the column, and the bottom, so the deepest-usable-depth logic has
+#: something to choose between.
+PROFILE_FIXTURE_DEPTHS = (0.0, 5.0, 10.0, 20.0, 30.0, 40.0, 45.0, 50.0)
+
+#: Scenes kept by :func:`write_profile_fixture` -- spread over the release so
+#: the fixture holds both flags the release actually contains (asserted when it
+#: is written). ``unusable`` never occurs in the full release (the shallowest
+#: usable depth is 18 m), so tests inject it synthetically.
+PROFILE_FIXTURE_SCENES = tuple(int(i) for i in np.linspace(0, N_SCENES - 1, 16))
+
+
+def _read_profile(x: int, zenith: int, fields, depths=None) -> dict[str, np.ndarray]:
+    """Read named fields of one ``_profile.nc`` file -- the default profile reader.
+
+    Parameters
+    ----------
+    x : int
+        L23 scenario index (1 = elastic).
+    zenith : int
+        Solar zenith angle in degrees.
+    fields : sequence of str
+        Depth-resolved fields to read, each ``(z, scene, wave)``.
+    depths : sequence of float, optional
+        Keep only these depths (m, matched exactly); ``None`` keeps all 61.
+
+    Returns
+    -------
+    dict
+        ``wave``, ``z``, and each requested field, as NumPy (float32, as stored).
+    """
+    from ocpy.hydrolight import loisel23
+
+    ds = loisel23.load_ds(x, zenith, profile=True)
+    z = np.asarray(ds.z.data, dtype=float)
+    index = slice(None) if depths is None else _depth_index(z, depths)
+    out = {"wave": np.asarray(ds.Lambda.data, dtype=float), "z": z[index]}
+    out["scene"] = np.arange(ds.sizes["IOP_Scenario"])
+    for field in fields:
+        # isel before .data: only the requested depths are ever read from disk.
+        out[field] = np.asarray(ds[field].isel(z=index).data)
+    ds.close()
+    return out
+
+
+def _depth_index(z: np.ndarray, depths) -> np.ndarray:
+    """Indices of ``depths`` in the profile grid ``z``, raising on any miss."""
+    index = []
+    for depth in depths:
+        hit = np.flatnonzero(z == float(depth))
+        if hit.size != 1:
+            raise ValueError(f"L23 profiles have no depth {depth} m (grid: {z})")
+        index.append(int(hit[0]))
+    return np.asarray(index)
+
+
+def load_mu_profiles(
+    zenith: int,
+    *,
+    x: int = ELASTIC_X,
+    scenes=None,
+    depths=None,
+    reader=None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """The mean cosine ``µ(z) = (Ed − Eu) / Eo`` at every depth, for one zenith.
+
+    Item (a) of M7 task 1. By Gershun's law ``µ(z) = a / K_net(z)``, and it tends
+    to the IOP ``µ∞`` as the light field becomes asymptotic. Points whose
+    irradiances fall below :data:`PROFILE_E_MIN` are returned as NaN rather than
+    as a ratio of denormals.
+
+    Parameters
+    ----------
+    zenith : int
+        Solar zenith (degrees).
+    x : int, optional
+        L23 scenario index.
+    scenes : array_like or slice, optional
+        Scene subset; ``None`` keeps all.
+    depths : sequence of float, optional
+        Depth subset (m); ``None`` keeps all 61, including z = -1 (above water),
+        where µ is that of the sky and sun, not of the ocean.
+    reader : callable, optional
+        ``(x, zenith, fields, depths) -> dict`` with ``wave``, ``z``, ``scene``
+        (release indices) and the fields; defaults to the netCDF.
+
+    Returns
+    -------
+    z : numpy.ndarray
+        Depths (m), shape ``(n_z,)``.
+    mu : numpy.ndarray
+        float64, shape ``(n_z, n_scene, n_wave)``.
+    """
+    read = _read_profile if reader is None else reader
+    raw = read(x, zenith, ("Ed_z", "Eu_z", "Eo_z"), depths)
+    index = slice(None) if scenes is None else scenes
+    Ed, Eu, Eo = (raw[f][:, index].astype(float) for f in ("Ed_z", "Eu_z", "Eo_z"))
+    good = (Ed > PROFILE_E_MIN) & (Eu > PROFILE_E_MIN) & (Eo > PROFILE_E_MIN)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        mu = np.where(good, (Ed - Eu) / Eo, np.nan)
+    return raw["z"], mu
+
+
+@dataclass(frozen=True)
+class L23ProfileProduct:
+    """Per-(scene, λ) quantities derived from the L23 depth profiles (M7 task 1).
+
+    Host-side NumPy throughout: this is fitting data for ``design/py`` scripts,
+    never an argument of the differentiable model.
+
+    Attributes
+    ----------
+    wave : numpy.ndarray
+        Wavelengths (nm), ``(n_wave,)``.
+    zeniths : numpy.ndarray
+        Solar zeniths (degrees), ``(n_zenith,)``; the leading axis of the
+        per-zenith arrays.
+    scene : numpy.ndarray
+        Scene indices, ``(n_scene,)``.
+    z_deep : numpy.ndarray
+        The deepest depth (m) usable at **every** zenith, ``(n_scene, n_wave)``;
+        NaN where there is none. One common depth, so the zeniths are compared
+        like with like.
+    mu_deep : numpy.ndarray
+        µ = (Ed − Eu)/Eo at ``z_deep``, per zenith, ``(n_zenith, n_scene,
+        n_wave)``, float64.
+    spread : numpy.ndarray
+        ``(max − min) / mean`` of ``mu_deep`` over zeniths, ``(n_scene, n_wave)``.
+    flag : numpy.ndarray
+        int8 quality flag, :data:`PROFILE_FLAG_NAMES`.
+    mu_inf : numpy.ndarray
+        The zenith mean of ``mu_deep`` where ``flag == FLAG_ASYMPTOTIC``, else
+        NaN. **Only** there is the profile a measurement of µ∞.
+    mu_d0 : numpy.ndarray
+        µd at z = 0⁻, HydroLight's ``md_z`` (= Ed/Eod), per zenith, float32 as
+        stored.
+    KLu0 : numpy.ndarray
+        ``KLu_z`` at z = 0⁻ (m^-1), per zenith, float32 as stored.
+    provenance : dict
+        How the product was made: version, thresholds, source files. No
+        timestamp, so a rebuild is bit-identical, file included.
+    """
+
+    wave: np.ndarray
+    zeniths: np.ndarray
+    scene: np.ndarray
+    z_deep: np.ndarray
+    mu_deep: np.ndarray
+    spread: np.ndarray
+    flag: np.ndarray
+    mu_inf: np.ndarray
+    mu_d0: np.ndarray
+    KLu0: np.ndarray
+    provenance: dict
+
+    #: The array fields, in a fixed order -- what save/load and equality use.
+    ARRAYS = (
+        "wave",
+        "zeniths",
+        "scene",
+        "z_deep",
+        "mu_deep",
+        "spread",
+        "flag",
+        "mu_inf",
+        "mu_d0",
+        "KLu0",
+    )
+
+    def flag_fractions(self) -> dict[str, float]:
+        """Fraction of (scene, λ) points carrying each flag, by name."""
+        return {
+            name: float(np.mean(self.flag == value))
+            for value, name in PROFILE_FLAG_NAMES.items()
+        }
+
+
+def build_profile_product(
+    zeniths: tuple[int, ...] = ZENITHS,
+    *,
+    x: int = ELASTIC_X,
+    scenes=None,
+    depths=None,
+    reader=None,
+) -> L23ProfileProduct:
+    """Derive the µ∞ / µd / KLu product from the L23 profiles (M7 task 1).
+
+    Parameters
+    ----------
+    zeniths : tuple of int, optional
+        Zeniths to combine; µ∞ needs at least two to be judged.
+    x : int, optional
+        L23 scenario index (elastic by default).
+    scenes : array_like, optional
+        Scene indices to keep; ``None`` keeps every scene the reader serves.
+    depths : sequence of float, optional
+        Depths to consider (m); ``None`` uses every depth the reader serves.
+    reader : callable, optional
+        ``(x, zenith, fields, depths) -> dict``; defaults to the netCDF.
+        :func:`profile_npz_reader` serves the committed fixture.
+
+    Returns
+    -------
+    L23ProfileProduct
+
+    Notes
+    -----
+    **What µ∞ is here, and why there is no extrapolation.** The plan (Q&A Design
+    step 1) proposed extrapolating µ(z) to depth, jointly across the zeniths.
+    Inspecting real profiles ruled it out:
+
+    - the approach is **not monotonic** -- at 60° µ typically falls and then
+      rises, while 0° falls from above -- so no single exponential describes it,
+      and a multi-mode fit has more freedom than 50 m of data constrains;
+    - it is **slow**: what sets it is the number of *scattering* lengths, and
+      only points with ``b · 50 m ≳ 20`` reach agreement; that is **2.5%** of
+      (scene, λ), almost none of them in clear blue water, where 50 m is
+      ~1.5 optical depths.
+
+    So the product reports what the profiles *measure* -- µ at the deepest
+    usable depth, per zenith -- and calls it µ∞ only where three suns agree to
+    :data:`ASYMPTOTIC_SPREAD`. Everywhere else ``mu_inf`` is NaN and the flag
+    says why. Where µ∞ comes from instead is Q&A "Fit L23" Q13.
+    """
+    if len(zeniths) < 2:
+        raise ValueError("build_profile_product: need at least two zeniths")
+    read = _read_profile if reader is None else reader
+
+    wave = z = scene_ids = None
+    mu_all, md0, klu0 = [], [], []
+    for zenith in zeniths:
+        raw = read(x, zenith, PROFILE_FIELDS, depths)
+        if wave is None:
+            wave, z = raw["wave"], raw["z"]
+        elif not (np.array_equal(raw["wave"], wave) and np.array_equal(raw["z"], z)):
+            raise ValueError(f"build_profile_product: Y={zenith} grid differs")
+        index = slice(None) if scenes is None else np.asarray(scenes)
+        if scene_ids is None:
+            scene_ids = np.asarray(raw["scene"], dtype=int)[index]
+        Ed, Eu, Eo = (raw[f][:, index].astype(float) for f in ("Ed_z", "Eu_z", "Eo_z"))
+        good = (Ed > PROFILE_E_MIN) & (Eu > PROFILE_E_MIN) & (Eo > PROFILE_E_MIN)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            mu_all.append(np.where(good, (Ed - Eu) / Eo, np.nan))
+        surface = _depth_index(z, (0.0,))[0]
+        md0.append(raw["md_z"][surface, index])
+        klu0.append(raw["KLu_z"][surface, index])
+
+    mu_all = np.stack(mu_all)  # (zenith, z, scene, wave)
+    n_scene, n_wave = mu_all.shape[2:]
+
+    # The deepest depth below the surface usable at every zenith at once.
+    below = z > 0.0
+    usable = np.all(np.isfinite(mu_all), axis=0) & below[:, None, None]
+    any_usable = usable.any(axis=0)
+    last = usable.shape[0] - 1 - np.argmax(usable[::-1], axis=0)
+    z_deep = np.where(any_usable, z[last], np.nan)
+
+    mu_deep = np.take_along_axis(mu_all, last[None, None], axis=1)[:, 0]
+    mu_deep = np.where(any_usable, mu_deep, np.nan)
+
+    with np.errstate(invalid="ignore"):
+        spread = (mu_deep.max(0) - mu_deep.min(0)) / mu_deep.mean(0)
+        deep_enough = any_usable & (z_deep >= PROFILE_MIN_DEPTH)
+        asymptotic = deep_enough & (spread < ASYMPTOTIC_SPREAD)
+    flag = np.full((n_scene, n_wave), FLAG_UNUSABLE, dtype=np.int8)
+    flag[deep_enough] = FLAG_NOT_ASYMPTOTIC
+    flag[asymptotic] = FLAG_ASYMPTOTIC
+
+    provenance = {
+        "version": PROFILE_PRODUCT_VERSION,
+        "generator": "robust.rt.data.l23.build_profile_product",
+        "x": int(x),
+        "zeniths": [int(zz) for zz in zeniths],
+        "sources": [f"Hydrolight{x}{int(zz):02d}_profile.nc" for zz in zeniths],
+        "depths": [float(d) for d in z],
+        "E_min": PROFILE_E_MIN,
+        "asymptotic_spread": ASYMPTOTIC_SPREAD,
+        "min_depth": PROFILE_MIN_DEPTH,
+        "mu_definition": "(Ed_z - Eu_z) / Eo_z at z_deep, float64 from float32",
+    }
+    return L23ProfileProduct(
+        wave=np.asarray(wave),
+        zeniths=np.asarray(zeniths, dtype=int),
+        scene=scene_ids,
+        z_deep=z_deep,
+        mu_deep=mu_deep,
+        spread=spread,
+        flag=flag,
+        mu_inf=np.where(asymptotic, mu_deep.mean(0), np.nan),
+        mu_d0=np.stack(md0),
+        KLu0=np.stack(klu0),
+        provenance=provenance,
+    )
+
+
+def default_profile_product_path() -> Path:
+    """Where the full-release product is cached: next to the data, not in git.
+
+    ``$OS_COLOR/Loisel2023/derived/l23_profile_product_v{N}.npz`` -- about
+    15 MB, too large to commit, and derived only from files that live there.
+
+    Returns
+    -------
+    pathlib.Path
+    """
+    from ocpy.hydrolight import loisel23
+
+    name = f"l23_profile_product_v{PROFILE_PRODUCT_VERSION}.npz"
+    return Path(loisel23.l23_path) / "derived" / name
+
+
+def save_profile_product(product: L23ProfileProduct, path) -> None:
+    """Write a product to ``.npz`` atomically, provenance as a JSON header.
+
+    Parameters
+    ----------
+    product : L23ProfileProduct
+    path : str or pathlib.Path
+        Destination; parent directories are created.
+    """
+    import json
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    arrays = {name: getattr(product, name) for name in L23ProfileProduct.ARRAYS}
+    arrays["provenance"] = np.asarray(json.dumps(product.provenance, sort_keys=True))
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        load_profile_product(tmp)  # prove it loads before it replaces anything
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def load_profile_product(path) -> L23ProfileProduct:
+    """Read a product written by :func:`save_profile_product`.
+
+    Raises
+    ------
+    ValueError
+        If the file was written under a different
+        :data:`PROFILE_PRODUCT_VERSION` -- a stale cache is refused, not reused.
+    """
+    import json
+
+    with np.load(path) as data:
+        provenance = json.loads(str(data["provenance"]))
+        if provenance.get("version") != PROFILE_PRODUCT_VERSION:
+            raise ValueError(
+                f"{path}: profile product version {provenance.get('version')}, "
+                f"expected {PROFILE_PRODUCT_VERSION}; rebuild it with "
+                "design/py/build_l23_profile_product.py"
+            )
+        arrays = {name: data[name] for name in L23ProfileProduct.ARRAYS}
+    return L23ProfileProduct(**arrays, provenance=provenance)
+
+
+def write_profile_fixture(
+    path,
+    *,
+    zeniths: tuple[int, ...] = ZENITHS,
+    x: int = ELASTIC_X,
+    scenes=PROFILE_FIXTURE_SCENES,
+    depths=PROFILE_FIXTURE_DEPTHS,
+) -> None:
+    """Snapshot raw profile fields for a few scenes and depths to an ``.npz``.
+
+    Like :func:`write_fixture`, it stores the reader's *input*, so
+    :func:`build_profile_product` really runs on it in CI. Written to a
+    temporary file, then loaded back through :func:`profile_npz_reader` and
+    :func:`build_profile_product`, and checked to hold both the ``asymptotic``
+    and ``not_asymptotic`` flags before it replaces anything.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+    zeniths, x, scenes, depths
+        What to keep. ``scenes`` index the full release.
+    """
+    scenes = np.asarray(scenes, dtype=int)
+    arrays: dict[str, np.ndarray] = {
+        "zeniths": np.asarray(zeniths),
+        "x": np.asarray(x),
+        "scenes": scenes,
+    }
+    for zenith in zeniths:
+        raw = _read_profile(x, zenith, PROFILE_FIELDS, depths)
+        arrays["wave"], arrays["z"] = raw["wave"], raw["z"]
+        for field in PROFILE_FIELDS:
+            arrays[f"{field}_{zenith}"] = raw[field][:, scenes]
+
+    path = Path(path)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        np.savez_compressed(tmp, **arrays)
+        product = build_profile_product(zeniths, x=x, reader=profile_npz_reader(tmp))
+        needed = {FLAG_ASYMPTOTIC, FLAG_NOT_ASYMPTOTIC}
+        missing = needed - set(np.unique(product.flag).tolist())
+        if missing:
+            raise ValueError(
+                f"write_profile_fixture: snapshot lacks flags "
+                f"{[PROFILE_FLAG_NAMES[m] for m in sorted(missing)]}; choose "
+                f"other scenes. {path} left untouched"
+            )
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def profile_npz_reader(path):
+    """A profile ``reader`` backed by a :func:`write_profile_fixture` file.
+
+    The fixture's scenes are served in the order they were written, and the
+    reader's ``scene`` entry carries their release indices (the file's
+    ``scenes`` array), so a product built from it is labelled correctly.
+
+    Returns
+    -------
+    callable
+        ``(x, zenith, fields, depths) -> dict``.
+
+    Raises
+    ------
+    ValueError
+        On a scenario, zenith, field or depth the fixture does not hold.
+    """
+    data = np.load(path)
+    available = tuple(int(zz) for zz in data["zeniths"])
+    stored_x = int(data["x"])
+    z = np.asarray(data["z"], dtype=float)
+
+    def read(x, zenith, fields, depths=None):
+        """Serve one zenith's requested fields from the fixture."""
+        if x != stored_x or int(zenith) not in available:
+            raise ValueError(
+                f"profile_npz_reader: fixture holds X={stored_x}, zeniths "
+                f"{available}; asked for X={x}, Y={zenith}"
+            )
+        index = slice(None) if depths is None else _depth_index(z, depths)
+        out = {"wave": np.asarray(data["wave"], dtype=float), "z": z[index]}
+        out["scene"] = np.asarray(data["scenes"], dtype=int)
+        for field in fields:
+            key = f"{field}_{int(zenith)}"
+            if key not in data:
+                raise ValueError(f"profile_npz_reader: fixture lacks {field}")
+            out[field] = np.asarray(data[key])[index]
+        return out
+
+    return read

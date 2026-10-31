@@ -74,7 +74,11 @@ def main() -> int:
     batch = L.load_batch()
     splits = L.make_splits(batch)
     truth = C.Rrs_to_rrs(batch.Rrs)
-    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    # M7 task 4: the shipped weights are fitted to the TT2017 backbone (and
+    # record it); rerunning must reproduce them. Retraining on "l23" is Q2b.
+    rrs_ztt = Z.rrs_ZTT(
+        batch.iops, batch.phase_params, batch.geometry, batch.wave, variant="tt2017"
+    )
     rrs_gordon = B.rrs_gordon(batch.iops)
     print(
         f"L23 elastic: {batch.n_sample} samples x {batch.n_wave} lambda; "

@@ -245,7 +245,7 @@ intersphinx_mapping = {
 # -- Generated assets --------------------------------------------------------
 #
 # The site's figures and its two reports are committed once, under ``reports/``.
-# `copy_assets()` copies the seven figures into ``docs/_static/`` and writes the
+# `copy_assets()` copies the eight figures into ``docs/_static/`` and writes the
 # two reports into ``docs/reports/`` as generated pages (image paths repointed
 # at ``_static``, repo-relative links rewritten onto ``github_url_base``, a
 # generated-file banner prepended). Both destinations are gitignored

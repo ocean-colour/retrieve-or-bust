@@ -355,7 +355,10 @@ def test_fallback_returns_the_backbone_beyond_the_envelope(l23_small_batch):
             *low_sun, "hybrid", emulator=emulator, on_out_of_domain="ztt"
         )
         applied = H.rrs_forward(*low_sun, "hybrid", emulator=emulator)
-    np.testing.assert_array_equal(np.asarray(outside), np.asarray(Z.rrs_ZTT(*low_sun)))
+    # The fallback zeroes δ, leaving the emulator's *own* backbone -- "tt2017"
+    # for the shipped weights -- not rrs_ZTT's default (M7 task 4, Q2a).
+    backbone = Z.rrs_ZTT(*low_sun, variant=emulator.backbone_variant)
+    np.testing.assert_array_equal(np.asarray(outside), np.asarray(backbone))
     assert not np.array_equal(np.asarray(applied), np.asarray(outside))
 
 
