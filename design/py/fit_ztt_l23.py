@@ -51,6 +51,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from robust.rt import asymptotic as A  # noqa: E402
+from robust.rt import conventions as C  # noqa: E402
 from robust.rt import ztt as Z  # noqa: E402
 from robust.rt.data import l23 as L  # noqa: E402
 
@@ -281,6 +282,9 @@ def run(recompute_eigen=False):
             row[f"measured_{name}_pct_16_50_84"] = pct(obs[te], (16, 50, 84))
         psi_rows.append(row)
 
+    # ------------------------------------------------- (d) closure µ∞ (task 5)
+    closure = closure_stage(X, Lg, train, test, box, mu_eig)
+
     # ------------------------------------------------------------ assemble
     coefficients = {
         "about": "ZTT refit to L23 (M7 task 3, rt_fit_ztt.md). Report as "
@@ -293,6 +297,8 @@ def run(recompute_eigen=False):
         "clamp_box_X_lo_hi_L_lo_hi": box,
         "mu_inf_out_range": mu_range,
         "md_star_out_range": md_star_range,
+        "mu_inf_closure_coeffs_m1_m16": closure["coeffs"],
+        "mu_inf_closure_out_range": closure["out_range"],
         "fit": {
             "split": (
                 f"scenes, SPLIT_SEED={L.SPLIT_SEED}, test_fraction={L.TEST_FRACTION}"
@@ -325,6 +331,7 @@ def run(recompute_eigen=False):
         "psi_KLu": psi_rows,
         "gate_evaluator_agreement": {"mu_inf": agree_mu, "mu_d": agree_mud},
         "mu_inf_guard_effect": guard_effect,
+        "closure": closure["metrics"],
         "fraction_heldout_outside_box": float(
             np.mean(((X < box[0]) | (X > box[1]) | (Lg < box[2]) | (Lg > box[3]))[te])
         ),
@@ -340,6 +347,7 @@ def run(recompute_eigen=False):
             "bb_over_a": float(iops["x"][s, w]),
             "eta_bb": float(iops["eta"][s, w]),
             "mu_inf_L23": float(mu_fit[s, w]),
+            "mu_inf_L23_closure": float(closure["fit"][s, w]),
             "mu_d_L23": {
                 str(int(z)): float(mud_fit[k, s, w]) for k, z in enumerate(ZENITHS)
             },
@@ -357,8 +365,94 @@ def run(recompute_eigen=False):
         mud_fit=mud_fit,
         mud_tt=mud_tt,
         box=box,
+        closure=closure,
     )
     return coefficients, metrics, probes, figs
+
+
+def closure_stage(X, Lg, train, test, box, mu_eig):
+    """M7 task 5: the closure µ∞ and its Eq. (8) fit.
+
+    For every L23 sample (scene × zenith × λ) solve Eq. (12) for the µ∞ that
+    reproduces the reference rrs exactly (``ztt.mu_inf_closure``: L23 µd, FF
+    Pbb). Keep the physical values (0 < µ∞ ≤ 1), fit Eq. (8) to the train-split
+    rows of all three zeniths at once (µ∞ carries no zenith), and score.
+
+    Returns a dict: coefficients, output range, the fitted µ∞ per (scene, λ),
+    the per-sample closure targets, and metrics.
+    """
+    batch = L.load_batch(validate=False)  # netCDF: carries the FF fields
+    truth = np.asarray(C.Rrs_to_rrs(batch.Rrs))
+    args = (batch.iops, batch.phase_params, batch.geometry)
+    target = np.asarray(Z.mu_inf_closure(*args, truth, batch.wave))
+    n_z = len(ZENITHS)
+    target = target.reshape(n_z, L.N_SCENES, -1)
+    truth3 = truth.reshape(target.shape)
+    physical = (target > 0) & (target <= 1) & np.isfinite(target)
+
+    X3 = np.broadcast_to(X, target.shape)
+    L3 = np.broadcast_to(Lg, target.shape)
+    tr3 = np.broadcast_to(train[None, :, None], target.shape) & physical
+    te3 = np.broadcast_to(test[None, :, None], target.shape) & physical
+    coeffs, _ = fit_mu_inf(X3[tr3], L3[tr3], target[tr3])
+    out_range = output_range(target[tr3], cosine=True)
+    fit = np.asarray(
+        Z.mu_infinity(10**X, 10**Lg, tuple(coeffs), box=box, out_range=out_range)
+    )
+    fit3 = np.broadcast_to(fit, target.shape)
+
+    # Through the shipped path when its constants match this fit (the normal
+    # case); on a refit that changes them, via mu_inf= until ztt.py is updated.
+    shipped = tuple(coeffs) == Z.MU_INF_L23_CLOSURE_COEFFS
+    if shipped:
+        rrs_closure = Z.rrs_ZTT(*args, batch.wave, mu_inf_model="l23_closure")
+    else:
+        print("note: closure coefficients differ from ztt.py's; update the constants")
+        rrs_closure = Z.rrs_ZTT(*args, batch.wave, mu_inf=np.tile(fit, (n_z, 1)))
+    rrs_closure = np.asarray(rrs_closure).reshape(target.shape)
+    rrs_l23 = np.asarray(Z.rrs_ZTT(*args, batch.wave)).reshape(target.shape)
+
+    err_mu = fit3 / target - 1
+    err_rrs = rrs_closure / truth3 - 1
+    # Gate (self-consistency): at fixed everything-else, rrs depends on µ∞ only
+    # through D = A + B/µ∞ with 0 < B/µ∞ < D, so an rrs error can never exceed
+    # the µ∞ error that caused it: |e_rrs| ≤ |e_µ| / (1 − |e_µ|).
+    bound = np.abs(err_mu) / np.maximum(1 - np.abs(err_mu), 1e-12) + 1e-9
+    gate_ok = bool(np.all(np.abs(err_rrs[tr3]) <= bound[tr3]))
+
+    def rrms(model, mask):
+        return float(100 * np.sqrt(np.mean((model[mask] / truth3[mask] - 1) ** 2)))
+
+    per_zenith = {}
+    for k, z in enumerate(ZENITHS):
+        tek = np.zeros(target.shape, dtype=bool)
+        tek[k] = np.broadcast_to(test[:, None], target.shape[1:])
+        per_zenith[str(int(z))] = {
+            "n_nonphysical": int((~physical[k]).sum()),
+            "closure_over_eigen_pct_1_16_50_84_99": pct(target[k] / mu_eig),
+            "heldout_fit_vs_closure": describe(err_mu[k][te3[k]]),
+            "rrms_heldout_pct_L23_variant": rrms(rrs_l23, tek),
+            "rrms_heldout_pct_closure_variant": rrms(rrs_closure, tek),
+        }
+    with np.errstate(invalid="ignore"):
+        spread = (target.max(0) - target.min(0)) / np.abs(target.mean(0))
+    metrics = {
+        "n_samples": int(target.size),
+        "n_nonphysical": int((~physical).sum()),
+        "per_zenith": per_zenith,
+        "zenith_spread_pct_16_50_84": pct(spread, (16, 50, 84)),
+        "train_fit_vs_closure": describe(err_mu[tr3]),
+        "gate_rrs_error_within_mu_error": gate_ok,
+        "train_max_abs_rrs_err": float(np.max(np.abs(err_rrs[tr3]))),
+        "scored_through_shipped_constants": bool(shipped),
+    }
+    return {
+        "coeffs": [float(v) for v in coeffs],
+        "out_range": out_range,
+        "fit": fit,
+        "target": target,
+        "metrics": metrics,
+    }
 
 
 # ---------------------------------------------------------------- report --
@@ -442,6 +536,40 @@ def report(coefficients, metrics) -> str:
             f"{band(r['measured_TT2017_pct_16_50_84'])} | "
             f"{band(r['measured_eigen_pct_16_50_84'])} |"
         )
+    c = m["closure"]
+    lines += [
+        "",
+        "## Closure µ∞ (task 5) — *a ceiling, not physics*",
+        "",
+        "The µ∞ that makes the L23 variant (refit µd, FF Pbb) reproduce each L23",
+        'rrs exactly, then Eq. (8) fitted to it (`mu_inf_model="l23_closure"`).',
+        "It absorbs every other term's error; its gap from the eigen µ∞ is their",
+        "error budget, expressed as µ∞.",
+        "",
+        f"Non-physical (≤ 0 or > 1, dropped): {c['n_nonphysical']} of "
+        f"{c['n_samples']} samples. Zenith spread of the closure µ∞ at a fixed "
+        "(scene, λ), 16 / 50 / 84%: "
+        + " / ".join(f"{100 * v:.2f}%" for v in c["zenith_spread_pct_16_50_84"])
+        + ".",
+        "",
+        "| θs′ | closure / eigen µ∞: 1 / 16 / 50 / 84 / 99% | fit vs closure, held "
+        "out: median abs | rRMS held out: L23 variant | closure variant |",
+        "|---|---|---|---|---|",
+    ]
+    for z, d in c["per_zenith"].items():
+        q = " / ".join(f"{v:.3f}" for v in d["closure_over_eigen_pct_1_16_50_84_99"])
+        lines.append(
+            f"| {z}° | {q} | {100 * d['heldout_fit_vs_closure']['mape']:.2f}% | "
+            f"{d['rrms_heldout_pct_L23_variant']:.2f}% | "
+            f"{d['rrms_heldout_pct_closure_variant']:.2f}% |"
+        )
+    lines += [
+        "",
+        "Gate: on every train sample the closure variant's rrs error is within "
+        "the µ∞ error that caused it (|e_rrs| ≤ |e_µ|/(1 − |e_µ|)): "
+        f"**{'pass' if c['gate_rrs_error_within_mu_error'] else 'FAIL'}** "
+        f"(max train |e_rrs| {100 * c['train_max_abs_rrs_err']:.2f}%).",
+    ]
     g = m["gate_evaluator_agreement"]
     lines += [
         "",
@@ -533,6 +661,59 @@ def figures(figs, out: Path) -> None:
         fig.colorbar(im, ax=axes, label=label)
         save_figure_atomically(fig, out / name)
         plt.close(fig)
+
+    # Closure vs physical (eigen) µ∞: the gap is the other terms' error budget.
+    target = figs["closure"]["target"]
+    eig = np.broadcast_to(figs["mu_eig"], target.shape)
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.2))
+    ok = np.isfinite(target) & (target > 0) & (target <= 1)
+    edges = np.linspace(0.4, 1.0, 121)
+    counts, _, _ = np.histogram2d(eig[ok], target[ok], bins=[edges, edges])
+    axes[0].grid(False)
+    im0 = axes[0].pcolormesh(
+        edges,
+        edges,
+        np.log10(np.where(counts > 0, counts, np.nan)).T,
+        cmap="Greys",
+        shading="flat",
+    )
+    axes[0].plot([0.4, 1.0], [0.4, 1.0], color="#0072B2", lw=1)
+    axes[0].set_xlabel("physical µ∞ (asymptotic eigenproblem)")
+    axes[0].set_ylabel("closure µ∞ (makes ZTT exact)")
+    axes[0].set_title("all samples, 3 zeniths", loc="left", fontsize=10.5)
+    fig.colorbar(im0, ax=axes[0], label="log10(count)")
+    ratio = np.where(ok, target / eig, np.nan)
+    x, y = figs["X"], figs["Lg"]
+    bins = [np.linspace(-4.0, 0.0, 33), np.linspace(-1.8, 0.0, 28)]
+    grid = np.full((32, 27), np.nan)
+    ix = np.clip(np.digitize(x, bins[0]) - 1, 0, 31)
+    iy = np.clip(np.digitize(y, bins[1]) - 1, 0, 26)
+    med = np.nanmedian(ratio, axis=0)
+    for i in range(32):
+        for j in range(27):
+            sel = (ix == i) & (iy == j) & np.isfinite(med)
+            if sel.sum() >= 5:
+                grid[i, j] = np.median(med[sel])
+    lim = max(2.0, float(np.nanpercentile(np.abs(100 * (grid - 1)), 98)))
+    axes[1].grid(False)
+    im1 = axes[1].pcolormesh(
+        bins[0],
+        bins[1],
+        100 * (grid.T - 1),
+        cmap="RdBu_r",
+        vmin=-lim,
+        vmax=lim,
+        shading="flat",
+    )
+    axes[1].set_xlabel("log10(bb / a)")
+    axes[1].set_ylabel("log10(η_bb)")
+    axes[1].set_title(
+        "closure / physical − 1 (zenith median)", loc="left", fontsize=10.5
+    )
+    fig.colorbar(im1, ax=axes[1], label="%")
+    fig.subplots_adjust(wspace=0.5)
+    save_figure_atomically(fig, out / "fig_mu_inf_closure.png")
+    plt.close(fig)
 
 
 def outputs(coefficients, metrics, probes) -> dict[str, str]:

@@ -307,7 +307,8 @@ task 6, or as part of task 7's hand-off? I suggest straight after task 6,
 because task 6 also tells us whether the Ψ_KLu correction (Q16) should land
 first. Retraining on a backbone that is about to change would waste a training
 run.
-**JXP:**
+**JXP:**  Let's hold off.  We are going to start fitting to PB24 soon, and we don't 
+want to retrain the emulator until then.
 
 **Q19 (task 4, Claude → JXP, *not blocking*). The shipped weights no longer
 regenerate bit for bit, and this predates M7.** `design/py/train_emulator.py`
@@ -320,7 +321,7 @@ the shipped file (its SHA is pinned and every number is reproducible *from
 the file*) and correct the report's wording; (b) regenerate and re-pin. That
 would move every hybrid value pin, so I'd rather fold it into the Q2b retrain.
 I recommend (a) now.
-**JXP:**
+**JXP:** Go with (a) for now.
 
 ### Design
 
@@ -848,3 +849,44 @@ Q17, keep the output guards.
    Q2b (raised as **Q18**).
 4. A pre-existing reproducibility gap: the committed emulator weights don't
    regenerate bit for bit even at the last commit (raised as **Q19**).
+
+### 2026-10-31 — Fit L23 task 5: the closure µ∞ (Claude Opus 5.5)
+
+Read JXP's answers. Q18: hold the emulator retrain until PB24. Q19 (a): done;
+the stale "bit-identical committed weights" line in
+`reports/report_rt_elastic_model.md` §8 now carries a dated correction (the
+generated `docs/` copy will follow on the next docs build).
+
+**Built** (record §7b.9):
+- `ztt.mu_inf_closure`: Eq. (12) inverted for µ∞, with the L23 µd and FF Pbb.
+- The closure fit shipped as `MU_INF_L23_CLOSURE_COEFFS` /
+  `mu_infinity_l23_closure`, i.e. `mu_inf_model="l23_closure"`. Documented as
+  *a ceiling, not physics*; never a default.
+- `fit_ztt_l23.py` `closure_stage`, the figure `fig_mu_inf_closure.png`, and
+  outputs in `coefficients.json` / `metrics.*` / `probes.json`.
+- Tests: 4 new, plus closure probes.
+
+**Gates.**
+- Reproducible ✅ (`--check` identical).
+- Self-consistency ✅: the closure µ∞ reproduces the reference to float64
+  rounding, and every train sample's rrs error is within its µ∞ error.
+- Non-physical samples reported: **2 of 806,760** (with the FF Pbb).
+- Suite ✅: **748 passed, 26 skipped** with the data (the skips are PB24, off
+  disk); **704 passed, 70 skipped** with `$OS_COLOR` unset. `ruff check` and
+  `ruff format --check` are clean.
+
+**Learned.**
+1. **The ceiling is about half the remaining error.** Held-out rRMS falls from
+   2.91 / 2.56 / 3.18% (ZTT (L23 µ∞)) to **1.20 / 1.43 / 1.47%** (closure) at
+   0° / 30° / 60°. µ∞ can't take the rest: it depends on zenith (2.8% median
+   spread) and on regime (the fit to the closure is 0.9–1.8% vs 0.21% for the
+   physical µ∞).
+2. **The phase function decides whether µ∞ can carry the error.** With L23's FF
+   only 2 closure values exceed 1; with Sullivan's (fixture), 8.4% do.
+3. **The other terms' error is structured by regime**: up to +25% in
+   particle-dominated water at moderate bb/a, about −5% in clear water, and
+   saturation near 0.92 where µ∞ → 1. They cancel in the median (closure/eigen
+   ≈ 1.00). That is why the Ψ_KLu ~13% excess (Q16) never showed up as a µ∞
+   offset. Task 6's oracle KLu/a rung should separate the two.
+
+No new questions.

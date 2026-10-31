@@ -31,7 +31,7 @@ every bump.
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 **complete** — tasks 0–16 done; task 11 **failed its gate** and no PB24 weights ship (§7.14, `design/m5_report.md`) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
-| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | 🟡 tasks 1–4 done (§7b.5–8); **`rrs_ZTT` now defaults to "ZTT (L23 µ∞)"**; hybrid pinned to TT2017 | `robust.rt.ztt` (variants), `robust.rt.data.l23` (profiles) |
+| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | 🟡 tasks 1–5 done (§7b.5–9); `rrs_ZTT` defaults to "ZTT (L23 µ∞)"; hybrid pinned to TT2017 | `robust.rt.ztt` (variants), `robust.rt.data.l23` (profiles) |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -2675,7 +2675,72 @@ rrs(0°); the real-scene trend is pinned instead.
 now. A regenerated file adds the M5 `envelope/*` keys and its weights differ by
 up to 0.02. The record's claim of "bit-identical committed weights" (report §8)
 is stale, presumably from the M5 save-format change plus an environment drift.
-The shipped file and its SHA pin are unaffected.
+The shipped file and its SHA pin are unaffected. **Resolved (Q19, answer (a),
+2026-10-31):** the report's wording was corrected (`reports/report_rt_elastic_model.md`
+§8). The file is regenerated and re-pinned at the next retrain, which waits for
+PB24 (Q18).
+
+### 7b.9 Task 5 as built — the closure µ∞, a ceiling
+
+**Q18/Q19 answered (2026-10-31).** The emulator retrain waits for PB24 (Q18),
+and the report wording was corrected (Q19a; see §7b.8).
+
+**Built.**
+
+- **`ztt.mu_inf_closure(iops, phase_params, geometry, rrs, wave)`.** Eq. (12)
+  solved for the µ∞ that reproduces a reference rrs, with every other term from
+  the L23 variant (refit µd, FF Pbb):
+  µ∞ = −cos θv Ψ_KLu / [(N/(µd rrs) − R)(bb/a) − 1]. It returns unclipped
+  values.
+- **`MU_INF_L23_CLOSURE_COEFFS`, `MU_INF_L23_CLOSURE_RANGE` and
+  `mu_infinity_l23_closure`**, which serve `mu_inf_model="l23_closure"` (never a
+  default). The docstrings say *a ceiling, not physics*.
+- **`fit_ztt_l23.py`, `closure_stage`.** Closure µ∞ for all 806,760 samples
+  (3,320 scenes × 3 zeniths × 81 λ), on the netCDF batch so the FF fields are
+  present. The physical values (0 < µ∞ ≤ 1) on train scenes, all zeniths
+  together, go to Eq. (8) exactly as in task 3. Outputs are added to
+  `coefficients.json` / `metrics.*` / `probes.json`, plus the new figure
+  `fig_mu_inf_closure.png`. Scoring goes through the shipped
+  `mu_inf_model="l23_closure"` path (`scored_through_shipped_constants: true`).
+
+**Results** (`design/ztt_l23/metrics.md`).
+
+| θs′ | closure / eigen µ∞, 16 / 50 / 84% | fit vs closure, held out (median abs) | held-out rRMS, **ZTT (L23 µ∞)** | **closure variant** |
+|---|---|---|---|---|
+| 0° | 0.954 / 0.995 / 1.052 | 0.87% | 2.91% | **1.20%** |
+| 30° | 0.970 / 1.001 / 1.046 | 1.68% | 2.56% | **1.43%** |
+| 60° | 0.938 / 0.997 / 1.042 | 1.78% | 3.18% | **1.47%** |
+
+- **The ceiling.** µ∞ alone, given the rest of the L23 variant, can buy about
+  half of the backbone's remaining rRMS (2.6–3.2% → 1.2–1.5%) on the full
+  release with L23's own phase function. The rest is beyond what a µ∞(bb/a, η)
+  can absorb: it depends on zenith (the closure µ∞ moves by a median 2.8% across
+  the three suns at fixed scene and λ) and isn't smooth in (X, L) (the Eq. (8)
+  fit to it is 0.9–1.8%, against 0.21% for the physical µ∞).
+- **Almost always physical with FF.** Only 2 of 806,760 closure values fall
+  outside (0, 1]. On the fixture (no FF fields, so Sullivan's Pbb), **8.4%**
+  exceed 1. Which phase function is used decides whether µ∞ can carry the
+  remaining error.
+- **The gap is structured, not an offset** (`fig_mu_inf_closure.png`). The
+  closure runs up to +25% above the physical µ∞ in particle-dominated water
+  at moderate bb/a (η_bb ≲ 0.2, bb/a ~ 0.01–0.1), and about 5% below it in
+  clear water. It saturates near 0.92 where the physical µ∞ → 1 (strongly
+  absorbing bands). Read with Q16: the other terms' errors, Ψ_KLu's ~13%
+  included, partly cancel by regime, which is why the median closure/eigen
+  ratio is ~1.00.
+
+**Gates.**
+- Reproducible ✅ (`--check` identical).
+- Self-consistency ✅: (i) the exact closure µ∞ returns the reference rrs to
+  float64 rounding (9e-16 on the release, 1e-12 on the fixture);
+  (ii) on every train sample the closure variant's rrs error lies within the
+  µ∞ fit error that caused it, |e_rrs| ≤ |e_µ|/(1 − |e_µ|). That holds because
+  rrs depends on µ∞ only through D = A + B/µ∞ with 0 < B/µ∞ < D.
+
+**Tests:** `test_ztt_l23.py` +4 (shipped constants match the fit and task 3's
+are unmoved, exact self-consistency with the Sullivan contrast pinned, the
+closure model equals its fit, the closure beats the physical µ∞ in rrs on the
+fixture), and the probes now include the closure value.
 
 ## 8. Cross-cutting conventions (as implemented)
 

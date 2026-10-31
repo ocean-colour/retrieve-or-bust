@@ -47,6 +47,23 @@ Atmospheric correction c(θs′) = 1 + -0.10657 u + -0.15865 u², u = 1 − cos 
 | 30° | 158.1° | 1.100 | 0.875 / 0.970 / 1.082 | 0.932 / 1.008 / 1.078 | 0.873 / 0.973 / 1.081 |
 | 60° | 139.7° | 1.294 | 1.026 / 1.140 / 1.284 | 1.096 / 1.182 / 1.279 | 1.022 / 1.144 / 1.282 |
 
+## Closure µ∞ (task 5) — *a ceiling, not physics*
+
+The µ∞ that makes the L23 variant (refit µd, FF Pbb) reproduce each L23
+rrs exactly, then Eq. (8) fitted to it (`mu_inf_model="l23_closure"`).
+It absorbs every other term's error; its gap from the eigen µ∞ is their
+error budget, expressed as µ∞.
+
+Non-physical (≤ 0 or > 1, dropped): 2 of 806760 samples. Zenith spread of the closure µ∞ at a fixed (scene, λ), 16 / 50 / 84%: 1.39% / 2.76% / 3.94%.
+
+| θs′ | closure / eigen µ∞: 1 / 16 / 50 / 84 / 99% | fit vs closure, held out: median abs | rRMS held out: L23 variant | closure variant |
+|---|---|---|---|---|
+| 0° | 0.925 / 0.954 / 0.995 / 1.052 / 1.188 | 0.87% | 2.91% | 1.20% |
+| 30° | 0.945 / 0.970 / 1.001 / 1.046 / 1.165 | 1.68% | 2.56% | 1.43% |
+| 60° | 0.918 / 0.938 / 0.997 / 1.042 / 1.146 | 1.78% | 3.18% | 1.47% |
+
+Gate: on every train sample the closure variant's rrs error is within the µ∞ error that caused it (|e_rrs| ≤ |e_µ|/(1 − |e_µ|)): **pass** (max train |e_rrs| 11.73%).
+
 ## Gate and housekeeping
 
 - `ztt` evaluators vs this script's design matrices (where no guard acts): max relative difference µ∞ 5.5e-07, µd 1.4e-07.

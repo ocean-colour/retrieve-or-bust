@@ -120,6 +120,14 @@ def test_probes_reproduce_through_ztt(fit, jax_x64):
         got = Z.mu_infinity(
             p["bb_over_a"], p["eta_bb"], m16, box=box, out_range=mu_range
         )
+        closure = Z.mu_infinity(
+            p["bb_over_a"],
+            p["eta_bb"],
+            tuple(coefficients["mu_inf_closure_coeffs_m1_m16"]),
+            box=box,
+            out_range=tuple(coefficients["mu_inf_closure_out_range"]),
+        )
+        assert float(closure) == pytest.approx(p["mu_inf_L23_closure"], rel=1e-12)
         assert float(got) == pytest.approx(p["mu_inf_L23"], rel=1e-12)
         for zen, value in p["mu_d_L23"].items():
             got = Z.mu_d(
@@ -307,8 +315,9 @@ def test_options_are_validated():
         Z.rrs_ZTT(*args, mu_inf_model="eigen")
     with pytest.raises(ValueError, match="mu_d_model"):
         Z.rrs_ZTT(*args, mu_d_model="l23_closure")
-    with pytest.raises(NotImplementedError, match="task 5"):
-        Z.rrs_ZTT(*args, mu_inf_model="l23_closure")
+    # "l23_closure" exists since task 5, and is never what a default selects.
+    assert Z.DEFAULT_VARIANT != "l23_closure"
+    Z.rrs_ZTT(*args, mu_inf_model="l23_closure")
 
 
 def l23_case(dtype, a, bb_p, B_p, w_ph, theta_s):
@@ -431,3 +440,63 @@ def test_hybrid_follows_the_emulators_backbone():
         rtol=1e-5,
         atol=1e-12,
     )
+
+
+# ======================================================= task 5: the closure µ∞
+def test_shipped_closure_constants_match_the_committed_fit(fit):
+    coefficients, _ = fit
+    assert Z.MU_INF_L23_CLOSURE_COEFFS == tuple(
+        coefficients["mu_inf_closure_coeffs_m1_m16"]
+    )
+    assert Z.MU_INF_L23_CLOSURE_RANGE == tuple(coefficients["mu_inf_closure_out_range"])
+    # ...and so are the task-3 ones, which a task-5 refit must not have moved.
+    assert Z.MU_INF_L23_COEFFS == tuple(coefficients["mu_inf_coeffs_m1_m16"])
+    assert Z.MD_STAR_L23_COEFFS == tuple(coefficients["md_star_coeffs_m1_m8"])
+
+
+def test_closure_reproduces_the_reference_exactly(jax_x64):
+    """**Gate (self-consistency).** The closure µ∞, put back into the L23
+    variant, gives back the reference rrs (float64 rounding)."""
+    iops, phase, geometry, wave = (
+        jax.tree_util.tree_map(lambda v: jnp.asarray(v, jnp.float64), a)
+        for a in fixture_args()
+    )
+    from robust.rt.data import l23 as L
+    from robust.tests.conftest import L23_SMALL_FIXTURE
+
+    batch = L.load_batch(reader=L.npz_reader(L23_SMALL_FIXTURE))
+    truth = jnp.asarray(C.Rrs_to_rrs(batch.Rrs), jnp.float64)
+    mu = Z.mu_inf_closure(iops, phase, geometry, truth, wave)
+    back = Z.rrs_ZTT(iops, phase, geometry, wave, mu_inf=mu)
+    np.testing.assert_allclose(np.asarray(back), np.asarray(truth), rtol=1e-12)
+    # The fixture has no FF fields, so this closure uses Sullivan's Pbb, and
+    # then 8.4% of it exceeds 1. With L23's own FF phase function (the release
+    # run, fit_ztt_l23.py) only 2 of 806,760 samples do. The phase function
+    # decides whether µ∞ can absorb the rest. Pinned so the contrast stays seen.
+    physical = np.mean((np.asarray(mu) > 0) & (np.asarray(mu) <= 1))
+    assert 0.88 < physical < 0.95
+
+
+def test_closure_model_is_the_closure_fit(jax_x64):
+    args = fixture_args()
+    iops = args[0]
+    x, eta = iops.bb / iops.a, iops.bb_w / iops.bb
+    np.testing.assert_array_equal(
+        np.asarray(Z.rrs_ZTT(*args, mu_inf_model="l23_closure")),
+        np.asarray(Z.rrs_ZTT(*args, mu_inf=Z.mu_infinity_l23_closure(x, eta))),
+    )
+
+
+def test_closure_variant_is_closer_to_the_reference_on_the_fixture():
+    """The ceiling is a ceiling: on real scenes the closure fit beats the
+    physical µ∞ in rrs (the fixture has no FF fields, so both use Sullivan)."""
+    from robust.rt import validation as V
+    from robust.rt.data import l23 as L
+    from robust.tests.conftest import L23_SMALL_FIXTURE
+
+    args = fixture_args()
+    batch = L.load_batch(reader=L.npz_reader(L23_SMALL_FIXTURE))
+    truth = C.Rrs_to_rrs(batch.Rrs)
+    physical = float(V.rrms(truth, Z.rrs_ZTT(*args)))
+    closure = float(V.rrms(truth, Z.rrs_ZTT(*args, mu_inf_model="l23_closure")))
+    assert closure < physical

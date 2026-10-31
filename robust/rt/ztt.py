@@ -134,7 +134,11 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     "MU_INF_MODELS",
     "MU_D_MODELS",
     "mu_infinity_l23",
+    "mu_infinity_l23_closure",
+    "MU_INF_L23_CLOSURE_COEFFS",
+    "MU_INF_L23_CLOSURE_RANGE",
     "mu_d_l23",
+    "mu_inf_closure",
 ]
 
 #: Refractive index of seawater used for Snell refraction (paper §2.1).
@@ -1127,13 +1131,44 @@ MU_INF_L23_RANGE = (0.4267627739922664, 0.999)
 #: tuple: The same guard for ``M*_d`` (not a cosine, so not capped at 1).
 MD_STAR_L23_RANGE = (0.881526035775638, 1.039261098123049)
 
+#: **"ZTT (L23 closure µ∞)" -- a ceiling, not physics** (M7 task 5, Q1). Equation
+#: (8)'s form fitted to the *closure* µ∞: for each L23 sample, the µ∞ that makes
+#: the L23 variant reproduce the reference rrs exactly (:func:`mu_inf_closure`),
+#: on train-split rows of all three zeniths. It absorbs the errors of every other
+#: term (Ψ_KLu, f_L, Pbb, the residual µd), so it is not an average cosine of
+#: anything. It is the most rrs that µ∞ alone could buy. Held-out rRMS: 1.20 /
+#: 1.43 / 1.47% at 0 / 30 / 60° against 2.91 / 2.56 / 3.18% for "ZTT (L23 µ∞)".
+#: Selected with ``mu_inf_model="l23_closure"``; never a default.
+MU_INF_L23_CLOSURE_COEFFS = (
+    -0.29563733771899775,
+    -0.2984025525634349,
+    -0.008195819323475718,
+    -0.021091981813251153,
+    -1.8403173054772548,
+    -1.609279630269282,
+    0.18259986740444667,
+    -0.17366791155185418,
+    -3.591180539083864,
+    -2.479918768680893,
+    0.9361370735221088,
+    -0.5057020088394896,
+    -2.139653284152173,
+    -0.8943584651227547,
+    0.9887988450116013,
+    0.3983701582610333,
+)
+#: tuple: Output guard for the closure fit -- its training range plus
+#: 5 × :data:`OUT_CLAMP_WIDTH`, capped below 1 (Q17).
+MU_INF_L23_CLOSURE_RANGE = (0.4135738177525006, 0.994010053503653)
+
+
 #: The backbone variants :func:`rrs_ZTT` knows. ``"l23"`` -- the M7 refit µ∞
 #: and µd, plus L23's FF phase function where ``PhaseParams`` carries it -- is
 #: the default. ``"tt2017"`` is the M0–M6 model, bit for bit.
 VARIANTS = ("l23", "tt2017")
 #: str: The default of :func:`rrs_ZTT`'s ``variant``.
 DEFAULT_VARIANT = "l23"
-#: µ∞ choices for ``mu_inf_model``. ``"l23_closure"`` arrives with M7 task 5.
+#: µ∞ choices for ``mu_inf_model``. ``"l23_closure"`` is M7 task 5's ceiling.
 MU_INF_MODELS = ("l23", "l23_closure", "tt2017")
 #: µd choices for ``mu_d_model`` (the ladder of M7 task 6 toggles it alone).
 MU_D_MODELS = ("l23", "tt2017")
@@ -1157,6 +1192,28 @@ def mu_infinity_l23(bb_over_a, eta_bb):
         MU_INF_L23_COEFFS,
         box=ZTT_L23_BOX,
         out_range=MU_INF_L23_RANGE,
+    )
+
+
+def mu_infinity_l23_closure(bb_over_a, eta_bb):
+    """The closure µ∞ fit (:data:`MU_INF_L23_CLOSURE_COEFFS`): **a ceiling, not
+    physics**. Clamped to :data:`ZTT_L23_BOX` and guarded like
+    :func:`mu_infinity_l23`.
+
+    Parameters
+    ----------
+    bb_over_a, eta_bb : Array
+
+    Returns
+    -------
+    Array
+    """
+    return mu_infinity(
+        bb_over_a,
+        eta_bb,
+        MU_INF_L23_CLOSURE_COEFFS,
+        box=ZTT_L23_BOX,
+        out_range=MU_INF_L23_CLOSURE_RANGE,
     )
 
 
@@ -1276,7 +1333,8 @@ def rrs_ZTT(
         TT2017 µ∞, Table A2's µd, and Sullivan's Pbb.
     mu_inf_model : {"l23", "l23_closure", "tt2017"}, optional
         Override the variant's µ∞ alone (:data:`MU_INF_MODELS`).
-        ``"l23_closure"`` is M7 task 5's and is not available yet. Precedence:
+        ``"l23_closure"`` (M7 task 5) is the closure fit -- a ceiling, not
+        physics (:func:`mu_infinity_l23_closure`). Precedence:
         ``mu_inf`` > ``mu_inf_coeffs`` > ``mu_inf_model`` > ``variant``.
     mu_d_model : {"l23", "tt2017"}, optional
         Override the variant's µd alone (:data:`MU_D_MODELS`). The Pbb choice
@@ -1292,8 +1350,6 @@ def rrs_ZTT(
     ValueError
         If both ``mu_inf`` and ``mu_inf_coeffs`` are given, or an option is not
         one of its allowed values.
-    NotImplementedError
-        For ``mu_inf_model="l23_closure"`` until M7 task 5 ships it.
     """
     if mu_inf is not None and mu_inf_coeffs is not None:
         raise ValueError(
@@ -1333,9 +1389,7 @@ def rrs_ZTT(
     elif mu_inf_model == "l23":
         mu_inf_value = mu_infinity_l23(bb_over_a, eta_bb)
     elif mu_inf_model == "l23_closure":
-        raise NotImplementedError(
-            "rrs_ZTT: mu_inf_model='l23_closure' is M7 task 5 and not built yet"
-        )
+        mu_inf_value = mu_infinity_l23_closure(bb_over_a, eta_bb)
     else:
         mu_inf_value = mu_infinity_tt2017(bb_over_a, eta_bb)
 
@@ -1361,6 +1415,67 @@ def rrs_ZTT(
     else:
         mu_d_value = mu_d(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
     return numerator / (mu_d_value * denominator)
+
+
+def mu_inf_closure(
+    iops,
+    phase_params,
+    geometry,
+    rrs,
+    wave: Float[Array, " wave"] | None = None,
+    *,
+    visibility_km: float = DEFAULT_VISIBILITY_KM,
+):
+    """The µ∞ that makes the L23 variant reproduce ``rrs`` exactly (M7 task 5).
+
+    Equation (12) is ``rrs = N / (µd D)`` with
+    ``D = (a/bb)(1 − cos θv Ψ_KLu/µ∞) + R`` and ``R = f_L(1 − 1/b̃b) + 1/b̃b``.
+    Given a reference ``rrs`` it is linear in ``1/µ∞``:
+
+        µ∞ = −cos θv Ψ_KLu / [ (N / (µd rrs) − R)(bb/a) − 1 ]
+
+    Every other term is the L23 variant's: the refit µd (:func:`mu_d_l23`) and
+    L23's FF phase function where ``phase_params`` carries it. So the closure µ∞
+    absorbs as little else as possible. It still absorbs **everything** else
+    -- Ψ_KLu, f_L, the Pbb shape, the surface -- which is why it is *a ceiling,
+    not physics*. The values can be ≤ 0 or > 1 where those errors are large.
+    They are returned as computed, and the caller decides.
+
+    Parameters
+    ----------
+    iops, phase_params, geometry, wave
+        As :func:`rrs_ZTT`.
+    rrs : Array
+        Reference subsurface reflectance (sr^-1), ``(..., n_wave)``.
+    visibility_km : float, optional
+
+    Returns
+    -------
+    Array
+        µ∞ per sample and wavelength, unclipped.
+    """
+    _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(geometry)
+
+    def spectral(x):
+        """A per-sample angle gains a trailing axis to meet ``(..., wave)``."""
+        x = jnp.asarray(x)
+        return x[..., None] if jnp.ndim(x) else x
+
+    psi_b = spectral(psi)
+    cos_theta_v = spectral(jnp.cos(jnp.deg2rad(theta_v_paper)))
+    theta_s_air_b = spectral(theta_s_air)
+    bb = iops.bb
+    bb_over_a = bb / iops.a
+    eta_bb = iops.bb_w / bb
+
+    numerator = backward_phase_over_bb(
+        iops, P_bb_from_phase(phase_params, psi_b, use_ff=True), psi_b
+    )
+    b_tilde = bb_tilde(iops, phase_params.B_p)
+    rest = f_L(psi_b, wave) * (1.0 - 1.0 / b_tilde) + 1.0 / b_tilde
+    mu_d_value = mu_d_l23(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
+    needed = numerator / (mu_d_value * jnp.asarray(rrs))
+    return -cos_theta_v * psi_KLu(psi_b) / ((needed - rest) * bb_over_a - 1.0)
 
 
 def Rrs_ZTT(

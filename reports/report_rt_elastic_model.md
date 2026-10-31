@@ -274,13 +274,23 @@ actually taught us:
 ```bash
 # environment: conda ocean14 (JAX CPU); data: $OS_COLOR/Loisel2023/
 pytest -q                              # 279 tests; 23 skip without the data
-python design/py/train_emulator.py    # ~1 min; bit-identical committed weights
+python design/py/train_emulator.py    # ~1 min; see the note below
 python design/py/run_validation.py    # ~8 min; regenerates design/validation/
 python reports/make_report_figures.py # the three figures in this report
 ```
 
 Every number in this report traces to `design/validation/metrics.{md,csv}` or to
 pinned tests; CI runs the suite and lint on every branch.
+
+*Correction (2026-10-31, M7).* An earlier version said the retrain gives
+"bit-identical committed weights". It no longer does. Rerunning
+`train_emulator.py` today writes a file that adds the M5 `envelope/*` keys,
+and its weights differ from the committed `robust/rt/files/emulator_l23.npz`
+by up to 0.02, presumably from the M5 save-format change and environment
+drift. That is true of the code at the last pre-M7 commit as well. Every number
+here is reproducible *from the committed weights file*, which is pinned by
+SHA-256 in the test suite. The file will be regenerated and re-pinned when the
+emulator is next retrained (`claude_prompts/RT/rt_fit_ztt.md`, Q18/Q19).
 
 ## 9. Document map
 
