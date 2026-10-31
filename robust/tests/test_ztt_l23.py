@@ -500,3 +500,40 @@ def test_closure_variant_is_closer_to_the_reference_on_the_fixture():
     physical = float(V.rrms(truth, Z.rrs_ZTT(*args)))
     closure = float(V.rrms(truth, Z.rrs_ZTT(*args, mu_inf_model="l23_closure")))
     assert closure < physical
+
+
+# ==================================================== task 6: the acceptance gate
+def test_committed_ladder_records_a_pass():
+    """The committed ladder (``design/py/run_ztt_l23.py``) says the gate passed,
+    at every zenith -- readable without the data."""
+    import csv
+
+    path = FIT_DIR / "ladder.csv"
+    if not path.is_file():
+        pytest.skip("no committed ladder")
+    with path.open() as fh:
+        rows = {r["model"]: r for r in csv.DictReader(fh)}
+    new, old = rows["+ FF Pbb = ZTT (L23 µ∞)"], rows["ZTT (TT2017 µ∞)"]
+    for z in (0, 30, 60):
+        assert float(new[f"held-out {z}°"]) < float(old[f"held-out {z}°"])
+
+
+def test_acceptance_gate_on_the_release():
+    """**The M7 acceptance gate**, recomputed: on held-out scenes, ZTT (L23 µ∞)
+    beats ZTT (TT2017 µ∞) at each of 0°, 30°, 60° (measured 2.91 / 2.56 /
+    3.18% vs 4.26 / 4.67 / 8.11%)."""
+    from robust.rt import validation as V
+    from robust.rt.data import l23 as L
+    from robust.tests.conftest import l23_available
+
+    if not l23_available():
+        pytest.skip("L23 not available")
+    batch = L.load_batch()
+    held = L.make_splits(batch).scene_test
+    truth = C.Rrs_to_rrs(batch.Rrs)
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    new = Z.rrs_ZTT(*args)
+    old = Z.rrs_ZTT(*args, variant="tt2017")
+    for z in (0, 30, 60):
+        m = held & (batch.zenith == z)
+        assert float(V.rrms(truth[m], new[m])) < float(V.rrms(truth[m], old[m])), z

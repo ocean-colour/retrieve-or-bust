@@ -184,6 +184,7 @@ before the next.*
    compare with 0.30%; (ii) PB24 when back at `$OS_COLOR/SD/v5`: re-check
    c(θs′) and Ψ_KLu over ten sun angles, closure-only µ∞ unless profiles exist
    (Q12); (iii) whether the elastic report should gain a section.
+   Update the report in `docs/reports/report_rt_elastic_model.md` to include the new results.
    Use Opus 5.5. Log your work.
 
 ## Q&A
@@ -322,6 +323,32 @@ the file*) and correct the report's wording; (b) regenerate and re-pin. That
 would move every hybrid value pin, so I'd rather fold it into the Q2b retrain.
 I recommend (a) now.
 **JXP:** Go with (a) for now.
+
+**Q20 (task 6, Claude → JXP, *not blocking task 7*). Where next for the
+analytic backbone?** The gate passed (2.90% held-out, down from 5.93%), and the
+diagnostics say where the rest of the error lives:
+- Ψ_KLu can't be corrected alone. L23's measured KLu/a makes things *worse*
+  (7.8–9.5%) because TT's f_L is tuned against their Ψ_KLu.
+- µ∞ could buy about half the remaining error, but only as an empirical knob
+  (the closure, 1.37%).
+- O25 refit on L23 is at 0.69%, and the TT2017 hybrid at 0.30%.
+
+Options:
+(a) **Stop here for L23.** Ship "ZTT (L23 µ∞)" as the physically fitted
+backbone and move the effort to PB24 (µd with ten sun angles, off-nadir ψ),
+then retrain the emulator on whichever backbone survives PB24.
+(b) **Jointly refit Ψ_KLu and f_L** (Eq. 31's spectral shape and its ψ scaling)
+on L23 at nadir. This is empirical calibration of ZTT's two shape factors; it
+is likely to approach the closure ceiling, but off-nadir it would be
+unvalidated until PB24.
+(c) Accept the closure µ∞ as the working backbone for the emulator. That's
+the cheapest way to a smaller residual for the network, but it gives up µ∞'s
+physical meaning.
+
+I recommend (a). The remaining L23 gains are calibration rather than physics,
+and PB24 is where the backbone's real weakness (off-nadir ψ, record §7.16)
+gets tested.
+**JXP:** Go with (a)
 
 ### Design
 
@@ -890,3 +917,30 @@ generated `docs/` copy will follow on the next docs build).
    offset. Task 6's oracle KLu/a rung should separate the two.
 
 No new questions.
+
+### 2026-10-31 — Fit L23 task 6: the ladder and the acceptance gate — **PASS** (Claude Opus 5.5)
+
+No new answers to read (Q16 (a) was applied: the oracle KLu/a step).
+
+**Built:** `design/py/run_ztt_l23.py`, writing `design/ztt_l23/ladder.{md,csv}`,
+`ladder_per_wavelength.csv` and two figures; record §7b.10; 2 tests.
+**Deviation:** the outputs are named `ladder.*` instead of the prompt's
+`metrics.*`, which `fit_ztt_l23.py` already writes.
+
+**Acceptance gate — PASS.** Held-out rRMS, ZTT (L23 µ∞) vs ZTT (TT2017 µ∞):
+0° **2.91** vs 4.26, 30° **2.56** vs 4.67, 60° **3.18** vs 8.11%; all scenes
+**2.90** vs 5.93%. The TT2017 row reproduces the M4 record exactly.
+
+**Learned.**
+1. **Attribution.** µd does the 60° work (−3.6 pp) but hurts 0°/30° alone. The
+   L23 µ∞ alone *worsens* TT2017 (+0.89 pp), as predicted in task 3, and is
+   worth 1.7 pp inside the full variant. FF Pbb is worth ~0.8 pp, mostly at 30°.
+   The terms interact, so both orderings are tabled.
+2. **Q16 measured: Ψ_KLu must not be corrected alone.** The oracle (measured
+   KLu/a, any depth 0–20 m) gives 7.8–9.5%, against 2.90%. ZTT's K_Lu is an
+   effective parameter, ~11–13% above the true one, with f_L tuned to it.
+3. What's left is calibration, not physics. The closure ceiling is 1.37%, O25
+   refit 0.69%, and the TT2017 hybrid 0.30%. The residual is concentrated at
+   530–590 nm. Raised as **Q20** (recommend: stop here for L23, move to PB24).
+
+Suite ✅: **750 passed, 26 skipped** with the data (the skips are PB24, off disk); **705 passed, 71 skipped** with `$OS_COLOR` unset. `ruff check` and `ruff format --check` are clean.

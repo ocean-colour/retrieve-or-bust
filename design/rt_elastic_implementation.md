@@ -31,7 +31,7 @@ every bump.
 | **M3** | Residual emulator + hybrid | ✅ done | `robust.rt.{emulator,hybrid}` |
 | **M4** | Validation (*prototype done*) | ✅ done — **the Week-1 prototype is complete** | `robust.rt.validation`, `robust.rt.baselines`, `design/py/run_validation.py` |
 | **M5** | Beyond week 1 (PB24: phase function + BRDF) | 🟡 **complete** — tasks 0–16 done; task 11 **failed its gate** and no PB24 weights ship (§7.14, `design/m5_report.md`) | `robust.rt.conventions` (grids), `robust.rt.data.pb24` |
-| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | 🟡 tasks 1–5 done (§7b.5–9); `rrs_ZTT` defaults to "ZTT (L23 µ∞)"; hybrid pinned to TT2017 | `robust.rt.ztt` (variants), `robust.rt.data.l23` (profiles) |
+| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | 🟡 tasks 1–6 done (§7b.5–10); **acceptance gate PASSED** (held-out 2.91/2.56/3.18% vs 4.26/4.67/8.11%); task 7 (close) remains | `robust.rt.ztt` (variants), `robust.rt.data.l23` (profiles) |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started.
 
@@ -2741,6 +2741,75 @@ and the report wording was corrected (Q19a; see §7b.8).
 are unmoved, exact self-consistency with the Sullivan contrast pinned, the
 closure model equals its fit, the closure beats the physical µ∞ in rrs on the
 fixture), and the probes now include the closure value.
+
+### 7b.10 Task 6 as built — the ladder, and the acceptance gate: **PASS**
+
+**Built.** `design/py/run_ztt_l23.py` (deterministic: a rerun's tables are
+byte-identical; about 11 s). It writes `design/ztt_l23/ladder.{md,csv}`,
+`ladder_per_wavelength.csv`, `fig_ladder_per_wavelength.png` and
+`fig_ladder_per_zenith.png`. These are named `ladder.*`, not the prompt's
+`metrics.*`, because `fit_ztt_l23.py` already owns those. The script contains:
+- the additive ladder, through the task-4 switches;
+- the Q16 oracle step (Ψ_KLu/µ∞ replaced by L23's measured KLu/a, via
+  `mu_inf=`), with a depth sweep;
+- order-independent attribution: each term added alone to TT2017, and removed
+  alone from L23;
+- per-λ and per-B_p tables, with Gordon and O25 from the M4 ladder.
+
+**Acceptance** — "ZTT (L23 µ∞)" beats "ZTT (TT2017 µ∞)" on held-out scenes at
+each zenith: **0° 2.91 vs 4.26, 30° 2.56 vs 4.67, 60° 3.18 vs 8.11% — PASS.**
+All held-out scenes: 5.93 → **2.90%**. The TT2017 row reproduces the M4
+record exactly (5.95 / 5.93 / 8.11%).
+
+**The ladder** (held-out rRMS %: all / 0° / 30° / 60°):
+
+| step | all | 0° | 30° | 60° |
+|---|---|---|---|---|
+| ZTT (TT2017 µ∞) | 5.93 | 4.26 | 4.67 | 8.11 |
+| + L23 µd | 4.81 | 4.37 | 5.45 | 4.55 |
+| + L23 µ∞ | 3.68 | 2.96 | 4.52 | 3.37 |
+| **+ FF Pbb = ZTT (L23 µ∞)** | **2.90** | **2.91** | **2.56** | **3.18** |
+| closure µ∞ (ceiling) | 1.37 | 1.20 | 1.43 | 1.47 |
+| oracle KLu/a (diagnostic) | 9.54 | 8.27 | 9.69 | 10.52 |
+| O25 form, refit on L23 | 0.69 | 0.68 | 0.69 | 0.71 |
+| standard Gordon | 7.21 | 6.03 | 6.20 | 9.01 |
+
+**Attribution** (held-out pp; ladder step / added alone to TT2017 / removed
+alone from L23):
+
+- **µd:** −1.12 / −1.12 / +2.97. It does the 60° work (−3.56 pp there) but
+  *hurts* 0° and 30° on its own (+0.12, +0.78) until µ∞ and Pbb join.
+- **µ∞:** −1.14 / **+0.89** / +1.70. Alone it makes TT2017 *worse*: the
+  task-3 prediction (§7b.7), written down before measuring, is confirmed.
+  TT2017's too-high µ∞ was compensating for TT's Ψ_KLu. In the full variant it
+  is worth 1.7 pp.
+- **FF Pbb:** −0.78 / −0.87 / +0.78. Mostly at 30° (−1.96 pp), consistent in
+  both directions.
+- The terms interact: no order-free split adds up. The table carries both
+  orderings so no single number is over-read.
+
+**Q16 answered by measurement: do not correct Ψ_KLu on its own.** Replacing
+ZTT's Ψ_KLu/µ∞ with L23's measured KLu/a, at any sampling depth from 0 to
+20 m, gives **7.8–9.5%** held-out, against 2.90%. Worst in the blue: 16% at
+470 nm. ZTT's implied K_Lu sits ~11–13% above the measured one at every depth.
+So inside Eq. (12), "K_Lu" is an *effective* parameter: TT's other fitted terms
+(f_L above all, fitted on their own synthetic set, §2.5/Eq. 31) are tuned to
+it. Making one term physically right breaks the balance. Any Ψ_KLu change
+would have to be refitted *jointly* with f_L, which is empirical calibration,
+not repair (Q20).
+
+**What remains.**
+- The closure ceiling (1.37%) shows µ∞ could still buy about half the
+  remaining error, but only as an empirical knob.
+- **O25, refit on L23, stays far ahead at 0.69%**, and the TT2017-based hybrid
+  at 0.30%. The analytic backbone is better, not competitive.
+- The residual is concentrated in a hump at 530–590 nm (4.8% at 565 nm, down
+  from 8.5%) that only the closure removes.
+- Per B_p bin the L23 variant reads 2.5–3.2%, with no trend across L23's
+  narrow range.
+
+**Tests:** `test_ztt_l23.py` +2: the committed ladder records a pass (no data
+needed), and the gate recomputed on the release (`l23_available`).
 
 ## 8. Cross-cutting conventions (as implemented)
 
