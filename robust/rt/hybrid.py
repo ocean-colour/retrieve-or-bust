@@ -12,10 +12,18 @@ it will need, and a test pins them against finite differences.
 
 **Additivity holds in ``rrs`` space, not in ``Rrs`` space.** The correction is
 defined and trained below the surface, so
-``rrs_forward(hybrid) == rrs_forward(ztt) + rrs_forward(emulator)`` exactly, while the
-same identity in ``Rrs`` fails — the air-water interface (Lee 2002,
-``A·rrs/(1 − B·rrs)``) is non-linear. Score in ``rrs`` (design §6); use
-:func:`forward` when you want the above-water quantity an instrument would see.
+``rrs_forward(hybrid) == rrs_ZTT(variant=emulator.backbone_variant) +
+rrs_forward(emulator)`` exactly, while the same identity in ``Rrs`` fails — the
+air-water interface (Lee 2002, ``A·rrs/(1 − B·rrs)``) is non-linear. Score in
+``rrs`` (design §6); use :func:`forward` when you want the above-water quantity an
+instrument would see.
+
+**Since M7 the backbone of ``mode="ztt"`` is not necessarily the hybrid's.**
+``mode="ztt"`` is ``rrs_ZTT``'s default, "ZTT (L23 µ∞)". The hybrid applies its
+emulator to the backbone the emulator was trained on (``backbone_variant``), and
+the shipped weights record "tt2017". Until the emulator is retrained on "l23"
+(``claude_prompts/RT/rt_fit_ztt.md``, Q2b/Q18), ``rrs_forward(hybrid) −
+rrs_forward(ztt)`` is **not** the emulator's term.
 
 **What ``mode="emulator"`` means here, and what it does not.** The design's three
 options are analytic-only, learned-only, and hybrid. But M3's emulator is

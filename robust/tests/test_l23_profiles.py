@@ -234,13 +234,23 @@ def test_golden_rows_against_raw_netcdf(full_product):
 
 
 @needs_l23_profiles
-def test_asymptotic_points_are_zenith_independent(full_product):
-    """Gate: where flagged asymptotic, the three zeniths agree to < 1%."""
+def test_asymptotic_flag_agrees_with_an_independent_criterion(full_product):
+    """Gate (asymptotic ⇒ zenith-independent), checked *non-circularly*. The
+    flag is defined by the zeniths' µ agreeing, so asserting that again would
+    prove nothing (review pass). Instead, a second hallmark of the asymptotic
+    regime: every diffuse attenuation coefficient converges to K∞, so KEd, KEu
+    and KLu must coincide. Measured at 50 m on flagged points: max spread 0.44%,
+    and a smaller median spread than the unflagged points' at every zenith."""
     p = full_product
-    ok = p.flag == L.FLAG_ASYMPTOTIC
-    assert ok.sum() > 1000  # measured 2.4% of 268,920 = ~6,500
-    dev = np.abs(p.mu_deep[:, ok] / p.mu_inf[ok] - 1)
-    assert dev.max() < L.ASYMPTOTIC_SPREAD
+    flagged = (p.flag == L.FLAG_ASYMPTOTIC) & (p.z_deep == 50.0)
+    others = (p.flag == L.FLAG_NOT_ASYMPTOTIC) & (p.z_deep == 50.0)
+    assert flagged.sum() > 1000
+    for zenith in L.ZENITHS:
+        raw = L._read_profile(1, zenith, ("KEd_z", "KEu_z", "KLu_z"), (50.0,))
+        ked, keu, klu = (raw[f][0].astype(float) for f in ("KEd_z", "KEu_z", "KLu_z"))
+        spread = np.maximum(np.abs(keu / ked - 1), np.abs(klu / ked - 1))
+        assert spread[flagged].max() < 0.005, zenith
+        assert np.median(spread[flagged]) < np.median(spread[others]), zenith
 
 
 @needs_l23_profiles

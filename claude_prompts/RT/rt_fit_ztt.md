@@ -187,6 +187,20 @@ before the next.*
    Update the report in `docs/reports/report_rt_elastic_model.md` to include the new results.
    Use Opus 5.5. Log your work.
 
+### Next (M7 hand-off)
+
+M7 is complete. From record §7b.11, the next steps:
+
+1. **PB24**, once it is back at `$OS_COLOR/SD/v5`:
+   - µd's c(θs′) over ten sun angles;
+   - Ψ_KLu off-nadir, changed only together with f_L;
+   - µ∞ by eigenproblem on PB24's varied phase functions (or closure-only,
+     unless PB24 has profiles).
+2. **Retrain the emulator** on the surviving backbone after PB24 (Q2b/Q18).
+   Re-pin the weights (Q19), and make an "l23" emulator warn when `ff_B` is
+   missing (review finding 1b).
+3. Revisit the elastic report's §9 once PB24 lands.
+
 ## Q&A
 
 ### Fit L23
@@ -944,3 +958,36 @@ No new answers to read (Q16 (a) was applied: the oracle KLu/a step).
    530–590 nm. Raised as **Q20** (recommend: stop here for L23, move to PB24).
 
 Suite ✅: **750 passed, 26 skipped** with the data (the skips are PB24, off disk); **705 passed, 71 skipped** with `$OS_COLOR` unset. `ruff check` and `ruff format --check` are clean.
+
+### 2026-10-31 — Fit L23 task 7: closing M7 (Claude Opus 5.5)
+
+Read JXP's answer to Q20: (a), stop the L23 work and move to PB24.
+
+**Done** (record §7b.11):
+- **Notebook** `notebooks/RT/rt_fit_ztt_l23.ipynb`: executed, 17 cells, 3
+  figures, 0 errors (`nbclient`; `nbconvert` is absent from `ocean14`).
+- **Report** `reports/report_rt_elastic_model.md` → v1.1: an
+  executive-summary update and a new **§9 "Update (M7)"** with
+  `fig_ztt_l23_ladder.png` (drawn by `reports/make_report_figures.py` from
+  `ladder.csv`, and added to the docs figure list). The prompt asked for
+  `docs/reports/report_rt_elastic_model.md` to be updated; that file is
+  *generated* from `reports/` (its banner says so), so I edited the source and
+  regenerated the copy with `docs/figures/make_docs_figures.py`.
+- **Review pass:** an independent reviewer over the M7 diff found no serious
+  correctness bug on the shipped paths. All findings were fixed or logged
+  (table in §7b.11):
+  - one real silent-broadcast bug (per-sample `ff_weight`), fixed with a
+    regression test;
+  - the M3 hybrid gate comparing two different backbones, fixed;
+  - two tests that couldn't fail, replaced with independent checks;
+  - CI never running the FF path on real scenes, fixed with a new 79 kB
+    `l23_ff_small.npz` fixture and a value pin;
+  - stale or overstated docs, fixed;
+  - one design hazard for a future "l23" emulator (1b), logged.
+- **Hand-off:** see "Next (M7 hand-off)" above, also in the record.
+
+**Status:** M7 ✅. Coding plan and record updated (record v0.34).
+
+Suite: see below.
+
+No new questions.

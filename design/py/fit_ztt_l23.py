@@ -171,8 +171,11 @@ def fit_mu_d(X, Lg, theta, t):
 # ----------------------------------------------------------------- stats --
 def output_range(values, *, cosine=False):
     """A smooth output bound for a fitted polynomial: the training values'
-    range padded by five ``OUT_CLAMP_WIDTH`` (so the guard is invisible on the
-    data, < 1e-5 relative). An average cosine (``cosine=True``) is also capped
+    range padded by five ``OUT_CLAMP_WIDTH``, so the guard is negligible on the
+    data *except* near a capped edge. An average cosine (``cosine=True``) is
+    capped at 1 − ``OUT_CLAMP_WIDTH``, which for µ∞ sits only ~1 width above
+    the data maximum (0.998), so the top ~1% of µ∞ values move by up to ~3e-4
+    (review pass; the measured net effect is in ``mu_inf_guard_effect``). Also capped
     below 1; M*_d is only a factor of one and is not."""
     pad = 5 * Z.OUT_CLAMP_WIDTH
     lo = float(np.min(values)) - pad
@@ -289,7 +292,7 @@ def run(recompute_eigen=False):
     coefficients = {
         "about": "ZTT refit to L23 (M7 task 3, rt_fit_ztt.md). Report as "
         "'ZTT (L23 mu_inf)'. mu_inf target: asymptotic RTE eigenproblem "
-        "on L23 IOPs, FF Mobley-2002 convention; reads +1.4% vs "
+        "on L23 IOPs, FF Mobley-2002 convention; reads ~+1.3% vs "
         "HydroLight profiles where those are asymptotic.",
         "mu_inf_coeffs_m1_m16": [float(v) for v in m16],
         "md_star_coeffs_m1_m8": [float(v) for v in md8],

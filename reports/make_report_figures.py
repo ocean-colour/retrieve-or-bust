@@ -7,6 +7,8 @@ Data sources (RQ3: draw from the committed validation artefacts):
   ``design/py/run_validation.py``.
 - ``design/validation/metrics.csv`` -- the scalar model x split table, same
   provenance.
+- ``design/ztt_l23/ladder.csv`` -- the M7 ladder (ZTT refit to L23), written
+  by ``design/py/run_ztt_l23.py``.
 - The unseen-60 deg numbers are transcribed from
   ``design/validation/metrics.md`` ("Unseen 60 deg" table, seeds 23, 1, 7,
   101, 2024) because ``run_validation.py`` does not write them to a CSV;
@@ -17,6 +19,8 @@ Figures written beside this script:
 - ``fig_architecture.png``  -- the hybrid forward-model dataflow.
 - ``fig_rrms_ladder.png``   -- per-wavelength rRMS, five models, held-out scenes.
 - ``fig_unseen_zenith.png`` -- the unseen-60 deg comparison with the seed spread.
+- ``fig_ztt_l23_ladder.png`` -- M7: the ZTT backbone refit to L23, per solar
+  zenith, one L23 term added per step.
 
 Run with the ``ocean14`` conda environment from anywhere:
 
@@ -31,6 +35,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 VALIDATION = HERE.parent / "design" / "validation"
+ZTT_L23 = HERE.parent / "design" / "ztt_l23"
 
 # House palette (Okabe-Ito subset), validated for CVD safety in the adjacent
 # stacking order of the ladder (worst model on top): protan/deutan dE >= 11.4,
@@ -246,8 +251,46 @@ def fig_unseen_zenith():
     plt.close(fig)
 
 
+def fig_ztt_l23_ladder():
+    """M7: held-out rRMS per solar zenith as each L23 term is switched on."""
+    with (ZTT_L23 / "ladder.csv").open() as fh:
+        rows = {r["model"]: r for r in csv.DictReader(fh)}
+    steps = [
+        ("ZTT (TT2017 µ∞)", "ZTT, TT2017 µ∞ (M0-M6)", "#E69F00"),
+        ("+ L23 µd", "+ L23 µd", "#56B4E9"),
+        ("+ L23 µ∞", "+ L23 µ∞", "#009E73"),
+        ("+ FF Pbb = ZTT (L23 µ∞)", "+ L23 phase fn = ZTT (L23 µ∞)", "#0072B2"),
+        ("closure µ∞ (ceiling)", "closure µ∞ (a ceiling)", "#CC79A7"),
+    ]
+    zen = (0, 30, 60)
+    fig, ax = plt.subplots(figsize=(8.2, 4.6))
+    x = np.arange(len(zen))
+    width = 0.8 / len(steps)
+    for k, (key, label, color) in enumerate(steps):
+        vals = [float(rows[key][f"held-out {z}°"]) for z in zen]
+        bars = ax.bar(x + (k - (len(steps) - 1) / 2) * width, vals, width * 0.9,
+                      color=color, label=label)
+        if k in (0, 3):  # direct values on the old and the new backbone
+            ax.bar_label(bars, fmt="%.2f", fontsize=8.5, padding=2, color=INK)
+    o25 = float(rows["O25 form, refit on L23"]["held-out"])
+    # In the legend, not annotated: a label on the line collides with the bars.
+    ax.axhline(o25, color=INK_2, ls=":", lw=1.2,
+               label=f"O25 form, refit on L23 (all zeniths, {o25:.2f}%)")
+    ax.set_xticks(x, [f"solar zenith {z}°" for z in zen])
+    ax.set_ylabel("held-out rRMS in $rrs$ space [%]")
+    ax.set_ylim(0, 9.2)
+    ax.grid(True, axis="y")
+    ax.set_title("M7 - the ZTT backbone refit to L23, one term at a time",
+                 fontsize=11.5)
+    ax.legend(loc="upper left", fontsize=8.5, frameon=False)
+    fig.tight_layout()
+    fig.savefig(HERE / "fig_ztt_l23_ladder.png", dpi=200)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     fig_architecture()
     fig_rrms_ladder()
     fig_unseen_zenith()
-    print(f"wrote 3 figures to {HERE}")
+    fig_ztt_l23_ladder()
+    print(f"wrote 4 figures to {HERE}")

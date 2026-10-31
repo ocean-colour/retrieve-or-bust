@@ -552,7 +552,30 @@ def P_bb_from_phase(
                 "tilt/rescale (beta_tilde_pi, backward_slope) are alternatives; "
                 "set one or the other"
             )
-        return _phase.P_bb_ff(psi_deg, phase_params.ff_B, phase_params.ff_weight)
+
+        def align_components(value):
+            """Give per-sample component arrays the trailing axes ``psi`` has.
+
+            ``psi`` arrives as ``(n_sample, 1)``. A spectral ``(n, W, K)`` array
+            already lines up, but a per-sample ``(n, K)`` would broadcast against
+            ψ's ``(n, 1, 1)`` to ``(n, n, K)``: a silent cross-product of samples
+            (M7 review, finding 1a). The same trap ``align`` closes below for
+            the M5 fields.
+            """
+            value = jnp.asarray(value)
+            psi_ndim = jnp.ndim(jnp.asarray(psi_deg))
+            batch_ndim = value.ndim - 1
+            if 0 < batch_ndim < psi_ndim:
+                value = value.reshape(
+                    value.shape[:-1] + (1,) * (psi_ndim - batch_ndim) + value.shape[-1:]
+                )
+            return value
+
+        return _phase.P_bb_ff(
+            psi_deg,
+            align_components(phase_params.ff_B),
+            align_components(phase_params.ff_weight),
+        )
 
     shape = P_bb_sullivan(psi_deg)
     if phase_params is None:
@@ -858,8 +881,9 @@ CLAMP_WIDTH = 0.01
 
 
 #: Width of the soft corners when a fitted polynomial's *output* is bounded
-#: (``out_range``): 0.001 in µ, so the guard is invisible to within 5e-5 at
-#: five widths inside its range.
+#: (``out_range``): 0.001 in µ. The guard moves a value by
+#: ``width · ln(1 + e^{-d/width})`` at distance ``d`` inside its range: ~7e-6 at
+#: five widths, but up to ~3e-4 within a width of an edge (review pass).
 OUT_CLAMP_WIDTH = 0.001
 
 
@@ -1116,7 +1140,10 @@ MD_STAR_L23_COEFFS = (
 MD_PLUS_CORR_L23 = (-0.10656634715990398, -0.15864703687789908)
 
 #: ``(X_lo, X_hi, L_lo, L_hi)``: the (log10 bb/a, log10 η_bb) range of the
-#: training points. Both L23 refits clamp their inputs to it (Q3).
+#: training points. Both L23 refits clamp their inputs to it (Q3). The box is the
+#: exact training range, unpadded, so points *on* its edges are shifted by up to
+#: ``CLAMP_WIDTH · ln 2`` ≈ 0.007 decades (review pass). Measured net effect of
+#: both guards: 1.5% of held-out µ∞ change by > 1e-4, median error unchanged.
 ZTT_L23_BOX = (
     -3.9656776708214276,
     -0.22577186428964108,

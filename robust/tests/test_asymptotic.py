@@ -51,10 +51,34 @@ def test_double_gauss(grid):
 
 
 @pytest.mark.parametrize("which", ["water", "ff_ph", "ff_d"])
-def test_kernels_conserve_energy(l23_kernels_40, which):
-    mu, w, kernels = l23_kernels_40
-    k = kernels[["water", "ff_ph", "ff_d"].index(which)]
-    np.testing.assert_allclose(2 * np.pi * k.matrix @ w, 1.0, atol=1e-12)
+def test_kernels_reproduce_the_asymmetry_parameter(which):
+    """The azimuth-averaged kernel's first moment, 2π Σ_j w_j P̃_ij µ_j, must be
+    g* µ_i, where g* = (g − F)/(1 − F) is the δ-truncated phase function's mean
+    cosine, computed here by independent quadrature of p̃ (not from the kernel).
+    Replaces a row-sum test that could not fail: build_kernel renormalises row
+    sums by construction (review pass). Measured: water to 2e-8; FF within
+    4.5e-3, the residue of the forward peak on 80 streams."""
+    from robust.rt.data import l23 as L
+
+    mu, w = A.double_gauss(A.N_STREAMS)
+    shapes = {
+        "water": A.water_phase(),
+        "ff_ph": A.ff_phase_numpy(L.L23_FF_B[0]),
+        "ff_d": A.ff_phase_numpy(L.L23_FF_B[1]),
+    }
+    p = shapes[which]
+    kernel = A.build_kernel(p, mu, w)
+    x, ww = np.polynomial.legendre.leggauss(1500)
+    s = 0.5 * (x + 1)
+    psi = np.pi * s**6
+    dmu = 2 * np.pi * np.sin(psi) * np.pi * 6 * s**5 * 0.5 * ww
+    values = p(psi)
+    g = np.sum(values * np.cos(psi) * dmu)
+    g_star = (g - kernel.truncated) / (1 - kernel.truncated)
+    first_moment = 2 * np.pi * (kernel.matrix * w[None, :]) @ mu / mu
+    inner = np.abs(mu) < 0.95
+    tol = 1e-6 if which == "water" else 6e-3
+    np.testing.assert_allclose(first_moment[inner], g_star, atol=tol)
 
 
 def test_truncated_fractions(l23_kernels_40):

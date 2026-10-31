@@ -299,6 +299,7 @@ def write_fixture(
     zeniths: tuple[int, ...] = ZENITHS,
     x: int = ELASTIC_X,
     n_scene: int = 50,
+    optional: bool = False,
 ) -> None:
     """Snapshot the first ``n_scene`` scenes of the raw L23 fields to an ``.npz``.
 
@@ -318,6 +319,10 @@ def write_fixture(
         L23 scenario index.
     n_scene : int, optional
         Number of leading scenes to keep.
+    optional : bool, optional
+        Also store :data:`OPTIONAL_RAW_FIELDS` (``bph``, ``bd``), so batches
+        from the fixture carry L23's FF phase-function fields (M7). Off by
+        default: ``l23_small.npz`` predates them and its bytes are hash-pinned.
 
     Notes
     -----
@@ -341,7 +346,8 @@ def write_fixture(
     for zenith in zeniths:
         raw = _read_file(x, zenith)
         arrays["wave"] = raw["wave"].astype(np.float32)
-        for field in RAW_FIELDS:
+        fields = RAW_FIELDS + (OPTIONAL_RAW_FIELDS if optional else ())
+        for field in fields:
             if field == "wave":
                 continue
             arrays[f"{field}_{zenith}"] = raw[field][:n_scene].astype(np.float32)
@@ -412,6 +418,11 @@ def npz_reader(path):
             if field == "wave":
                 continue
             out[field] = np.asarray(data[f"{field}_{int(zenith)}"], dtype=float)
+        # Optional M7 fields, served only by a fixture written with them.
+        for field in OPTIONAL_RAW_FIELDS:
+            key = f"{field}_{int(zenith)}"
+            if key in data.files:
+                out[field] = np.asarray(data[key], dtype=float)
         return out
 
     return read
@@ -1534,8 +1545,9 @@ def write_profile_fixture(
 def profile_npz_reader(path):
     """A profile ``reader`` backed by a :func:`write_profile_fixture` file.
 
-    The fixture's scenes are served as scenes ``0..n-1``; their release indices
-    are in the file's ``scenes`` array.
+    The fixture's scenes are served in the order they were written, and the
+    reader's ``scene`` entry carries their release indices (the file's
+    ``scenes`` array), so a product built from it is labelled correctly.
 
     Returns
     -------

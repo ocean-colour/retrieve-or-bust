@@ -537,3 +537,62 @@ def test_acceptance_gate_on_the_release():
     for z in (0, 30, 60):
         m = held & (batch.zenith == z)
         assert float(V.rrms(truth[m], new[m])) < float(V.rrms(truth[m], old[m])), z
+
+
+# ============================================= task 7: review-pass regressions
+def test_default_backbone_with_ff_on_real_scenes_is_pinned():
+    """CI coverage of the shipped default *with* L23's FF phase function on real
+    scenes (review finding: the 50-scene fixture has no FF fields, so every other
+    fixture test runs Sullivan). Pinned by value; the FF path must differ from
+    Sullivan's and score better than it on these scenes."""
+    import dataclasses
+
+    import robust.rt as rt
+    from robust.rt import validation as V
+    from robust.rt.data import l23 as L
+    from robust.tests.conftest import L23_FF_FIXTURE
+
+    if not L23_FF_FIXTURE.is_file():
+        pytest.skip("FF fixture missing")
+    batch = L.load_batch(reader=L.npz_reader(L23_FF_FIXTURE))
+    assert batch.phase_params.ff_B is not None
+    args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    out = rt.forward(*args, "ztt")
+    assert float(jnp.mean(out)) == pytest.approx(3.135152393952e-03, rel=1e-6)
+    assert float(out[0, 40]) == pytest.approx(1.204367028549e-03, rel=1e-6)
+
+    sullivan = dataclasses.replace(batch.phase_params, ff_B=None, ff_weight=None)
+    truth = C.Rrs_to_rrs(batch.Rrs)
+    with_ff = Z.rrs_ZTT(*args)
+    without = Z.rrs_ZTT(batch.iops, sullivan, batch.geometry, batch.wave)
+    assert float(jnp.max(jnp.abs(with_ff / without - 1))) > 0.01
+    assert float(V.rrms(truth, with_ff)) < float(V.rrms(truth, without))
+
+
+def test_per_sample_ff_weight_is_aligned_not_cross_multiplied():
+    """Review finding 1a: an ``(n_sample, K)`` ``ff_weight`` -- which ``validate``
+    accepts -- used to broadcast against ψ ``(n, 1, 1)`` into an ``(n, n)``
+    cross-product of samples (silently, when n == n_wave). It must equal the
+    same weights laid out spectrally."""
+    n = W = 3
+    wave = jnp.asarray([440.0, 550.0, 660.0])
+    iops = IOPs(
+        a=jnp.full((n, W), 0.1),
+        bb_w=jnp.full((n, W), 0.002),
+        bb_p=jnp.full((n, W), 0.003),
+    )
+    w = jnp.asarray([[0.2, 0.8], [0.5, 0.5], [0.9, 0.1]])
+    per_sample = PhaseParams(
+        B_p=jnp.full((n, W), 0.014), ff_B=jnp.asarray([0.010, 0.018]), ff_weight=w
+    )
+    per_sample.validate()
+    spectral = PhaseParams(
+        B_p=jnp.full((n, W), 0.014),
+        ff_B=jnp.broadcast_to(jnp.asarray([0.010, 0.018]), (n, W, 2)),
+        ff_weight=jnp.broadcast_to(w[:, None, :], (n, W, 2)),
+    )
+    geometry = Geometry.nadir(jnp.asarray([0.0, 30.0, 60.0]))
+    a = Z.rrs_ZTT(iops, per_sample, geometry, wave)
+    b = Z.rrs_ZTT(iops, spectral, geometry, wave)
+    assert a.shape == (n, W)
+    np.testing.assert_allclose(np.asarray(a), np.asarray(b), rtol=1e-6)

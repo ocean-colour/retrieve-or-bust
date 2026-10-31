@@ -1,5 +1,5 @@
 {
-  "about": "ZTT refit to L23 (M7 task 3, rt_fit_ztt.md). Report as 'ZTT (L23 mu_inf)'. mu_inf target: asymptotic RTE eigenproblem on L23 IOPs, FF Mobley-2002 convention; reads +1.4% vs HydroLight profiles where those are asymptotic.",
+  "about": "ZTT refit to L23 (M7 task 3, rt_fit_ztt.md). Report as 'ZTT (L23 mu_inf)'. mu_inf target: asymptotic RTE eigenproblem on L23 IOPs, FF Mobley-2002 convention; reads ~+1.3% vs HydroLight profiles where those are asymptotic.",
   "clamp_box_X_lo_hi_L_lo_hi": [
     -3.9656776708214276,
     -0.22577186428964108,

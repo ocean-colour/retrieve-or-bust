@@ -98,7 +98,11 @@ def scores(toy_fit, l23_small_batch):
     batch = l23_small_batch
     truth = C.Rrs_to_rrs(batch.Rrs)
     outputs = {
-        "ztt": H.rrs_forward(*batch_args(batch), "ztt"),
+        # The emulator's *own* backbone (M7 task 4; review finding 2a). Since
+        # rrs_ZTT defaults to "l23", ``mode="ztt"`` is a different backbone from
+        # a "tt2017" emulator's, and comparing against it would no longer show
+        # what the learned half adds to the backbone it corrects.
+        "ztt": Z.rrs_ZTT(*batch_args(batch), variant=emulator.backbone_variant),
         "hybrid": H.rrs_forward(
             *batch_args(batch), "hybrid", emulator=emulator, check_domain=False
         ),

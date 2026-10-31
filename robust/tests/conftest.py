@@ -53,6 +53,13 @@ FILES = pathlib.Path(__file__).parent / "files"
 #: ``l23.write_fixture(path, n_scene=50)``.
 L23_SMALL_FIXTURE = FILES / "l23_small.npz"
 
+#: A 12-scene x 3-zenith elastic snapshot that also carries ``bph`` / ``bd``, so
+#: batches built from it hold L23's two-component FF phase function (M7). The
+#: only real-data fixture on which the default "l23" backbone runs its FF path
+#: (``l23_small.npz`` predates those fields and is hash-pinned). Regenerate
+#: with ``l23.write_fixture(path, n_scene=12, optional=True)``.
+L23_FF_FIXTURE = FILES / "l23_ff_small.npz"
+
 #: The inelastic **sibling** fixture (coding plan CQ4): the same 50 scenes and
 #: zeniths, adding ``aph`` and the X=2/X=4 ``Rrs`` channels (plus ``a``/``bb``/
 #: ``Rrs1`` copies the reader uses to prove the two files describe the same

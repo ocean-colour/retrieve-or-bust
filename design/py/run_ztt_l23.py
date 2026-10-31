@@ -87,6 +87,14 @@ def oracle_mu_inf(batch, product):
     replaces the whole ratio with the measurement. Batch order is zenith-major,
     matching the product's leading zenith axis.
     """
+    # The reshape below assumes the product and the batch share zeniths and
+    # scenes in the same order; check rather than trust it (review pass).
+    if tuple(product.zeniths) != tuple(ZENITHS) or not np.array_equal(
+        product.scene, np.arange(L.N_SCENES)
+    ):
+        raise ValueError("oracle_mu_inf: profile product does not match the batch")
+    if not np.array_equal(batch.scene, np.tile(product.scene, len(ZENITHS))):
+        raise ValueError("oracle_mu_inf: batch is not zenith-major over all scenes")
     _, _, _, psi = Z.geometry_to_paper_angles(batch.geometry)
     psi_klu = np.asarray(Z.psi_KLu(psi))[:, None]
     klu0 = product.KLu0.astype(float).reshape(-1, product.KLu0.shape[-1])

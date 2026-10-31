@@ -57,7 +57,7 @@ design/py/            # figure & validation-run scripts (non-package)
 | **M4** | Validation (**prototype done**) | hybrid beats Gordon on **both held-out splits** + passes grad gate; metrics table + figures |
 | **M5** | Beyond week 1 | (coarse) HydroLight PF/BRDF runs; ZTT backward-VSF params; API frozen |
 | **M6** | After the backbone broke (Route C: restrict the claim) | see `rt_elastic_coding_prompt_7.md` |
-| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | L23 variant beats the TT2017 backbone on held-out scenes at every zenith; `tt2017` bit-for-bit; grad gate; hybrid numbers unchanged — **gate passed 2026-10-31** (record §7b.10) |
+| **M7** | ZTT refit to L23 — "ZTT (L23 µ∞)" | L23 variant beats the TT2017 backbone on held-out scenes at every zenith; `tt2017` bit-for-bit; grad gate; hybrid numbers unchanged — ✅ **complete 2026-10-31**; gate passed (record §7b.10–11) |
 
 ---
 
