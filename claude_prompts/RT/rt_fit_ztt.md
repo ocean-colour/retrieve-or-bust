@@ -988,6 +988,9 @@ Read JXP's answer to Q20: (a), stop the L23 work and move to PB24.
 
 **Status:** M7 ✅. Coding plan and record updated (record v0.34).
 
-Suite: see below.
+Suite ✅: **752 passed, 26 skipped** with the data (the skips are PB24, off
+disk); **707 passed, 71 skipped** with `$OS_COLOR` unset. `ruff check` and
+`ruff format --check` are clean. M7 modules: `test_l23_profiles` 14,
+`test_phase` 28, `test_asymptotic` 16, `test_ztt_l23` 36.
 
 No new questions.

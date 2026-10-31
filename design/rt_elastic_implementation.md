@@ -2850,7 +2850,9 @@ contracts were all checked. Findings and dispositions:
 | — | `ff_mu_for_B`'s second derivative is not exact (the slope is stop-gradient'd) | **logged**: first derivatives are exact and tested; a Hessian user should know |
 
 **Final test counts** (M7 modules): `test_l23_profiles` 14, `test_phase` 28,
-`test_asymptotic` 16, `test_ztt_l23` 36. The full suite is in the log.
+`test_asymptotic` 16, `test_ztt_l23` 36. Full suite: **752 passed, 26 skipped**
+with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
+`$OS_COLOR` unset. Ruff is clean.
 
 **Hand-off: what comes next** (JXP's Q20 answer (a): L23 is done; PB24 next).
 
