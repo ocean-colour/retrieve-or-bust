@@ -2873,6 +2873,76 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 3. **Elastic report.** Done in this task (§9 of the report, v1.1). Revisit when
    PB24 lands.
 
+## 7c. M8 — ZTT to PB24
+
+*Status: in progress (task 1 of 8 done, 2026-10-31). Decisions Q1–Q17 and
+their reasoning are in
+[`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
+
+M8 takes the elastic backbone from L23 to PB24 (Pitarch & Brando 2025), the
+HydroLight ensemble that varies what L23 holds fixed: the particle phase
+function (B_p spans ~6×) and the full viewing geometry (10 θs × 10 θ × 13 φ).
+The data layer is split as for L23: `ocpy` reads the netCDFs; `robust` builds
+the caches, batches, splits and the above-water geometry on top (Q2, Q3).
+
+### 7c.1 Task 1 as built — the ocpy reader
+
+**Built.** `ocpy/hydrolight/pb24.py` (ocpy branch `pb24`), in the style of
+`loisel23.py`:
+
+- `pb24_path` = `$OS_COLOR/SD/v5`, with a `warnings.warn` and `./` when
+  `$OS_COLOR` is unset.
+- `RESOLUTIONS = {"hyp", "olci"}` (file prefixes `SD_hyp_no_R_`,
+  `SD_OLCI_no_R_`), default `"hyp"`; `file_path(index, resolution)`.
+- `available(resolution)`: sorted realisation indices on disk.
+- `grids(resolution)`: `lambda`, `theta_s`, `theta`, `phi` (float32,
+  read-only) from the first available file, cached per session.
+  `check_grids(ds, resolution)` raises on any dtype or value difference;
+  `load_ds` calls it by default (`verify_grids=True`).
+- `load_ds(index, resolution="hyp", engine="netcdf4", verify_grids=True)`:
+  one realisation, **eagerly** loaded (`xarray.load_dataset`, file closed),
+  values as stored, no refraction or interpolation.
+- `READER_VERSION = 1`, `GRID_NAMES`, `N_REALISATIONS = 5000`, for task 2's
+  sidecar.
+- The module docstring records the files, the variable list with dims, the
+  citation (Zenodo 10.5281/zenodo.11637178), and the direction conventions:
+  `rrs`/`Q` at the in-water `theta`, `Rrs` at the above-water `theta`, φ the
+  azimuth of the *propagation* direction with 0 towards the sun.
+- **Engine: `netcdf4`, not `h5netcdf`** (a departure from `loisel23.py`).
+  The data are identical either way (`Dataset.equals`), but `h5netcdf`
+  decodes the "º" in six attributes (`aw`, `bw`, `bbw`, `theta_s`, `theta`,
+  `phi`) as surrogate escapes, and is slower (0.13 s against 0.056 s per
+  hyperspectral file).
+
+**Measured.**
+
+- 5,000 realisations in each resolution, indices 1–5000 contiguous.
+- Grids identical, bit for bit, across **all** 10,000 files (a full sweep of
+  the coordinate variables, 39 s; the committed test samples 10 files per
+  resolution). θs = 0–80 by 10 then 87.75; θ = 0–80 by 10 then 87.5;
+  φ = 0–180 by 15; λ = 350–800 by 1 (hyp) or the 12 OLCI bands 400–753.
+- Every variable is float32 and NaN-free (realisation 1). `C`, `N`, `Y` are
+  on a length-1 `scalar` dim. 4-D fields are stored
+  `(lambda, phi, theta, theta_s)`, gzip-chunked as one chunk.
+- Golden values, reader = direct xarray read = pasted float32, bit for bit
+  (`rrs`, `Rrs`, `aph`, `Esdir_Es_ratio`; full table in the log): e.g. hyp
+  realisation 1, 443 nm, θs 30°, θ 10°, φ 90°: rrs 0.0071871569,
+  Rrs 0.0037851033, aph 0.0881650001, Esdir/Es 0.7778172493.
+- **The OLCI files are separate HydroLight runs on the same realisations,
+  not a subsample of the hyperspectral ones.** Same `C`, `N`, `Y` and the
+  same IOPs at the OLCI bands (bit for bit, realisation 1717), but the AOPs
+  differ: `rrs` and `Rrs` up to 0.12%, `Kd` 0.03%, `Esdir_Es_ratio` up to
+  2.8% (largest at 400 nm and θs = 87.75°, falling to < 0.2% beyond 700 nm).
+  The creation dates differ too (2024-02-07 OLCI, 2024-03-08 hyp). So an
+  OLCI-band slice of the hyperspectral set does not reproduce the OLCI set;
+  this matters for task 5 (O25 was calibrated on the OLCI files).
+
+**Tests:** `ocpy/tests/test_pb24.py`, 18 tests (3 run without the data; the
+rest skip behind `needs_hyp` / `needs_olci` / `needs_both`). The ocpy suite:
+168 passed, 7 skipped with the data; 145 passed, 30 skipped with
+`$OS_COLOR` unset; in both runs the same 4 pre-existing, unrelated failures
+in `test_plot_oc_scene.py` (file-type detection returns `'UNKNOWN'`).
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
