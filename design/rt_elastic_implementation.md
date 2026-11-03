@@ -2943,6 +2943,87 @@ rest skip behind `needs_hyp` / `needs_olci` / `needs_both`). The ocpy suite:
 `$OS_COLOR` unset; in both runs the same 4 pre-existing, unrelated failures
 in `test_plot_oc_scene.py` (file-type detection returns `'UNKNOWN'`).
 
+### 7c.2 Task 2 as built — the consolidation caches
+
+**Built.** `robust/rt/data/pb24_cache.py`, the builder
+`design/py/build_pb24_cache.py`, and the committed miniature
+`robust/tests/files/pb24_cache_small.zip`:
+
+- **Layout.** `$OS_COLOR/SD/derived/pb24_v1/` (`default_cache_dir()`,
+  resolved from `ocpy.hydrolight.pb24.pb24_path`; every call takes
+  `cache_dir=`). One float32 `.npy` per field, rows = realisations in
+  ascending id, λ last: `C`, `N`, `Y` `(n,)` (the length-1 `scalar` dim
+  dropped); the ten IOPs `(n, 451)`; the eleven AOPs and `Esdir_Es_ratio`
+  `(n, θs, λ)`; `rrs`, `Rrs`, `Q` `(n, θs, θ, φ, λ)` — the files'
+  `(λ, θs)` and `(λ, φ, θ, θs)` transposed, nothing else. Constants
+  `SCALAR_FIELDS`, `IOP_FIELDS`, `AOP_FIELDS` (`Esdir_Es_ratio` included),
+  `TABLE_FIELDS`, `FOUR_D_FIELDS`, `SOURCE_DIMS`, `CACHE_DIMS`; every file's
+  dims and dtype are checked against them on read, so a format change
+  stops the build.
+- **`sidecar.json`**: realisation ids, the grids, per-field file/dims/
+  source dims/shape/dtype, source names and byte sizes, `resolution`,
+  `four_d_bands`, `cache_version` (`CACHE_VERSION = 1`) and
+  `reader_version`; sorted keys, no timestamp.
+- **`build(cache_dir=None, realisations=None, resolution="hyp", workers=1,
+  progress=False, bands=None)`**: each file opened once through
+  `pb24.load_ds`; an ordered `imap` over forked workers (spawned if JAX is
+  already imported), so the bytes do not depend on `workers`; rows streamed to `*.npy.partial` (header as
+  `np.save`), fsynced, the old sidecar deleted, the arrays renamed, the
+  sidecar written last. `bands=` keeps a strictly increasing subset of the
+  451 bands in the 4-D fields only (the fixture uses it). Returns a
+  `BuildSummary` (sizes, wall time).
+- **Readers.** `open_cache(cache_dir=None) → PB24Cache` refuses a missing
+  sidecar and a mismatched `CACHE_VERSION` or `READER_VERSION`.
+  `PB24Cache.array(name)` (lazy `np.load(mmap_mode="r")`, shape and dtype
+  checked against the sidecar), `table(name, realisations)`,
+  `four_d(name, realisations, theta_s, theta, phi, bands)` (indices; bands
+  index the full grid and are mapped to the stored ones), `four_d_at(...)`
+  (exact node values in degrees and nm, no rounding),
+  `realisation_index`, `angle_index`, `band_index`. Selectors apply axis by
+  axis (outer product, not numpy broadcasting); scalars, slices and evenly
+  spaced runs give views of the memmap.
+- **`verify(cache_dir, realisations, fields, fraction=0.02, seed=24,
+  full=(), workers)`**: re-reads through the ocpy reader; table fields in
+  full, 4-D fields in full for `full` and on a `default_rng([seed, id,
+  field])` sample elsewhere; equality of the raw 32-bit words (stricter
+  than `array_equal(equal_nan=True)`, which is checked too).
+- **Builder flags:** `--cache-dir`, `--workers` (default 8),
+  `--realisations`, `--band-step`, `--skip-build`, `--check` (the gate),
+  `--rebuild-check` (second build beside the cache, SHA-256 + `filecmp` of
+  every file, then deleted).
+
+**Measured** (`design/ztt_pb24/cache_build.md`).
+
+- **36,351,031,568 bytes** (36.35 GB): 3 × 11.726 GB 4-D, 12 × 90.2 MB
+  (λ, θs), 10 × 9.0 MB IOPs, 368 kB sidecar. Build **286.9 s** with 8
+  readers (241 s for the read-and-stream loop).
+- **Gate.** All 293,165,000 table values and 181,061,166 of the
+  8,794,500,000 4-D values (2.06%: realisations 1, 2500, 5000 in full plus a
+  random 2% of each other realisation's three arrays) bit-identical to
+  per-file reads (51 s). A second build with 4 readers: all 29 files
+  byte-identical, sidecar included.
+- **`open_memmap` writes stalled on ZFS.** The first build wrote through
+  `np.lib.format.open_memmap` as the task suggested: the reading finished
+  in 114 s, then `flush()`'s `msync` of the dirty mapped pages crawled
+  (~0.5 MB/s measured after 20 min) and the build was stopped. Streaming each row with plain `write()` produces the
+  same bytes (fixture checked against the memmap-written one) at disk
+  speed. Readers still memory-map, read-only, which is fast.
+- Every field name and dims in the task text match the files (no
+  discrepancy).
+
+**Fixture.** `pb24_cache_small.zip`: realisations 1, 993, 2500, the table at
+all 451 bands, the 4-D fields at every 10th band (46); 29 members, 2,871,457
+bytes unpacked, 2,190,735 bytes as one deterministic zip (`pb24_cache.pack`,
+sorted members, fixed timestamps; `unpack` restores it into a temporary
+directory once per test session, the `pb24_cache_dir` fixture). Packed on
+2026-11-03 at JXP's request so that one file, not 29, enters the tree. **Tests:** `robust/tests/test_pb24_cache.py`, 24 tests: 14 on the
+fixture (no data, plus the pack round trip), 5 behind `needs_pb24_hyp` (rebuild reproduces the fixture
+byte for byte at 1 and 2 workers, `verify` on it, a crashed build leaves
+nothing, a flipped low bit is caught), 5 behind `needs_pb24_cache` (layout;
+the Task-1 golden values from the cache equal the reader bit for bit;
+`verify` on 1, 2500, 5000 in full). New conftest markers `needs_pb24_hyp`
+and `needs_pb24_cache`; `needs_pb24` is unchanged (task 3).
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -3073,6 +3154,7 @@ robust/
       __init__.py      ✅ re-exports l23
       l23.py           ✅ M1  L23 elastic batches + seeded splits;
                              M7: depth-profile product, FF fields (§7b.5-6)
+      pb24_cache.py    ✅ M8  PB24 memmap caches: build/open/verify (§7c.2)
     ztt.py             ✅ M2  ZTT; M7: variant="l23" (default) / "tt2017",
                              µ∞/µd refits, closure µ∞, clamps (§7b.7-9)
     phase.py           ✅ M7  Fournier–Forand (Mobley 2002), L23 FF mixture
@@ -3103,6 +3185,8 @@ robust/
     test_phase.py      ✅ M7 28 tests — task 2
     test_asymptotic.py ✅ M7 16 tests — task 3
     test_ztt_l23.py    ✅ M7 34 tests — tasks 3-6 (incl. the acceptance gate)
+    test_pb24_cache.py ✅ M8 24 tests — task 2
+    files/pb24_cache_small.zip ✅ M8 2.2 MB zip, 3 realisations, 4-D at every 10th band
 
 design/py/
   train_emulator.py          ✅ M3 real training run (~60 s; --dry-run, --out)
@@ -3111,6 +3195,7 @@ design/py/
   fit_ztt_l23.py             ✅ M7 µ∞ (eigen), µd, closure fits; --check
   run_ztt_l23.py             ✅ M7 the ladder + acceptance gate
   explore_mu_inf_eigen.py    ✅ M7 exploratory (Q13 evidence), not pipeline
+  build_pb24_cache.py        ✅ M8 builds/verifies the PB24 cache; --check, --rebuild-check
 design/ztt_l23/              ✅ M7 coefficients, metrics, probes, ladder, figures
 design/validation/
   metrics.md                 ✅ M4 every model x split, per zenith, per B_p bin

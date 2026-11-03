@@ -846,3 +846,103 @@ Created from `rt_fit_ztt.md` task 8.
 - Record §7c (new) and §7c.1 written in `design/rt_elastic_implementation.md`.
 - **No git command was run** in either repository (beyond read-only
   `git status`/`git log`).
+
+### 2026-11-02 — Task 2: the consolidation caches (Claude Opus 5.5)
+
+- Read: this doc in full (Task 2, Q13, the Task 1 log); `ocpy/hydrolight/pb24.py`
+  and `ocpy/tests/test_pb24.py`; the precedents `design/py/build_l23_profile_product.py`,
+  `robust/rt/data/l23.py` (derived-product path, JSON provenance, atomic save) and
+  `robust/tests/conftest.py`. Opened realisation 1 through the reader and listed every
+  variable's dims and dtype before coding: all 28 fields named in Task 2 exist, float32,
+  with the dims the doc states (no discrepancy).
+- **Built** (retrieve-or-bust, untracked new files): `robust/rt/data/pb24_cache.py` —
+  `CACHE_VERSION = 1`, `default_cache_dir()` (`pb24_path`'s parent / `derived/pb24_v1`),
+  field constants (`SCALAR_FIELDS`, `IOP_FIELDS`, `AOP_FIELDS` incl. `Esdir_Es_ratio`,
+  `TABLE_FIELDS`, `FOUR_D_FIELDS`, `SOURCE_DIMS`, `CACHE_DIMS`),
+  `build(cache_dir, realisations, resolution, workers, progress, bands)` →
+  `BuildSummary`, `open_cache(cache_dir)` → `PB24Cache` (`array`, `table`, `four_d`,
+  `four_d_at`, `realisation_index`, `angle_index`, `band_index`), `read_sidecar`,
+  `verify(...)` → `VerifyReport`. `design/py/build_pb24_cache.py` (`--cache-dir`,
+  `--workers`, `--realisations`, `--band-step`, `--skip-build`, `--check`,
+  `--rebuild-check`, `--pack`). `design/ztt_pb24/cache_build.md`. Fixture
+  `robust/tests/files/pb24_cache_small.zip` (one file; 29 members, 2,871,457
+  bytes unpacked, 2,190,735 packed; see the 2026-11-03 addendum). Tests
+  `robust/tests/test_pb24_cache.py` (25). Conftest: `needs_pb24_hyp`,
+  `needs_pb24_cache`, `PB24_CACHE_FIXTURE`, `PB24_CACHE_FIXTURE_BANDS`; `needs_pb24`
+  untouched (task 3 retargets it).
+- **Decisions the task left open.** (i) Cache order: λ last everywhere;
+  `(λ, θs)` fields stored `(real, θs, λ)` to match the 4-D `(real, θs, θ, φ, λ)`; the
+  length-1 `scalar` dim dropped (`C`, `N`, `Y` are `(n,)`). (ii) Rows in ascending
+  realisation id (input ids are sorted and de-duplicated). (iii) **Writes are streamed,
+  not memory-mapped**: the first full build used `np.lib.format.open_memmap` as
+  suggested; reading finished in 114 s, then `msync` of the dirty pages on the ZFS
+  volume crawled (~0.5 MB/s after 20 min) and I stopped it. Each row is now appended
+  with plain `write()` after the `np.save` header (`_NpyStream`), fsynced; bytes
+  identical to the memmap-written fixture (checked with `cmp`); readers still memmap.
+  (iv) Atomicity: arrays to `*.npy.partial`, old sidecar deleted, arrays renamed,
+  sidecar written last; `open_cache` refuses a directory without a sidecar; a crashed
+  build deletes its partials (test). (v) Workers: ordered `Pool.imap`, `fork` context
+  (works from stdin/unguarded scripts), `spawn` when JAX is already imported (fork
+  under JAX warns of deadlock); builder default 8. (vi) `verify` compares raw 32-bit
+  words (also `np.array_equal(equal_nan=True)`); its 4-D sample is per (seed, id,
+  field), so it does not depend on workers or on the id set; seed 24. "A random 2% of
+  the 4-D arrays" read as 2% of the values of every realisation's three arrays, on
+  top of 1, 2500, 5000 in full. (vii) Fixture band subset: every 10th band (indices
+  0, 10, …, 450 → 350–800 nm by 10, 46 bands), recorded in the sidecar as
+  `four_d_bands`; `four_d(bands=)` takes full-grid indices and maps them, so the
+  fixture and the full cache run the same path. (viii) Sidecar has no absolute paths
+  (source file names and sizes only) and no worker count, so it is portable and
+  worker-independent. (ix) The version-mismatch test runs on a copy of the fixture
+  (no data needed). (x) `angle_index`/`band_index` take exact grid values only.
+- **Measured.** Full cache `$OS_COLOR/SD/derived/pb24_v1/`: 29 files,
+  **36,351,031,568 bytes** (3 × 11,726,000,128 4-D; 12 × 90,200,128; 10 × 9,020,128;
+  3 × 20,128; sidecar 367,984). Build **286.9 s** (8 workers). `--check`:
+  "5000 realisations re-read through the ocpy reader; 293,165,000 table values
+  compared (all of them); 181,061,166 of 8,794,500,000 4-D values compared (2.06%:
+  realisations [1, 2500, 5000] in full, a random 2% of the rest, seed 24); all
+  bit-identical (51.1 s)." `--rebuild-check` (4 workers, into
+  `$OS_COLOR/SD/derived/.pb24_v1_rebuild_check`, then deleted): second build 268.6 s,
+  "rebuild-check: byte-identical (29 files)", sidecar included (SHA-256 and `filecmp`).
+  Fixture: `--check` and `--rebuild-check` pass.
+- **Suite** (`python -m pytest robust/tests -q`, repo root): with the data
+  `1 failed, 796 passed, 5 skipped, 2 warnings in 228.57s (0:03:48)`; with
+  `env -u OS_COLOR` `721 passed, 81 skipped, 4 warnings in 162.75s (0:02:42)`. The one
+  failure is pre-existing and unrelated, `test_emulator.py::
+  test_excluding_an_unusable_backbone_also_narrows_the_geometry` (`needs_pb24`, M5
+  OLCI loader; fails alone too: `0.433 > 5 × 0.156`); it runs now only because the
+  OLCI files are in place, and its in-water geometry is what task 3 re-baselines. Not
+  touched. `test_pb24_cache.py`: 24 passed with the data.
+- **Ruff.** `ruff check robust/ design/` and `ruff format --check robust/ design/`
+  clean (CI lints `robust/`). `ruff check .` over the whole repo reports 302
+  pre-existing errors and 22 unformatted files, all in files this task did not touch
+  (`context/RT/*.py`, `notebooks/`, `docs/`, `reports/py/`, `proposals/`, `setup.py`).
+- **Surprises.** The `open_memmap`/ZFS `msync` stall above. `np.ascontiguousarray`
+  promotes 0-d to 1-d (bit me on `C`, `N`, `Y`). The `(λ, θs)` AOP block is 1.08 GB, the
+  table ≈ 1.17 GB, as Q13 estimated. Nothing in the files contradicts the doc.
+- Record §7c.2 written in `design/rt_elastic_implementation.md` (plus module-index lines).
+- **No state-changing git command was run** (read-only `git status`/`git log`/`git diff`
+  only).
+
+### 2026-11-03 — Task 2 addendum: the fixture as one zip (Claude Fable 5.1)
+
+- JXP declined to commit 29 fixture files. Chosen option: pack the miniature
+  into one deterministic zip, `robust/tests/files/pb24_cache_small.zip`
+  (2,190,735 bytes; 2,871,457 unpacked), and unpack it into a temporary
+  directory once per test session.
+- **Built.** `pb24_cache.pack(cache_dir, zip_path)` (sorted members, fixed
+  1980-01-01 timestamps, deflate, so packing is byte-reproducible) and
+  `pb24_cache.unpack(zip_path, dest)` (refuses nested member paths). Builder
+  flag `--pack ZIP`. Conftest: `PB24_CACHE_FIXTURE` now names the zip; new
+  session fixture `pb24_cache_dir` unpacks it; `pb24_cache_small/` deleted.
+  Tests use the unpacked directory; one new test,
+  `test_pack_is_deterministic_and_round_trips`, checks pack twice → identical
+  bytes → equal to the committed zip → unpack restores every file.
+- **Measured.** Rebuilding the miniature through the CLI
+  (`--realisations 1 993 2500 --band-step 10 --pack`) reproduces the
+  committed zip byte for byte. `test_pb24_cache.py`: 25 passed with the
+  data; 15 passed, 10 skipped without `$OS_COLOR`. `ruff check` and
+  `ruff format --check` clean on `robust/` and `design/`. Full suite with the
+  data: `1 failed, 797 passed, 5 skipped` (the pre-existing `test_emulator`
+  failure, for task 3); without `$OS_COLOR`: `722 passed, 81 skipped`.
+- Record §7c.2, `cache_build.md` and the Task 2 log entry above updated to
+  name the zip. No state-changing git command was run.

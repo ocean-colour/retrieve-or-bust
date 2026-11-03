@@ -166,6 +166,86 @@ needs_pb24 = pytest.mark.skipif(
 )
 
 
+def pb24_hyp_available():
+    """Whether the PB24 **hyperspectral** files are on disk under ``$OS_COLOR``.
+
+    Returns
+    -------
+    bool
+        True when ``$OS_COLOR/SD/v5`` holds ``SD_hyp_no_R_0001.nc`` and
+        ``SD_hyp_no_R_5000.nc``.
+    """
+    root = os.environ.get("OS_COLOR")
+    if not root:
+        return False
+    v5 = os.path.join(root, "SD", "v5")
+    return all(
+        os.path.isfile(os.path.join(v5, f"SD_hyp_no_R_{i:04d}.nc")) for i in (1, 5000)
+    )
+
+
+#: Skip a test that needs the PB24 hyperspectral netCDFs (M8).
+needs_pb24_hyp = pytest.mark.skipif(
+    not pb24_hyp_available(),
+    reason="PB24 hyperspectral files not available ($OS_COLOR/SD/v5)",
+)
+
+#: The committed miniature of the PB24 consolidation cache (M8 task 2), as one
+#: zip file: the realisations of :data:`PB24_FIXTURE_REALISATIONS`, every table
+#: field at all 451 bands, the 4-D ``rrs``/``Rrs``/``Q`` at every 10th band
+#: (:data:`PB24_CACHE_FIXTURE_BANDS`), ~2.9 MB unpacked. Built by the same
+#: ``pb24_cache.build`` as the full cache and packed by ``pb24_cache.pack``;
+#: regenerate with ``python design/py/build_pb24_cache.py --cache-dir <scratch>
+#: --realisations 1 993 2500 --band-step 10 --pack
+#: robust/tests/files/pb24_cache_small.zip``. Tests get it unpacked into a
+#: temporary directory through the :func:`pb24_cache_dir` fixture.
+PB24_CACHE_FIXTURE = FILES / "pb24_cache_small.zip"
+
+#: The 4-D band subset of :data:`PB24_CACHE_FIXTURE` (indices into 350-800 nm).
+PB24_CACHE_FIXTURE_BANDS = tuple(range(0, 451, 10))
+
+
+def pb24_cache_available():
+    """Whether the full PB24 cache has been built under ``$OS_COLOR``.
+
+    Returns
+    -------
+    bool
+        True when ``$OS_COLOR/SD/derived/pb24_v1/sidecar.json`` exists (the
+        sidecar is written last, so its presence means a finished build).
+    """
+    root = os.environ.get("OS_COLOR")
+    if not root:
+        return False
+    return os.path.isfile(
+        os.path.join(root, "SD", "derived", "pb24_v1", "sidecar.json")
+    )
+
+
+#: Skip a test that needs the full PB24 cache *and* the files it came from.
+needs_pb24_cache = pytest.mark.skipif(
+    not (pb24_cache_available() and pb24_hyp_available()),
+    reason="PB24 cache or hyperspectral files not available ($OS_COLOR/SD)",
+)
+
+
+@pytest.fixture(scope="session")
+def pb24_cache_dir(tmp_path_factory):
+    """:data:`PB24_CACHE_FIXTURE` unpacked once per session -- no ``$OS_COLOR``.
+
+    Returns
+    -------
+    pathlib.Path
+        A directory ``pb24_cache.open_cache`` accepts.
+    """
+    if not PB24_CACHE_FIXTURE.is_file():
+        pytest.skip(f"cache fixture missing: {PB24_CACHE_FIXTURE}")
+
+    from robust.rt.data import pb24_cache
+
+    return pb24_cache.unpack(PB24_CACHE_FIXTURE, tmp_path_factory.mktemp("pb24_cache"))
+
+
 @pytest.fixture(scope="session")
 def pb24_reader():
     """A reader over the committed PB24 fixture -- no ``$OS_COLOR`` required.
