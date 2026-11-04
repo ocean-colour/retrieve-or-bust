@@ -1297,7 +1297,10 @@ def fit_pb24(
     1. **The target is the tabulated ``rrs``**, not ``Rrs`` converted through the
        surface map. PB24 ships both, and the nadir map is wrong off-nadir by a
        median 33.6% at ``theta_v = 60`` (record §7.10) -- so training through it
-       would fit the emulator to an interface error.
+       would fit the emulator to an interface error. *(M8 task 3: the 33.6% was
+       measured on M5's in-water pairing; on the Snell-paired samples the
+       nadir map's median error at ``theta_v_air = 60`` is 6.8%, OLCI. The
+       point -- train on the tabulated ``rrs`` -- stands.)*
     2. **``theta_v`` and ``dphi`` are live features.** They are already in
        :data:`FEATURES` and were constant in L23, which is exactly why the domain
        check flagged every off-nadir view; PB24 makes them vary.

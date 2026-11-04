@@ -229,10 +229,13 @@ FROZEN_FORWARD = (
 #: ``test_the_optional_container_fields_all_default_to_none`` is what keeps that
 #: permission honest: appending is safe only while the new field changes nothing
 #: for a caller who does not set it.
+#: Re-baselined deliberately for M8 task 3 (``rt_fit_pb24.md``): ``Geometry``
+#: gained ``diffuse_fraction``, appended, ``None`` by default, filled by the PB24
+#: loader and consumed by nothing until task 4.
 FROZEN_CONTAINERS = {
     "IOPs": ("a", "bb_w", "bb_p", "a_ph", "a_cdom"),
     "PhaseParams": ("B_p", "beta_tilde_pi", "backward_slope", "ff_B", "ff_weight"),
-    "Geometry": ("theta_s", "theta_v", "dphi", "wind", "Ed"),
+    "Geometry": ("theta_s", "theta_v", "dphi", "wind", "Ed", "diffuse_fraction"),
 }
 
 

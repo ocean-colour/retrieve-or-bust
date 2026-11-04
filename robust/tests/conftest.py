@@ -133,37 +133,102 @@ needs_l23_profiles = pytest.mark.skipif(
 )
 
 
-#: A committed 3-realisation snapshot of the **raw** PB24 fields, ~460 kB, keeping
-#: each realisation's *whole* 1300-geometry grid so the angle window and its shell
-#: are both exercisable. Realisation 993 is in there deliberately: it carries the
-#: only defect in the OLCI set -- two exactly-zero ``rrs`` values at 753 nm,
-#: ``theta_s = 80``, ``theta = 87.5`` -- so the filter that removes them has
-#: something to bite on. Regenerate with
-#: ``pb24.write_fixture(path, realisations=(1, 993, 2500))``.
-PB24_SMALL_FIXTURE = FILES / "pb24_small.npz"
-
-#: The realisations in :data:`PB24_SMALL_FIXTURE`, in order.
+#: The realisations of the committed PB24 cache miniature
+#: (:data:`PB24_CACHE_FIXTURE`), in order. Realisation 993 is in there because it
+#: carried the only zero ``rrs`` of the OLCI set (M5); in the hyperspectral
+#: set its zeros sit at the in-water node theta = 87.5, which only the
+#: ``"in_water_only"`` angle set reads (M8 task 3).
 PB24_FIXTURE_REALISATIONS = (1, 993, 2500)
 
 
 def pb24_available():
-    """Whether the PB24 release is on disk under ``$OS_COLOR``.
+    """Whether the PB24 **hyperspectral** release and its cache are on disk.
+
+    The default loader (M8 task 3) serves ``resolution="hyp"`` from the cache,
+    so this checks the first hyperspectral file **and** the cache sidecar.
 
     Returns
     -------
     bool
-        True when ``$OS_COLOR/SD/v5`` exists and holds the first OLCI file.
+        True when ``$OS_COLOR/SD/v5/SD_hyp_no_R_0001.nc`` and
+        ``$OS_COLOR/SD/derived/pb24_v1/sidecar.json`` exist.
     """
     root = os.environ.get("OS_COLOR")
     if not root:
         return False
-    return os.path.isfile(os.path.join(root, "SD", "v5", "SD_OLCI_no_R_0001.nc"))
+    return os.path.isfile(
+        os.path.join(root, "SD", "v5", "SD_hyp_no_R_0001.nc")
+    ) and os.path.isfile(os.path.join(root, "SD", "derived", "pb24_v1", "sidecar.json"))
 
 
-#: Skip a test that needs the PB24 reference data.
+#: Skip a test that needs the PB24 hyperspectral data (and its cache).
 needs_pb24 = pytest.mark.skipif(
-    not pb24_available(), reason="PB24 release not available ($OS_COLOR/SD/v5)"
+    not pb24_available(),
+    reason="PB24 hyperspectral release or cache not available ($OS_COLOR/SD)",
 )
+
+
+def pb24_olci_available():
+    """Whether the PB24 **OLCI** files and the water-class sidecar are on disk.
+
+    Returns
+    -------
+    bool
+        True when ``$OS_COLOR/SD/v5`` holds ``SD_OLCI_no_R_0001.nc``,
+        ``SD_OLCI_no_R_5000.nc`` and the class ``.mat``.
+    """
+    root = os.environ.get("OS_COLOR")
+    if not root:
+        return False
+    v5 = os.path.join(root, "SD", "v5")
+    return all(
+        os.path.isfile(os.path.join(v5, name))
+        for name in (
+            "SD_OLCI_no_R_0001.nc",
+            "SD_OLCI_no_R_5000.nc",
+            "classes_Rrs_OLCI_v5_20240214.mat",
+        )
+    )
+
+
+#: Skip a test that needs the PB24 OLCI files (M5's set; read per file).
+needs_pb24_olci = pytest.mark.skipif(
+    not pb24_olci_available(),
+    reason="PB24 OLCI files not available ($OS_COLOR/SD/v5)",
+)
+
+
+def pb24_mixed_realisations(n: int) -> tuple[int, ...]:
+    """``n`` realisation ids that straddle both saved splits.
+
+    The committed ``design/ztt_pb24/splits.json`` fixes the partitions over all
+    5000 realisations, so "the first n" can land wholly on one side (ids 1-21
+    are all realisation-train). This takes ids in ascending order round-robin
+    from the four (realisation test?, B_p-band test?) cells, so any ``n >= 4``
+    has both sides of both splits. Deterministic.
+    """
+    from robust.rt.data import pb24
+
+    content = pb24.read_splits()
+    r_test = set(content["realisation"]["test"])
+    b_test = set(content["bp_band"]["test"])
+    cells = [
+        [
+            i
+            for i in content["realisations"]
+            if (i in r_test) == rt and (i in b_test) == bt
+        ]
+        for rt in (False, True)
+        for bt in (False, True)
+    ]
+    out: list[int] = []
+    k = 0
+    while len(out) < n:
+        for cell in cells:
+            if len(out) < n and k < len(cell):
+                out.append(cell[k])
+        k += 1
+    return tuple(sorted(out))
 
 
 def pb24_hyp_available():
@@ -247,25 +312,11 @@ def pb24_cache_dir(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def pb24_reader():
-    """A reader over the committed PB24 fixture -- no ``$OS_COLOR`` required.
+def pb24_small_batch(pb24_cache_dir):
+    """A 3-realisation PB24 batch on the window, through the real loader.
 
-    Returns
-    -------
-    callable
-        Suitable for ``pb24.load_batch(reader=...)``.
-    """
-    if not PB24_SMALL_FIXTURE.is_file():
-        pytest.skip(f"cached PB24 fixture missing: {PB24_SMALL_FIXTURE}")
-
-    from robust.rt.data import pb24
-
-    return pb24.npz_reader(PB24_SMALL_FIXTURE)
-
-
-@pytest.fixture(scope="session")
-def pb24_small_batch(pb24_reader):
-    """A 3-realisation PB24 batch on the Q14 window, through the real loader.
+    Fed from the unpacked cache miniature (46 bands, 350-800 nm by 10), so it
+    needs no ``$OS_COLOR``.
 
     Returns
     -------
@@ -273,7 +324,9 @@ def pb24_small_batch(pb24_reader):
     """
     from robust.rt.data import pb24
 
-    return pb24.load_batch(realisations=PB24_FIXTURE_REALISATIONS, reader=pb24_reader)
+    return pb24.load_batch(
+        realisations=PB24_FIXTURE_REALISATIONS, cache_dir=pb24_cache_dir
+    )
 
 
 def l23_inelastic_available():

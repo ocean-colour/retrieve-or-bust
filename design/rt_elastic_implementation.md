@@ -2875,7 +2875,7 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 
 ## 7c. M8 — ZTT to PB24
 
-*Status: in progress (task 1 of 8 done, 2026-10-31). Decisions Q1–Q17 and
+*Status: in progress (tasks 1–3 of 8 done, 2026-11-03). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3024,6 +3024,90 @@ the Task-1 golden values from the cache equal the reader bit for bit;
 `verify` on 1, 2500, 5000 in full). New conftest markers `needs_pb24_hyp`
 and `needs_pb24_cache`; `needs_pb24` is unchanged (task 3).
 
+### 7c.3 Task 3 as built — the loader in above-water geometry
+
+**Re-baselined (deliberately).** `Geometry` gained `diffuse_fraction`
+(appended, `None` default; the `FROZEN_CONTAINERS` pin in `test_env.py`
+moved with it); `robust/tests/files/pb24_small.npz` (M5's OLCI fixture) is
+**deleted** — the cache miniature `pb24_cache_small.zip` now feeds the real
+loader; every M5 PB24 pin that encoded the in-water pairing is listed in the
+task-3 log. No model code or model number changed: L23 pins and the emulator
+digest did not move.
+
+**Built.** `robust/rt/data/pb24.py` rewritten on `pb24_cache` (hyp, default)
+and `ocpy.hydrolight.pb24.load_ds` (OLCI, per file), one assembly path for
+both:
+
+- **A sample is an above-water geometry** `(realisation, θs, θv_air, Δφ)`.
+  `Rrs` at its node; `rrs` and `Q` interpolated linearly in θ between the
+  in-water nodes to θ_w = asin(sin θv_air / 1.34) (`interp_in_water`,
+  `theta_air_to_water`; θ_w ≤ 48.2°, so only nodes 0–50 are used).
+  `PB24Batch.theta_w` (new, host-side) carries θ_w; `Geometry.theta_v` is the
+  air angle. Task 4 refracts it inside `geometry_to_paper_angles`; until then
+  ZTT reads the air angle as if it were in-water, exactly as M5 read the
+  in-water node (ψ is unchanged: 42% of the window below 134°).
+- **Angle sets** (`ANGLE_MODES`): `"window"` (θs, θv_air ≤ 70: 832 per
+  realisation), `"shell"` (468), `"all"` (1300), `"in_water_only"` (the
+  in-water nodes 50–87.5 at every θs: 650; un-interpolated, `Rrs` all NaN,
+  `theta_v` = the in-water angle). `ANGLE_WINDOW_MAX = 70` (air),
+  `CRITICAL_ANGLE = 48.27`, `IN_WATER_ONLY_MIN = 50`.
+- **Fills** `IOPs.a_ph = aph`; `PhaseParams.ff_B = (bbph/bph, bbNAP/bNAP)`,
+  `ff_weight = (bph, bNAP)/(bph+bNAP)`, `(n, λ, 2)` as L23's (so `rrs_ZTT`'s
+  default `"l23"` variant now runs PB24's own FF mixture);
+  `Geometry.diffuse_fraction = 1 − Esdir_Es_ratio` at the sample's θs.
+  16 realisations have `bNAP = 0` (15 at every band): weight 0, NAP `ff_B`
+  from the realisation's other bands or `FF_B_NAP_FILL = 0.015`.
+- **`FresnelReport`** on every load (`check_fresnel=True`): every
+  realisation read, every θs, Δφ, band, all 1300 geometries whatever the
+  selection; streamed histograms per (θs, θv), exact extremes, the
+  realisations beyond 5% named; a `UserWarning` if the window fails.
+  **`interpolation_error`** → `InterpolationReport` (linear vs a not-a-knot
+  cubic through the in-water nodes 0–80).
+- **Splits** fixed once: `design/py/make_pb24_splits.py` (cache table only)
+  → `design/ztt_pb24/splits.json` (by id; `SPLIT_SEED = 23`,
+  `TEST_FRACTION = 0.2`, B_p quantiles (0.4, 0.6) over the 5000
+  per-realisation means, the geometry **rule** θv_air ≥ 80 or θs ≥ 80, the
+  confound with a 12-seed random reference) and `splits.md`; `--check`
+  rebuilds byte-identically. `make_splits(batch, kinds, path)` loads the file,
+  raises for a realisation it does not cover or an empty side;
+  `build_splits`/`write_splits`/`read_splits` are public.
+- **Removed:** `RAW_FIELDS`, `write_fixture`, `npz_reader`, the xarray
+  `_read_file`. **Changed defaults:** `resolution="hyp"`, `file_path(...,
+  resolution="hyp")`, `B_P_EXPECTED = (0.0009, 0.045)` (hyp bulk B_p reaches
+  0.0430). `make_splits` lost `seed`/`test_fraction`/`bp_quantiles` (the file
+  holds them). `PB24Batch.validate(grid=None)` checks the batch's own grid
+  (OLCI, or a subset of the 1-nm hyp grid, without touching `conventions`).
+- conftest: `needs_pb24` = hyp file + cache sidecar; new `needs_pb24_olci`
+  (OLCI files + `.mat`) and `pb24_mixed_realisations(n)` (ids straddling both
+  saved splits — ids 1–21 are all realisation-train); `pb24_small_batch` from
+  the cache miniature; `pb24_reader` and `PB24_SMALL_FIXTURE` gone.
+
+**Measured** (`design/ztt_pb24/geometry_check.md`, `splits.md`).
+
+- **Fresnel check, all 5000 realisations, 451 bands** (2.05 × 10⁹ values in
+  the window): median deviation +0.18 / −0.22 / −0.11 / −0.81 / −1.63 /
+  −2.16 / −3.34% at θv_air = 10–70; max |dev| 1.56 / 0.85 / 1.60 / 1.34 /
+  3.45 / 3.79 / **5.30%**. Holds within 5% on 4,999 realisations; **5
+  values of realisation 4492** exceed (θv_air = 70, 356–376 nm, θs 70/80,
+  nadir rrs ≈ 3 × 10⁻⁶ sr⁻¹; worst −5.30%). At 80° and 87.5° the flat-surface
+  law fails (+4.4 to +20%, +107 to +207%), as Round 2 found.
+- **Linear vs cubic** (250 realisations, seed 23, θs ≤ 70): `rrs` median
+  0.04–0.38%, 99th percentile 0.22–2.11%, max 2.94% (θv_air = 70, θ_w 44.5,
+  between the 40 and 50 nodes); `Q` max 0.90%.
+- **Zero `rrs`**: 36,680 values (1350 realisations, θs ≥ 40), **all at the
+  in-water node 87.5**, where `Q` is `inf` at the same entries. No air
+  sample touches that node: zero in every air set; only `"in_water_only"`
+  holds them (fixture: 3 values, realisation 993, θs 80, 730/750/800 nm).
+- **Splits:** 1000 / 4000 for each of realisation and B_p band
+  ([0.01322, 0.01522]; 194 realisations in both test sets); corr(log B_p,
+  log C) = −0.469; B_p-band test/train median of C 0.913, N 1.308, bb_p
+  1.168 (random reference C 0.78–1.13, N 0.85–1.21, bb_p 0.83–1.10).
+- **Gershun** `a/Knet = mu_tot` holds on the fixture (median 0.9997).
+
+**Tests:** `robust/tests/test_pb24.py`, 60 (52 without the data). Suite
+with the data 814 passed, 5 skipped; without `$OS_COLOR` 737 passed, 82
+skipped.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -3154,6 +3238,8 @@ robust/
       __init__.py      ✅ re-exports l23
       l23.py           ✅ M1  L23 elastic batches + seeded splits;
                              M7: depth-profile product, FF fields (§7b.5-6)
+      pb24.py          ✅ M5  PB24 batches; M8: on the caches, above-water
+                             geometry, Fresnel check, saved splits (§7c.3)
       pb24_cache.py    ✅ M8  PB24 memmap caches: build/open/verify (§7c.2)
     ztt.py             ✅ M2  ZTT; M7: variant="l23" (default) / "tt2017",
                              µ∞/µd refits, closure µ∞, clamps (§7b.7-9)
@@ -3186,6 +3272,7 @@ robust/
     test_asymptotic.py ✅ M7 16 tests — task 3
     test_ztt_l23.py    ✅ M7 34 tests — tasks 3-6 (incl. the acceptance gate)
     test_pb24_cache.py ✅ M8 24 tests — task 2
+    test_pb24.py       ✅ M5; M8 60 tests — task 3 (above-water geometry)
     files/pb24_cache_small.zip ✅ M8 2.2 MB zip, 3 realisations, 4-D at every 10th band
 
 design/py/
@@ -3196,6 +3283,8 @@ design/py/
   run_ztt_l23.py             ✅ M7 the ladder + acceptance gate
   explore_mu_inf_eigen.py    ✅ M7 exploratory (Q13 evidence), not pipeline
   build_pb24_cache.py        ✅ M8 builds/verifies the PB24 cache; --check, --rebuild-check
+  make_pb24_splits.py        ✅ M8 the saved PB24 splits (splits.json/.md); --check
+  check_pb24_geometry.py     ✅ M8 Fresnel check (all 5000) + interpolation error
 design/ztt_l23/              ✅ M7 coefficients, metrics, probes, ladder, figures
 design/validation/
   metrics.md                 ✅ M4 every model x split, per zenith, per B_p bin

@@ -36,7 +36,7 @@ from robust.rt import emulator as E
 from robust.rt import validation as V
 from robust.rt import ztt as Z
 from robust.rt.types import Geometry, IOPs, PhaseParams
-from robust.tests.conftest import needs_pb24
+from robust.tests.conftest import needs_pb24_olci, pb24_mixed_realisations
 
 N_FEATURES = len(E.FEATURES)
 
@@ -968,12 +968,17 @@ def test_the_pb24_envelope_is_q14s_window():
     assert E.PB24_ENVELOPE != E.DEFAULT_ENVELOPE
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_fit_pb24_reports_what_it_excluded():
     """Coverage travels with the number, so "X%" is never quoted alone."""
     from robust.rt.data import pb24 as P
 
-    batch = P.load_batch(realisations=6, angles="window", geometry_stride=(1, 4, 4))
+    batch = P.load_batch(
+        realisations=pb24_mixed_realisations(6),
+        resolution="olci",
+        angles="window",
+        geometry_stride=(1, 4, 4),
+    )
     splits = P.make_splits(batch, kinds=("realisation",))
     config = E.EmulatorConfig(steps=20, seed=23)
 
@@ -985,12 +990,17 @@ def test_fit_pb24_reports_what_it_excluded():
     assert 0.0 < coverage["usable_fraction"] <= 1.0
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_fit_pb24_trains_only_on_a_usable_backbone():
     """**The Q17 restriction, as behaviour.** Excluded samples must not train."""
     from robust.rt.data import pb24 as P
 
-    batch = P.load_batch(realisations=6, angles="window", geometry_stride=(1, 4, 4))
+    batch = P.load_batch(
+        realisations=pb24_mixed_realisations(6),
+        resolution="olci",
+        angles="window",
+        geometry_stride=(1, 4, 4),
+    )
     splits = P.make_splits(batch, kinds=("realisation",))
     rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
     usable = E.backbone_is_usable(rrs_ztt)
@@ -1011,12 +1021,17 @@ def test_fit_pb24_trains_only_on_a_usable_backbone():
     assert not np.allclose(np.asarray(restricted.mean), np.asarray(everything.mean))
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_a_pb24_model_sanctions_off_nadir_and_the_l23_one_does_not():
     """The two envelopes coexist — task 10's guarantee, exercised by task 11."""
     from robust.rt.data import pb24 as P
 
-    batch = P.load_batch(realisations=4, angles="window", geometry_stride=(1, 4, 4))
+    batch = P.load_batch(
+        realisations=pb24_mixed_realisations(4),
+        resolution="olci",
+        angles="window",
+        geometry_stride=(1, 4, 4),
+    )
     splits = P.make_splits(batch, kinds=("realisation",))
     emulator, _, _ = E.fit_pb24(
         batch, splits, config=E.EmulatorConfig(steps=20, seed=23)
@@ -1036,7 +1051,7 @@ def test_a_pb24_model_sanctions_off_nadir_and_the_l23_one_does_not():
     )
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_the_bounded_correction_cannot_reach_pb24s_truth():
     """**The finding that decides task 11.** The ceiling, not the network.
 
@@ -1049,7 +1064,12 @@ def test_the_bounded_correction_cannot_reach_pb24s_truth():
     """
     from robust.rt.data import pb24 as P
 
-    batch = P.load_batch(realisations=40, angles="window", geometry_stride=(1, 2, 2))
+    batch = P.load_batch(
+        realisations=pb24_mixed_realisations(40),
+        resolution="olci",
+        angles="window",
+        geometry_stride=(1, 2, 2),
+    )
     splits = P.make_splits(batch, kinds=("realisation",))
     test = splits.test("realisation")
     rrs_ztt = np.asarray(
@@ -1071,7 +1091,7 @@ def test_the_bounded_correction_cannot_reach_pb24s_truth():
     assert tight > loose * 10
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_fit_pb24_trains_on_the_split_it_is_asked_for():
     """**Regression.** The leak an audit found in task 11's first script.
 
@@ -1083,7 +1103,12 @@ def test_fit_pb24_trains_on_the_split_it_is_asked_for():
     """
     from robust.rt.data import pb24 as P
 
-    batch = P.load_batch(realisations=10, angles="window", geometry_stride=(1, 4, 4))
+    batch = P.load_batch(
+        realisations=pb24_mixed_realisations(10),
+        resolution="olci",
+        angles="window",
+        geometry_stride=(1, 4, 4),
+    )
     splits = P.make_splits(batch, kinds=("realisation", "bp_band"))
     rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
     usable = E.backbone_is_usable(rrs_ztt)
@@ -1099,7 +1124,7 @@ def test_fit_pb24_trains_on_the_split_it_is_asked_for():
     assert overlap > 0, "the splits coincide, so the leak could not have shown"
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_excluding_an_unusable_backbone_also_narrows_the_geometry():
     """Why the gate scores everything rather than only where the form works.
 
@@ -1108,21 +1133,45 @@ def test_excluding_an_unusable_backbone_also_narrows_the_geometry():
     the cause is ``psi_KLu(psi) < 0`` near 90-degree scattering. So restricting to
     them narrows the *geometry* range too, and a comparison on the remainder is a
     comparison on easier geometry as well as easier water.
+
+    **Rewritten for M8 task 3** (it failed on M5's own data: 0.433 > 5 x 0.156).
+    On the Snell-paired samples (OLCI, 20 mixed realisations, window, stride
+    (1, 2, 2)) the excluded share is 24%; it rises **monotonically** with view
+    angle, 13% / 15% / 26% / 44% at 0 / 20 / 40 / 60 degrees -- 3.3x, not the
+    5x M5 asserted, because 13% of *nadir* samples are excluded too (water, not
+    geometry). The cause the docstring names is now asserted directly: below
+    psi = 110 (where ``psi_KLu`` turns negative) 94% of samples are excluded,
+    at psi >= 134 (the paper's fitted range) 14%. Until task 4 refracts
+    ``theta_v``, ``geometry_to_paper_angles`` reads this above-water angle as if
+    it were in-water; the shares above are on that basis.
     """
     from robust.rt.data import pb24 as P
 
-    batch = P.load_batch(realisations=20, angles="window", geometry_stride=(1, 2, 2))
+    batch = P.load_batch(
+        realisations=pb24_mixed_realisations(20),
+        resolution="olci",
+        angles="window",
+        geometry_stride=(1, 2, 2),
+    )
     rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
     usable = E.backbone_is_usable(rrs_ztt)
 
     assert 0.05 < (~usable).mean() < 0.6, "nothing excluded, or nearly everything"
 
-    # the excluded share rises steeply with view angle
+    # the excluded share rises with view angle, monotonically and ~3x
     by_view = {
         float(v): float((~usable)[batch.theta_v == v].mean())
         for v in np.unique(batch.theta_v)
     }
-    assert by_view[max(by_view)] > 5 * max(by_view[min(by_view)], 1e-3)
+    shares_by_view = [by_view[v] for v in sorted(by_view)]
+    assert all(np.diff(shares_by_view) > 0), by_view
+    assert by_view[max(by_view)] > 2.5 * max(by_view[min(by_view)], 1e-3)
+
+    # because of the scattering angle: psi_KLu < 0 below ~110 degrees
+    _, _, _, psi = Z.geometry_to_paper_angles(batch.geometry)
+    psi = np.asarray(psi)
+    assert float((~usable)[psi < 110.0].mean()) > 0.8
+    assert float((~usable)[psi >= 134.0].mean()) < 0.3
 
     # and it is structured across (theta_v, dphi) cells, not spread evenly: the
     # worst cell loses many times the share the best one does. That is what makes
@@ -1240,7 +1289,7 @@ def test_load_default_is_pinned_by_the_promotion_rule_not_by_its_answer(
         )
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_a_pb24_trained_emulator_does_not_transfer_to_l23():
     """**The cross-dataset result**, and its caveat in the same test.
 
@@ -1253,7 +1302,12 @@ def test_a_pb24_trained_emulator_does_not_transfer_to_l23():
     from robust.rt.data import l23
     from robust.rt.data import pb24 as P
 
-    pb = P.load_batch(realisations=25, angles="window", geometry_stride=(1, 3, 4))
+    pb = P.load_batch(
+        realisations=pb24_mixed_realisations(25),
+        resolution="olci",
+        angles="window",
+        geometry_stride=(1, 3, 4),
+    )
     splits_pb = P.make_splits(pb, kinds=("realisation",))
     emulator, _, _ = E.fit_pb24(
         pb, splits_pb, "realisation", config=E.EmulatorConfig(steps=200, seed=23)
@@ -1288,7 +1342,7 @@ def test_a_pb24_trained_emulator_does_not_transfer_to_l23():
     assert np.median(np.abs(delta)) > 0.1
 
 
-@needs_pb24
+@needs_pb24_olci
 def test_fit_pb24_refuses_an_empty_held_out_side():
     """**Regression (M5 review, M1).** An empty eval mask records NaN, not a failure.
 
@@ -1300,7 +1354,12 @@ def test_fit_pb24_refuses_an_empty_held_out_side():
     """
     from robust.rt.data import pb24 as P
 
-    batch = P.load_batch(realisations=6, angles="all", geometry_stride=(1, 4, 4))
+    batch = P.load_batch(
+        realisations=pb24_mixed_realisations(6),
+        resolution="olci",
+        angles="all",
+        geometry_stride=(1, 4, 4),
+    )
     splits = P.make_splits(batch, kinds=P.SPLIT_KINDS)
     config = E.EmulatorConfig(steps=10, seed=23)
 

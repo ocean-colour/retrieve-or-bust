@@ -946,3 +946,164 @@ Created from `rt_fit_ztt.md` task 8.
   failure, for task 3); without `$OS_COLOR`: `722 passed, 81 skipped`.
 - Record §7c.2, `cache_build.md` and the Task 2 log entry above updated to
   name the zip. No state-changing git command was run.
+
+### 2026-11-03 — Task 3: the loader in above-water geometry (Claude Opus 5.5)
+
+- **Re-baselined pins** (each deliberate; L23 pins and the emulator digest did
+  not move; no model code or model number changed):
+  - `test_env.py` `FROZEN_CONTAINERS["Geometry"]` gains `diffuse_fraction`
+    (appended, `None` default, consumed by nothing until task 4).
+  - **Fixture:** `robust/tests/files/pb24_small.npz` (471 kB, M5 OLCI raw
+    fields) **deleted**; the task-2 miniature `pb24_cache_small.zip`
+    (2,190,735 B, realisations 1, 993, 2500, 4-D at every 10th band) feeds the
+    real loader through `cache_dir=`. PB24 fixtures now total 2.19 MB (were
+    2.66 MB). The OLCI path has no fixture: a test serves the miniature's
+    values through a fake per-file `reader` in the netCDF layout and gets the
+    cache path's batch bit for bit.
+  - `test_pb24.py` (rewritten, 60 tests): bands 12 → 46 (fixture); window 832
+    and shell 468 per realisation, unchanged in number but now in air
+    (θv max 70 air = θ_w 44.53); new in-water-only count 650. **Zero `rrs`:**
+    M5's 2 zeros in the shell (993, 753 nm, θs 80, θ 87.5) → **0 in every air
+    set**; 3 in `"in_water_only"` (993, θs 80, 87.5 in water, 730/750/800 nm);
+    the drop-cost pin 22 → 3 × 46 − 3. Golden values now via the ocpy reader,
+    incl. a hand-interpolated `rrs`. Splits: masks from the file (993 is
+    realisation-test; none of 1/993/2500 is in the B_p band, so that split
+    *raises* on the fixture, asserted); bp_band/disjointness tests run on a
+    tmp file built by `build_splits` over the three; corr(log B_p, log C)
+    −0.49 (600, OLCI) → −0.469 (5000, hyp), B_p span > 5 → 29.9× from the
+    file; the seed-sweep test is gone (the seed is no longer an argument),
+    replaced by reload identity and a byte-identical rebuild from the cache;
+    the npz-snapshot and `npz_reader` tests are gone with the npz.
+  - `test_conventions.py::test_the_fitted_transfer_beats_the_nadir_constants_on_held_out_data`:
+    the **shipped M5 table now loses** to Lee's nadir constants at θv = 60
+    (16.0% vs 6.8%; it encodes the old pairing, Q9c). Re-baselined to a table
+    fitted on the batch's own train rows (`fit_transfer`): 6.8% → 1.3%,
+    5.25× (assert ≥ 4×), nadir 0.8% (< 5%), plus an assertion that the shipped
+    table is > 2× worse than the constants.
+  - `test_baselines.py::test_the_three_d_table_beats_the_zenith_only_refit_on_held_out_pb24`:
+    scored through the shipped table the 3-D table loses (17.45% → 19.50%);
+    through `fit_transfer` on the train rows 7.31% → 4.34%, 1.68× (M5 1.67×;
+    threshold 1.4 kept).
+  - `test_baselines.py::test_the_nadir_transfer_would_have_hidden_the_difference`:
+    own-fit transfer; gains 1.68× (aware) vs 1.25× (nadir). Pins
+    `nadir_gain < 1.2` → `< 1.35` and `aware > 1.3 × nadir` → `> 1.2 ×`.
+  - `test_emulator.py::test_excluding_an_unusable_backbone_also_narrows_the_geometry`
+    (the pre-existing failure) — **rewritten** to what the data shows: the
+    excluded share is 24% and rises monotonically with θv_air, 13 / 15 / 26 /
+    44% at 0 / 20 / 40 / 60, i.e. 3.3×, not 5× (13% of nadir samples are
+    excluded too: water, not geometry). Asserts monotone + > 2.5×, and the
+    cause directly: 94% excluded at ψ < 110, 14% at ψ ≥ 134. Cell-structure
+    assertion unchanged.
+  - **Inputs changed, pins unchanged:** the 7 other `test_emulator.py`
+    PB24 tests, the 2 in `test_baselines.py` and the 1 in
+    `test_conventions.py` now pass `resolution="olci"` explicitly (M5's set),
+    `realisations=pb24_mixed_realisations(n)` (first-n ids no longer reach
+    both sides of the saved splits: ids 1–21 are all realisation-train) and
+    the `needs_pb24_olci` marker. The 3 `test_ztt.py` PB24 tests run on the
+    hyp default unchanged: ψ is identical to M5's (42% of the window below
+    134°, 16% below 110.4°) because `geometry_to_paper_angles` still reads
+    θv as in-water — **task 4's** re-baseline; µd median 4.57% (40°: 1.54%,
+    70°: 14.0%).
+- Read: this doc in full (data, Code, preamble, tasks 3–4, Q4, Q9, Q10, Q14,
+  the task 1–2 logs); `pb24.py` (M5), `pb24_cache.py`, `test_pb24.py`,
+  `test_pb24_cache.py`, `conftest.py`, `types.py` (`Geometry`, `PhaseParams`),
+  `l23.py`'s FF fill, the PB24 tests in `test_ztt/conventions/baselines/
+  emulator/validation.py`, `emulator.fit_pb24`, `ztt.P_bb_from_phase`, the four
+  M5 scripts, `ocpy/hydrolight/pb24.py`. Checked the files: `theta` nodes 0–80
+  by 10, 87.5 (same for `rrs`/`Rrs`); θ_w of the air nodes 0, 7.45, 14.79,
+  21.91, 28.67, 34.87, 40.26, 44.53, 47.30, 48.21.
+- **Built.** `robust/rt/data/pb24.py` rewritten (cache for hyp, ocpy
+  `load_ds` per file for OLCI, one assembly path): `theta_air_to_water`,
+  `interp_in_water(field4d, theta_nodes, theta_w, axis=-3)`, `ANGLE_MODES`
+  incl. `"in_water_only"`, `FresnelReport` on every `LoadReport`,
+  `interpolation_error` → `InterpolationReport`, `build_splits`/
+  `write_splits`/`read_splits`, `make_splits(batch, kinds, path)`,
+  `PB24Batch.theta_w`, `IOPs.a_ph`, `ff_B`/`ff_weight`,
+  `Geometry.diffuse_fraction`; `types.Geometry.diffuse_fraction` (+ a [0, 1]
+  check in `validate`). `design/py/make_pb24_splits.py` (`--check`) →
+  `design/ztt_pb24/splits.json` (176,936 B) + `splits.md`;
+  `design/py/check_pb24_geometry.py` → `design/ztt_pb24/geometry_check.md`.
+  Conftest: `needs_pb24` (hyp file + cache sidecar), `needs_pb24_olci`,
+  `pb24_mixed_realisations`. Docstring notes in `emulator.fit_pb24` (the
+  "33.6%" is 6.8% correctly paired) and `data/__init__.py`. Record §7c.3.
+- **Decisions.** (i) The Fresnel check runs inside `load_batch` on every
+  realisation *read* (all 1300 geometries, all θs, Δφ, bands; nadir excluded
+  as 0 by construction), streamed into histograms (quantiles to 5e-5,
+  extremes exact); it **warns**, never raises. (ii) `"in_water_only"` covers
+  every θs (10 × 5 × 13); `Rrs` is all NaN (validate skips an all-NaN `Rrs`).
+  (iii) M5 consumer tests stay on OLCI; data-property tests use the hyp
+  default. (iv) The cubic reference uses nodes 0–80 (`Q` is `inf` at 87.5
+  where `rrs` underflows). (v) `bNAP = 0` (16 realisations, 15 at all bands):
+  NAP weight 0, `ff_B` from the realisation's other bands else 0.015.
+  (vi) `B_P_EXPECTED` widened (0.0009, 0.04) → (0.0009, 0.045): hyp bulk B_p
+  reaches 0.0430. (vii) Removed `RAW_FIELDS`, `write_fixture`, `npz_reader`;
+  `make_splits` lost `seed`/`test_fraction`/`bp_quantiles` (the file holds
+  them); `confound_reference` still draws in memory. (viii) The splits file
+  stores per-realisation mean B_p (451 bands) so band membership never
+  depends on a batch's bands. (ix) `fit_transfer` kept for M5's scripts.
+- **Measured — Fresnel check, all 5000, 451 bands**
+  (`python design/py/check_pb24_geometry.py`, 135 s), deviation of
+  (Rrs/rrs at nadir-normalised) / (T/T0) − 1, 293,150,000 values per node:
+
+  | θv_air | T/T0 | q0 | q0.01 | q0.5 | q0.99 | q1 |
+  |---|---|---|---|---|---|---|
+  | 10 | 1.0000 | −1.07% | −0.57% | +0.18% | +1.14% | +1.56% |
+  | 20 | 0.9998 | −0.85% | −0.72% | −0.22% | +0.25% | +0.51% |
+  | 30 | 0.9989 | −1.60% | −1.03% | −0.11% | +0.52% | +0.82% |
+  | 40 | 0.9957 | −1.34% | −1.19% | −0.81% | −0.27% | −0.04% |
+  | 50 | 0.9862 | −3.45% | −2.40% | −1.63% | −1.06% | −0.79% |
+  | 60 | 0.9592 | −3.79% | −3.14% | −2.16% | −1.23% | −0.92% |
+  | 70 | 0.8833 | **−5.30%** | −4.34% | −3.34% | −1.19% | −0.24% |
+  | 80 | 0.6638 | +4.40% | +6.16% | +8.84% | +16.89% | +20.49% |
+  | 87.5 | 0.2422 | +107% | +119% | +138% | +179% | +207% |
+
+  **Within 5% on 4,999 of 5,000**; 5 of 2.05 × 10⁹ window values exceed, all
+  realisation **4492** (θv_air 70, 356–376 nm, θs 70/80, nadir rrs ≈ 3e-6),
+  worst −5.30% (pinned by a test). Per θs, max |dev| 4.51–5.30%. Fixture
+  (3 realisations, 46 bands): worst −4.60%.
+- **Measured — linear vs cubic** (250 realisations, seed 23, θs ≤ 70),
+  |lin/cub − 1| for `rrs`, median / q0.99 / max: 10° 0.12/0.41/0.53%,
+  20° 0.16/0.80/1.08%, 30° 0.12/0.69/0.96%, 40° 0.10/0.52/0.71%,
+  50° 0.28/1.55/2.05%, 60° 0.04/0.22/0.31%, 70° 0.38/2.11/**2.94%**,
+  80° 0.31/1.63/2.26%, 87.5° 0.23/1.21/1.66%. `Q`: max 0.90%.
+- **Measured — counts and data.** Window 832, shell 468, all 1300,
+  in-water-only 650 per realisation. Zero `rrs`: 36,680 values, 1350
+  realisations, θs ≥ 40, **all at the in-water node 87.5** → none in any air
+  set. Splits: realisation 1000/4000, B_p band [0.01322, 0.01522]
+  1000/4000, 194 realisations in both test sets; geometry rule θv_air ≥ 80 or
+  θs ≥ 80 (468/832 per realisation). Confound: corr(log B_p, log C) = −0.469;
+  B_p-band test/train median C 0.913, N 1.308, Y 1.053, bb_p 1.168 against a
+  random-split reference C [0.78, 1.13], N [0.85, 1.21], Y [0.92, 1.05],
+  bb_p [0.83, 1.10] — N and bb_p are outside their bands (the band
+  holds out NAP-richer, higher-bb_p water), C and Y are not. Gershun a/Knet = mu_tot on
+  the fixture: median 0.9997.
+- **Suite** (`python -m pytest robust/tests -q -p no:cacheprovider`): with
+  the data `814 passed, 5 skipped, 2 warnings in 274.87s (0:04:34)`; with
+  `env -u OS_COLOR` `737 passed, 82 skipped, 4 warnings in 178.29s
+  (0:02:58)`. The 5 skips with data are the pre-existing hash-anchor/solar/
+  fallback ones. `test_pb24.py` alone: 60 passed; 52 passed, 8 skipped
+  without the data. `ruff check robust/ design/`: "All checks passed!";
+  `ruff format --check robust/ design/`: "62 files already formatted".
+- **Scripts.** `cross_dataset.py`, `run_pb24_validation.py`,
+  `train_emulator_pb24.py`, `fit_surface.py` all import
+  (`PYTHONPATH=design/py:. python -c "import ..."`). Not rerun. Their
+  assumptions the new definition breaks: they now default to hyp (451 bands)
+  where they were written for OLCI (pass `resolution="olci"` to reproduce
+  M5's setting; `run_pb24_validation.py`'s per-wavelength CSV is OLCI-only);
+  their first-n realisations are mapped onto the saved splits (n ≤ 21 has no
+  realisation-test side); their numbers are on M5's pairing.
+  **`fit_surface.py` must not be rerun before task 4**: it would overwrite
+  `robust/rt/files/surface_pb24.npz` (the shipped table `default_transfer`
+  serves, pinned in `test_conventions.py`) with an air-paired fit.
+- **Surprises.** (1) `Q = inf` exactly where `rrs = 0` (Eu/Lu with Lu = 0),
+  all at the in-water 87.5 node. (2) The strict gate fails on one
+  realisation (4492) by 0.3 pp at 5 values: the task doc's "within 5% on every
+  realisation" holds on 4,999. (3) `bNAP = bbNAP = 0` in 16 realisations.
+  (4) Hyp `bbph/bph` reaches 0.0502 and bulk B_p 0.0430 (M5's OLCI sample
+  of 600: 0.0358). (5) The shipped M5 surface table is worse than no table
+  on correctly paired data (Q9c confirmed); the nadir map's error at
+  θv = 60 is 6.8%, not M5's 33.6%. (6) ψ in the window is unchanged until
+  task 4 refracts θv. (7) Filling `ff_B` changes nothing measurable in the
+  backbone-usability share (24.5% with FF and with Sullivan, 20 realisations).
+- **No state-changing git command was run** (read-only `git status` /
+  `git diff` only).

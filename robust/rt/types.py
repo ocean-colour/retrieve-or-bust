@@ -413,6 +413,14 @@ class Geometry:
         spectra interpolated in ``theta_s`` are used (M1's ``ed.py``). The
         elastic path ignores it entirely. This is the seam through which
         real-sky irradiances enter later without an interface change.
+    diffuse_fraction : Array or None
+        **M8 (task 3).** Optional per-sample diffuse fraction of the
+        above-surface downwelling irradiance, ``1 - Edir/Ed``, as a spectrum
+        (``(n_sample, n_wave)`` from the PB24 loader, which fills it from
+        ``1 - Esdir_Es_ratio`` at the sample's ``theta_s``). Appended under the
+        freeze (record §8.0), ``None`` by default, and **not yet consumed**:
+        until M8 task 4 wires it into µd, every model ignores it and ``None``
+        and a value give identical results.
     """
 
     theta_s: Scalar
@@ -420,6 +428,7 @@ class Geometry:
     dphi: Scalar
     wind: Scalar | None = None
     Ed: tuple[Float[Array, " wave_ed"], Float[Array, " wave_ed"]] | None = None
+    diffuse_fraction: Float[Array, "... wave"] | None = None
 
     @classmethod
     def nadir(cls, theta_s: Scalar, wind: Scalar | None = None) -> Geometry:
@@ -494,6 +503,10 @@ class Geometry:
                     "Geometry.Ed: wave_Ed must be strictly increasing (nm)"
                 )
             conventions.check_iop(ed, "Geometry.Ed")
+        if self.diffuse_fraction is not None:
+            df = np.asarray(self.diffuse_fraction, dtype=float)
+            if not np.all(np.isfinite(df)) or np.any(df < 0.0) or np.any(df > 1.0):
+                raise ValueError("Geometry.diffuse_fraction: must lie in [0, 1]")
 
 
 #: The fluorescence emission-profile options (inelastic design §4.4). ``'single'``

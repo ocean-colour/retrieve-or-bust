@@ -1,110 +1,184 @@
 """
 Pitarch & Brando (2024) multi-angular reference batches -- "PB24".
 
-The dataset M5 is built on, and the first one this package has held that varies
-the two axes the Week-1 prototype could not speak to: the **particle phase
-function** and the **full BRDF**.
+The dataset M5 was built on, rebuilt for M8 (task 3, ``rt_fit_pb24.md``) on
+the consolidation caches and in **above-water geometry**.
 
-**What it is.** 5000 HydroLight realisations at ``$OS_COLOR/SD/v5``, each a
-separate netCDF in two spectral resolutions -- ``SD_OLCI_no_R_NNNN.nc`` (12 OLCI
-bands, 400-753 nm) and ``SD_hyp_no_R_NNNN.nc`` (451 bands, 350-800 nm at 1 nm) --
-on a shared ``theta_s`` (10) x ``theta`` (10) x ``phi`` (13) grid, i.e. **1300
-geometries per realisation**. Each file carries IOP *components*, both ``rrs``
-and ``Rrs``, and ``Q``, ``mu_d``, ``mu_u``, ``mu_tot`` and seven K's. A
-``.mat`` sidecar labels every realisation with one of 12 optical water classes.
+**What it is.** 5000 HydroLight realisations (Pitarch & Brando 2025; Zenodo
+10.5281/zenodo.11637178) at ``$OS_COLOR/SD/v5``, each a netCDF in two spectral
+resolutions -- ``SD_hyp_no_R_NNNN.nc`` (451 bands, 350-800 nm at 1 nm) and
+``SD_OLCI_no_R_NNNN.nc`` (12 OLCI bands, 400-753 nm; separate HydroLight runs on
+the same realisations, not a band subset) -- on a shared ``theta_s`` (10) x
+``theta`` (10) x ``phi`` (13) grid. Each file carries IOP components, ``rrs``,
+``Rrs`` and ``Q`` on the 4-D grid, eleven surface AOPs and ``Esdir_Es_ratio``
+on ``(lambda, theta_s)``. A ``.mat`` sidecar labels every realisation with one
+of 12 optical water classes.
 
-**Measured properties** (M5 task 0; two independent samplings, one adversarial):
+**Where the numbers come from.** ``resolution="hyp"`` (the default) is served
+from the memory-mapped cache of :mod:`robust.rt.data.pb24_cache`
+(``cache_dir=`` overrides its location; the committed miniature
+``robust/tests/files/pb24_cache_small.zip`` feeds the real loader in CI).
+``resolution="olci"`` reads one file per realisation through
+:func:`ocpy.hydrolight.pb24.load_ds` (the OLCI set is not cached). Both go
+through the same assembly code, so a sample means the same thing in both.
+``reader=`` replaces the per-file reader (and forces the per-file path), which
+is how a test feeds the OLCI path without the data.
 
-- The particle backscatter ratio **varies per realisation**: ``bbph/bph`` is flat
-  in wavelength within a file (max/min <= 1.0008) but spans **0.0010-0.0358
-  (~30x)** across files; ``bbNAP/bNAP`` spans 0.0100-0.0200. Bulk ``B_p`` spans
-  **6.2x**, against L23's 1.7x. This is what makes a held-out-``B_p`` split
-  constructible, and it is the reason M5 exists.
-- Bulk ``B_p`` is **not** flat in wavelength (median 3% within a file, up to 17%)
-  even though each component ratio is, because the phytoplankton/NAP mix shifts
-  across the spectrum. Carried as a spectrum, like L23's.
-- ``C``, ``N``, ``Y`` are **labels, not generators**: ``S_g``, ``S_NAP``,
-  ``aNAP*``, ``aph*`` and ``bph/C`` all vary independently, and normalised
-  ``aph`` shapes are drawn from a finite library and reused across files. So a
-  split on chlorophyll is not a split on the IOPs.
-- ``rrs`` is **exactly 0** at a handful of grazing geometries -- in the OLCI band
-  set, only at 753 nm with ``theta_s = 80``, ``theta = 87.5`` (float32 underflow;
-  ``Rrs`` is non-zero there). Since the metric divides by truth, see
+**Directions (Q9 of ``rt_fit_pb24.md``).** PB24 tabulates ``Rrs(theta)`` at the
+**above-water** zenith and ``rrs(theta)`` and ``Q(theta)`` at the **in-water**
+zenith (the ``rrs`` variable's ``comment`` says so), on the same nominal nodes
+0, 10, ..., 80, 87.5. ``theta`` and ``phi`` name the radiance *propagation*
+direction; ``phi = 0`` is towards the sun. The two are paired by Snell's law,
+``theta_w = asin(sin(theta_air) / 1.34)``:
+
+- **A sample is an above-water geometry** ``(realisation, theta_s, theta_v_air,
+  dphi)``. ``Rrs`` is read at its node. ``rrs`` and ``Q`` are interpolated
+  **linearly in theta** between the in-water nodes to ``theta_w``
+  (:func:`interp_in_water`); every ``theta_w`` lies in [0, 48.2] degrees, so
+  only the nodes 0-50 are used. ``Geometry.theta_v`` is the above-water sensor
+  zenith; :attr:`PB24Batch.theta_w` carries the in-water one.
+- The interpolation error is **measured**, not assumed: linear against a cubic
+  spline (:func:`interpolation_error`), and by the **Fresnel check**
+  (:class:`FresnelReport`, attached to every load): ``Rrs(theta_air) /
+  rrs(theta_w)``, normalised at nadir, against the flat-surface Fresnel
+  transmittance ``T(theta_air) / T(0)``. Within 5% for ``theta_air <= 70``.
+- The in-water nodes beyond the critical angle (50-87.5 degrees) reach no
+  above-water direction. They form the ``"in_water_only"`` angle set, for ZTT
+  physics only: un-interpolated, ``Rrs`` absent (all NaN), and there
+  ``Geometry.theta_v`` **holds the in-water angle**.
+
+*Dated note (2026-11-03, M8 task 3).* M5's loader paired ``rrs`` and ``Rrs`` at
+the same nominal ``theta`` and called it the sensor zenith. That pairing was
+wrong (record §7.10's "``rrs x Q = R``" test cannot distinguish directions,
+because ``Q`` is tabulated per in-water direction too) and is superseded by the
+Snell pairing above. Every M5 number computed on PB24 samples is on the old
+pairing.
+
+**The angle window, in air.** JXP's Q14 answer (M5) set the sanctioned envelope
+at 0-70 degrees; under Q9d it is ``theta_s <= 70`` and ``theta_v_air <= 70``
+(``theta_w <= 44.5``): :data:`ANGLE_WINDOW_MAX` keeps its value and gains the
+air-angle meaning. ``"window"`` is 8 x 8 x 13 = 832 geometries per realisation,
+``"shell"`` its complement in air (468), ``"all"`` the 1300, ``"in_water_only"``
+10 x 5 x 13 = 650 in-water nodes.
+
+**What else a batch carries.**
+
+- ``IOPs``: ``a = aw + aph + ag + aNAP``, ``bb_w = bbw`` (the file's own water),
+  ``bb_p = bbph + bbNAP``, ``a_ph = aph``.
+- ``PhaseParams``: ``B_p = (bbph + bbNAP) / (bph + bNAP)`` as a spectrum, and
+  PB24's own two-component Fournier-Forand mixture (Pitarch & Brando 2025
+  §1.1): ``ff_B = (bbph/bph, bbNAP/bNAP)`` and ``ff_weight = (bph, bNAP) /
+  (bph + bNAP)``, component axis last, shape ``(n_sample, n_wave, 2)`` as L23's.
+  16 realisations have ``bNAP = 0`` at some or all bands (15 everywhere); their
+  NAP weight is 0 and their NAP ``ff_B`` is the realisation's own value at its
+  other bands, or :data:`FF_B_NAP_FILL` if it has none.
+- ``Geometry.diffuse_fraction = 1 - Esdir_Es_ratio`` at the sample's
+  ``theta_s``, ``(n_sample, n_wave)``. Nothing consumes it until task 4.
+- ``aops``: ``Q`` always, plus any of :data:`EXTRA_FIELDS` gathered at each
+  sample's ``theta_s``.
+
+**Measured properties** (M5 task 0 on the OLCI set; M8 task 3 on the cache):
+
+- The particle backscatter ratio varies per realisation: ``bbph/bph`` is flat
+  in wavelength within a file (max/min <= 1.006) and spans 0.0010-0.050 across
+  the 5000 hyperspectral files; ``bbNAP/bNAP`` spans 0.0100-0.0200. Bulk
+  ``B_p`` spans 0.00115-0.0430 (per-realisation means 0.00144-0.0430, 30x).
+- Bulk ``B_p`` is **not** flat in wavelength, because the phytoplankton/NAP mix
+  shifts across the spectrum. Carried as a spectrum, like L23's.
+- ``C``, ``N``, ``Y`` are **labels, not generators** (record §7.2).
+- ``rrs`` is **exactly 0** only at the in-water node ``theta = 87.5`` (36,680
+  of the hyperspectral cache's values, 1350 realisations, ``theta_s >= 40``,
+  float32 underflow). No above-water sample interpolates from that node, so the
+  air sets hold **no** zero ``rrs``; only ``"in_water_only"`` does. See
   ``drop_zero_rrs``.
 
-**The angle window.** JXP's Q14 answer sets the sanctioned envelope at
-**0-70 degrees in both zeniths**, holding PB24's 80/87.75 shell out as a
-deliberate extrapolation test. :func:`load_batch` therefore defaults to
-``angles="window"``; ``angles="shell"`` is its complement and ``"all"`` is
-everything. The zero-``rrs`` samples live entirely in the shell.
-
-**Layout: one flat sample axis**, as in :mod:`robust.rt.data.l23` -- a sample is
-one ``(realisation, theta_s, theta_v, dphi)`` combination carrying an ``n_wave``
-spectrum, so every leaf shares the batch shape and ``jax.vmap(f, in_axes=0)``
-works. Note what that costs: the IOPs depend only on the realisation and the
-``mu``/K fields only on ``(realisation, theta_s)``, so flattening duplicates them
-832x and 104x respectively. That is the price of a uniform batch, and it is why
-**subsampling is an explicit argument** rather than a default: the full window is
-5000 x 832 = 4.16 M samples.
+**Layout: one flat sample axis**, as in :mod:`robust.rt.data.l23`: a sample is
+one geometry of one realisation carrying an ``n_wave`` spectrum, so every leaf
+shares the batch shape and ``jax.vmap(f, in_axes=0)`` works. Per-realisation
+fields are duplicated across geometries; subsampling is an explicit argument.
 
 **Nothing here is a hidden sample.** Every load returns a :class:`LoadReport`
-saying how many realisations and geometries were kept out of how many, and how
-many samples the zero-``rrs`` filter removed. A loader that quietly drops data is
-indistinguishable from one that has none.
+saying how many realisations and geometries were kept out of how many, how
+many samples the zero-``rrs`` filter removed, and the Fresnel check on every
+realisation read.
+
+**Splits** are fixed once over all 5000 realisations by
+``design/py/make_pb24_splits.py`` and saved to ``design/ztt_pb24/splits.json``
+by realisation id (Q14); :func:`make_splits` loads that file and maps it onto
+a batch.
 """
 
 from __future__ import annotations
 
+import json
 import os
-import tempfile
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
 
 from .. import conventions
 from ..types import Geometry, IOPs, PhaseParams
+from ..ztt import REFRACTIVE_INDEX
 
 __all__ = [  # noqa: RUF022  - grouped by role
     # Dataset constants
     "SUBDIR",
     "N_REALISATION",
     "RESOLUTIONS",
+    "DEFAULT_RESOLUTION",
+    "HYP_WAVE",
     "CLASSES_FILE",
     "N_CLASS",
     "ANGLE_WINDOW_MAX",
     "ANGLE_MODES",
+    "AIR_ANGLE_MODES",
+    "CRITICAL_ANGLE",
+    "IN_WATER_ONLY_MIN",
     "B_P_EXPECTED",
+    "FF_B_NAP_FILL",
+    "FRESNEL_TOLERANCE",
+    "FRESNEL_QUANTILES",
     # Split configuration
     "SPLIT_SEED",
     "TEST_FRACTION",
     "BP_BAND_QUANTILES",
+    "GEOMETRY_HOLDOUT_MIN",
     "SPLIT_KINDS",
     "DEFAULT_SPLIT_KINDS",
     "CONFOUND_SEEDS",
+    "SPLITS_VERSION",
+    "DEFAULT_SPLITS_FILE",
     # Containers
     "PB24Batch",
     "LoadReport",
+    "FresnelReport",
+    "InterpolationReport",
     "Splits",
     "SplitReport",
+    # Geometry helpers
+    "theta_air_to_water",
+    "interp_in_water",
     # Functions
     "load_batch",
+    "interpolation_error",
     "make_splits",
+    "build_splits",
+    "write_splits",
+    "read_splits",
     "confound_reference",
     "select",
     "fit_transfer",
     "data_dir",
     "file_path",
     "read_classes",
-    # Cached-fixture seam
-    "RAW_FIELDS",
+    # Field lists
     "EXTRA_FIELDS",
     "DEFAULT_EXTRAS",
-    "write_fixture",
-    "npz_reader",
 ]
 
 #: Location of the release under ``$OS_COLOR``.
@@ -113,105 +187,91 @@ SUBDIR = ("SD", "v5")
 #: Realisations in the release, indexed 1..5000 in the file names.
 N_REALISATION = 5000
 
-#: Spectral resolutions, mapped to their file-name prefix and wavelength grid.
-#: The OLCI set is what M5 trains on (JXP's Q12 answer); the hyperspectral set
-#: opens through the same reader when the wavelength-interpolation question comes
-#: up, which is why this is a table rather than a hard-coded prefix.
+#: Spectral resolutions, mapped to their file-name prefix (as in
+#: :data:`ocpy.hydrolight.pb24.RESOLUTIONS`).
 RESOLUTIONS = {
-    "olci": ("SD_OLCI_no_R_", "olci"),
-    "hyp": ("SD_hyp_no_R_", None),
+    "hyp": "SD_hyp_no_R_",
+    "olci": "SD_OLCI_no_R_",
 }
+
+#: The default resolution: hyperspectral, from the cache (JXP's Q1/Q5).
+DEFAULT_RESOLUTION = "hyp"
+
+#: The hyperspectral grid, 350-800 nm at 1 nm.
+HYP_WAVE = np.arange(350.0, 801.0, 1.0)
 
 #: The optical-water-class sidecar, and how many classes it defines.
 CLASSES_FILE = "classes_Rrs_OLCI_v5_20240214.mat"
 N_CLASS = 12
 
-#: float: Q14's angle window -- train and sanction 0-70 degrees in both
-#: zeniths, and hold the rest out.
+#: float: The sanctioned window, in **above-water** angles (Q14, Q9d):
+#: ``theta_s <= 70`` and ``theta_v_air <= 70``.
 ANGLE_WINDOW_MAX = 70.0
 
 #: Angle-selection modes for :func:`load_batch`.
-ANGLE_MODES = ("window", "shell", "all")
+ANGLE_MODES = ("window", "shell", "all", "in_water_only")
 
-#: The advisory range for ``B_p`` on **this** dataset. Deliberately not L23's
-#: (0.004, 0.03): PB24 measurably spans 0.0010-0.0358, so L23's band warns on
-#: every legitimate load -- and a warning that always fires teaches the reader to
-#: silence it, which is the argument :data:`robust.rt.emulator.DOMAIN_TOL` makes
-#: about tolerances. Widened to the design's nominal band plus the margin PB24
-#: actually occupies; the loader still *warns* outside it and never clips.
-B_P_EXPECTED = (0.0009, 0.04)
+#: The modes whose samples are above-water geometries.
+AIR_ANGLE_MODES = ("window", "shell", "all")
 
-#: Seed for every random split. Arbitrary but fixed forever -- changing it
-#: invalidates every held-out number computed from it.
+#: float: The critical angle for n = 1.34, degrees (48.27): in-water directions
+#: beyond it reach no above-water direction.
+CRITICAL_ANGLE = float(np.degrees(np.arcsin(1.0 / REFRACTIVE_INDEX)))
+
+#: float: The smallest in-water node of ``"in_water_only"`` -- the first node
+#: beyond :data:`CRITICAL_ANGLE`.
+IN_WATER_ONLY_MIN = 50.0
+
+#: The advisory range for ``B_p`` on **this** dataset. Widened at M8 task 3 from
+#: M5's (0.0009, 0.04) to cover the hyperspectral set, whose bulk ``B_p``
+#: reaches 0.0430. The loader warns outside it and never clips.
+B_P_EXPECTED = (0.0009, 0.045)
+
+#: ``ff_B`` for the NAP component where ``bNAP = 0`` and the realisation has no
+#: other band to take it from: the midpoint of PB24's design range
+#: U(0.01, 0.02). Its weight there is 0, so the value is inert.
+FF_B_NAP_FILL = 0.015
+
+#: float: The Fresnel check's tolerance (task 3 gate): ``|ratio - 1| <= 5%`` for
+#: ``theta_v_air <= ANGLE_WINDOW_MAX``.
+FRESNEL_TOLERANCE = 0.05
+
+#: Quantiles :class:`FresnelReport` and :class:`InterpolationReport` record.
+FRESNEL_QUANTILES = (0.0, 0.01, 0.5, 0.99, 1.0)
+
+#: Seed for the random split. Arbitrary but fixed forever.
 SPLIT_SEED = 23
 
-#: Fraction of *realisations* held out by the random split, matching L23's.
+#: Fraction of *realisations* held out by the random split.
 TEST_FRACTION = 0.2
 
-#: Quantile band of per-realisation mean ``B_p`` held out by the ``bp_band``
-#: split. An **interior** band by design: holding out the top or the bottom would
-#: test extrapolation in ``B_p``, and extrapolation is already the geometry
-#: split's job. What M5 needs to know first is whether the model interpolates
-#: across phase functions it has not seen -- the honest test of the design §4.2
-#: parameterization. The width matches :data:`TEST_FRACTION` so the three splits
-#: hold out comparable amounts.
+#: Quantile band of per-realisation mean ``B_p`` held out by ``bp_band``: an
+#: **interior** band (interpolation across phase functions, not extrapolation).
 BP_BAND_QUANTILES = (0.4, 0.6)
 
-#: The splits M5 defines.
+#: float: The geometry split holds out ``theta_v_air >= 80`` or
+#: ``theta_s >= 80`` (Q14) -- a rule, not a list.
+GEOMETRY_HOLDOUT_MIN = 80.0
+
+#: The splits M5 defined and M8 keeps.
 SPLIT_KINDS = ("realisation", "bp_band", "geometry")
 
 #: Seeds :func:`confound_reference` averages over by default.
 CONFOUND_SEEDS = tuple(range(12))
 
 #: What :func:`make_splits` builds unless told otherwise -- the two a default
-#: (window) load can support. ``"geometry"`` needs ``angles="all"``, so asking
-#: for it is deliberate rather than accidental.
+#: (window) load can support.
 DEFAULT_SPLIT_KINDS = ("realisation", "bp_band")
 
-#: Raw per-realisation fields the loader consumes. A ``reader`` must supply all
-#: of them. Deliberately complete rather than minimal: the fixture and any cache
-#: are gated **bit-identically**, so a field added later invalidates every cache
-#: in existence. Cheaper to store the lot once.
-RAW_FIELDS = (
-    # coordinates
-    "wave",
-    "theta_s",
-    "theta",
-    "phi",
-    # generating labels (not generators -- see the module docstring)
-    "C",
-    "N",
-    "Y",
-    # IOP components, (wave,)
-    "aw",
-    "aph",
-    "ag",
-    "aNAP",
-    "bw",
-    "bph",
-    "bNAP",
-    "bbw",
-    "bbph",
-    "bbNAP",
-    # reflectance on the full 4-D grid, (wave, phi, theta, theta_s)
-    "rrs",
-    "Rrs",
-    "Q",
-    # AOPs on (wave, theta_s)
-    "mu_d",
-    "mu_u",
-    "mu_tot",
-    "Kd",
-    "Ku",
-    "Ko",
-    "Kod",
-    "Kou",
-    "Knet",
-    "KLu",
-    "R",
+#: Version of the splits file layout.
+SPLITS_VERSION = 1
+
+#: The committed splits file (``design/make_pb24_splits.py`` writes it).
+DEFAULT_SPLITS_FILE = (
+    Path(__file__).resolve().parents[3] / "design" / "ztt_pb24" / "splits.json"
 )
 
-#: Fields that are per ``(wave, theta_s)`` and become per-sample spectra by
+#: Fields that are per ``(theta_s, wave)`` and become per-sample spectra by
 #: indexing each sample's solar zenith.
 EXTRA_FIELDS = (
     "mu_d",
@@ -225,34 +285,338 @@ EXTRA_FIELDS = (
     "Knet",
     "KLu",
     "R",
+    "Esdir_Es_ratio",
 )
 
-#: What :func:`load_batch` materialises by default. ``Q`` is per-geometry and is
-#: always carried; these are the ones task 13 (ZTT's internals against
-#: HydroLight) consumes. The K's are available but cost ~200 MB each at the full
-#: window, so they are opt-in.
+#: What :func:`load_batch` materialises by default; ``Q`` is always carried.
 DEFAULT_EXTRAS = ("mu_d", "mu_u", "mu_tot")
+
+#: Per-realisation scalars, IOP spectra and (theta_s, wave) AOPs the loader reads.
+_SCALARS = ("C", "N", "Y")
+_IOPS = ("aw", "aph", "ag", "aNAP", "bw", "bph", "bNAP", "bbw", "bbph", "bbNAP")
+_AOPS = EXTRA_FIELDS
+_FOUR_D = ("rrs", "Rrs", "Q")
+
+#: Realisations per cache read in :func:`load_batch`.
+_CHUNK = 32
+
+
+# ------------------------------------------------------------ geometry ------
+
+
+def theta_air_to_water(theta_air):
+    """In-water zenith of an above-water direction, by Snell's law.
+
+    Parameters
+    ----------
+    theta_air : array_like
+        Above-water zenith, degrees, in [0, 90].
+
+    Returns
+    -------
+    numpy.ndarray
+        ``asin(sin(theta_air) / 1.34)`` in degrees (float64).
+    """
+    theta_air = np.asarray(theta_air, dtype=float)
+    return np.degrees(np.arcsin(np.sin(np.radians(theta_air)) / REFRACTIVE_INDEX))
+
+
+def interp_in_water(field4d, theta_nodes, theta_w, *, axis: int = -3) -> np.ndarray:
+    """Interpolate an in-water field **linearly in theta** to in-water angles.
+
+    The interpolation the loader applies to ``rrs`` and ``Q`` (Q9b), exposed so
+    a test can recompute it by hand: for each ``theta_w`` the bracketing nodes
+    ``theta_nodes[i] <= theta_w <= theta_nodes[i + 1]`` and
+    ``t = (theta_w - theta_nodes[i]) / (theta_nodes[i + 1] - theta_nodes[i])``
+    give ``(1 - t) * field[i] + t * field[i + 1]``. At a node, ``t = 0`` and the
+    node's value is returned exactly.
+
+    Parameters
+    ----------
+    field4d : array_like
+        Field with the in-water zenith on ``axis`` (the cache layout
+        ``(..., theta_s, theta, phi, wave)`` has it at -3, the default).
+    theta_nodes : array_like
+        The in-water zenith nodes, ascending, degrees.
+    theta_w : array_like
+        1-D in-water zeniths to interpolate to, within the nodes' span.
+    axis : int, optional
+        The zenith axis of ``field4d``.
+
+    Returns
+    -------
+    numpy.ndarray
+        float64, ``field4d``'s shape with ``axis`` of length ``len(theta_w)``.
+
+    Raises
+    ------
+    ValueError
+        If the nodes are not ascending, do not match the axis, or a
+        ``theta_w`` lies outside them (no extrapolation).
+    """
+    field4d = np.asarray(field4d, dtype=float)
+    nodes = np.asarray(theta_nodes, dtype=float)
+    theta_w = np.atleast_1d(np.asarray(theta_w, dtype=float))
+    axis = axis % field4d.ndim
+    if nodes.ndim != 1 or nodes.size < 2 or np.any(np.diff(nodes) <= 0):
+        raise ValueError("interp_in_water: theta_nodes must be 1-D and ascending")
+    if field4d.shape[axis] != nodes.size:
+        raise ValueError(
+            f"interp_in_water: axis {axis} has {field4d.shape[axis]} values, "
+            f"theta_nodes {nodes.size}"
+        )
+    if theta_w.ndim != 1 or np.any(theta_w < nodes[0]) or np.any(theta_w > nodes[-1]):
+        raise ValueError(
+            f"interp_in_water: theta_w must be 1-D within [{nodes[0]}, {nodes[-1]}]"
+        )
+    lo = np.clip(np.searchsorted(nodes, theta_w, side="right") - 1, 0, nodes.size - 2)
+    t = (theta_w - nodes[lo]) / (nodes[lo + 1] - nodes[lo])
+    shape = [1] * field4d.ndim
+    shape[axis] = theta_w.size
+    t = t.reshape(shape)
+    below = np.take(field4d, lo, axis=axis)
+    above = np.take(field4d, lo + 1, axis=axis)
+    return below * (1.0 - t) + above * t
+
+
+def _fresnel_T(theta_air):
+    """Unpolarised flat-surface Fresnel transmittance, air to water, n = 1.34.
+
+    Private on purpose: task 4 adds the public
+    ``conventions.fresnel_transmittance``.
+    """
+    ti = np.radians(np.asarray(theta_air, dtype=float))
+    tt = np.arcsin(np.sin(ti) / REFRACTIVE_INDEX)
+    n = REFRACTIVE_INDEX
+    rs = (np.cos(ti) - n * np.cos(tt)) / (np.cos(ti) + n * np.cos(tt))
+    rp = (n * np.cos(ti) - np.cos(tt)) / (n * np.cos(ti) + np.cos(tt))
+    return 1.0 - 0.5 * (rs**2 + rp**2)
+
+
+class _Histogram:
+    """Fixed-bin histograms per group, with exact min/max -- streaming quantiles.
+
+    Quantiles are bin centres, so they are exact to half a bin width; the ends
+    (q = 0 and 1) are the exact extremes.
+    """
+
+    def __init__(self, n_group: int, lo: float, hi: float, width: float):
+        self.lo, self.width = lo, width
+        self.n_bin = int(round((hi - lo) / width))
+        self.counts = np.zeros((n_group, self.n_bin), dtype=np.int64)
+        self.mins = np.full(n_group, np.inf)
+        self.maxs = np.full(n_group, -np.inf)
+
+    def add(self, group: int, values: np.ndarray) -> None:
+        values = values[np.isfinite(values)]
+        if not values.size:
+            return
+        idx = np.clip(((values - self.lo) / self.width).astype(np.int64), 0, None)
+        idx = np.minimum(idx, self.n_bin - 1)
+        self.counts[group] += np.bincount(idx, minlength=self.n_bin)
+        self.mins[group] = min(self.mins[group], float(values.min()))
+        self.maxs[group] = max(self.maxs[group], float(values.max()))
+
+    def quantiles(self, groups, qs) -> tuple[float, ...]:
+        groups = np.atleast_1d(groups)
+        counts = self.counts[groups].sum(axis=0)
+        total = int(counts.sum())
+        if total == 0:
+            return tuple(float("nan") for _ in qs)
+        cdf = np.cumsum(counts)
+        out = []
+        for q in qs:
+            if q <= 0.0:
+                out.append(float(self.mins[groups].min()))
+            elif q >= 1.0:
+                out.append(float(self.maxs[groups].max()))
+            else:
+                i = int(np.searchsorted(cdf, q * total))
+                out.append(self.lo + (i + 0.5) * self.width)
+        return tuple(out)
+
+    def n(self, groups) -> int:
+        return int(self.counts[np.atleast_1d(groups)].sum())
+
+
+@dataclass(frozen=True)
+class FresnelReport:
+    """The Fresnel check of Q9: is the Snell pairing surface physics?
+
+    For every realisation read, every ``theta_s``, ``dphi`` and band, the ratio
+    ``Rrs(theta_air) / rrs(theta_w)`` (``rrs`` interpolated by
+    :func:`interp_in_water`), normalised by the same ratio at nadir, is compared
+    with the flat-surface Fresnel transmittance ``T(theta_air) / T(0)``
+    (unpolarised, n = 1.34). ``deviation = (normalised ratio) / (T/T0) - 1``.
+
+    Attributes
+    ----------
+    theta_v_air : tuple of float
+        The above-water view nodes (nadir excluded: it is 0 by construction).
+    expected : tuple of float
+        ``T(theta_air) / T(0)`` at each node.
+    n_value : tuple of int
+        Values compared at each node.
+    deviation : tuple of tuple of float
+        Per node, the :data:`FRESNEL_QUANTILES` of ``deviation`` (q = 0 and 1
+        exact; the rest to 5e-5, the half-width of the histogram bins).
+    max_abs : tuple of float
+        Per node, ``max |deviation|`` (exact).
+    max_abs_by_theta_s : dict
+        ``{theta_s: max |deviation| over theta_v_air <= ANGLE_WINDOW_MAX}``.
+    n_realisation : int
+        Realisations the check ran on.
+    n_excluded : int
+        Values skipped because a ratio was not finite (a zero ``rrs``).
+    n_beyond : int
+        Values with ``|deviation| > tolerance`` at ``theta_v_air <=
+        ANGLE_WINDOW_MAX``.
+    realisations_beyond : tuple of int
+        The realisations those values belong to. On the full release: 5 values
+        of 2.05e9, all realisation 4492 (``theta_v_air = 70``, 356-376 nm,
+        nadir ``rrs`` ~3e-6 sr^-1), worst -5.30%.
+    tolerance : float
+        :data:`FRESNEL_TOLERANCE`.
+    """
+
+    theta_v_air: tuple[float, ...]
+    expected: tuple[float, ...]
+    n_value: tuple[int, ...]
+    deviation: tuple[tuple[float, ...], ...]
+    max_abs: tuple[float, ...]
+    max_abs_by_theta_s: dict[float, float]
+    n_realisation: int
+    n_excluded: int
+    n_beyond: int = 0
+    realisations_beyond: tuple[int, ...] = ()
+    tolerance: float = FRESNEL_TOLERANCE
+    quantiles: tuple[float, ...] = FRESNEL_QUANTILES
+
+    def worst(self, theta_max: float = ANGLE_WINDOW_MAX) -> float:
+        """``max |deviation|`` over ``theta_v_air <= theta_max``."""
+        return max(
+            (
+                m
+                for t, m in zip(self.theta_v_air, self.max_abs, strict=True)
+                if t <= theta_max
+            ),
+            default=float("nan"),
+        )
+
+    def within(self, theta_max: float = ANGLE_WINDOW_MAX) -> bool:
+        """Whether every deviation at ``theta_v_air <= theta_max`` is within
+        :attr:`tolerance`."""
+        return bool(self.worst(theta_max) <= self.tolerance)
+
+    def table(self) -> str:
+        """A markdown table, one row per view node."""
+        head = " | ".join(f"q{q:g}" for q in self.quantiles)
+        lines = [
+            f"| theta_v_air | T/T0 | n | {head} | max abs |",
+            "|---" * (4 + len(self.quantiles)) + "|",
+        ]
+        for t, e, n, d, m in zip(
+            self.theta_v_air,
+            self.expected,
+            self.n_value,
+            self.deviation,
+            self.max_abs,
+            strict=True,
+        ):
+            vals = " | ".join(f"{v * 100:+.2f}%" for v in d)
+            lines.append(f"| {t:g} | {e:.4f} | {n} | {vals} | {m * 100:.2f}% |")
+        return "\n".join(lines)
+
+
+class _FresnelAccumulator:
+    """Streams the Fresnel check over chunks of realisations."""
+
+    def __init__(self, theta_s: np.ndarray, theta: np.ndarray):
+        self.theta_s = np.asarray(theta_s, dtype=float)
+        self.theta = np.asarray(theta, dtype=float)
+        self.hist = _Histogram(self.theta_s.size * self.theta.size, -1.0, 3.0, 1e-4)
+        self.expected = _fresnel_T(self.theta) / _fresnel_T(0.0)
+        self.n_realisation = 0
+        self.n_excluded = 0
+        self.n_beyond = 0
+        self.beyond: set[int] = set()
+
+    def add(self, Rrs4: np.ndarray, rrs_air4: np.ndarray, ids) -> None:
+        """``Rrs4`` and ``rrs_air4``: ``(n, theta_s, theta_air, phi, wave)``."""
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = Rrs4 / rrs_air4
+            norm = ratio / ratio[:, :, :1]
+            dev = norm / self.expected[None, None, :, None, None] - 1.0
+        self.n_excluded += int((~np.isfinite(dev[:, :, 1:])).sum())
+        window = self.theta <= ANGLE_WINDOW_MAX
+        with np.errstate(invalid="ignore"):
+            over = np.abs(dev[:, :, window]) > FRESNEL_TOLERANCE
+        if over.any():
+            self.n_beyond += int(over.sum())
+            hit = over.reshape(over.shape[0], -1).any(axis=1)
+            self.beyond.update(int(i) for i in np.asarray(ids)[hit])
+        for i_s in range(self.theta_s.size):
+            for i_t in range(1, self.theta.size):
+                self.hist.add(i_s * self.theta.size + i_t, dev[:, i_s, i_t].ravel())
+        self.n_realisation += Rrs4.shape[0]
+
+    def report(self) -> FresnelReport:
+        n_t = self.theta.size
+        nodes = range(1, n_t)
+        per_node = [
+            [i_s * n_t + i_t for i_s in range(self.theta_s.size)] for i_t in nodes
+        ]
+        max_abs = tuple(
+            float(max(abs(self.hist.mins[g].min()), abs(self.hist.maxs[g].max())))
+            for g in per_node
+        )
+        window_t = [i_t for i_t in nodes if self.theta[i_t] <= ANGLE_WINDOW_MAX]
+        by_s = {}
+        for i_s, ts in enumerate(self.theta_s):
+            groups = [i_s * n_t + i_t for i_t in window_t]
+            by_s[float(ts)] = float(
+                max(
+                    abs(self.hist.mins[groups].min()), abs(self.hist.maxs[groups].max())
+                )
+            )
+        return FresnelReport(
+            theta_v_air=tuple(float(self.theta[i]) for i in nodes),
+            expected=tuple(float(self.expected[i]) for i in nodes),
+            n_value=tuple(self.hist.n(g) for g in per_node),
+            deviation=tuple(
+                self.hist.quantiles(g, FRESNEL_QUANTILES) for g in per_node
+            ),
+            max_abs=max_abs,
+            max_abs_by_theta_s=by_s,
+            n_realisation=self.n_realisation,
+            n_excluded=self.n_excluded,
+            n_beyond=self.n_beyond,
+            realisations_beyond=tuple(sorted(self.beyond)),
+        )
+
+
+# ------------------------------------------------------------- reports ------
 
 
 @dataclass(frozen=True)
 class LoadReport:
     """What a load kept, and what it dropped.
 
-    Returned with every batch so a subsample is visible at the call site instead
-    of implied. M4's review settled the rule this implements: a cap that is not
-    reported reads as "we covered everything".
+    Returned with every batch so a subsample is visible at the call site
+    instead of implied.
 
     Attributes
     ----------
     n_realisation_available, n_realisation : int
         Realisations in the source and in the batch.
     n_geometry_available, n_geometry : int
-        Geometries per realisation before and after the angle mode and stride.
+        Geometries per realisation before and after the angle mode and stride
+        (1300 available in either grid: air for the air modes, in-water for
+        ``"in_water_only"``).
     angles : str
         Which angle mode was applied (:data:`ANGLE_MODES`).
     geometry_stride : int or tuple of int
-        Stride applied within the selected geometries; 1 means none. A tuple is
-        per angle axis and preserves the grid's product structure.
+        Stride applied within the selected geometries; 1 means none.
     n_dropped_angle : int
         Geometries removed by the angle mode alone.
     n_dropped_stride : int
@@ -260,13 +624,15 @@ class LoadReport:
     n_dropped_zero_rrs : int
         Samples removed because their spectrum contained a zero ``rrs``.
     n_zero_bands : int
-        Individual ``(sample, band)`` values that were zero -- always at least
-        ``n_dropped_zero_rrs``, and the gap is what dropping whole spectra costs.
+        ``(sample, band)`` values of ``rrs`` that were zero, before any drop.
     coverage : dict
         ``{axis: (kept, available)}`` distinct angle values per axis, after the
-        stride. Present because a stride over a flattened grid can **alias**:
-        the azimuth axis has 13 values, so ``geometry_stride=13`` keeps a single
-        azimuth and silently deletes the BRDF dimension the milestone is about.
+        stride (a flat stride can alias against the 13 azimuths).
+    resolution : str
+        ``"hyp"`` or ``"olci"``.
+    fresnel : FresnelReport or None
+        The Fresnel check over every realisation read (all geometries, not just
+        the selected ones); ``None`` if ``check_fresnel=False``.
     """
 
     n_realisation_available: int
@@ -280,6 +646,8 @@ class LoadReport:
     n_dropped_zero_rrs: int
     n_zero_bands: int
     coverage: dict[str, tuple[int, int]] = field(default_factory=dict)
+    resolution: str = DEFAULT_RESOLUTION
+    fresnel: FresnelReport | None = None
 
     @property
     def aliased_axes(self) -> tuple[str, ...]:
@@ -292,8 +660,14 @@ class LoadReport:
         """One line, for a log or a notebook cell."""
         aliased = self.aliased_axes
         tail = f"; ALIASED on {list(aliased)}" if aliased else ""
+        if self.fresnel is not None:
+            tail += (
+                f"; Fresnel check max |dev| {self.fresnel.worst() * 100:.2f}% at "
+                f"theta_v_air <= {ANGLE_WINDOW_MAX:g}"
+            )
         return (
-            f"PB24: {self.n_realisation}/{self.n_realisation_available} realisations x "
+            f"PB24 ({self.resolution}): {self.n_realisation}/"
+            f"{self.n_realisation_available} realisations x "
             f"{self.n_geometry}/{self.n_geometry_available} geometries "
             f"(angles={self.angles}, stride={self.geometry_stride}); dropped "
             f"{self.n_dropped_angle} by angle, {self.n_dropped_stride} by stride, "
@@ -306,45 +680,40 @@ class LoadReport:
 class PB24Batch:
     """A stacked PB24 batch: model inputs, both reflectances, and labels.
 
-    Like :class:`robust.rt.data.l23.L23Batch` this is **not** a registered pytree
-    -- it is an analysis container, and ``realisation``/``water_class`` are
-    host-side integer metadata. The model inputs it holds are pytrees.
-
-    The field list deliberately exceeds L23's. ``L23Batch`` carries ``Rrs`` alone
-    and derives ``rrs`` through the nadir Lee-2002 map, which PB24 itself shows is
-    wrong off-nadir by a median 33.6% at ``theta_v = 60`` -- so ``rrs`` is carried
-    **as tabulated**, and scoring never passes through that map.
+    Not a registered pytree -- an analysis container; ``realisation``,
+    ``theta_w`` and ``water_class`` are host-side metadata. The model inputs
+    it holds are pytrees.
 
     Attributes
     ----------
     iops : IOPs
-        ``(n_sample, n_wave)`` per field. ``bb_w`` is the file's own ``bbw``, not
-        :func:`robust.rt.conventions.bb_w` -- nothing guarantees another campaign
-        shares L23's water column.
+        ``(n_sample, n_wave)`` per field, ``a_ph`` included. ``bb_w`` is the
+        file's own ``bbw``, not :func:`robust.rt.conventions.bb_w`.
     phase_params : PhaseParams
-        ``B_p = (bbph + bbNAP) / (bph + bNAP)`` as a spectrum.
+        ``B_p`` as a spectrum; ``ff_B``/``ff_weight`` ``(n_sample, n_wave, 2)``,
+        components (phytoplankton, NAP).
     geometry : Geometry
-        Per-sample ``theta_s``, ``theta_v``, ``dphi`` in degrees.
+        Per-sample ``theta_s``, ``theta_v`` (above-water, except in an
+        ``"in_water_only"`` batch, where it is the in-water angle), ``dphi`` in
+        degrees, and ``diffuse_fraction`` ``(n_sample, n_wave)``.
     rrs, Rrs : Array
-        Subsurface and above-water reflectance as tabulated, sr^-1.
+        ``rrs`` at ``theta_w`` (interpolated), ``Rrs`` at ``theta_v`` (a node),
+        sr^-1. ``Rrs`` is all NaN in an ``"in_water_only"`` batch.
     wave : Array
         Wavelengths (nm).
     realisation : numpy.ndarray
         1-based realisation index per sample, matching the file names.
     labels : dict
-        ``C`` (chlorophyll), ``N`` (NAP) and ``Y`` (a_cdom(440)) per sample, as
-        NumPy. Called *labels* rather than parameters on purpose: they do not
-        determine the IOPs (see the module docstring), and their job here is to
-        let a split measure the confound it induces. Host-side, like
-        ``realisation`` -- never traced.
+        ``C``, ``N``, ``Y`` per sample, as NumPy (labels, not generators).
     water_class : numpy.ndarray or None
-        Optical water class in ``[1, N_CLASS]`` per sample, if the sidecar was
-        read.
+        Optical water class in ``[1, N_CLASS]`` per sample, if requested.
     aops : dict
-        Extra per-sample spectra -- ``Q`` always, plus whichever of
-        :data:`EXTRA_FIELDS` was requested.
+        ``Q`` (at ``theta_w``, interpolated) always, plus the requested extras.
     report : LoadReport or None
         What this load kept and dropped.
+    theta_w : numpy.ndarray or None
+        Per-sample in-water view zenith, degrees: ``theta_air_to_water(theta_v)``
+        for the air sets, the node itself for ``"in_water_only"``.
     """
 
     iops: IOPs
@@ -358,6 +727,7 @@ class PB24Batch:
     water_class: np.ndarray | None = None
     aops: dict[str, Float[Array, "sample wave"]] = field(default_factory=dict)
     report: LoadReport | None = None
+    theta_w: np.ndarray | None = None
 
     @property
     def n_sample(self) -> int:
@@ -371,12 +741,12 @@ class PB24Batch:
 
     @property
     def theta_s(self) -> np.ndarray:
-        """Per-sample solar zenith, degrees, as NumPy -- handy for grouping."""
+        """Per-sample solar zenith, degrees, as NumPy."""
         return np.asarray(self.geometry.theta_s)
 
     @property
     def theta_v(self) -> np.ndarray:
-        """Per-sample sensor zenith, degrees, as NumPy."""
+        """Per-sample sensor zenith, degrees, as NumPy (see :attr:`geometry`)."""
         return np.asarray(self.geometry.theta_v)
 
     @property
@@ -384,28 +754,41 @@ class PB24Batch:
         """Per-sample relative azimuth, degrees, as NumPy."""
         return np.asarray(self.geometry.dphi)
 
-    def validate(self, *, grid: str = "olci") -> None:
+    @property
+    def in_water_only(self) -> bool:
+        """Whether this is an ``"in_water_only"`` batch (no ``Rrs``)."""
+        return self.report is not None and self.report.angles == "in_water_only"
+
+    def validate(self, *, grid=None) -> None:
         """Raise ``ValueError`` unless the batch is self-consistent and physical.
 
         Boundary check; not for use under ``jit``.
 
         Parameters
         ----------
-        grid : str, optional
-            Wavelength grid the batch claims to be on.
+        grid : None, str, or WaveGrid, optional
+            Wavelength grid the batch claims to be on. ``None`` (default): the
+            grid of the resolution it was loaded at (the OLCI grid, or the
+            hyperspectral bands it holds).
 
         Raises
         ------
         ValueError
             On a shape mismatch, a bad wavelength grid, a non-physical IOP, an
-            out-of-range angle, or a negative reflectance.
+            out-of-range angle, a negative reflectance, or an ``Rrs`` that is
+            partly NaN.
         """
+        if grid is None:
+            resolution = self.report.resolution if self.report else DEFAULT_RESOLUTION
+            grid = _wave_grid(resolution, np.asarray(self.wave))
         conventions.check_wave(self.wave, name="PB24Batch.wave", grid=grid)
         self.iops.validate(wave=self.wave, grid=grid)
         self.phase_params.validate()
         self.geometry.validate()
         conventions.check_rrs(self.rrs, name="PB24Batch.rrs", subsurface=True)
-        conventions.check_rrs(self.Rrs, name="PB24Batch.Rrs", subsurface=False)
+        Rrs = np.asarray(self.Rrs)
+        if not np.isnan(Rrs).all():
+            conventions.check_rrs(self.Rrs, name="PB24Batch.Rrs", subsurface=False)
 
         if self.rrs.shape != self.iops.a.shape:
             raise ValueError(
@@ -416,9 +799,20 @@ class PB24Batch:
             raise ValueError(
                 f"PB24Batch: Rrs {self.Rrs.shape} does not match rrs {self.rrs.shape}"
             )
+        df = self.geometry.diffuse_fraction
+        if df is not None and np.shape(df) != self.rrs.shape:
+            raise ValueError(
+                f"PB24Batch: diffuse_fraction {np.shape(df)} does not match "
+                f"rrs {self.rrs.shape}"
+            )
         if self.realisation.shape != (self.n_sample,):
             raise ValueError(
                 f"PB24Batch: realisation {self.realisation.shape} does not label "
+                f"{self.n_sample} samples"
+            )
+        if self.theta_w is not None and self.theta_w.shape != (self.n_sample,):
+            raise ValueError(
+                f"PB24Batch: theta_w {self.theta_w.shape} does not label "
                 f"{self.n_sample} samples"
             )
         for name, values in self.labels.items():
@@ -440,24 +834,43 @@ class PB24Batch:
                 )
 
 
+def _wave_grid(resolution: str, wave: np.ndarray) -> conventions.WaveGrid:
+    """The :class:`~robust.rt.conventions.WaveGrid` a batch's bands must match.
+
+    OLCI is the registered grid. The hyperspectral bands are checked to be a
+    subset of :data:`HYP_WAVE` (the committed fixture keeps every 10th band)
+    and returned as a local grid -- ``conventions`` is not touched (freeze).
+    """
+    if resolution == "olci":
+        return conventions.OLCI_GRID
+    wave = np.asarray(wave, dtype=float)
+    on_grid = np.isin(np.round(wave, 6), HYP_WAVE)
+    if wave.ndim != 1 or not on_grid.all() or np.any(np.diff(wave) <= 0):
+        raise ValueError(
+            "PB24: hyperspectral bands must be an ascending subset of 350-800 nm "
+            "at 1 nm"
+        )
+    return conventions.WaveGrid(
+        "pb24_hyp", HYP_WAVE[np.isin(HYP_WAVE, np.round(wave, 6))], "PB24 hyp bands"
+    )
+
+
+# --------------------------------------------------------------- paths ------
+
+
 def data_dir() -> Path:
     """The release directory, from ``$OS_COLOR``.
-
-    Returns
-    -------
-    pathlib.Path
 
     Raises
     ------
     RuntimeError
-        If ``$OS_COLOR`` is unset, or the directory is missing -- with the path
-        that was tried, since a wrong mount is the usual cause.
+        If ``$OS_COLOR`` is unset, or the directory is missing.
     """
     root = os.environ.get("OS_COLOR")
     if not root:
         raise RuntimeError(
             "pb24: $OS_COLOR is not set, so the PB24 release cannot be located; "
-            "use a fixture via npz_reader() instead"
+            "pass cache_dir= (e.g. the unpacked test fixture) instead"
         )
     path = Path(root).joinpath(*SUBDIR)
     if not path.is_dir():
@@ -465,7 +878,7 @@ def data_dir() -> Path:
     return path
 
 
-def file_path(index: int, resolution: str = "olci") -> Path:
+def file_path(index: int, resolution: str = DEFAULT_RESOLUTION) -> Path:
     """Path of one realisation's netCDF.
 
     Parameters
@@ -474,10 +887,6 @@ def file_path(index: int, resolution: str = "olci") -> Path:
         1-based realisation index, as in the file names.
     resolution : str, optional
         A key of :data:`RESOLUTIONS`.
-
-    Returns
-    -------
-    pathlib.Path
     """
     if resolution not in RESOLUTIONS:
         raise ValueError(
@@ -487,8 +896,7 @@ def file_path(index: int, resolution: str = "olci") -> Path:
         raise ValueError(
             f"pb24: realisation index {index} outside [1, {N_REALISATION}]"
         )
-    prefix = RESOLUTIONS[resolution][0]
-    return data_dir() / f"{prefix}{int(index):04d}.nc"
+    return data_dir() / f"{RESOLUTIONS[resolution]}{int(index):04d}.nc"
 
 
 def read_classes() -> np.ndarray:
@@ -497,9 +905,8 @@ def read_classes() -> np.ndarray:
     Returns
     -------
     numpy.ndarray
-        Shape ``(N_REALISATION,)``, values in ``[1, N_CLASS]``. Note the classes
-        are very unbalanced (84 to 1042 of 5000), which matters for any
-        stratified split.
+        Shape ``(N_REALISATION,)``, values in ``[1, N_CLASS]`` (very
+        unbalanced: 84 to 1042 of 5000).
     """
     from scipy.io import loadmat
 
@@ -507,102 +914,180 @@ def read_classes() -> np.ndarray:
     return np.asarray(raw, dtype=int).reshape(-1)
 
 
-def _read_file(index: int, resolution: str = "olci") -> dict[str, np.ndarray]:
-    """Read one PB24 realisation into plain NumPy -- the default ``reader``.
+# ------------------------------------------------------------- sources ------
 
-    Parameters
-    ----------
-    index : int
-        1-based realisation index.
-    resolution : str, optional
-        A key of :data:`RESOLUTIONS`.
 
-    Returns
-    -------
-    dict
-        The :data:`RAW_FIELDS`. ``rrs``/``Rrs``/``Q`` are transposed to
-        ``(theta_s, theta, phi, wave)`` here, so the flattening order is fixed in
-        one place rather than at every call site.
+class _CacheSource:
+    """Hyperspectral realisations from a :mod:`pb24_cache` directory."""
+
+    resolution = "hyp"
+
+    def __init__(self, cache_dir=None):
+        from . import pb24_cache
+
+        self.cache = pb24_cache.open_cache(cache_dir)
+        if self.cache.sidecar.get("resolution", "hyp") != "hyp":
+            raise ValueError("pb24: the cache is not hyperspectral")
+        grids = self.cache.grids
+        self.bands = self.cache.four_d_bands
+        self.grids = {
+            "wave": grids["lambda"].astype(float)[self.bands],
+            "theta_s": grids["theta_s"].astype(float),
+            "theta": grids["theta"].astype(float),
+            "phi": grids["phi"].astype(float),
+        }
+        self.ids = self.cache.realisations
+
+    def read(self, ids) -> dict[str, np.ndarray]:
+        ids = np.asarray(ids, dtype=int)
+        out: dict[str, np.ndarray] = {}
+        for name in _SCALARS:
+            out[name] = np.asarray(self.cache.table(name, ids), dtype=float)
+        for name in _IOPS:
+            out[name] = np.asarray(self.cache.table(name, ids)[:, self.bands], float)
+        for name in _AOPS:
+            out[name] = np.asarray(self.cache.table(name, ids)[..., self.bands], float)
+        for name in _FOUR_D:
+            out[name] = np.asarray(self.cache.four_d(name, ids), dtype=float)
+        return out
+
+
+class _FileSource:
+    """Realisations read one netCDF at a time (the OLCI path, or any ``reader``).
+
+    ``reader(index, resolution) -> xarray.Dataset`` with the files' variable
+    names and dims; :func:`ocpy.hydrolight.pb24.load_ds` by default.
     """
-    import xarray as xr
 
-    with xr.open_dataset(file_path(index, resolution)) as ds:
-        out: dict[str, np.ndarray] = {
+    def __init__(self, resolution: str, reader=None, first: int = 1):
+        if reader is None:
+            from ocpy.hydrolight import pb24 as _ocpy_pb24
+
+            reader = _ocpy_pb24.load_ds
+        self.resolution = resolution
+        self.reader = reader
+        self.ids = np.arange(1, N_REALISATION + 1)
+        self._first = int(first)
+        self._grids = None
+
+    @property
+    def grids(self) -> dict[str, np.ndarray]:
+        if self._grids is None:
+            self._grids = self._grids_of(self.reader(self._first, self.resolution))
+        return self._grids
+
+    @staticmethod
+    def _grids_of(ds) -> dict[str, np.ndarray]:
+        return {
             "wave": np.asarray(ds["lambda"].values, dtype=float),
             "theta_s": np.asarray(ds["theta_s"].values, dtype=float),
             "theta": np.asarray(ds["theta"].values, dtype=float),
             "phi": np.asarray(ds["phi"].values, dtype=float),
         }
-        for name in ("C", "N", "Y"):
-            out[name] = np.asarray(ds[name].values, dtype=float).reshape(())
-        for name in ("rrs", "Rrs", "Q"):
-            out[name] = np.asarray(
-                ds[name].transpose("theta_s", "theta", "phi", "lambda").values,
-                dtype=float,
-            )
-        for name in RAW_FIELDS:
-            if name in out:
-                continue
-            values = ds[name]
-            if set(values.dims) == {"lambda", "theta_s"}:
-                out[name] = np.asarray(
-                    values.transpose("theta_s", "lambda").values, dtype=float
+
+    def read(self, ids) -> dict[str, np.ndarray]:
+        parts: dict[str, list[np.ndarray]] = {}
+        for index in np.asarray(ids, dtype=int):
+            ds = self.reader(int(index), self.resolution)
+            grids = self._grids_of(ds)
+            for name, values in grids.items():
+                if not np.array_equal(values, self.grids[name]):
+                    raise ValueError(
+                        f"load_batch: realisation {index} has a different "
+                        f"{name!r} grid than realisation {self._first}"
+                    )
+            one = {
+                name: np.asarray(ds[name].values, float).reshape(())
+                for name in _SCALARS
+            }
+            for name in _IOPS:
+                one[name] = np.asarray(ds[name].transpose("lambda").values, float)
+            for name in _AOPS:
+                one[name] = np.asarray(
+                    ds[name].transpose("theta_s", "lambda").values, float
                 )
-            else:
-                out[name] = np.asarray(values.values, dtype=float)
-    return out
+            for name in _FOUR_D:
+                one[name] = np.asarray(
+                    ds[name].transpose("theta_s", "theta", "phi", "lambda").values,
+                    float,
+                )
+            for name, values in one.items():
+                parts.setdefault(name, []).append(values)
+        return {name: np.stack(values) for name, values in parts.items()}
 
 
-def _geometry_table(raw: dict[str, np.ndarray]) -> tuple[np.ndarray, ...]:
+def _open_source(resolution: str, cache_dir, reader, first: int):
+    if resolution not in RESOLUTIONS:
+        raise ValueError(
+            f"load_batch: unknown resolution {resolution!r}; known: "
+            f"{sorted(RESOLUTIONS)}"
+        )
+    if reader is not None:
+        if cache_dir is not None:
+            raise ValueError("load_batch: pass cache_dir or reader, not both")
+        return _FileSource(resolution, reader, first)
+    if resolution == "hyp":
+        return _CacheSource(cache_dir)
+    if cache_dir is not None:
+        raise ValueError(
+            "load_batch: the OLCI set is not cached; cache_dir is hyp-only"
+        )
+    return _FileSource(resolution, None, first)
+
+
+# ------------------------------------------------------------- loading ------
+
+
+def _geometry_table(grids: dict, angles: str) -> dict[str, np.ndarray]:
     """Flatten the angle grid to one geometry axis, C-order ``(theta_s, theta, phi)``.
 
-    Returns
-    -------
-    tuple of ndarray
-        ``(theta_s, theta_v, dphi, theta_s_index)``, each of length
-        ``n_theta_s * n_theta * n_phi``. The index is kept because the ``mu``/K
-        fields are tabulated per solar zenith and must be gathered by it.
+    For the air modes ``theta`` is the above-water view node and ``theta_w`` its
+    Snell image; for ``"in_water_only"`` both are the in-water node. The
+    indices ``i_ts``, ``i_t``, ``i_ph`` address the 4-D fields.
     """
-    ts, tv, ph = raw["theta_s"], raw["theta"], raw["phi"]
-    i_ts, i_tv, i_ph = np.meshgrid(
-        np.arange(ts.size), np.arange(tv.size), np.arange(ph.size), indexing="ij"
+    ts, th, ph = grids["theta_s"], grids["theta"], grids["phi"]
+    i_ts, i_t, i_ph = np.meshgrid(
+        np.arange(ts.size), np.arange(th.size), np.arange(ph.size), indexing="ij"
     )
-    return (
-        ts[i_ts].reshape(-1),
-        tv[i_tv].reshape(-1),
-        ph[i_ph].reshape(-1),
-        i_ts.reshape(-1),
-    )
+    i_ts, i_t, i_ph = i_ts.reshape(-1), i_t.reshape(-1), i_ph.reshape(-1)
+    theta_v = th[i_t]
+    theta_w = theta_v if angles == "in_water_only" else theta_air_to_water(theta_v)
+    return {
+        "theta_s": ts[i_ts],
+        "theta_v": theta_v,
+        "dphi": ph[i_ph],
+        "theta_w": theta_w,
+        "i_ts": i_ts,
+        "i_t": i_t,
+        "i_ph": i_ph,
+    }
+
+
+def _angle_mask(theta_s: np.ndarray, theta_v: np.ndarray, angles: str) -> np.ndarray:
+    """Boolean mask over flattened geometries for an angle mode.
+
+    For the air modes ``theta_v`` is the above-water angle; for
+    ``"in_water_only"`` it is the in-water node.
+    """
+    if angles not in ANGLE_MODES:
+        raise ValueError(f"pb24: angles must be one of {ANGLE_MODES}; got {angles!r}")
+    if angles == "in_water_only":
+        return theta_v >= IN_WATER_ONLY_MIN
+    inside = (theta_s <= ANGLE_WINDOW_MAX) & (theta_v <= ANGLE_WINDOW_MAX)
+    if angles == "window":
+        return inside
+    if angles == "shell":
+        return ~inside
+    return np.ones_like(inside, dtype=bool)
 
 
 def _apply_stride(selected: np.ndarray, stride, angles) -> np.ndarray:
     """Thin the selected geometries, either flat or **per axis**.
 
-    An ``int`` strides the flattened list, which is simple and has two failure
-    modes: it aliases against an axis length (the 13 azimuths, record §7.7) and --
-    worse -- it does not preserve the **product structure**. A strided flat list
-    populates only a fraction of the ``(theta_s, theta_v, dphi)`` cells, so
-    anything that fits a *gridded* table on the same batch, like
-    :func:`robust.rt.baselines.fit_o25_table`, finds most cells empty and refuses.
-
-    A 3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each angle axis
-    independently and keeps the full product of what survives. That is the right
-    shape of subsample whenever the batch has to serve a gridded fit as well as a
-    network, which on this milestone is always.
-
-    Parameters
-    ----------
-    selected : numpy.ndarray
-        Indices into the flattened geometry list, after the angle mode.
-    stride : int or tuple of int
-        Flat stride, or one per angle axis.
-    angles : tuple of numpy.ndarray
-        ``(theta_s, theta_v, dphi)`` over the *whole* flattened grid.
-
-    Returns
-    -------
-    numpy.ndarray
-        The kept indices, ascending.
+    An ``int`` strides the flattened list (and can alias against the 13
+    azimuths); a 3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each angle
+    axis and keeps the full product of what survives, which a gridded fit on
+    the same batch needs.
     """
     if isinstance(stride, (int, np.integer)):
         return selected[:: int(stride)]
@@ -625,149 +1110,21 @@ def _apply_stride(selected: np.ndarray, stride, angles) -> np.ndarray:
     return selected[keep]
 
 
-def _angle_mask(theta_s: np.ndarray, theta_v: np.ndarray, angles: str) -> np.ndarray:
-    """Boolean mask over flattened geometries for an angle mode."""
-    if angles not in ANGLE_MODES:
-        raise ValueError(f"pb24: angles must be one of {ANGLE_MODES}; got {angles!r}")
-    inside = (theta_s <= ANGLE_WINDOW_MAX) & (theta_v <= ANGLE_WINDOW_MAX)
-    if angles == "window":
-        return inside
-    if angles == "shell":
-        return ~inside
-    return np.ones_like(inside, dtype=bool)
-
-
-def write_fixture(
-    path,
-    *,
-    realisations=(1, 2, 3),
-    resolution: str = "olci",
-) -> None:
-    """Snapshot whole realisations of the raw PB24 fields to an ``.npz``.
-
-    Stores the **raw per-file fields**, not an assembled :class:`PB24Batch`, for
-    the reason :func:`robust.rt.data.l23.write_fixture` gives: a snapshot of the
-    loader's output would only ever prove the snapshot unchanged, while storing
-    its *input* means :func:`load_batch` itself runs against real numbers
-    everywhere the fixture is available, CI included.
-
-    The **whole** 1300-geometry grid is kept for each realisation, because the
-    angle window and its shell are exactly what the tests need to exercise -- a
-    fixture holding only in-window geometries could not test the filter that
-    removes the rest.
-
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        Destination ``.npz``.
-    realisations : sequence of int, optional
-        1-based realisation indices to include. Three realisations of the OLCI
-        set is ~600 kB; the full 5000 is ~1 GB and belongs outside the repo.
-    resolution : str, optional
-        A key of :data:`RESOLUTIONS`.
-
-    Notes
-    -----
-    Values are stored as float32, the dtype the netCDF itself uses, so the
-    fixture is bit-faithful to the source. Written via a temporary file, loaded
-    back through :func:`npz_reader` and :func:`load_batch` -- the real consumers
-    -- and only then moved into place with an atomic :func:`os.replace`.
-    """
-    realisations = tuple(int(i) for i in realisations)
-    if not realisations:
-        raise ValueError("write_fixture: `realisations` must name at least one file")
-
-    arrays: dict[str, np.ndarray] = {
-        "realisations": np.asarray(realisations),
-        "resolution": np.asarray(resolution),
-    }
-    for index in realisations:
-        raw = _read_file(index, resolution)
-        for name in ("wave", "theta_s", "theta", "phi"):
-            arrays[name] = raw[name].astype(np.float32)
-        for name in RAW_FIELDS:
-            if name in ("wave", "theta_s", "theta", "phi"):
-                continue
-            arrays[f"{name}_{index}"] = np.asarray(raw[name], dtype=np.float32)
-
-    path = Path(path)
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.stem, suffix=".npz")
-    os.close(fd)
-    tmp = Path(tmp_name)
-    try:
-        np.savez_compressed(tmp, **arrays)
-        # drop_zero_rrs=False deliberately: this verifies the *snapshot*, so it
-        # must round-trip every sample the files hold. With the filter on, a
-        # realisation carrying a grazing-geometry zero (993 does) legitimately
-        # loads fewer samples than it stores, and the count check below would
-        # reject a perfectly good fixture. Asking for the filter here would test
-        # the filter, which the suite does separately.
-        batch = load_batch(
-            realisations=realisations,
-            angles="all",
-            drop_zero_rrs=False,
-            reader=npz_reader(tmp),
-        )
-        batch.validate()
-        expected = len(realisations) * batch.report.n_geometry_available
-        if batch.n_sample != expected:
-            raise ValueError(
-                f"write_fixture: snapshot loads {batch.n_sample} samples, expected "
-                f"{expected}; {path} left untouched"
-            )
-        umask = os.umask(0)
-        os.umask(umask)
-        os.chmod(tmp, 0o666 & ~umask)
-        os.replace(tmp, path)
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def npz_reader(path):
-    """A :func:`load_batch` ``reader`` backed by a :func:`write_fixture` file.
-
-    Parameters
-    ----------
-    path : str or pathlib.Path
-        An ``.npz`` written by :func:`write_fixture`.
-
-    Returns
-    -------
-    callable
-        ``(index, resolution) -> dict`` of :data:`RAW_FIELDS`.
-
-    Raises
-    ------
-    ValueError
-        If asked for a realisation or resolution the fixture does not hold.
-        Serving the wrong realisation silently would be far worse than failing.
-    """
-    data = np.load(path)
-    available = tuple(int(i) for i in data["realisations"])
-    stored_resolution = str(data["resolution"])
-
-    def read(index: int, resolution: str = "olci") -> dict[str, np.ndarray]:
-        if resolution != stored_resolution:
-            raise ValueError(
-                f"npz_reader: fixture holds resolution {stored_resolution!r}, "
-                f"was asked for {resolution!r}"
-            )
-        if int(index) not in available:
-            raise ValueError(
-                f"npz_reader: fixture holds realisations {available}, was asked "
-                f"for {index}"
-            )
-        out = {
-            name: np.asarray(data[name], dtype=float)
-            for name in ("wave", "theta_s", "theta", "phi")
-        }
-        for name in RAW_FIELDS:
-            if name in out:
-                continue
-            out[name] = np.asarray(data[f"{name}_{int(index)}"], dtype=float)
-        return out
-
-    return read
+def _ff_mixture(raw: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    """``ff_B`` and ``ff_weight``, ``(n, wave, 2)``, from the IOP components."""
+    bph, bnap = raw["bph"], raw["bNAP"]
+    B_ph = raw["bbph"] / bph
+    with np.errstate(divide="ignore", invalid="ignore"):
+        B_nap = np.where(bnap > 0.0, raw["bbNAP"] / bnap, np.nan)
+    for row in range(B_nap.shape[0]):
+        bad = ~np.isfinite(B_nap[row])
+        if bad.any():
+            good = B_nap[row][~bad]
+            B_nap[row, bad] = float(np.median(good)) if good.size else FF_B_NAP_FILL
+    b_p = bph + bnap
+    ff_B = np.stack([B_ph, B_nap], axis=-1)
+    ff_weight = np.stack([bph / b_p, bnap / b_p], axis=-1)
+    return ff_B, ff_weight
 
 
 def load_batch(
@@ -779,91 +1136,93 @@ def load_batch(
     drop_zero_rrs: bool = True,
     water_classes=None,
     validate: bool = True,
-    resolution: str = "olci",
+    resolution: str = DEFAULT_RESOLUTION,
+    cache_dir=None,
     reader=None,
+    check_fresnel: bool = True,
 ) -> PB24Batch:
-    """Load PB24 as one stacked batch of JAX arrays.
+    """Load PB24 as one stacked batch of JAX arrays, in above-water geometry.
 
     Parameters
     ----------
     realisations : int or sequence of int, optional
-        An ``int`` takes the first *n* realisations; a sequence names 1-based
-        indices; ``None`` takes all :data:`N_REALISATION`. **There is no default
-        subsample** -- ``None`` really means all 5000, which is ~1 GB and a few
-        minutes of netCDF reads, so pass a cache via ``reader`` for repeat work.
+        An ``int`` takes the first *n* realisations of the source; a sequence
+        names 1-based ids; ``None`` takes every realisation the source holds
+        (5000, or the fixture's three). **There is no default subsample.**
     angles : str, optional
-        Which geometries to keep. ``"window"`` (default) is Q14's sanctioned
-        envelope, ``theta_s`` and ``theta_v`` both <= :data:`ANGLE_WINDOW_MAX`;
-        ``"shell"`` is its complement, the deliberate extrapolation set; ``"all"``
-        is the whole 1300.
+        ``"window"`` (default): ``theta_s`` and ``theta_v_air`` both <=
+        :data:`ANGLE_WINDOW_MAX`; ``"shell"``: its complement in air; ``"all"``:
+        the 1300 air geometries; ``"in_water_only"``: the in-water nodes >=
+        :data:`IN_WATER_ONLY_MIN`, un-interpolated, ``Rrs`` all NaN, and
+        ``theta_v`` holding the **in-water** angle.
     geometry_stride : int or tuple of int, optional
-        Thin the selected geometries. An ``int`` strides the flattened list; a
-        3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each angle axis and
-        **keeps the full product**, which is what a gridded fit on the same batch
-        needs (see ``_apply_stride``). Either way this is the subsampling knob
-        Q12 sanctioned and it is **explicit** by design: what it drops is reported
-        in :class:`LoadReport`, never assumed.
+        Thin the selected geometries; an ``int`` strides the flattened list, a
+        3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each axis and keeps
+        the product. Reported in :class:`LoadReport`.
     extras : tuple of str, optional
         Which of :data:`EXTRA_FIELDS` to materialise as per-sample spectra.
-        ``Q`` is always carried. Each extra costs one more ``(n_sample, n_wave)``
-        array.
     drop_zero_rrs : bool, optional
-        Drop samples whose spectrum contains a zero ``rrs`` (default True).
-        See the Notes -- this is a lossy choice, and it is reported.
+        Drop samples whose spectrum contains a zero ``rrs`` (default True). Only
+        ``"in_water_only"`` has any (at the 87.5-degree node).
     water_classes : array_like or str, optional
-        Per-realisation classes, 1-based, as :func:`read_classes` returns.
-        ``None`` (the default) attaches none; ``"auto"`` reads the ``.mat``
-        sidecar and warns if it cannot. The default is *not* "auto" on purpose --
-        a loader that silently behaves differently depending on whether a mount
-        is present makes a fixture-backed test non-deterministic, and that is
-        exactly the class of surprise this module is trying not to have.
+        Per-realisation classes, 1-based; ``"auto"`` reads the ``.mat`` sidecar.
     validate : bool, optional
         Run :meth:`PB24Batch.validate` before returning (default True).
     resolution : str, optional
-        A key of :data:`RESOLUTIONS`.
+        ``"hyp"`` (default; from the cache) or ``"olci"`` (per file).
+    cache_dir : str or pathlib.Path, optional
+        The hyperspectral cache; default
+        :func:`robust.rt.data.pb24_cache.default_cache_dir`.
     reader : callable, optional
-        ``(index, resolution) -> dict`` of :data:`RAW_FIELDS`. Defaults to
-        reading the netCDFs; :func:`npz_reader` feeds the *real* loader real
-        numbers where the dataset is absent, CI included.
+        ``(index, resolution) -> xarray.Dataset`` in the files' layout. Forces
+        the per-file path; default :func:`ocpy.hydrolight.pb24.load_ds` for
+        ``"olci"``.
+    check_fresnel : bool, optional
+        Run the Fresnel check over every realisation read (default True) and
+        warn if it leaves :data:`FRESNEL_TOLERANCE` inside the window.
 
     Returns
     -------
     PB24Batch
         Samples ordered realisation-major, then geometry in C-order
-        ``(theta_s, theta, phi)``.
+        ``(theta_s, theta_v, phi)``.
 
     Warns
     -----
     UserWarning
-        If ``B_p`` falls outside :data:`B_P_EXPECTED`. Reported, never clipped.
-
-    Notes
-    -----
-    **On ``drop_zero_rrs``.** The zeros are per *band*, not per spectrum -- in the
-    OLCI set they occur only at 753 nm with ``theta_s = 80``, ``theta = 87.5`` --
-    so dropping the whole spectrum discards eleven good bands to remove one bad
-    one. It is nonetheless the right call here: :func:`robust.rt.validation.rrms`
-    divides by truth over rectangular ``(sample, wave)`` arrays and has no mask,
-    so an unfiltered zero is an ``inf`` in the first score computed. When M5's
-    task 6 gives the metric a mask, per-band exclusion becomes available and this
-    default should be revisited. The report records both counts, so the cost is
-    visible: ``n_dropped_zero_rrs`` spectra removed to exclude ``n_zero_bands``
-    values.
-
-    **On ``bb_w``.** Taken from the file's own ``bbw``, never from
-    :func:`robust.rt.conventions.bb_w` -- that table is L23's water column, and
-    PB24 tabulates its own. It also means the 753 nm band needs no extrapolation.
+        If ``B_p`` falls outside :data:`B_P_EXPECTED` (never clipped), or the
+        Fresnel check fails inside the window.
     """
-    read = _read_file if reader is None else reader
+    if isinstance(realisations, (int, np.integer)):
+        first = 1
+    elif realisations is None:
+        first = 1
+    else:
+        listed = tuple(int(i) for i in realisations)
+        first = listed[0] if listed else 1
+    source = _open_source(resolution, cache_dir, reader, first)
 
     if realisations is None:
-        wanted = tuple(range(1, N_REALISATION + 1))
+        wanted = tuple(int(i) for i in source.ids)
     elif isinstance(realisations, (int, np.integer)):
-        wanted = tuple(range(1, int(realisations) + 1))
+        wanted = tuple(int(i) for i in source.ids[: int(realisations)])
+        if len(wanted) < int(realisations):
+            raise ValueError(
+                f"load_batch: asked for {realisations} realisations; the source "
+                f"holds {len(source.ids)}"
+            )
     else:
         wanted = tuple(int(i) for i in realisations)
     if not wanted:
         raise ValueError("load_batch: `realisations` selects nothing")
+    missing = sorted(set(wanted) - {int(i) for i in source.ids})
+    if missing:
+        raise ValueError(
+            f"load_batch: realisations {missing[:10]} are not in the source "
+            f"({len(source.ids)} realisations)"
+        )
+    if angles not in ANGLE_MODES:
+        raise ValueError(f"pb24: angles must be one of {ANGLE_MODES}; got {angles!r}")
     if isinstance(geometry_stride, (int, np.integer)) and geometry_stride < 1:
         raise ValueError(
             f"load_batch: geometry_stride must be >= 1; got {geometry_stride}"
@@ -893,89 +1252,109 @@ def load_batch(
     elif water_classes is not None:
         water_classes = np.asarray(water_classes, dtype=int).reshape(-1)
 
-    reference: dict[str, np.ndarray] | None = None
-    keep: np.ndarray | None = None
-    theta_s = theta_v = dphi = zenith_index = None
-    n_geometry_available = 0
-    n_dropped_angle = n_dropped_stride = 0
+    grids = source.grids
+    if resolution == "olci":
+        conventions.check_wave(grids["wave"], name="PB24 lambda", grid="olci")
+    else:
+        _wave_grid("hyp", grids["wave"])
+    in_air = angles in AIR_ANGLE_MODES
 
-    parts: dict[str, list[np.ndarray]] = {
-        name: [] for name in ("a", "bb_w", "bb_p", "B_p", "rrs", "Rrs", "Q")
+    table = _geometry_table(grids, angles)
+    n_geometry_available = table["theta_s"].size
+    mask = _angle_mask(table["theta_s"], table["theta_v"], angles)
+    n_dropped_angle = int((~mask).sum())
+    selected = np.flatnonzero(mask)
+    keep = _apply_stride(
+        selected,
+        geometry_stride,
+        (table["theta_s"], table["theta_v"], table["dphi"]),
+    )
+    n_dropped_stride = int(selected.size - keep.size)
+    if keep.size == 0:
+        raise ValueError(
+            f"load_batch: angles={angles!r} with stride {geometry_stride} "
+            "selects no geometries"
+        )
+    coverage = {
+        axis: (
+            int(np.unique(table[key][keep]).size),
+            int(np.unique(table[key][selected]).size),
+        )
+        for axis, key in (
+            ("theta_s", "theta_s"),
+            ("theta_v", "theta_v"),
+            ("dphi", "dphi"),
+        )
     }
-    parts.update({name: [] for name in extras})
-    realisation_parts, class_parts = [], []
+    if isinstance(geometry_stride, (int, np.integer)):
+        _warn_if_stride_aliases(coverage, geometry_stride)
+    i_ts, i_t, i_ph = table["i_ts"][keep], table["i_t"][keep], table["i_ph"][keep]
+    n_geometry = keep.size
+
+    theta_nodes = grids["theta"]
+    theta_w_air = theta_air_to_water(theta_nodes)
+    fresnel = (
+        _FresnelAccumulator(grids["theta_s"], theta_nodes) if check_fresnel else None
+    )
+
+    names = ("a", "bb_w", "bb_p", "a_ph", "B_p", "ff_B", "ff_weight", "df")
+    parts: dict[str, list[np.ndarray]] = {
+        name: [] for name in names + ("rrs", "Rrs", "Q") + tuple(extras)
+    }
     label_parts: dict[str, list[np.ndarray]] = {"C": [], "N": [], "Y": []}
+    realisation_parts, class_parts = [], []
 
-    for index in wanted:
-        raw = read(index, resolution)
+    def per_sample(values: np.ndarray) -> np.ndarray:
+        """``(n, ...)`` per realisation -> ``(n * n_geometry, ...)``."""
+        n = values.shape[0]
+        out = np.broadcast_to(values[:, None], (n, n_geometry) + values.shape[1:])
+        return out.reshape((n * n_geometry,) + values.shape[1:])
 
-        if reference is None:
-            reference = raw
-            grid_name = RESOLUTIONS[resolution][1]
-            conventions.check_wave(
-                raw["wave"], name=f"PB24 lambda (realisation {index})", grid=grid_name
-            )
-            theta_s, theta_v, dphi, zenith_index = _geometry_table(raw)
-            n_geometry_available = theta_s.size
-            mask = _angle_mask(theta_s, theta_v, angles)
-            n_dropped_angle = int((~mask).sum())
-            selected = np.flatnonzero(mask)
-            keep = _apply_stride(selected, geometry_stride, (theta_s, theta_v, dphi))
-            n_dropped_stride = int(selected.size - keep.size)
-            if keep.size == 0:
-                raise ValueError(
-                    f"load_batch: angles={angles!r} with stride {geometry_stride} "
-                    "selects no geometries"
-                )
-            coverage = {
-                axis: (
-                    int(np.unique(values[keep]).size),
-                    int(np.unique(values[selected]).size),
-                )
-                for axis, values in (
-                    ("theta_s", theta_s),
-                    ("theta_v", theta_v),
-                    ("dphi", dphi),
-                )
-            }
-            # Only a *flat* stride can lose an angle by accident. A per-axis
-            # stride drops whole values because that is what it was asked to do,
-            # so warning about it would train the reader to ignore the warning.
-            if isinstance(geometry_stride, (int, np.integer)):
-                _warn_if_stride_aliases(coverage, geometry_stride)
-            theta_s, theta_v, dphi = theta_s[keep], theta_v[keep], dphi[keep]
-            zenith_index = zenith_index[keep]
+    chunk = _CHUNK if isinstance(source, _CacheSource) else 8
+    for start in range(0, len(wanted), chunk):
+        ids = wanted[start : start + chunk]
+        raw = source.read(ids)
+        n = len(ids)
+
+        if in_air or fresnel is not None:
+            rrs_air = interp_in_water(raw["rrs"], theta_nodes, theta_w_air)
+            if fresnel is not None:
+                fresnel.add(raw["Rrs"], rrs_air, ids)
+        if in_air:
+            Q_air = interp_in_water(raw["Q"], theta_nodes, theta_w_air)
+            rrs = rrs_air[:, i_ts, i_t, i_ph]
+            Q = Q_air[:, i_ts, i_t, i_ph]
+            Rrs = raw["Rrs"][:, i_ts, i_t, i_ph]
         else:
-            # The grid is identical across the release -- verified across 50
-            # files at M5 task 0 -- and this is where that stops being an
-            # assumption. Concatenating samples from two different angle grids
-            # would produce a batch whose geometry labels are silently wrong.
-            for name in ("wave", "theta_s", "theta", "phi"):
-                if not np.array_equal(raw[name], reference[name]):
-                    raise ValueError(
-                        f"load_batch: realisation {index} has a different "
-                        f"{name!r} grid than realisation {wanted[0]}"
-                    )
+            rrs = raw["rrs"][:, i_ts, i_t, i_ph]
+            Q = raw["Q"][:, i_ts, i_t, i_ph]
+            Rrs = np.full_like(rrs, np.nan)
+        n_wave = rrs.shape[-1]
+        for name, values in (("rrs", rrs), ("Rrs", Rrs), ("Q", Q)):
+            parts[name].append(values.reshape(n * n_geometry, n_wave))
 
-        n_geometry = keep.size
-        a = raw["aw"] + raw["aph"] + raw["ag"] + raw["aNAP"]
         bb_p = raw["bbph"] + raw["bbNAP"]
-        b_p = raw["bph"] + raw["bNAP"]
-
-        parts["a"].append(np.broadcast_to(a, (n_geometry, a.size)))
-        parts["bb_w"].append(np.broadcast_to(raw["bbw"], (n_geometry, a.size)))
-        parts["bb_p"].append(np.broadcast_to(bb_p, (n_geometry, a.size)))
-        parts["B_p"].append(np.broadcast_to(bb_p / b_p, (n_geometry, a.size)))
-        for name in ("rrs", "Rrs", "Q"):
-            parts[name].append(raw[name].reshape(-1, a.size)[keep])
+        ff_B, ff_weight = _ff_mixture(raw)
+        parts["a"].append(per_sample(raw["aw"] + raw["aph"] + raw["ag"] + raw["aNAP"]))
+        parts["bb_w"].append(per_sample(raw["bbw"]))
+        parts["bb_p"].append(per_sample(bb_p))
+        parts["a_ph"].append(per_sample(raw["aph"]))
+        parts["B_p"].append(per_sample(bb_p / (raw["bph"] + raw["bNAP"])))
+        parts["ff_B"].append(per_sample(ff_B))
+        parts["ff_weight"].append(per_sample(ff_weight))
+        parts["df"].append(
+            (1.0 - raw["Esdir_Es_ratio"][:, i_ts]).reshape(n * n_geometry, n_wave)
+        )
         for name in extras:
-            parts[name].append(raw[name][zenith_index])
+            parts[name].append(raw[name][:, i_ts].reshape(n * n_geometry, n_wave))
 
-        realisation_parts.append(np.full(n_geometry, index, dtype=int))
+        realisation_parts.append(np.repeat(np.asarray(ids, dtype=int), n_geometry))
         for name in label_parts:
-            label_parts[name].append(np.full(n_geometry, float(raw[name])))
+            label_parts[name].append(np.repeat(raw[name].reshape(n), n_geometry))
         if water_classes is not None:
-            class_parts.append(np.full(n_geometry, int(water_classes[index - 1])))
+            class_parts.append(
+                np.repeat(water_classes[np.asarray(ids, dtype=int) - 1], n_geometry)
+            )
 
     stacked = {name: np.concatenate(values) for name, values in parts.items()}
     _warn_if_B_p_unexpected(stacked["B_p"])
@@ -985,10 +1364,11 @@ def load_batch(
     water_class = np.concatenate(class_parts) if class_parts else None
     n_repeat = len(wanted)
     geometry = {
-        "theta_s": np.tile(theta_s, n_repeat),
-        "theta_v": np.tile(theta_v, n_repeat),
-        "dphi": np.tile(dphi, n_repeat),
+        "theta_s": np.tile(table["theta_s"][keep], n_repeat),
+        "theta_v": np.tile(table["theta_v"][keep], n_repeat),
+        "dphi": np.tile(table["dphi"][keep], n_repeat),
     }
+    theta_w = np.tile(table["theta_w"][keep], n_repeat)
 
     zero_bands = int((stacked["rrs"] <= 0.0).sum())
     n_dropped_zero = 0
@@ -997,16 +1377,29 @@ def load_batch(
         n_dropped_zero = int((~good).sum())
         stacked = {name: values[good] for name, values in stacked.items()}
         geometry = {name: values[good] for name, values in geometry.items()}
+        theta_w = theta_w[good]
         realisation = realisation[good]
         labels = {name: values[good] for name, values in labels.items()}
         if water_class is not None:
             water_class = water_class[good]
 
+    fresnel_report = fresnel.report() if fresnel is not None else None
+    if fresnel_report is not None and not fresnel_report.within():
+        warnings.warn(
+            f"pb24: the Fresnel check leaves {FRESNEL_TOLERANCE:.0%} inside the "
+            f"window: {fresnel_report.n_beyond} values, realisations "
+            f"{list(fresnel_report.realisations_beyond)[:10]}, max |dev| "
+            f"{fresnel_report.worst() * 100:.2f}%. On the full release only "
+            "realisation 4492 does (5 UV values at theta_v_air = 70, -5.30%).",
+            UserWarning,
+            stacklevel=2,
+        )
+
     report = LoadReport(
-        n_realisation_available=N_REALISATION,
+        n_realisation_available=int(len(source.ids)),
         n_realisation=len(wanted),
         n_geometry_available=n_geometry_available,
-        n_geometry=int(keep.size),
+        n_geometry=n_geometry,
         angles=angles,
         geometry_stride=geometry_stride,
         n_dropped_angle=n_dropped_angle,
@@ -1014,6 +1407,8 @@ def load_batch(
         n_dropped_zero_rrs=n_dropped_zero,
         n_zero_bands=zero_bands,
         coverage=coverage,
+        resolution=resolution,
+        fresnel=fresnel_report,
     )
 
     batch = PB24Batch(
@@ -1021,38 +1416,38 @@ def load_batch(
             a=jnp.asarray(stacked["a"]),
             bb_w=jnp.asarray(stacked["bb_w"]),
             bb_p=jnp.asarray(stacked["bb_p"]),
+            a_ph=jnp.asarray(stacked["a_ph"]),
         ),
-        phase_params=PhaseParams(B_p=jnp.asarray(stacked["B_p"])),
+        phase_params=PhaseParams(
+            B_p=jnp.asarray(stacked["B_p"]),
+            ff_B=jnp.asarray(stacked["ff_B"]),
+            ff_weight=jnp.asarray(stacked["ff_weight"]),
+        ),
         geometry=Geometry(
             theta_s=jnp.asarray(geometry["theta_s"]),
             theta_v=jnp.asarray(geometry["theta_v"]),
             dphi=jnp.asarray(geometry["dphi"]),
+            diffuse_fraction=jnp.asarray(stacked["df"]),
         ),
         rrs=jnp.asarray(stacked["rrs"]),
         Rrs=jnp.asarray(stacked["Rrs"]),
-        wave=jnp.asarray(reference["wave"]),
+        wave=jnp.asarray(grids["wave"]),
         realisation=realisation,
         labels=labels,
         water_class=water_class,
         aops={"Q": jnp.asarray(stacked["Q"])}
         | {name: jnp.asarray(stacked[name]) for name in extras},
         report=report,
+        theta_w=theta_w,
     )
 
     if validate:
-        batch.validate(grid=RESOLUTIONS[resolution][1])
+        batch.validate()
     return batch
 
 
 def _warn_if_stride_aliases(coverage, stride: int) -> None:
-    """Warn if the stride deleted whole angle values rather than thinning them.
-
-    Flattening ``(theta_s, theta, phi)`` in C order puts azimuth innermost, so a
-    stride sharing a factor with an axis length keeps a *periodic* subset rather
-    than a representative one -- ``geometry_stride=13`` on the 13-value azimuth
-    axis yields one azimuth and no BRDF at all. Found by running the loader, not
-    by reading it, which is why the report carries the coverage.
-    """
+    """Warn if a flat stride deleted whole angle values rather than thinning them."""
     lost = {
         axis: (kept, avail) for axis, (kept, avail) in coverage.items() if kept < avail
     }
@@ -1086,22 +1481,130 @@ def _warn_if_B_p_unexpected(B_p: np.ndarray) -> None:
         )
 
 
-def select(batch: PB24Batch, mask: np.ndarray) -> PB24Batch:
-    """Subset a batch along its sample axis.
+# --------------------------------------------------- interpolation error ----
+
+
+@dataclass(frozen=True)
+class InterpolationReport:
+    """Linear against cubic interpolation of the in-water fields to ``theta_w``.
+
+    ``error = |linear / cubic - 1|`` per ``(realisation, theta_s, theta_v_air,
+    dphi, band)``; the cubic is :class:`scipy.interpolate.CubicSpline`
+    (not-a-knot) through the in-water nodes 0-80 -- the grazing node 87.5 is
+    left out because ``Q`` is ``inf`` there wherever ``rrs`` underflows to 0,
+    and no ``theta_w`` (<= 48.2) is near it. Neither is the truth: the
+    spread is the size of the interpolation question, and the Fresnel check is
+    the physical test.
+
+    Attributes
+    ----------
+    fields : tuple of str
+        Which fields were measured (``rrs``, ``Q``).
+    theta_v_air, theta_w : tuple of float
+        The above-water nodes and their in-water images (nadir excluded).
+    error : dict
+        ``{field: per-node tuple of FRESNEL_QUANTILES of the error}``; q = 0
+        and 1 exact, the rest to 5e-6.
+    n_realisation : int
+    window_only_theta_s : bool
+        Whether only ``theta_s <= ANGLE_WINDOW_MAX`` was included.
+    """
+
+    fields: tuple[str, ...]
+    theta_v_air: tuple[float, ...]
+    theta_w: tuple[float, ...]
+    error: dict[str, tuple[tuple[float, ...], ...]]
+    n_realisation: int
+    window_only_theta_s: bool = True
+    quantiles: tuple[float, ...] = FRESNEL_QUANTILES
+
+    def table(self, name: str = "rrs") -> str:
+        """A markdown table of one field's error, one row per view node."""
+        head = " | ".join(f"q{q:g}" for q in self.quantiles)
+        lines = [
+            f"| theta_v_air | theta_w | {head} |",
+            "|---" * (2 + len(self.quantiles)) + "|",
+        ]
+        for t, w, row in zip(
+            self.theta_v_air, self.theta_w, self.error[name], strict=True
+        ):
+            vals = " | ".join(f"{v * 100:.3f}%" for v in row)
+            lines.append(f"| {t:g} | {w:.2f} | {vals} |")
+        return "\n".join(lines)
+
+
+def interpolation_error(
+    realisations,
+    *,
+    fields: tuple[str, ...] = ("rrs", "Q"),
+    resolution: str = DEFAULT_RESOLUTION,
+    cache_dir=None,
+    reader=None,
+    window_only: bool = True,
+) -> InterpolationReport:
+    """Measure linear against cubic interpolation of ``rrs``/``Q`` to ``theta_w``.
 
     Parameters
     ----------
-    batch : PB24Batch
-        The batch to subset.
-    mask : numpy.ndarray
-        Boolean mask of length ``batch.n_sample``.
+    realisations : sequence of int
+        Realisation ids to measure on (a sample; this reads the full 4-D grid).
+    fields : tuple of str, optional
+        Any of ``"rrs"``, ``"Q"``.
+    resolution, cache_dir, reader
+        As :func:`load_batch`.
+    window_only : bool, optional
+        Restrict to ``theta_s <= ANGLE_WINDOW_MAX`` (default True); every view
+        node is reported either way.
 
     Returns
     -------
-    PB24Batch
-        A new batch holding only the selected samples; ``wave`` and ``report``
-        are carried through unchanged, the latter because it describes the
-        *load*, not the selection.
+    InterpolationReport
+    """
+    from scipy.interpolate import CubicSpline
+
+    ids = tuple(int(i) for i in realisations)
+    if not ids:
+        raise ValueError("interpolation_error: no realisations")
+    source = _open_source(resolution, cache_dir, reader, ids[0])
+    grids = source.grids
+    nodes = grids["theta"]
+    theta_w = theta_air_to_water(nodes)
+    s_keep = grids["theta_s"] <= ANGLE_WINDOW_MAX if window_only else slice(None)
+    hists = {name: _Histogram(nodes.size, 0.0, 0.5, 1e-5) for name in fields}
+    chunk = _CHUNK if isinstance(source, _CacheSource) else 8
+    for start in range(0, len(ids), chunk):
+        raw = source.read(ids[start : start + chunk])
+        for name in fields:
+            f = raw[name][:, s_keep]
+            lin = interp_in_water(f, nodes, theta_w)
+            cub = CubicSpline(nodes[:-1], f[:, :, :-1], axis=2)(theta_w)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                err = np.abs(lin / cub - 1.0)
+            for i in range(1, nodes.size):
+                hists[name].add(i, err[:, :, i].ravel())
+    rows = range(1, nodes.size)
+    return InterpolationReport(
+        fields=tuple(fields),
+        theta_v_air=tuple(float(nodes[i]) for i in rows),
+        theta_w=tuple(float(theta_w[i]) for i in rows),
+        error={
+            name: tuple(hists[name].quantiles(i, FRESNEL_QUANTILES) for i in rows)
+            for name in fields
+        },
+        n_realisation=len(ids),
+        window_only_theta_s=window_only,
+    )
+
+
+# -------------------------------------------------------------- select ------
+
+
+def select(batch: PB24Batch, mask: np.ndarray) -> PB24Batch:
+    """Subset a batch along its sample axis.
+
+    Every leaf of ``iops``, ``phase_params`` and ``geometry`` is indexed (the
+    FF mixture and ``diffuse_fraction`` included); ``wave`` and ``report`` are
+    carried through unchanged, the latter because it describes the *load*.
 
     Raises
     ------
@@ -1116,18 +1619,14 @@ def select(batch: PB24Batch, mask: np.ndarray) -> PB24Batch:
         )
 
     keep = jnp.asarray(np.flatnonzero(mask))
+
+    def take(tree):
+        return jax.tree_util.tree_map(lambda x: x[keep], tree)
+
     return PB24Batch(
-        iops=IOPs(
-            a=batch.iops.a[keep],
-            bb_w=batch.iops.bb_w[keep],
-            bb_p=batch.iops.bb_p[keep],
-        ),
-        phase_params=PhaseParams(B_p=batch.phase_params.B_p[keep]),
-        geometry=Geometry(
-            theta_s=batch.geometry.theta_s[keep],
-            theta_v=batch.geometry.theta_v[keep],
-            dphi=batch.geometry.dphi[keep],
-        ),
+        iops=take(batch.iops),
+        phase_params=take(batch.phase_params),
+        geometry=take(batch.geometry),
         rrs=batch.rrs[keep],
         Rrs=batch.Rrs[keep],
         wave=batch.wave,
@@ -1136,39 +1635,23 @@ def select(batch: PB24Batch, mask: np.ndarray) -> PB24Batch:
         water_class=None if batch.water_class is None else batch.water_class[mask],
         aops={name: values[keep] for name, values in batch.aops.items()},
         report=batch.report,
+        theta_w=None if batch.theta_w is None else batch.theta_w[mask],
     )
+
+
+# -------------------------------------------------------------- splits ------
 
 
 @dataclass(frozen=True)
 class SplitReport:
     """What one split holds out, and what else it holds out by accident.
 
-    The second half is the point. A split on ``B_p`` is not a split on ``B_p``
-    alone: the particle backscatter ratio correlates with chlorophyll across
-    PB24's realisations -- **corr(log B_p, log C) = -0.49** over 600 realisations
-    -- so holding out a band of ``B_p`` also shifts the water type. That does not
-    make the split wrong; it is still the only way to test phase-function
-    generalisation with this data. But a result quoted without it invites the
-    reader to attribute the whole error to the phase function.
-
-    So the confound is **measured on the split that was actually built** and
-    carried with it, rather than described once in a design document and
-    forgotten by the time the number is quoted.
-
-    **Read the ratios against :func:`confound_reference`, not against 1.0.** A
-    random hold-out of the same size already moves these labels a long way,
-    because PB24's label distributions are heavy-tailed: over 12 seeds at 600
-    realisations the random split's median-chlorophyll ratio ranges over
-    **[0.53, 1.90]**. So "test/train = 1.5" is unremarkable on its own, and only
-    a shift outside that band is the split's own doing. ``B_p_mean`` is the
-    exception: the random split holds it to [0.98, 1.08], so it is the one entry
-    where a departure is immediately meaningful.
-
-    Note also what these ratios *cannot* show. ``bp_band`` holds out an interior
-    band, so its train side is both tails and the two medians nearly coincide --
-    ``B_p_mean`` reads ~1.0 for a split whose entire purpose is to separate
-    ``B_p``. The separation lives in :attr:`detail` (the band edges and the train
-    tails), not in a ratio of medians.
+    A split on ``B_p`` is not a split on ``B_p`` alone: ``B_p`` correlates with
+    chlorophyll across PB24 (corr(log B_p, log C) = -0.47 over all 5000
+    realisations, hyperspectral; see ``design/ztt_pb24/splits.md``), so holding
+    out a band of ``B_p`` also shifts the water type. The confound is measured
+    on the batch the split was mapped onto and carried with it. Read the ratios
+    against :func:`confound_reference`, not against 1.0.
 
     Attributes
     ----------
@@ -1177,14 +1660,11 @@ class SplitReport:
     n_train, n_test : int
         Samples each side.
     n_train_realisation, n_test_realisation : int
-        Distinct realisations each side. For ``"geometry"`` these are equal and
-        cover the whole batch: that split divides angles, not water bodies.
+        Distinct realisations each side (equal for ``"geometry"``).
     detail : dict
         Kind-specific numbers -- band edges, angle ranges, held-out counts.
     confound : dict
-        ``test/train`` ratio of the median of each label and of two IOP
-        summaries. Compare against :func:`confound_reference`, which measures
-        what a random hold-out of the same size does -- not against 1.0.
+        ``test/train`` ratio of the median of each label and IOP summary.
     """
 
     kind: str
@@ -1220,14 +1700,17 @@ class Splits:
         ``{kind: (train, test)}``, each a boolean array of length
         ``batch.n_sample``.
     reports : dict
-        One per kind.
+        One :class:`SplitReport` per kind.
     seed : int
-        The seed the random draws used.
+        The seed the saved random split was drawn with.
+    path : str
+        The splits file the masks came from ("" if built in memory).
     """
 
     masks: dict[str, tuple[np.ndarray, np.ndarray]]
     reports: dict[str, SplitReport]
     seed: int
+    path: str = ""
 
     def train(self, kind: str) -> np.ndarray:
         """Training mask for ``kind``."""
@@ -1242,14 +1725,176 @@ class Splits:
         return "\n".join(self.reports[kind].summary() for kind in self.masks)
 
 
-def _per_realisation_B_p(batch: PB24Batch) -> tuple[np.ndarray, np.ndarray]:
-    """Mean ``B_p`` per realisation, and the realisation indices it belongs to.
+def _random_held(ids: np.ndarray, seed: int, test_fraction: float) -> np.ndarray:
+    """The random split's held-out ids: a ``seed``-permutation's first
+    ``round(test_fraction * n)``, sorted."""
+    n_test = max(1, int(round(test_fraction * ids.size)))
+    drawn = np.random.default_rng(seed).permutation(np.sort(ids))
+    return np.sort(drawn[:n_test])
 
-    ``B_p`` is duplicated across a realisation's geometries (it is an IOP), so the
-    mean over samples and wavelengths is exact rather than an approximation --
-    but it is taken per realisation, not per sample, because the split must move
-    whole water bodies.
+
+def _median_ratio(values: np.ndarray, test: np.ndarray) -> float:
+    lo = float(np.median(values[~test]))
+    hi = float(np.median(values[test]))
+    return hi / lo if lo > 0.0 else float("nan")
+
+
+def build_splits(
+    ids,
+    B_p_mean,
+    labels: dict[str, np.ndarray] | None = None,
+    *,
+    seed: int = SPLIT_SEED,
+    test_fraction: float = TEST_FRACTION,
+    bp_quantiles: tuple[float, float] = BP_BAND_QUANTILES,
+    confound_seeds=CONFOUND_SEEDS,
+    source: str = "",
+) -> dict:
+    """The content of a splits file, from per-realisation quantities.
+
+    Parameters
+    ----------
+    ids : array_like of int
+        Every realisation the file covers.
+    B_p_mean : array_like
+        Per-realisation mean bulk ``B_p`` (same order as ``ids``).
+    labels : dict, optional
+        Per-realisation summaries for the confound (``C``, ``N``, ``Y``,
+        ``a_mean``, ...), same order as ``ids``.
+    seed, test_fraction, bp_quantiles
+        The split definition (:data:`SPLIT_SEED`, :data:`TEST_FRACTION`,
+        :data:`BP_BAND_QUANTILES`).
+    confound_seeds : sequence of int, optional
+        Seeds for the random-split confound reference.
+    source : str, optional
+        Provenance text stored in the file.
+
+    Returns
+    -------
+    dict
+        JSON-ready: the ids, the random and B_p-band held-out ids, the band
+        edges, the per-realisation ``B_p`` means, the geometry **rule**, and
+        the confound (with a random-split reference band).
+
+    Raises
+    ------
+    ValueError
+        On bad fractions or quantiles, mismatched lengths, or an empty side.
     """
+    ids = np.asarray(ids, dtype=int)
+    B_p_mean = np.asarray(B_p_mean, dtype=float)
+    labels = dict(labels or {})
+    if ids.ndim != 1 or B_p_mean.shape != ids.shape:
+        raise ValueError("build_splits: ids and B_p_mean must be 1-D, same length")
+    if np.unique(ids).size != ids.size:
+        raise ValueError("build_splits: ids must be unique")
+    if not 0.0 < test_fraction < 1.0:
+        raise ValueError(
+            f"build_splits: test_fraction must lie in (0, 1); got {test_fraction}"
+        )
+    lo_q, hi_q = bp_quantiles
+    if not 0.0 <= lo_q < hi_q <= 1.0:
+        raise ValueError(
+            f"build_splits: bp_quantiles must satisfy 0 <= lo < hi <= 1; "
+            f"got {bp_quantiles}"
+        )
+    order = np.argsort(ids)
+    ids, B_p_mean = ids[order], B_p_mean[order]
+    labels = {k: np.asarray(v, dtype=float)[order] for k, v in labels.items()}
+    columns = labels | {"B_p_mean": B_p_mean}
+
+    held_random = _random_held(ids, seed, test_fraction)
+    band_lo, band_hi = (float(v) for v in np.quantile(B_p_mean, [lo_q, hi_q]))
+    held_band = ids[(B_p_mean >= band_lo) & (B_p_mean <= band_hi)]
+    for name, held in (("realisation", held_random), ("bp_band", held_band)):
+        if held.size in (0, ids.size):
+            raise ValueError(f"build_splits: the {name!r} split has an empty side")
+
+    def confound(held):
+        test = np.isin(ids, held)
+        return {k: _median_ratio(v, test) for k, v in columns.items()}
+
+    reference: dict[str, list[float]] = {}
+    for s in confound_seeds:
+        for k, v in confound(_random_held(ids, int(s), test_fraction)).items():
+            reference.setdefault(k, []).append(v)
+    corr = (
+        float(np.corrcoef(np.log(B_p_mean), np.log(labels["C"]))[0, 1])
+        if "C" in labels
+        else float("nan")
+    )
+    return {
+        "version": SPLITS_VERSION,
+        "source": source,
+        "realisations": ids.tolist(),
+        "seed": int(seed),
+        "test_fraction": float(test_fraction),
+        "bp_band_quantiles": [float(lo_q), float(hi_q)],
+        "B_p_mean": B_p_mean.tolist(),
+        "realisation": {"test": held_random.tolist()},
+        "bp_band": {"lo": band_lo, "hi": band_hi, "test": held_band.tolist()},
+        "geometry": {
+            "rule": (
+                "held out: theta_v_air >= 80 or theta_s >= 80 (degrees, "
+                "above-water angles); everything else trains"
+            ),
+            "held_min_deg": GEOMETRY_HOLDOUT_MIN,
+        },
+        "confound": {
+            "corr_log_B_p_log_C": corr,
+            "realisation": confound(held_random),
+            "bp_band": confound(held_band),
+            "random_reference": {
+                k: [float(np.median(v)), float(np.min(v)), float(np.max(v))]
+                for k, v in reference.items()
+            },
+            "random_reference_seeds": [int(s) for s in confound_seeds],
+        },
+    }
+
+
+def write_splits(path, content: dict) -> Path:
+    """Write a :func:`build_splits` dict as deterministic JSON (sorted keys).
+
+    Returns
+    -------
+    pathlib.Path
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(content, indent=1, sort_keys=True) + "\n"
+    tmp = path.with_suffix(path.suffix + ".partial")
+    tmp.write_text(text)
+    os.replace(tmp, path)
+    return path
+
+
+def read_splits(path=None) -> dict:
+    """Read a splits file (default :data:`DEFAULT_SPLITS_FILE`).
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file is absent.
+    ValueError
+        On a version mismatch.
+    """
+    path = Path(DEFAULT_SPLITS_FILE if path is None else path)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"{path}: no PB24 splits file (build it with design/py/make_pb24_splits.py)"
+        )
+    content = json.loads(path.read_text())
+    if content.get("version") != SPLITS_VERSION:
+        raise ValueError(
+            f"{path}: splits version {content.get('version')}, expected "
+            f"{SPLITS_VERSION}"
+        )
+    return content
+
+
+def _per_realisation_B_p(batch: PB24Batch) -> tuple[np.ndarray, np.ndarray]:
+    """Mean ``B_p`` per realisation in the batch, and the ids it belongs to."""
     B_p = np.asarray(batch.phase_params.B_p).mean(axis=-1)
     realisations = np.unique(batch.realisation)
     means = np.array([B_p[batch.realisation == index].mean() for index in realisations])
@@ -1259,12 +1904,7 @@ def _per_realisation_B_p(batch: PB24Batch) -> tuple[np.ndarray, np.ndarray]:
 def _confound(
     batch: PB24Batch, train: np.ndarray, test: np.ndarray
 ) -> dict[str, float]:
-    """``test/train`` ratio of median labels and IOP summaries across a split.
-
-    Everything a split moves *other* than the thing it meant to move. Medians
-    rather than means because PB24's label distributions are heavy-tailed (``C``
-    reaches 938 mg m^-3), where a mean would report one realisation's opinion.
-    """
+    """``test/train`` ratio of median labels and IOP summaries across a split."""
     out: dict[str, float] = {}
     columns = dict(batch.labels)
     a = np.asarray(batch.iops.a).mean(axis=-1)
@@ -1283,43 +1923,31 @@ def make_splits(
     batch: PB24Batch,
     *,
     kinds: tuple[str, ...] = DEFAULT_SPLIT_KINDS,
-    seed: int = SPLIT_SEED,
-    test_fraction: float = TEST_FRACTION,
-    bp_quantiles: tuple[float, float] = BP_BAND_QUANTILES,
+    path=None,
 ) -> Splits:
-    """Build M5's held-out splits over a PB24 batch.
+    """Map the saved PB24 splits onto a batch.
 
-    Three kinds, each answering a different question:
+    The partitions are fixed once over all 5000 realisations, by id, in
+    :data:`DEFAULT_SPLITS_FILE` (Q14; M5 gotcha: a seed names a procedure,
+    not a partition, once the realisation set changes). This loads that file:
 
     ``"realisation"``
-        Random ``test_fraction`` of realisations, held out **whole**. Every
-        geometry of a held-out water body goes with it -- splitting per sample
-        would leak, since the same IOPs appear at 832 geometries. M4's scene
-        split, transplanted.
+        The saved random ``TEST_FRACTION`` of realisations, held out **whole**.
     ``"bp_band"``
-        An interior band of per-realisation mean ``B_p``
-        (:data:`BP_BAND_QUANTILES`), held out whole. **The reason M5 exists**: it
-        converts "phase-function generalisation untested" into a number. Read its
+        The saved interior band of per-realisation mean ``B_p``
+        (:data:`BP_BAND_QUANTILES` over all 5000), held out whole. Read its
         :attr:`SplitReport.confound` before quoting the result.
     ``"geometry"``
-        Train on Q14's window, test on the 80/87.75 shell. The direct successor
-        to M4's unseen-60 split -- the half the prototype lost -- so a bad number
-        here is information, not a failure.
+        The rule ``theta_v_air >= 80`` or ``theta_s >= 80`` held out, the window
+        trains. Needs an air batch loaded with ``angles="all"`` (or the shell).
 
     Parameters
     ----------
     batch : PB24Batch
-        The batch to split.
     kinds : tuple of str, optional
-        Which splits to build; defaults to :data:`DEFAULT_SPLIT_KINDS`.
-        ``"geometry"`` requires a batch loaded with ``angles="all"``.
-    seed : int, optional
-        Seed for the random draw; defaults to :data:`SPLIT_SEED`.
-    test_fraction : float, optional
-        Fraction of realisations held out by ``"realisation"``.
-    bp_quantiles : tuple of float, optional
-        ``(lo, hi)`` quantiles of per-realisation mean ``B_p`` held out by
-        ``"bp_band"``.
+        Defaults to :data:`DEFAULT_SPLIT_KINDS`.
+    path : str or pathlib.Path, optional
+        The splits file; default :data:`DEFAULT_SPLITS_FILE`.
 
     Returns
     -------
@@ -1328,11 +1956,10 @@ def make_splits(
     Raises
     ------
     ValueError
-        On an unknown kind, an out-of-range fraction or quantile pair, or **any
-        split whose test or train side would be empty**. An empty side is the
-        failure mode that matters here: it does not crash, it silently scores
-        nothing and reports a perfect number, which is exactly how the geometry
-        split would behave on a default (window-only) load.
+        On an unknown kind; a batch with a realisation the file does not
+        cover; a geometry split on an ``"in_water_only"`` batch; or **any split
+        whose test or train side would be empty** on this batch (an empty side
+        scores nothing and reports success).
     """
     unknown = tuple(k for k in kinds if k not in SPLIT_KINDS)
     if unknown:
@@ -1342,59 +1969,62 @@ def make_splits(
         )
     if not kinds:
         raise ValueError("make_splits: `kinds` selects nothing")
-    if not 0.0 < test_fraction < 1.0:
-        raise ValueError(
-            f"make_splits: test_fraction must lie in (0, 1); got {test_fraction}"
-        )
-    lo_q, hi_q = bp_quantiles
-    if not 0.0 <= lo_q < hi_q <= 1.0:
-        raise ValueError(
-            f"make_splits: bp_quantiles must satisfy 0 <= lo < hi <= 1; "
-            f"got {bp_quantiles}"
-        )
 
-    realisations, bp_mean = _per_realisation_B_p(batch)
+    content = read_splits(path)
+    file_ids = np.asarray(content["realisations"], dtype=int)
+    realisations = np.unique(batch.realisation)
+    outside = np.setdiff1d(realisations, file_ids)
+    if outside.size:
+        raise ValueError(
+            f"make_splits: realisations {outside[:10].tolist()} are not in the "
+            f"splits file {path or DEFAULT_SPLITS_FILE}"
+        )
+    bp_file = dict(zip(file_ids.tolist(), content["B_p_mean"], strict=True))
+
     masks: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     reports: dict[str, SplitReport] = {}
-
     for kind in kinds:
         if kind == "realisation":
-            n_test = max(1, int(round(test_fraction * realisations.size)))
-            drawn = np.random.default_rng(seed).permutation(realisations)
-            held = np.sort(drawn[:n_test])
+            held = np.asarray(content["realisation"]["test"], dtype=int)
             test = np.isin(batch.realisation, held)
+            n_held = int(np.isin(realisations, held).sum())
             detail = {
-                "n_realisation_held": float(held.size),
-                "test_fraction_requested": float(test_fraction),
-                "test_fraction_realised": float(held.size / realisations.size),
+                "n_realisation_held": float(n_held),
+                "test_fraction_file": float(content["test_fraction"]),
+                "test_fraction_batch": float(n_held / realisations.size),
             }
         elif kind == "bp_band":
-            lo, hi = np.quantile(bp_mean, [lo_q, hi_q])
-            held = realisations[(bp_mean >= lo) & (bp_mean <= hi)]
+            held = np.asarray(content["bp_band"]["test"], dtype=int)
+            lo, hi = content["bp_band"]["lo"], content["bp_band"]["hi"]
             test = np.isin(batch.realisation, held)
+            bp_mean = np.array([bp_file[int(i)] for i in realisations])
             trained_on = bp_mean[~np.isin(realisations, held)]
             detail = {
                 "B_p_band_lo": float(lo),
                 "B_p_band_hi": float(hi),
-                # The train side is *both tails*, so quoting only its range would
-                # imply it straddles the band. These say so explicitly.
-                "B_p_train_lo": float(trained_on.min()),
-                "B_p_train_hi": float(trained_on.max()),
+                "B_p_train_lo": float(trained_on.min())
+                if trained_on.size
+                else float("nan"),
+                "B_p_train_hi": float(trained_on.max())
+                if trained_on.size
+                else float("nan"),
                 "n_train_inside_band": float(
                     int(((trained_on >= lo) & (trained_on <= hi)).sum())
                 ),
-                "n_realisation_held": float(held.size),
+                "n_realisation_held": float(int(np.isin(realisations, held).sum())),
                 "B_p_span_all": float(bp_mean.max() / bp_mean.min()),
             }
         else:  # "geometry"
-            # A sample is "beyond the window" if *either* zenith is, so the
-            # quantity that decides the split is the larger of the two. Report
-            # that, not the two axes separately: the max of theta_s alone would
-            # read 70 in the test set and look like no extrapolation at all.
+            if batch.in_water_only:
+                raise ValueError(
+                    "make_splits: the geometry split is defined in above-water "
+                    "angles; an 'in_water_only' batch's theta_v is in-water"
+                )
+            cut = float(content["geometry"]["held_min_deg"])
+            test = (batch.theta_s >= cut) | (batch.theta_v >= cut)
             worst = np.maximum(batch.theta_s, batch.theta_v)
-            test = worst > ANGLE_WINDOW_MAX
-            held = realisations
             detail = {
+                "held_min_deg": cut,
                 "worst_angle_max_train": float(worst[~test].max())
                 if (~test).any()
                 else float("nan"),
@@ -1413,7 +2043,8 @@ def make_splits(
                 " -- the batch was loaded with angles='window', which holds no "
                 "shell samples; load with angles='all' for this split"
                 if kind == "geometry"
-                else ""
+                else " -- this batch's realisations all fall on one side of the "
+                "saved split; load realisations from both sides"
             )
             raise ValueError(
                 f"make_splits: the {kind!r} split leaves its {side} side empty"
@@ -1431,7 +2062,12 @@ def make_splits(
             confound=_confound(batch, train, test),
         )
 
-    return Splits(masks=masks, reports=reports, seed=seed)
+    return Splits(
+        masks=masks,
+        reports=reports,
+        seed=int(content["seed"]),
+        path=str(path or DEFAULT_SPLITS_FILE),
+    )
 
 
 def confound_reference(
@@ -1442,38 +2078,28 @@ def confound_reference(
 ) -> dict[str, tuple[float, float, float]]:
     """What a *random* hold-out of the same size does to the same labels.
 
-    The yardstick :attr:`SplitReport.confound` needs. On its own a ratio like
-    ``C = 1.5`` is uninterpretable: PB24's label distributions are heavy-tailed,
-    so a purely random draw of 20% of realisations moves the median chlorophyll
-    over roughly ``[0.53, 1.90]`` (12 seeds, 600 realisations). Only a shift
-    outside that band is attributable to the split's own criterion.
-
-    Parameters
-    ----------
-    batch : PB24Batch
-        The batch the comparison is about.
-    test_fraction : float, optional
-        Hold-out size, matching the split being judged.
-    seeds : sequence of int, optional
-        Random seeds to average over. More seeds, tighter band.
+    Drawn over the batch's own realisations, in memory (not from the splits
+    file): the yardstick :attr:`SplitReport.confound` needs, since PB24's label
+    distributions are heavy-tailed and a random 20% already moves medians a
+    long way. ``B_p_mean`` is the useful entry: a random draw holds it near 1.
 
     Returns
     -------
     dict
         ``{label: (median, min, max)}`` of the ``test/train`` ratio across seeds.
-
-    Notes
-    -----
-    ``B_p_mean`` is the useful entry: a random draw holds it near 1 (measured
-    ``[0.98, 1.08]``), so a departure there means something, while the other
-    labels need this reference to be read at all.
     """
+    if not 0.0 < test_fraction < 1.0:
+        raise ValueError(
+            f"confound_reference: test_fraction must lie in (0, 1); got {test_fraction}"
+        )
+    realisations = np.unique(batch.realisation)
     collected: dict[str, list[float]] = {}
     for seed in seeds:
-        report = make_splits(
-            batch, kinds=("realisation",), seed=int(seed), test_fraction=test_fraction
-        ).reports["realisation"]
-        for name, value in report.confound.items():
+        held = _random_held(realisations, int(seed), test_fraction)
+        test = np.isin(batch.realisation, held)
+        if not test.any() or test.all():
+            continue
+        for name, value in _confound(batch, ~test, test).items():
             collected.setdefault(name, []).append(value)
     return {
         name: (float(np.median(v)), float(np.min(v)), float(np.max(v)))
@@ -1484,61 +2110,30 @@ def confound_reference(
 def fit_transfer(
     batch: PB24Batch, train: np.ndarray, *, provenance: str = ""
 ) -> conventions.SurfaceTransfer:
-    """Fit a surface transfer on a batch's **own training rows**.
+    """Fit M5's tabulated surface transfer on a batch's **own training rows**.
 
-    The packaged table (:func:`robust.rt.conventions.default_transfer`) was
-    fitted under one 400-realisation split while its consumers split 200 and 800
-    -- and :func:`make_splits` permutes whatever realisation set it is given, so
-    ``SPLIT_SEED`` names a *procedure*, not a partition. 31 of one consumer's 40
-    held-out realisations turned out to be in the shipped table's training set
-    (``design/m5_report.md`` §6). The bias favoured the rival, so the conclusions
-    survived, but "survived" is not "measured".
-
-    The fix is for every consumer to fit its own table on its own ``train`` mask,
-    and this function exists so that is a single call rather than five lines each
-    consumer could get subtly wrong. A held-out geometry or realisation that the
-    transfer never saw is then genuinely held out.
-
-    Parameters
-    ----------
-    batch : PB24Batch
-        The batch being scored.
-    train : numpy.ndarray
-        Boolean training mask over ``batch.n_sample`` -- the *same* mask the
-        consumer fits its models on, restrictions included.
-    provenance : str, optional
-        Overrides the generated description. The default records the number and
-        range of training realisations and the grid shape, which is what makes a
-        later overlap check possible at all.
-
-    Returns
-    -------
-    robust.rt.conventions.SurfaceTransfer
+    Kept for M5's scripts and its regression tests. Under the M8 sample
+    definition the table maps ``rrs(theta_w)`` to ``Rrs(theta_air)`` on the
+    above-water grid; task 4 replaces it with a Fresnel-based transfer.
 
     Raises
     ------
     ValueError
         Propagated from :func:`robust.rt.conventions.fit_surface_transfer` when a
-        grid cell in the *selected* rows has no samples. A restriction that
-        empties a cell is a real problem -- the table would interpolate across
-        the hole silently -- so it is raised rather than filled.
-
-    Notes
-    -----
-    The grid is built from the angles **present in** ``train``, not from the
-    batch's full grid. That is deliberate: under a geometry split the held-out
-    nodes must not appear in the table, or the split would leak. Scoring at those
-    angles then interpolates or clamps, which is what asking a fitted table about
-    an unseen geometry honestly costs.
+        grid cell in the *selected* rows has no samples.
     """
+    if batch.in_water_only:
+        raise ValueError("fit_transfer: an 'in_water_only' batch has no Rrs")
     sub = select(batch, train)
     if not provenance:
         ids = np.unique(sub.realisation)
         n_cell = np.unique(
             np.stack([sub.theta_s, sub.theta_v, sub.dphi], axis=1), axis=0
         ).shape[0]
+        resolution = batch.report.resolution if batch.report else DEFAULT_RESOLUTION
         provenance = (
-            f"PB24 OLCI, {ids.size} training realisations "
+            f"PB24 {resolution} (above-water geometry, rrs at theta_w), "
+            f"{ids.size} training realisations "
             f"({ids.min()}-{ids.max()}), {n_cell} geometry cells, "
             f"{sub.n_sample} samples; one lstsq per cell"
         )
