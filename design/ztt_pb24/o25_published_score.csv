@@ -1,0 +1,68 @@
+model,cut,n_points,median_abs_rel_pct,q90_abs_rel_pct
+O25 published (calibrated on all 5000),window,49920000,3.8697,17.7125
+O25 published (calibrated on all 5000),shell,28080000,6.9664,26.3410
+O25 published (calibrated on all 5000),all,78000000,4.6808,22.0506
+O25 published (calibrated on all 5000),theta_v=0,7800000,3.3761,14.8165
+O25 published (calibrated on all 5000),theta_v=10,7800000,3.5073,15.5466
+O25 published (calibrated on all 5000),theta_v=20,7800000,3.7809,17.0147
+O25 published (calibrated on all 5000),theta_v=30,7800000,4.1177,18.7915
+O25 published (calibrated on all 5000),theta_v=40,7800000,4.6730,21.4568
+O25 published (calibrated on all 5000),theta_v=50,7800000,5.1856,23.5233
+O25 published (calibrated on all 5000),theta_v=60,7800000,5.6275,25.2022
+O25 published (calibrated on all 5000),theta_v=70,7800000,6.1563,26.7440
+O25 published (calibrated on all 5000),theta_v=80,7800000,6.4930,27.8625
+O25 published (calibrated on all 5000),theta_v=87.5,7800000,6.2789,26.0904
+O25 published (calibrated on all 5000),theta_s=0,7800000,3.4641,16.1534
+O25 published (calibrated on all 5000),theta_s=10,7800000,3.5327,16.2997
+O25 published (calibrated on all 5000),theta_s=20,7800000,3.7178,17.0191
+O25 published (calibrated on all 5000),theta_s=30,7800000,3.9588,18.5206
+O25 published (calibrated on all 5000),theta_s=40,7800000,4.3352,20.8137
+O25 published (calibrated on all 5000),theta_s=50,7800000,4.6819,22.3748
+O25 published (calibrated on all 5000),theta_s=60,7800000,5.0816,23.6702
+O25 published (calibrated on all 5000),theta_s=70,7800000,5.6802,24.2885
+O25 published (calibrated on all 5000),theta_s=80,7800000,7.8652,26.2403
+O25 published (calibrated on all 5000),theta_s=87.75,7800000,7.6792,26.6399
+O25 published (calibrated on all 5000),"window, theta_v=0",6240000,2.9103,11.4378
+O25 published (calibrated on all 5000),"window, theta_v=10",6240000,3.0230,11.9336
+O25 published (calibrated on all 5000),"window, theta_v=20",6240000,3.2865,13.2359
+O25 published (calibrated on all 5000),"window, theta_v=30",6240000,3.6202,15.1795
+O25 published (calibrated on all 5000),"window, theta_v=40",6240000,4.1837,18.3162
+O25 published (calibrated on all 5000),"window, theta_v=50",6240000,4.7279,20.9757
+O25 published (calibrated on all 5000),"window, theta_v=60",6240000,5.2113,23.2341
+O25 published (calibrated on all 5000),"window, theta_v=70",6240000,5.7799,25.5029
+O25 paper-recipe refit (calibrated on all 5000),window,49920000,3.8790,17.7214
+O25 paper-recipe refit (calibrated on all 5000),shell,28080000,6.9838,26.3476
+O25 paper-recipe refit (calibrated on all 5000),all,78000000,4.6931,22.0593
+O25 paper-recipe refit (calibrated on all 5000),theta_v=0,7800000,3.3818,14.8298
+O25 paper-recipe refit (calibrated on all 5000),theta_v=10,7800000,3.5150,15.5581
+O25 paper-recipe refit (calibrated on all 5000),theta_v=20,7800000,3.7908,17.0264
+O25 paper-recipe refit (calibrated on all 5000),theta_v=30,7800000,4.1296,18.8025
+O25 paper-recipe refit (calibrated on all 5000),theta_v=40,7800000,4.6862,21.4664
+O25 paper-recipe refit (calibrated on all 5000),theta_v=50,7800000,5.2002,23.5325
+O25 paper-recipe refit (calibrated on all 5000),theta_v=60,7800000,5.6425,25.2104
+O25 paper-recipe refit (calibrated on all 5000),theta_v=70,7800000,6.1716,26.7512
+O25 paper-recipe refit (calibrated on all 5000),theta_v=80,7800000,6.5074,27.8697
+O25 paper-recipe refit (calibrated on all 5000),theta_v=87.5,7800000,6.2918,26.0976
+O25 paper-recipe refit (calibrated on all 5000),theta_s=0,7800000,3.4740,16.1627
+O25 paper-recipe refit (calibrated on all 5000),theta_s=10,7800000,3.5421,16.3092
+O25 paper-recipe refit (calibrated on all 5000),theta_s=20,7800000,3.7276,17.0280
+O25 paper-recipe refit (calibrated on all 5000),theta_s=30,7800000,3.9696,18.5299
+O25 paper-recipe refit (calibrated on all 5000),theta_s=40,7800000,4.3464,20.8231
+O25 paper-recipe refit (calibrated on all 5000),theta_s=50,7800000,4.6920,22.3838
+O25 paper-recipe refit (calibrated on all 5000),theta_s=60,7800000,5.0922,23.6782
+O25 paper-recipe refit (calibrated on all 5000),theta_s=70,7800000,5.6925,24.2957
+O25 paper-recipe refit (calibrated on all 5000),theta_s=80,7800000,7.8858,26.2476
+O25 paper-recipe refit (calibrated on all 5000),theta_s=87.75,7800000,7.7008,26.6471
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=0",6240000,2.9130,11.4458
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=10",6240000,3.0268,11.9422
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=20",6240000,3.2925,13.2445
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=30",6240000,3.6285,15.1885
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=40",6240000,4.1945,18.3249
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=50",6240000,4.7415,20.9842
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=60",6240000,5.2246,23.2419
+O25 paper-recipe refit (calibrated on all 5000),"window, theta_v=70",6240000,5.7948,25.5097
+"O25 published, azimuth as O25's code labels it (wrong for PB24)",window,49920000,7.5807,22.3565
+"O25 published, azimuth as O25's code labels it (wrong for PB24)",shell,28080000,13.3654,40.5051
+"O25 published, azimuth as O25's code labels it (wrong for PB24)",all,78000000,9.2583,28.8222
+O25 published (calibrated on all 5000),"all, Rrs <= 0.06",76972857,4.7420,22.1647
+O25 paper-recipe refit (calibrated on all 5000),"all, Rrs <= 0.06",76972857,4.7549,22.1735

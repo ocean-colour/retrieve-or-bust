@@ -7,6 +7,10 @@ plan M3/M4) -- so the thing being beaten has to be in the repo, differentiable, 
 computed on identical data rather than quoted from a paper.
 
 Standard Gordon (1988) landed at M2; **O25** (Pitarch et al. 2025) joins at M4.
+Since M8 task 5 the *published* O25 LUTs are readable too
+(:func:`o25_published_table`, from the O25 checkout at ``$O25_DIR``; GPL-3.0, so
+never copied in), and :func:`fit_o25_table` can express the paper's recipe
+(``weighted=False``, ``rrs_max=0.06``, all samples).
 
 **PR05 is deliberately absent.** Its coefficients are a 4-D
 ``(theta_s, theta_v, dphi, gamma_b)`` lookup table that the paper does not print and
@@ -27,7 +31,10 @@ interchangeable is what lets M4 score all of them in one loop.
 
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
@@ -43,6 +50,13 @@ __all__ = [  # noqa: RUF022  - grouped by role
     "O25_L23_REFIT",
     "O25Table",
     "fit_o25_table",
+    "O25_DIR_ENV",
+    "O25_PUBLISHED_FILES",
+    "O25_PUBLISHED_THETA_S",
+    "O25_PUBLISHED_THETA_V",
+    "O25_PUBLISHED_DPHI",
+    "o25_checkout_dir",
+    "o25_published_table",
     "O25_RRS_CEILING",
     "o25_coefficients",
     "rrs_o25",
@@ -150,6 +164,8 @@ def Rrs_gordon(
 #: itself uses when it evaluates O25 on L23 (its Fig. 3). So every table and figure must
 #: call this **"O25 form, refit on L23"** — it is a strong benchmark, but it is not a
 #: statement about the published model, and it has seen our training data.
+#: (Since M8 task 5 the published LUTs are read at run time from the GPL-3.0
+#: checkout by :func:`o25_published_table`; they are still not stored here.)
 #:
 #: **The refit has no sensor-zenith or azimuth axis**, because L23 is nadir-only. The
 #: real O25 indexes all three geometry angles; ours indexes the solar zenith alone.
@@ -545,6 +561,7 @@ def fit_o25_table(
     train,
     weighted: bool = True,
     min_samples: int = 40,
+    rrs_max: float | None = None,
 ) -> O25Table:
     """Fit O25's coefficients at every ``(theta_s, theta_v, dphi)`` node.
 
@@ -569,8 +586,17 @@ def fit_o25_table(
         ``False`` reproduces the paper's unweighted objective -- worth ~4x, so
         the fair one is the default (record §6.7).
     min_samples : int, optional
-        Refuse a cell with fewer than this many points. Four coefficients from a
-        handful of samples is noise wearing a benchmark's clothes.
+        Refuse a cell with fewer than this many points (counted after the
+        ``rrs_max`` cut). Four coefficients from a handful of samples is noise
+        wearing a benchmark's clothes.
+    rrs_max : float, optional
+        Keyword-only (M8 task 5). When given, drop every **point** (one sample
+        at one band) whose reference ``Rrs`` exceeds it, before the fit. The cut
+        is per point, not per spectrum: the paper aggregates the
+        ``(omega_bw, omega_bp) -> Rrs`` points "irrespective of the wavelength"
+        (Pitarch et al. 2025 §2.2) and fits "up to Rrs = 0.06 sr^-1". ``None``
+        (the default) keeps every point, bit-identical to the function before
+        the option existed.
 
     Returns
     -------
@@ -580,6 +606,23 @@ def fit_o25_table(
     ------
     ValueError
         If any node cell is empty or under-populated.
+
+    Notes
+    -----
+    **The paper's recipe** (Pitarch et al. 2025 §2.2, reproduced in M8 task 5
+    by ``design/py/reproduce_o25.py``) is::
+
+        fit_o25_table(iops, Rrs, geometry,
+                      train=np.ones(n_sample, bool),   # every sample at every node
+                      weighted=False,                   # unweighted LSQ in Rrs
+                      rrs_max=O25_RRS_CEILING)          # points with Rrs > 0.06 out
+
+    on the PB24 **OLCI** set (12 bands, all 5000 realisations, all 1300
+    geometries), which gives each node its own fit on <= 60,000 points. An
+    all-``True`` ``train`` is how "every node fitted on all samples at that node"
+    is spelled: the mask stays required so that fitting on a test split is
+    always a visible choice. The published O25 was calibrated that way, so it
+    has seen every PB24 test set.
     """
     a = np.asarray(iops.a)
     bb_w = np.asarray(iops.bb_w)
@@ -608,6 +651,9 @@ def fit_o25_table(
             [w_bw[mask], w_bw[mask] ** 2, w_bp[mask], w_bp[mask] ** 2], axis=-1
         ).reshape(-1, 4)
         target = Rrs[mask].reshape(-1)
+        if rrs_max is not None:
+            keep = target <= rrs_max
+            design, target = design[keep], target[keep]
         if target.size < min_samples:
             thin.append((int(cell), int(target.size)))
             continue
@@ -640,5 +686,189 @@ def fit_o25_table(
             f"fitted on {int(train.sum())} samples, "
             f"{'weighted' if weighted else 'unweighted'}, "
             f"{shape[0]}x{shape[1]}x{shape[2]} nodes"
+            + ("" if rrs_max is None else f", points with Rrs > {rrs_max} dropped")
         ),
+    )
+
+
+# ------------------------------------------------ O25 as published (M8 task 5) -
+
+#: str: Environment variable naming the O25 checkout (github.com/jaipipor/O25).
+O25_DIR_ENV = "O25_DIR"
+
+#: The four published LUT files, in :class:`O25Table`'s coefficient order
+#: ``(Gw0, Gw1, Gp0, Gp1)``. Note the file names put the order digit first
+#: (``G0w`` is ``Gw0``), so this is *not* the alphabetical order.
+O25_PUBLISHED_FILES = ("G0w.txt", "G1w.txt", "G0p.txt", "G1p.txt")
+
+#: The published LUT's solar-zenith nodes, which are PB24's: 0-80 by 10 and
+#: 87.75. O25's own code labels the last node 87.5 (``get_G_O25_4D.py``); the
+#: PB24 files say 87.75, and the label only matters between 80 and the last node.
+O25_PUBLISHED_THETA_S = (0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 87.75)
+
+#: The published LUT's above-water view-zenith nodes, PB24's: 0-80 by 10, 87.5.
+O25_PUBLISHED_THETA_V = (0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 87.5)
+
+#: The relative-azimuth nodes of :func:`o25_published_table`, **in PB24's
+#: convention** (``Geometry.dphi`` as the PB24 loader fills it): 0-180 by 15.
+O25_PUBLISHED_DPHI = tuple(float(v) for v in range(0, 181, 15))
+
+_O25_N_BLOCK, _O25_N_ROW, _O25_N_COL = 13, 10, 10
+
+
+def o25_checkout_dir(path=None) -> Path:
+    """Where the O25 checkout is expected.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path, optional
+        An explicit directory; wins over everything else.
+
+    Returns
+    -------
+    pathlib.Path
+        ``path`` if given, else ``$O25_DIR`` (:data:`O25_DIR_ENV`) if set, else
+        ``../O25`` beside the retrieve-or-bust checkout. Not checked for
+        existence (see :func:`o25_published_table`).
+
+    Notes
+    -----
+    The O25 repository is **GPL-3.0** and retrieve-or-bust is BSD-3, so its
+    files are read at run time from a separate checkout and never copied in
+    (``rt_fit_pb24.md`` Q17a).
+    """
+    if path is not None:
+        return Path(path)
+    env = os.environ.get(O25_DIR_ENV)
+    if env:
+        return Path(env)
+    return Path(__file__).resolve().parents[2].parent / "O25"
+
+
+def _checkout_commit(directory: Path) -> str:
+    """The checkout's ``HEAD`` commit (read-only ``git rev-parse``), or ``""``."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(directory), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def o25_published_table(path=None, *, azimuth: str = "pb24") -> O25Table:
+    """The published O25 LUTs (Pitarch et al. 2025) as an :class:`O25Table`.
+
+    Reads ``Data/G0w.txt``, ``G1w.txt``, ``G0p.txt`` and ``G1p.txt`` from the
+    O25 checkout at run time (nothing from that GPL-3.0 repository is stored
+    here) and returns them on PB24's nodes, so that ``Rrs_o25(...,
+    coeffs=o25_published_table())`` is the published forward model.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path, optional
+        The checkout (the directory holding ``Data/``); default
+        :func:`o25_checkout_dir`.
+    azimuth : {"pb24", "o25"}, optional
+        ``"pb24"`` (default) indexes the azimuth axis in PB24's convention, the
+        one :class:`~robust.rt.types.Geometry` carries for PB24 samples.
+        ``"o25"`` keeps the files' block order on the same node values, which is
+        how O25's own code labels it, and is **wrong** against PB24's ``dphi``
+        (kept for the M8 task 5 diagnosis and the positive control).
+
+    Returns
+    -------
+    O25Table
+        ``G`` of shape ``(10, 10, 13, 4)``: ``(theta_s, theta_v, dphi,
+        (Gw0, Gw1, Gp0, Gp1))``, nodes :data:`O25_PUBLISHED_THETA_S`,
+        :data:`O25_PUBLISHED_THETA_V`, :data:`O25_PUBLISHED_DPHI`. Provenance
+        names the checkout and its commit.
+
+    Raises
+    ------
+    FileNotFoundError
+        If any of the four files is missing, naming the path looked in and how
+        to point elsewhere.
+    ValueError
+        If a file is not 130 x 10, or ``azimuth`` is unknown.
+
+    Notes
+    -----
+    **The file layout, verified in M8 task 5** (from ``o25/Aux_functions/
+    get_G_O25_4D.py``, its MATLAB twin, and a refit on the OLCI set). Each file
+    is 130 rows x 10 whitespace-separated columns: **13 blocks of 10 rows**, one
+    block per relative azimuth in O25's convention, Δφ_O25 = 0, 15, ..., 180°;
+    within a block, **row = solar zenith** (0-80 by 10, 87.75) and **column =
+    above-water view zenith** (0-80 by 10, 87.5). So file row ``10 b + i``,
+    column ``j`` is ``G(theta_s[i], theta_v[j], Δφ_O25 = 15 b)``.
+
+    **The azimuth is mirrored relative to PB24.** PB24's ``phi`` is the
+    azimuth of radiance *propagation*, zero towards the sun, so ``phi = 0`` is a
+    sensor looking away from the sun (the backscattering hot spot). O25's
+    Δφ = 0 is "looking at the sun" (Pitarch et al. 2025, Fig. 8 caption). Hence
+    Δφ_O25 = 180° − φ_PB24, and with ``azimuth="pb24"`` block ``b`` sits at
+    ``dphi = 180 − 15 b``. Measured, not assumed: refitting the paper's recipe on
+    the OLCI set agrees with the files to < 0.07% at every node read this way,
+    and disagrees by a median 11% (max 94%) read the other way
+    (``design/ztt_pb24/o25_reproduction.md``). Mirroring is exact on this grid
+    (it is symmetric about 90°), so no interpolation is involved.
+
+    The published coefficients were calibrated on **all 5000** PB24
+    realisations, so every PB24 split's test set is in their training data;
+    every table that scores this model must say "calibrated on all 5000".
+    """
+    if azimuth not in ("pb24", "o25"):
+        raise ValueError(
+            f"o25_published_table: azimuth must be 'pb24' or 'o25'; got {azimuth!r}"
+        )
+    directory = o25_checkout_dir(path)
+    data = directory / "Data"
+    missing = [name for name in O25_PUBLISHED_FILES if not (data / name).is_file()]
+    if missing:
+        raise FileNotFoundError(
+            f"o25_published_table: {', '.join(missing)} not found in {data}. "
+            f"Clone https://github.com/jaipipor/O25 to {o25_checkout_dir()} "
+            f"(../O25 beside retrieve-or-bust) or set ${O25_DIR_ENV} to the "
+            "checkout."
+        )
+
+    blocks = []
+    for name in O25_PUBLISHED_FILES:
+        values = np.loadtxt(data / name, dtype=float)
+        expected = (_O25_N_BLOCK * _O25_N_ROW, _O25_N_COL)
+        if values.shape != expected:
+            raise ValueError(
+                f"o25_published_table: {data / name} is {values.shape}, expected "
+                f"{expected} (13 azimuth blocks of 10 theta_s rows x 10 theta_v)"
+            )
+        # (block, row = theta_s, col = theta_v) -> (theta_s, theta_v, block)
+        blocks.append(
+            values.reshape(_O25_N_BLOCK, _O25_N_ROW, _O25_N_COL).transpose(1, 2, 0)
+        )
+    G = np.stack(blocks, axis=-1)
+    if azimuth == "pb24":
+        G = G[:, :, ::-1]
+    G = np.ascontiguousarray(G)
+
+    commit = _checkout_commit(directory)
+    provenance = (
+        f"O25 published LUT (Pitarch et al. 2025), {directory}"
+        + (f" @ {commit}" if commit else " (commit unknown)")
+        + "; calibrated on all 5000 PB24 realisations (OLCI set); "
+        + (
+            "azimuth in PB24's convention (dphi = 180 - O25's)"
+            if azimuth == "pb24"
+            else "azimuth as O25's code labels it (NOT PB24's dphi)"
+        )
+    )
+    return O25Table(
+        theta_s=np.asarray(O25_PUBLISHED_THETA_S),
+        theta_v=np.asarray(O25_PUBLISHED_THETA_V),
+        dphi=np.asarray(O25_PUBLISHED_DPHI),
+        G=G,
+        provenance=provenance,
     )

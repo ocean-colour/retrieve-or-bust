@@ -231,6 +231,32 @@ def pb24_mixed_realisations(n: int) -> tuple[int, ...]:
     return tuple(sorted(out))
 
 
+def o25_checkout_available():
+    """Whether the O25 checkout (github.com/jaipipor/O25) holds the four G LUTs.
+
+    Looks where :func:`robust.rt.baselines.o25_checkout_dir` does: ``$O25_DIR``
+    if set, else ``../O25`` beside the repository. The checkout is GPL-3.0 and
+    is never copied into this repository (``rt_fit_pb24.md`` Q17a).
+
+    Returns
+    -------
+    bool
+        True when ``<checkout>/Data/G0w.txt``, ``G1w.txt``, ``G0p.txt`` and
+        ``G1p.txt`` all exist.
+    """
+    from robust.rt import baselines
+
+    data = baselines.o25_checkout_dir() / "Data"
+    return all((data / name).is_file() for name in baselines.O25_PUBLISHED_FILES)
+
+
+#: Skip a test that needs the published O25 LUTs (M8 task 5).
+needs_o25_checkout = pytest.mark.skipif(
+    not o25_checkout_available(),
+    reason="O25 checkout not available ($O25_DIR or ../O25 beside the repo)",
+)
+
+
 def pb24_hyp_available():
     """Whether the PB24 **hyperspectral** files are on disk under ``$OS_COLOR``.
 

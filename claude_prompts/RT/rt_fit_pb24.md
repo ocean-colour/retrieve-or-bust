@@ -1299,3 +1299,122 @@ Created from `rt_fit_ztt.md` task 8.
   - Do not rerun `fit_surface.py`.
 - No state-changing git command was run (read-only `git status`/`git diff`/
   `git log`, and `git archive HEAD|fb253f9 robust` into the scratchpad).
+
+### 2026-11-05 — Task 5: O25 reproduced and scored (Claude Opus 5.5)
+
+- **Nothing re-baselined.** No pin moved. L23 pins, the `mode="ztt"` pin and
+  the emulator SHA-256 are unchanged (in the green suite).
+- Read: this doc (Code, preamble, tasks 5–6, Q11, Q17, the Round 2/3 O25
+  notes, the task 1/3/4 logs); `baselines.py` (O25 half); `pb24.load_batch`;
+  conftest; the O25 checkout (`get_G_O25_4D.py`/`.m`, `O25_hyp.py`/`.m`,
+  `get_aw_bbw.py`); Pitarch et al. 2025 §2.2 and the Fig. 8 caption.
+  `~/Oceanography/python/O25` and `/mnt/tank/Oceanography/python/O25`
+  resolve to the same directory (commit `9978fad`).
+- **LUT layout, verified.** Each file is 130 × 10, made of 13 blocks of 10
+  rows. Blocks are O25's Δφ = 0…180 by 15, rows are θs (0–80, 87.75), columns
+  are above-water θv (0–80, 87.5). So row `10b+i`, col `j` is
+  G(θs_i, θv_j, Δφ_O25 = 15b). O25's docstrings say "13x13x10x4"; the arrays
+  are 10×10×13×4. Independent checks: the θv = 0 column is exactly azimuth-free
+  in the files (the θs = 0 rows are not), and only this reading reproduces.
+  G order: G0w→Gw0, G1w→Gw1, G0p→Gp0, G1p→Gp1.
+- **Azimuth convention: mirrored.** Δφ_O25 = 180° − φ_PB24. PB24's φ is the
+  propagation azimuth, 0 towards the sun (the sensor looks away from the sun).
+  O25's Δφ = 0 is "looking at the sun" (Fig. 8). The reader stores the table
+  in PB24's convention.
+- **Built.**
+  - `baselines`: `O25_DIR_ENV`, `O25_PUBLISHED_FILES`,
+    `O25_PUBLISHED_THETA_S/THETA_V/DPHI`, `o25_checkout_dir`,
+    `o25_published_table(path=None, *, azimuth="pb24"|"o25")`;
+    `fit_o25_table(..., rrs_max=None)` (per-point cut; docstring names the
+    paper's recipe: `train` all True, `weighted=False`, `rrs_max=0.06`).
+  - `design/py/reproduce_o25.py` (`--quick`, `--check`; deterministic npz).
+  - `design/ztt_pb24/o25_refit_lut.npz`, `o25_reproduction.csv/.md`,
+    `o25_published_score.csv/.md`.
+  - `robust/tests/test_o25_published.py` (15 tests); conftest
+    `needs_o25_checkout`.
+  - Record §7c.5 and module index.
+- **Decisions.**
+  - (i) The cut is per point (sample × band): the paper aggregates the points
+    "irrespective of the wavelength".
+  - (ii) The reproduction runs through `load_batch(resolution="olci",
+    angles="all")` with JAX x64 and through the package's `fit_o25_table`; no
+    hand-rolled fitter.
+  - (iii) The committed refit uses the files' own `bbw`, as specified. The
+    bw/2 variant is diagnosis only.
+  - (iv) Fresnel check and `validate` are off in the script (speed). The
+    script asserts no dropped samples and finite Rrs.
+  - (v) The npz is written with fixed zip timestamps so `--check` is byte for
+    byte.
+  - (vi) The score is in the same script, so `--check` covers its CSV.
+  - (vii) Licence: the reproduction CSV first carried the 5200 published
+    values (6 decimals) because the task asked for them. JXP decided
+    (2026-11-05) that this does not fit Q17(a): the CSV now holds our refit
+    and the point counts only, and the comparison with the published tables
+    is reported as quantiles in the markdown. Artefacts regenerated and
+    `--check` rerun after the change (Claude Fable 5.1).
+- **The prediction's outcome.**
+  - **Magnitude confirmed, mechanism not.** Under the mirrored azimuth, every
+    in-window node agrees to < 1% (max 0.069%; outside the window max 0.10%).
+    Read with O25's own labelling against PB24's φ, it fails: worst median
+    16.7%, max 168%.
+  - The residual is not float32 or the cut. It is a uniform +0.064% in Gw0.
+    The calibration used `bb_w = bw/2`, while the files carry
+    `bbw = 0.4992–0.4999 bw` (predicted shift +0.072%). With bw/2 the max is
+    0.020% and the median 0.0011%, at the files' 6-decimal floor.
+  - Per coefficient, window median/max: Gw0 0.064/0.069%, Gw1 0.027/0.066%,
+    Gp0 0.002/0.003%, Gp1 0.001/0.006%.
+  - 58,573–59,925 points per node survive the cut.
+- **Diagnosis** (window worst median / max):
+  - (a) unmirrored 16.7%/168%;
+  - (b) zenith swap 1.0%/9.2% (unmirrored 16.5%/168%);
+  - (c) θs-major blocks 19–21%/108–127%;
+  - (d) per-spectrum cut 3.5%/19%, no cut 31%/52%;
+  - (e) weighted 27.5%/157%;
+  - (f) 87.5 vs 87.75 label: ΔRrs = 0 at every sample;
+  - (g) bw/2 0.007%/0.013%.
+
+  The mirror closes the gap and (g) closes the residual. (a) and (b) are the
+  positive controls. The hypotheses were first run in a scratch probe, so they
+  are not blind forecasts.
+- **Published O25 scored** (OLCI, true IOPs, `Rrs`, |pred/true − 1|,
+  **calibrated on all 5000**), median / q90:
+  - window 3.87/17.7%, shell 6.97/26.3%, all 4.68/22.1%;
+  - our paper-recipe refit: 3.88/17.7, 6.98/26.3, 4.69/22.1. Same Rrs to
+    0.069% everywhere.
+  - Per θv_air in the window: 0° 2.91, 20° 3.29, 40° 4.18, 60° 5.21, 70° 5.78.
+  - Per θs: 0° 3.46, 60° 5.08, 80° 7.87.
+  - Using O25's unmirrored labelling would cost window 3.87 → 7.58% and shell
+    6.97 → 13.4%.
+  - 1.32% of points have Rrs > 0.06.
+- **Gates.**
+  - `reproduce_o25.py --check`: "o25_refit_lut.npz: byte-identical",
+    "o25_reproduction.csv: byte-identical", "o25_published_score.csv:
+    byte-identical", wall 550 s. The first full run took 525 s (load 60,
+    refit 89, four diagnosis refits 349, scoring 24); peak RSS 26 GB.
+  - Node-polynomial identity
+    (`test_rrs_o25_at_a_published_node_is_the_luts_own_polynomial`, rtol 1e-12,
+    `jax_x64`, NumPy reference): passed.
+- **Suite** (`python -m pytest robust/tests -q -p no:cacheprovider`):
+  - with the data: `849 passed, 5 skipped, 2 warnings in 277.73s (0:04:37)`;
+  - `env -u OS_COLOR`: `770 passed, 84 skipped, 4 warnings in 183.49s
+    (0:03:03)`;
+  - `env -u O25_DIR O25_DIR=/nonexistent` (with the data): `844 passed, 10
+    skipped, 2 warnings in 267.85s (0:04:27)`; the 5 extra skips are the 5
+    `needs_o25_checkout` tests.
+
+  `ruff check robust/ design/`: "All checks passed!"; `ruff format --check
+  robust/ design/`: "66 files already formatted".
+- **Surprises.**
+  - (1) The azimuth mirror (above).
+  - (2) The published LUT was calibrated with bw/2, not PB24's `bbw`.
+  - (3) O25's operational code (`get_aw_bbw.py`/`.m`) returns the water
+    table's third column, whose header says `bw(1/m)`, as `bbw`. The values
+    equal PB24's `bw`, so if the header is right, O25's BRDF inversion uses 2×
+    the water backscattering. This does not affect our use (we feed PB24's IOPs
+    to the forward model) and is not verified beyond the header. Flagged for
+    JXP.
+  - (4) O25's docstrings give the array shape as 13×13×10×4.
+  - (5) The θs = 0 rows vary with azimuth (≤ 0.004 absolute; wind-roughened
+    surface).
+- No state-changing git command was run (read-only `git status`, and
+  `git -C <O25> rev-parse HEAD` inside the reader).

@@ -3264,6 +3264,145 @@ from the digest of all ids or of train plus any one test id); streamed fit
 determinism; a held-out data test. Suite with the data 834 passed, 5 skipped;
 without `$OS_COLOR` 756 passed, 83 skipped.
 
+### 7c.5 Task 5 as built — O25 reproduced and scored
+
+**Nothing re-baselined.** No pin moved. `fit_o25_table` gained one
+keyword-only option whose `None` default is bit-identical (tested). The L23
+pins, the `mode="ztt"` pin and the emulator digest are untouched.
+
+**The published LUT, as verified.** The O25 checkout
+(`~/Oceanography/python/O25` = `/mnt/tank/Oceanography/python/O25`, commit
+`9978fad`, GPL-3.0) is read at run time and never copied in (Q17a). Each of
+`Data/G0w.txt`, `G1w.txt`, `G0p.txt`, `G1p.txt` is 130 rows × 10 columns:
+- **13 blocks of 10 rows, one per O25 relative azimuth** Δφ_O25 = 0, 15, …, 180°;
+- **row = θs** (0–80 by 10, 87.75);
+- **column = above-water θv** (0–80 by 10, 87.5).
+
+So file row `10b + i`, column `j` is G(θs_i, θv_j, Δφ_O25 = 15b). This was
+read from `get_G_O25_4D.py` and its MATLAB twin, whose docstrings say
+"13x13x10x4" where the arrays are 10×10×13×4. Two independent checks
+confirm it:
+- the θv = 0 column is exactly azimuth-free in the files (a nadir view is
+  HydroLight's polar cap), while the θs = 0 rows are not;
+- the refit agrees with the files only under this reading.
+
+**The azimuth is mirrored.** PB24's `phi` is the azimuth of radiance
+*propagation*, zero towards the sun (the sensor looks away from the sun). O25's
+Δφ = 0 is "looking at the sun" (Pitarch et al. 2025, Fig. 8). Hence
+**Δφ_O25 = 180° − φ_PB24**. `o25_published_table()` stores block `b` at
+`dphi = 180 − 15b`, in PB24's convention, which is what `Geometry.dphi` carries
+for PB24 samples. `azimuth="o25"` keeps O25's labelling for the diagnosis.
+O25's own code labels the last θs node 87.5; this has no effect at PB24's
+nodes (measured below).
+
+**API** (`baselines`):
+- `O25_DIR_ENV`, `O25_PUBLISHED_FILES` (in `O25Table` order Gw0, Gw1, Gp0, Gp1
+  = G0w, G1w, G0p, G1p);
+- `O25_PUBLISHED_THETA_S/THETA_V/DPHI`;
+- `o25_checkout_dir(path=None)`: explicit path, then `$O25_DIR`, then `../O25`
+  beside the repo;
+- `o25_published_table(path=None, *, azimuth="pb24")`: a `FileNotFoundError`
+  that names the path and `$O25_DIR`; a shape check; provenance with the
+  checkout's commit from a read-only `git rev-parse`;
+- `fit_o25_table(..., rrs_max=None)`: drops **points** (sample × band) with
+  `Rrs > rrs_max` before each node's lstsq, and `min_samples` counts after the
+  cut. The paper's recipe is
+  `fit_o25_table(train=np.ones(n, bool), weighted=False, rrs_max=0.06)`, as
+  documented.
+
+The cut is per point because the paper aggregates the (ω, Rrs) points
+"irrespective of the wavelength" (§2.2). The per-spectrum alternative is
+tested below and loses.
+
+**Reproduction** (`design/py/reproduce_o25.py`):
+- data: `load_batch(resolution="olci", angles="all")` in float64, all 5000
+  realisations × 1300 geometries × 12 bands = 78 M points, the files' own
+  water IOPs;
+- 58,573–59,925 points per node after the cut (of 60,000);
+- relative difference refit/published − 1 over nodes:
+
+| coefficient | window median | window max | outside median | outside max | signed median |
+|---|---|---|---|---|---|
+| Gw0 | 0.064% | 0.069% | 0.064% | 0.075% | +0.064% |
+| Gw1 | 0.027% | 0.066% | 0.019% | 0.096% | −0.021% |
+| Gp0 | 0.002% | 0.003% | 0.002% | 0.003% | −0.002% |
+| Gp1 | 0.001% | 0.006% | 0.002% | 0.013% | +0.001% |
+
+**The prediction's outcome.**
+- **Magnitude confirmed:** < 1% at every in-window node (max 0.069%), *after*
+  mirroring the azimuth. Read as O25's code labels it against PB24's φ, the
+  agreement fails badly: worst-coefficient median 16.7%, max 168%.
+- **Mechanism not confirmed.** The residual is neither float32 storage nor the
+  cut. It is a uniform +0.064% in Gw0, from the water backscattering. The
+  calibration used `bb_w = bw/2`, while the PB24 files carry
+  `bbw = (0.4992–0.4999) bw` (predicted Gw0 shift +0.072%). With bw/2 the
+  largest difference anywhere is 0.020% and the median 0.0011%, which is the
+  6-decimal floor of the text files. The committed LUT keeps the files' bbw,
+  as specified.
+
+**Diagnosis** (worst-coefficient median and max |rel. diff.|, window; outside max):
+
+| hypothesis | window median | window max | outside max |
+|---|---|---|---|
+| adopted (mirror) | 0.064% | 0.069% | 0.10% |
+| (a) unmirrored, O25's labelling | 16.7% | 168% | 283% |
+| (b) zenith swap (mirrored) | 1.01% | 9.2% | 255% |
+| (b) zenith swap, unmirrored | 16.5% | 168% | 314% |
+| (c) θs-major block order, mirrored / unmirrored | 19.4% / 21.0% | 108% / 127% | 285% / 299% |
+| (d) cut per spectrum | 3.45% | 19.0% | 23.8% |
+| (d′) no cut | 31.4% | 51.8% | 65.2% |
+| (e) relatively weighted | 27.5% | 157% | 297% |
+| (f) 87.5 vs 87.75 label | max \|ΔRrs\| = 0 at every θs = 87.75 sample | | |
+| (g) bb_w = bw/2 | 0.007% | 0.013% | 0.020% |
+
+(a) and (b) are also the positive controls. The hypotheses were first run in a
+scratch probe (300, then 5000 realisations) before the script re-measured
+them, so their "predicts" column in `o25_reproduction.md` is not blind.
+
+**The published O25 scored** (true IOPs in, `Rrs`, |pred/true − 1| over all
+points; **calibrated on all 5000**, so in-sample on every split):
+
+| cut | published median / q90 | paper-recipe refit median / q90 |
+|---|---|---|
+| window | 3.87% / 17.7% | 3.88% / 17.7% |
+| shell | 6.97% / 26.3% | 6.98% / 26.3% |
+| all | 4.68% / 22.1% | 4.69% / 22.1% |
+| all, Rrs ≤ 0.06 | 4.74% / 22.2% | 4.76% / 22.2% |
+
+Per θv_air in the window: 2.91% at 0°, 3.29% at 20°, 4.18% at 40°, 5.21% at
+60°, 5.78% at 70°. Per θs over all θv: 3.46% at 0°, 5.08% at 60°, 7.87% at 80°.
+The two models predict the same Rrs to 0.069% at every point. Indexing the
+published table with O25's unmirrored labelling against PB24's dphi costs
+window 3.87% → 7.58% and shell 6.97% → 13.4%. 1.32% of the points have
+Rrs > 0.06.
+
+**Artefacts** (`design/ztt_pb24/`):
+- `o25_refit_lut.npz` (39 kB, deterministic zip, our work on open data);
+- `o25_reproduction.csv` (1300 rows: our refit per coefficient, n_points,
+  dphi in both conventions; the published values and per-node differences are
+  deliberately absent, Q17a, and the `.md` carries the quantiles) and `.md`;
+- `o25_published_score.csv` and `.md`.
+
+`--check` recomputes and compares the CSVs and the LUT byte for byte. Wall
+time 525 s (load 60, refit 89, four diagnosis refits 349, scoring 24); peak
+RSS 26 GB.
+
+**Tests.** `test_o25_published.py` (15 tests):
+- the reader on synthetic files that encode their own (file, block, row, col);
+- the real layout against `np.loadtxt`;
+- the azimuth-free nadir column;
+- **the node-polynomial identity**: `Rrs_o25` at six published nodes equals
+  the files' polynomial to rtol 1e-12 under `jax_x64`;
+- the committed refit agrees with the files to < 0.1% in the window, while
+  unmirrored it is off by > 30%;
+- an OLCI positive control;
+- `rrs_max`: `None` is bit-identical, it matches a hand-made lstsq per node
+  bit for bit, it counts against `min_samples`, and it recovers a known table
+  through corrupted bright points;
+- checkout absent, `$O25_DIR` resolution, bad shape.
+
+Marker `needs_o25_checkout` in conftest.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -3406,7 +3545,8 @@ robust/
     hybrid.py          ✅ M3  forward()/rrs_forward(), MODES, DomainWarning,
                              on_out_of_domain policy (M4)
     validation.py      ✅ M4  rrms(); per-λ/zenith/B_p, throughput, grads
-    baselines.py       ✅ M4  standard Gordon + O25 refit (PR05: see §6.4)
+    baselines.py       ✅ M4  standard Gordon + O25 refit (PR05: see §6.4);
+                             M8: o25_published_table, fit_o25_table(rrs_max=) (§7c.5)
     files/
       emulator_l23.npz ✅ M3  trained MLP(16,16) weights (6.5 kB, committed)
   tests/
@@ -3431,6 +3571,7 @@ robust/
     test_pb24.py       ✅ M5; M8 60 tests — task 3 (above-water geometry)
     files/pb24_cache_small.zip ✅ M8 2.2 MB zip, 3 realisations, 4-D at every 10th band
     files/ztt_nadir_reference.npz ✅ M8 pre-task-4 nadir outputs (θv = 0 bit-identity gate)
+    test_o25_published.py ✅ M8 15 tests — task 5 (published LUT reader, rrs_max)
 
 design/py/
   train_emulator.py          ✅ M3 real training run (~60 s; --dry-run, --out)
@@ -3444,6 +3585,7 @@ design/py/
   check_pb24_geometry.py     ✅ M8 Fresnel check (all 5000) + interpolation error
   fit_surface_fresnel.py     ✅ M8 FresnelTransfer fit + held-out table (surface_fresnel.md/.csv); --check
   gen_ztt_nadir_reference.py ✅ M8 writes ztt_nadir_reference.npz (run on the pre-change tree)
+  reproduce_o25.py           ✅ M8 O25 paper-recipe refit vs published LUT + published score; --check
 design/ztt_l23/              ✅ M7 coefficients, metrics, probes, ladder, figures
 design/validation/
   metrics.md                 ✅ M4 every model x split, per zenith, per B_p bin
