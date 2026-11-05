@@ -24,9 +24,11 @@ Conventions, and one trap
 - **Zenith angles in the paper are in-water and measured from straight down**, so
   **nadir viewing is θv = 180°**, giving ``-cos(θv) = +1`` in the denominator
   (paper §2, after Equation (2)). :class:`robust.rt.types.Geometry` uses the
-  opposite and more usual convention, ``theta_v = 0`` for nadir, and its
-  ``theta_s`` is the *above-water* solar zenith as L23 reports it. Both conversions
-  happen in :func:`geometry_to_paper_angles`, in one place, because getting either
+  opposite and more usual convention, ``theta_v = 0`` for nadir, and both its
+  ``theta_s`` and (since M8 task 4) its ``theta_v`` are *above-water* angles, the
+  sun's as L23 reports it and the sensor's as PB24 tabulates ``Rrs``. All the
+  conversions (Snell for both zeniths, then the nadir flip) happen in
+  :func:`geometry_to_paper_angles`, in one place, because getting any of them
   backwards produces a plausible-looking BRDF that is wrong.
 - Snell: ``θs' = asin(1.34 sin θs)`` relates in-water ``θs`` to above-water ``θs'``
   (paper §2.1). The atmospheric terms want ``θs'``.
@@ -141,8 +143,10 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     "mu_inf_closure",
 ]
 
-#: Refractive index of seawater used for Snell refraction (paper §2.1).
-REFRACTIVE_INDEX = 1.34
+#: Refractive index of seawater used for Snell refraction (paper §2.1). The
+#: same constant as :data:`robust.rt.conventions.REFRACTIVE_INDEX` (1.34), which
+#: the Fresnel surface transfer uses.
+REFRACTIVE_INDEX = conventions.REFRACTIVE_INDEX
 
 #: Equation (4) — ``F(ψ) = fA1 ψ⁴ + fA2 ψ³ + fA3 ψ² + fA4 ψ + fA5``, ψ in
 #: **degrees** (Table A2). Highest order first, for ``jnp.polyval``.
@@ -253,15 +257,19 @@ def above_water_zenith(theta_s_water_deg):
 def in_water_zenith(theta_s_air_deg):
     """In-water solar zenith ``θs`` from above-water ``θs'`` — inverse Snell.
 
+    Plain Snell refraction, so it serves any direction: since M8 task 4
+    :func:`geometry_to_paper_angles` also uses it for the view zenith. Exactly
+    ``0`` at ``0`` (``asin(0) = 0``), which is what keeps nadir bit-identical.
+
     Parameters
     ----------
     theta_s_air_deg : Array
-        Above-water solar zenith angle (degrees), as L23 reports it.
+        Above-water zenith angle (degrees), as L23 reports it.
 
     Returns
     -------
     Array
-        In-water solar zenith angle (degrees).
+        In-water zenith angle (degrees).
     """
     sin_water = jnp.sin(jnp.deg2rad(jnp.asarray(theta_s_air_deg))) / REFRACTIVE_INDEX
     return jnp.rad2deg(jnp.arcsin(jnp.clip(sin_water, -1.0, 1.0)))
@@ -292,21 +300,33 @@ def scattering_angle(theta_s_water_deg, theta_v_paper_deg, dphi_deg):
     return jnp.rad2deg(jnp.arccos(jnp.clip(cos_psi, -1.0, 1.0)))
 
 
-def geometry_to_paper_angles(geometry):
+def geometry_to_paper_angles(geometry, *, theta_v_in_water: bool = False):
     """Translate a :class:`robust.rt.types.Geometry` into the paper's angles.
 
-    Two conversions, kept together because either one reversed yields a
+    Three conversions, kept together because any one reversed yields a
     wrong-but-plausible BRDF:
 
     1. ``theta_s`` is the **above-water** solar zenith (L23's convention); the
        paper's ``θs`` is **in-water**, so Snell refracts it.
-    2. ``theta_v = 0`` is nadir here; the paper's nadir is ``θv = 180°``, so
-       ``θv_paper = 180° - theta_v``.
+    2. ``theta_v`` is the **above-water** sensor zenith (M8 task 4,
+       ``rt_fit_pb24.md`` Q9a); the paper's ``θv`` is in-water, so Snell
+       refracts it too, ``θv_w = asin(sin θv / 1.34)``. Before M8 task 4 it was
+       used unrefracted, i.e. read as in-water.
+    3. ``theta_v = 0`` is nadir here; the paper's nadir is ``θv = 180°``, so
+       ``θv_paper = 180° - θv_w``.
+
+    At ``theta_v = 0`` step 2 returns exactly ``0``, so nadir (every L23
+    number) is bit-identical to the pre-task-4 result.
 
     Parameters
     ----------
     geometry : robust.rt.types.Geometry
         Angles in degrees, this package's convention.
+    theta_v_in_water : bool, optional
+        ``True`` reads ``theta_v`` as an **in-water** angle and skips its
+        refraction. Only for PB24's ``angles="in_water_only"`` batches, whose
+        in-water nodes 50-87.5° lie beyond the critical angle and have no
+        above-water direction (pass ``batch.in_water_only``). Default ``False``.
 
     Returns
     -------
@@ -315,7 +335,9 @@ def geometry_to_paper_angles(geometry):
     """
     theta_s_air = jnp.asarray(geometry.theta_s)
     theta_s_water = in_water_zenith(theta_s_air)
-    theta_v_paper = 180.0 - jnp.asarray(geometry.theta_v)
+    theta_v = jnp.asarray(geometry.theta_v)
+    theta_v_water = theta_v if theta_v_in_water else in_water_zenith(theta_v)
+    theta_v_paper = 180.0 - theta_v_water
     psi = scattering_angle(theta_s_water, theta_v_paper, jnp.asarray(geometry.dphi))
     return theta_s_water, theta_s_air, theta_v_paper, psi
 
@@ -720,7 +742,7 @@ def P3_cos(theta_s_air_deg):
     )
 
 
-def Md_plus(theta_s_air_deg, visibility_km: float = DEFAULT_VISIBILITY_KM):
+def Md_plus(theta_s_air_deg, visibility_km: float = DEFAULT_VISIBILITY_KM, *, H=None):
     """Equation (15) — the atmospheric/geometric part of ``µd``.
 
     ``M+_d = [ (1-H)/µw + H/0.859 ]⁻¹ P3[cos θs']`` with ``µw = cos θs'``: the
@@ -732,7 +754,15 @@ def Md_plus(theta_s_air_deg, visibility_km: float = DEFAULT_VISIBILITY_KM):
     theta_s_air_deg : Array
         Above-water solar zenith (degrees).
     visibility_km : float, optional
-        Horizontal visibility V (km).
+        Horizontal visibility V (km). Unused when ``H`` is given.
+    H : Array, optional
+        **M8 task 4** (``rt_fit_pb24.md`` Q10a). The diffuse fraction
+        ``1 - Edir/Ed`` supplied directly -- e.g. PB24's
+        ``1 - Esdir_Es_ratio``, which the loader puts in
+        ``Geometry.diffuse_fraction`` -- in place of TT's
+        :func:`diffuse_fraction` ``(θs', V)``. Any shape broadcastable with
+        ``theta_s_air_deg`` (a spectrum makes ``M+_d`` spectral). ``None``
+        (default) is TT's Equation (16), bit for bit.
 
     Returns
     -------
@@ -747,7 +777,7 @@ def Md_plus(theta_s_air_deg, visibility_km: float = DEFAULT_VISIBILITY_KM):
     # 0.79 the paper quotes; the in-water cosine reproduces 0.792 (and 0.936 at
     # 8 deg against their 0.94). A test pins both endpoints.
     mu_w = jnp.cos(jnp.deg2rad(in_water_zenith(theta)))
-    H = diffuse_fraction(theta, visibility_km)
+    H = diffuse_fraction(theta, visibility_km) if H is None else jnp.asarray(H)
     return P3_cos(theta) / ((1.0 - H) / mu_w + H / 0.859)
 
 
@@ -806,6 +836,7 @@ def mu_d(
     md_plus_corr=None,
     box=None,
     md_star_range=None,
+    H=None,
 ):
     """Equation (14) — ``µd ≈ M+_d(θs', V) × M*_d(bb/a, η_bb)``.
 
@@ -830,6 +861,9 @@ def mu_d(
         Input clamp for ``M*_d`` (:func:`Md_star`).
     md_star_range : sequence of float, optional
         Output bound for ``M*_d`` (:func:`Md_star`'s ``out_range``).
+    H : Array, optional
+        The diffuse fraction, in place of TT's ``H(θs', V)``; see
+        :func:`Md_plus`. ``None`` (default) is TT's, bit for bit.
 
     Returns
     -------
@@ -839,9 +873,10 @@ def mu_d(
     Notes
     -----
     With every keyword at its default this is exactly the published Equation
-    (14), bit for bit; the keywords exist for the refit variant (M7 task 3).
+    (14), bit for bit; the keywords exist for the refit variant (M7 task 3)
+    and the supplied diffuse fraction (M8 task 4).
     """
-    plus = Md_plus(theta_s_air_deg, visibility_km)
+    plus = Md_plus(theta_s_air_deg, visibility_km, H=H)
     if md_plus_corr is not None:
         plus = plus * md_plus_correction(theta_s_air_deg, md_plus_corr)
     return plus * Md_star(
@@ -1244,7 +1279,14 @@ def mu_infinity_l23_closure(bb_over_a, eta_bb):
     )
 
 
-def mu_d_l23(theta_s_air_deg, bb_over_a, eta_bb, visibility_km=DEFAULT_VISIBILITY_KM):
+def mu_d_l23(
+    theta_s_air_deg,
+    bb_over_a,
+    eta_bb,
+    visibility_km=DEFAULT_VISIBILITY_KM,
+    *,
+    H=None,
+):
     """µd from the L23 refit: TT's ``M+_d`` × c(θs') × refit ``M*_d``.
 
     Parameters
@@ -1254,6 +1296,12 @@ def mu_d_l23(theta_s_air_deg, bb_over_a, eta_bb, visibility_km=DEFAULT_VISIBILIT
     bb_over_a, eta_bb : Array
     visibility_km : float, optional
         Enters TT's ``M+_d`` only; the correction was fitted at L23's sky.
+    H : Array, optional
+        The diffuse fraction in place of TT's ``H(θs', V)`` inside ``M+_d``
+        (:func:`Md_plus`). M7's ``c(θs')`` still multiplies it: it was fitted
+        jointly with TT's H on L23, so with a supplied H it is a correction
+        for a different sky (whether to keep it is M8 task 7's question).
+        ``None`` (default) is bit for bit the M7 result.
 
     Returns
     -------
@@ -1269,6 +1317,7 @@ def mu_d_l23(theta_s_air_deg, bb_over_a, eta_bb, visibility_km=DEFAULT_VISIBILIT
         md_plus_corr=MD_PLUS_CORR_L23,
         box=ZTT_L23_BOX,
         md_star_range=MD_STAR_L23_RANGE,
+        H=H,
     )
 
 
@@ -1320,6 +1369,7 @@ def rrs_ZTT(
     variant: str = DEFAULT_VARIANT,
     mu_inf_model: str | None = None,
     mu_d_model: str | None = None,
+    theta_v_in_water: bool = False,
 ) -> Float[Array, "*batch wave"]:
     """Equation (12) — subsurface ``rrs`` from the ZTT model.
 
@@ -1335,8 +1385,12 @@ def rrs_ZTT(
     phase_params : robust.rt.types.PhaseParams
         ``B_p`` is the paper's ``b̃bp`` (Equation (11)).
     geometry : robust.rt.types.Geometry
-        Degrees, this package's convention; converted by
-        :func:`geometry_to_paper_angles`.
+        Degrees, this package's convention (``theta_v`` above-water since M8
+        task 4); converted by :func:`geometry_to_paper_angles`. If
+        ``geometry.diffuse_fraction`` is set it replaces TT's ``H(θs', V)`` in
+        µd (M8 task 4, Q10a); it must broadcast against the ``(..., n_wave)``
+        spectra -- ``(n_sample, n_wave)`` from the PB24 loader, ``(n_wave,)``
+        per sample under ``vmap``. ``None`` (default) is TT's H, bit for bit.
     wave : Array, optional
         Wavelengths (nm); defaults to the canonical grid.
     P_bb : Array, optional
@@ -1366,6 +1420,9 @@ def rrs_ZTT(
     mu_d_model : {"l23", "tt2017"}, optional
         Override the variant's µd alone (:data:`MU_D_MODELS`). The Pbb choice
         has its own override, ``P_bb``.
+    theta_v_in_water : bool, optional
+        Read ``geometry.theta_v`` as in-water (no refraction); only for PB24's
+        ``"in_water_only"`` batches. See :func:`geometry_to_paper_angles`.
 
     Returns
     -------
@@ -1391,7 +1448,10 @@ def rrs_ZTT(
         "mu_d_model", variant if mu_d_model is None else mu_d_model, MU_D_MODELS
     )
 
-    _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(geometry)
+    _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(
+        geometry, theta_v_in_water=theta_v_in_water
+    )
+    H = geometry.diffuse_fraction
 
     # Per-sample angles gain a trailing axis so they broadcast against (..., wave).
     def spectral(x):
@@ -1438,9 +1498,9 @@ def rrs_ZTT(
     )
 
     if mu_d_model == "l23":
-        mu_d_value = mu_d_l23(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
+        mu_d_value = mu_d_l23(theta_s_air_b, bb_over_a, eta_bb, visibility_km, H=H)
     else:
-        mu_d_value = mu_d(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
+        mu_d_value = mu_d(theta_s_air_b, bb_over_a, eta_bb, visibility_km, H=H)
     return numerator / (mu_d_value * denominator)
 
 
@@ -1452,6 +1512,7 @@ def mu_inf_closure(
     wave: Float[Array, " wave"] | None = None,
     *,
     visibility_km: float = DEFAULT_VISIBILITY_KM,
+    theta_v_in_water: bool = False,
 ):
     """The µ∞ that makes the L23 variant reproduce ``rrs`` exactly (M7 task 5).
 
@@ -1475,13 +1536,17 @@ def mu_inf_closure(
     rrs : Array
         Reference subsurface reflectance (sr^-1), ``(..., n_wave)``.
     visibility_km : float, optional
+    theta_v_in_water : bool, optional
+        As :func:`rrs_ZTT`. ``geometry.diffuse_fraction`` is used as there.
 
     Returns
     -------
     Array
         µ∞ per sample and wavelength, unclipped.
     """
-    _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(geometry)
+    _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(
+        geometry, theta_v_in_water=theta_v_in_water
+    )
 
     def spectral(x):
         """A per-sample angle gains a trailing axis to meet ``(..., wave)``."""
@@ -1500,7 +1565,9 @@ def mu_inf_closure(
     )
     b_tilde = bb_tilde(iops, phase_params.B_p)
     rest = f_L(psi_b, wave) * (1.0 - 1.0 / b_tilde) + 1.0 / b_tilde
-    mu_d_value = mu_d_l23(theta_s_air_b, bb_over_a, eta_bb, visibility_km)
+    mu_d_value = mu_d_l23(
+        theta_s_air_b, bb_over_a, eta_bb, visibility_km, H=geometry.diffuse_fraction
+    )
     needed = numerator / (mu_d_value * jnp.asarray(rrs))
     return -cos_theta_v * psi_KLu(psi_b) / ((needed - rest) * bb_over_a - 1.0)
 
@@ -1520,7 +1587,12 @@ def Rrs_ZTT(
         As :func:`rrs_ZTT`.
     **kwargs
         Forwarded to :func:`rrs_ZTT` (``P_bb``, ``mu_inf`` / ``mu_inf_coeffs``,
-        ``visibility_km``, ``variant``, ``mu_inf_model``, ``mu_d_model``).
+        ``visibility_km``, ``variant``, ``mu_inf_model``, ``mu_d_model``,
+        ``theta_v_in_water``). ``geometry.diffuse_fraction`` reaches µd through
+        :func:`rrs_ZTT`. The surface step is the nadir constants
+        (:func:`robust.rt.conventions.rrs_to_Rrs` with no transfer), unchanged
+        by M8 task 4: the Fresnel transfer is opt-in
+        (:class:`robust.rt.conventions.FresnelTransfer`).
 
     Returns
     -------

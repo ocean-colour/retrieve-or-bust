@@ -73,7 +73,11 @@ air-angle meaning. ``"window"`` is 8 x 8 x 13 = 832 geometries per realisation,
   NAP weight is 0 and their NAP ``ff_B`` is the realisation's own value at its
   other bands, or :data:`FF_B_NAP_FILL` if it has none.
 - ``Geometry.diffuse_fraction = 1 - Esdir_Es_ratio`` at the sample's
-  ``theta_s``, ``(n_sample, n_wave)``. Nothing consumes it until task 4.
+  ``theta_s``, ``(n_sample, n_wave)``. Since M8 task 4 ``ztt.rrs_ZTT`` uses
+  it in µd in place of TT's H, so every ZTT-backed model run on a PB24 batch
+  sees PB24's own sky (set it to ``None`` for TT's H), and
+  ``conventions.FresnelTransfer(downwelling=True)`` uses it in the surface
+  transfer.
 - ``aops``: ``Q`` always, plus any of :data:`EXTRA_FIELDS` gathered at each
   sample's ``theta_s``.
 
@@ -382,8 +386,10 @@ def interp_in_water(field4d, theta_nodes, theta_w, *, axis: int = -3) -> np.ndar
 def _fresnel_T(theta_air):
     """Unpolarised flat-surface Fresnel transmittance, air to water, n = 1.34.
 
-    Private on purpose: task 4 adds the public
-    ``conventions.fresnel_transmittance``.
+    Kept private and in NumPy float64 so the check never depends on JAX's x64
+    flag; the public, differentiable law is
+    :func:`robust.rt.conventions.fresnel_transmittance` (M8 task 4), which a
+    test holds equal to this one.
     """
     ti = np.radians(np.asarray(theta_air, dtype=float))
     tt = np.arcsin(np.sin(ti) / REFRACTIVE_INDEX)
@@ -1154,7 +1160,9 @@ def load_batch(
         :data:`ANGLE_WINDOW_MAX`; ``"shell"``: its complement in air; ``"all"``:
         the 1300 air geometries; ``"in_water_only"``: the in-water nodes >=
         :data:`IN_WATER_ONLY_MIN`, un-interpolated, ``Rrs`` all NaN, and
-        ``theta_v`` holding the **in-water** angle.
+        ``theta_v`` holding the **in-water** angle. Since M8 task 4 ZTT
+        refracts ``theta_v`` itself, so model such a batch with
+        ``ztt.rrs_ZTT(..., theta_v_in_water=batch.in_water_only)``.
     geometry_stride : int or tuple of int, optional
         Thin the selected geometries; an ``int`` strides the flattened list, a
         3-tuple ``(s_theta_s, s_theta_v, s_dphi)`` strides each axis and keeps
@@ -2114,7 +2122,10 @@ def fit_transfer(
 
     Kept for M5's scripts and its regression tests. Under the M8 sample
     definition the table maps ``rrs(theta_w)`` to ``Rrs(theta_air)`` on the
-    above-water grid; task 4 replaces it with a Fresnel-based transfer.
+    above-water grid. M8 task 4's two-number replacement is
+    :class:`robust.rt.conventions.FresnelTransfer`; this per-cell table is
+    its comparator in ``design/py/fit_surface_fresnel.py`` (which fits the
+    same form by streamed normal equations, checked equal to this function).
 
     Raises
     ------

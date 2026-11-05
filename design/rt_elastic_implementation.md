@@ -1859,6 +1859,26 @@ verified still to pass neither. The table ships as `robust/rt/files/surface_pb24
 
 **Tests: +12**, suite **358 passed**, ruff clean.
 
+> **Correction note (2026-11-04, M8 task 4; `rt_fit_pb24.md` Q9c).** The pairing
+> this section fitted and refuted is backwards. PB24 tabulates `rrs` (and `Q`) at
+> the **in-water** angle and `Rrs` at the above-water one, so `Rrs(θ)` pairs with
+> `rrs` at the Snell angle `asin(sin θ / 1.34)`, not at the same nominal `θ`. The
+> `rrs × Q = R` check cannot decide the question (`Q` is tabulated per in-water
+> direction too, so the identity holds in any direction), and the refuted
+> "refracted pairing" probe interpolated in the wrong direction. Measured
+> correctly (M8 task 3, all 5000 realisations), `Rrs(θ)/rrs(θ_w)` normalised at
+> nadir follows the flat-surface Fresnel `T(θ)/T(0)` to within 0.1–3.3% (median)
+> out to 70°. Consequences: (i) "A falls from 0.53 to 0.34" and the **"7.2×
+> better"** gain at θv = 60° are mostly surface physics (Fresnel transmittance)
+> seen through the mismatch — correctly paired, Lee's nadir constants err 6.8%
+> at θv = 60°, not 33%, and the shipped table errs 16%, worse than no table;
+> (ii) the "all three angles earn their place" and "a table beats a smooth
+> function" findings were measured on the mismatch and are not evidence about
+> the surface; (iii) `surface_pb24.npz` stays loadable (and is still what
+> `rrs_to_Rrs(..., geometry=...)` defaults to) but is documented as superseded;
+> M8 task 4's `conventions.FresnelTransfer` is the physical two-number
+> replacement (§7c.4).
+
 ### 7.11 Task 8 as built — O25 over the full geometry
 
 `O25Table` holds the four coefficients on the whole `(theta_s, theta_v, dphi)` grid;
@@ -1972,6 +1992,17 @@ markdown and CSV of one run are checked against each other row by row — the st
 lesson, enforced.
 
 **Tests: +6**, suite **374 passed**, ruff clean.
+
+> **Correction note (2026-11-04, M8 task 4; `rt_fit_pb24.md` Q9).** Every PB24
+> number in this section is on M5's pairing of `Rrs(θ)` with `rrs` at the same
+> nominal `θ` (see the note closing §7.10): the ZTT rows read the in-water
+> angle as the view zenith, and **O25's 6.53 / 6.02 / 22.46%** were scored in
+> `rrs` *through the mismatched §7.10 table*, so they charge O25 with a
+> transfer error that is not O25's. ψ is also on the unrefracted angle: with
+> `theta_v` refracted (M8 task 4) the window's minimum ψ is 90.9°, not ~44–65°,
+> 25% of it lies below 134° (not 42%) and 4.8% below Ψ_KLu's sign flip (not
+> 16%). These numbers are redone on correctly paired data, against the
+> published O25 as well as the refit, in M8 task 6; quote those, not these.
 
 ### 7.13 Task 10 as built — the envelope belongs to the model
 
@@ -2875,7 +2906,7 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 
 ## 7c. M8 — ZTT to PB24
 
-*Status: in progress (tasks 1–3 of 8 done, 2026-11-03). Decisions Q1–Q17 and
+*Status: in progress (tasks 1–4 of 8 done, 2026-11-04). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3108,6 +3139,131 @@ both:
 with the data 814 passed, 5 skipped; without `$OS_COLOR` 737 passed, 82
 skipped.
 
+### 7c.4 Task 4 as built — the view angle, the diffuse fraction, the Fresnel transfer
+
+**Re-baselined (deliberately)**, all PB24-only. L23 pins, the `mode="ztt"`
+pin and the emulator digest did not move:
+`test_ztt.py::test_pb24_leaves_the_fitted_scattering_range_on_much_of_the_window`
+(ψ now formed from the refracted view angle: full-grid min ψ 44.3° → 83.6°,
+window min 65.5° → **90.9°** (Q9d predicted ≈ 91°), share below 134° 42% →
+**25%**, below 110.4° 16% → **4.8%**);
+`test_emulator.py::test_excluding_an_unusable_backbone_also_narrows_the_geometry`
+(excluded share 24% → 18%; its rise with θv_air 3.3× → **2.0×**, assert
+> 2.5× → > 1.7×). Every other PB24 test kept its pin.
+
+**Built.**
+
+- **`ztt.geometry_to_paper_angles(geometry, *, theta_v_in_water=False)`**
+  refracts `theta_v` with `in_water_zenith` before forming θv_paper and ψ.
+  `asin(0) = 0` exactly, so nadir is bit-identical. `rrs_ZTT` and
+  `mu_inf_closure` gain the same keyword-only `theta_v_in_water`. It exists for
+  PB24's `"in_water_only"` batches, whose in-water nodes 50–87.5° have no
+  above-water direction (pass `batch.in_water_only`). `Geometry.theta_v`'s
+  docstring now says above-water. `ztt.REFRACTIVE_INDEX` is now
+  `conventions.REFRACTIVE_INDEX` (1.34, the same value).
+- **The diffuse-fraction seam.** `Md_plus(..., *, H=None)`,
+  `mu_d(..., H=None)`, `mu_d_l23(..., *, H=None)`. `rrs_ZTT` passes
+  `geometry.diffuse_fraction` into the variant's µd, and `mu_inf_closure` does
+  too. `None` is TT's Equation (16) bit for bit, and passing TT's own H changes
+  no bit. M7's c(θs′) still multiplies a supplied H (`mu_d_l23`); whether it
+  should stay is task 7(i)'s question. `hybrid.forward`, the emulator and
+  `Rrs_ZTT` all reach µd through `rrs_ZTT`, so any PB24 batch now runs on
+  PB24's own sky.
+- **`conventions`:** `REFRACTIVE_INDEX`; `fresnel_transmittance(θ, n)`
+  (unpolarised, `1 − (Rs + Rp)/2`, differentiable, JAX);
+  `diffuse_transmittance(n)` (uniform sky, T̄ = 0.93249); `TransferLike`
+  (a runtime-checkable Protocol: `coefficients(geometry)`, plus an optional
+  `spectral_coefficients`); **`FresnelTransfer(A0, B, n, provenance,
+  downwelling=False)`**; `FRESNEL_A0/B`, `FRESNEL_TD_A0/B`,
+  `FRESNEL_N_TRAINING`, `FRESNEL_TRAINING_DIGEST`, `FRESNEL_PROVENANCE`;
+  `default_fresnel_transfer(*, downwelling=False)`; `realisation_digest`;
+  `fresnel_normal_equations`, `solve_fresnel`, `fit_fresnel_transfer`.
+  `_coefficients` prefers `spectral_coefficients` when a transfer has it, so a
+  wavelength-dependent `A` works in `rrs_to_Rrs`, `Rrs_to_rrs` and
+  `baselines.rrs_o25`. **The package default is unchanged:** no
+  geometry/transfer gives the nadir constants, and a geometry alone still gives
+  M5's table. `default_transfer()`/`surface_pb24.npz` carry dated
+  "superseded" notes.
+- **`design/py/fit_surface_fresnel.py`** (`--quick`, `--dry-run`, `--check`,
+  `--out-dir`) → `design/ztt_pb24/surface_fresnel.md` + `.csv`. It streams
+  float64 normal equations over chunks of 50 realisations from the cache. It
+  self-checks its pairing against `load_batch` (bit for bit) and its per-cell
+  fit against `pb24.fit_transfer` (2.9e-14). `--check` refits and compares the
+  four constants, the count and the digest exactly.
+  `design/py/gen_ztt_nadir_reference.py` →
+  `robust/tests/files/ztt_nadir_reference.npz` (made on a read-only
+  `git archive fb253f9` extract, i.e. the pre-task-4 code).
+
+**The downwelling factor: a measured addition to the task's form.** The task
+specified `A = A0 T(θv)/T(0)`. On a 200/50-realisation probe it beat Lee's
+constants only at θv_air ≥ 50°, and it failed at large θs (8.4% at θs = 70°).
+Prediction, written before testing: the missing term is the downwelling
+transmittance, because `rrs` is per `Ed(0−)` and `Rrs` per `Ed(0+)`. So
+`A = A0 T(θv)/T(0) · t_d/T(0)`, `t_d = (1 − H) T(θs) + H T̄`, with H the
+data's diffuse fraction. Outcome: the window median halved and θs = 70° fell
+to 1.3%. The fitted A0 is **0.5199**, i.e. Lee's 0.52: the nadir constant *is*
+the flat-surface transfer at overhead sun. Both forms ship, on the same rows
+and with the same digest. The task's form is the default, and the downwelling
+form is `downwelling=True`.
+
+**Fit** (4000 training realisations of the realisation split, window,
+451 bands, 1,500,928,000 rows, relative weighting): θv-only
+**A0 = 0.505895, B = 1.728135**; downwelling **A0 = 0.519932, B = 1.731513**.
+Unweighted θv-only: 0.509146 / 1.722688. `Q` form `1/(1 − c Q rrs)`:
+c = 0.4900 (≈ 1.7/3.5); it scores no better than `B` (window 2.74% vs 2.72%),
+as M5 also found.
+
+**Held out** (1000 test realisations, all 1300 air geometries, all bands;
+median |Rrs_pred/Rrs − 1|, %):
+
+| θv_air | Fresnel θv-only | Fresnel + downwelling | nadir constants | M5 table | per-cell refit (2600) |
+|---|---|---|---|---|---|
+| 0 | 3.50 | 1.53 | 1.58 | 1.31 | 0.99 |
+| 20 | 3.28 | 1.31 | 1.42 | 1.18 | 0.87 |
+| 40 | 2.73 | 0.93 | 1.40 | 6.39 | 0.81 |
+| 50 | 2.28 | 0.72 | 3.20 | 10.53 | 0.88 |
+| 60 | 1.97 | 1.05 | 6.88 | 16.05 | 1.11 |
+| 70 | 1.53 | 2.36 | 17.64 | 21.55 | 1.09 |
+| **window** (q90, q99) | **2.72** (7.42, 11.36) | **1.32** (3.04, 5.77) | **2.73** (16.31, 28.81) | **5.02** (22.46, 44.41) | **0.94** (2.77, 4.47) |
+| **shell** (q90, q99) | **15.36** (58.7, 62.2) | **8.80** (59.2, 64.3) | **38.15** (84.0, 107.3) | **26.33** (50.9, 70.1) | **2.29** (7.30, 10.88) |
+
+Per θs in the window, θv-only vs downwelling: 2.87/1.41 at 0°, 2.15/1.12 at
+60°, **8.38/1.36 at 70°**. The full per-θv, per-θs and per-band tables for
+both sets are in `surface_fresnel.md`.
+
+**Reading.** (i) Correctly paired, M5's table is worse than no table in the
+window (5.02% vs 2.73%), confirming §7.10's correction note. (ii) The θv-only
+form does what its physics allows: it removes the large-θv failure of the
+constants (q90 16.3% → 7.4%, 17.6% → 1.5% at 70°), but it pays for ignoring
+θs everywhere else. (iii) With the downwelling factor, two numbers come within
+1.4× of the 2600-number refit in the window (1.32% vs 0.94%). The residual is
+at 70° view (2.4%) and in the UV (1.8%). (iv) In the shell every two-number
+form fails at θv_air = 87.5° (58%): the flat-surface law does not describe a
+5 m/s surface there (task 3's Fresnel check, +107 to +207%). The per-cell
+table, which is fitted there, does not fail. (v) 66 of the 1000 test
+realisations were in M5's 1–400 fitting pool; that can only flatter the M5
+column.
+
+**Sanity check of the data H in µd** (25 realisations, nadir only, against
+PB24's `mu_d`; the full diagnostic is task 6's): median |error| is 4.57% with
+TT's H (V = 15 km) and 3.99% with the data's. Per θs, TT's H → data H: 0°
+4.0 → 1.4%, 30° 1.9 → 0.5%, 60° 9.2 → 5.9%, 70° 14.0 → 7.4%.
+
+**Tests.** `test_ztt.py` +8: nadir vs the pre-change reference (strict on the
+reference host `profx`, ulp-scale elsewhere); nadir paper angles bit-identical
+to the unrefracted formula; refraction off nadir and `theta_v_in_water`; `None`
+H is TT's bit for bit (also through `rrs_ZTT`, both variants); H changes `rrs`
+by exactly the µd ratio; vmap/jit with the field set; float64 grad vs FD at
+θv = 37.3° and w.r.t. `diffuse_fraction` (directional and elementwise, rel
+1e-6); the fixture batch runs with its own H. `test_conventions.py` +12:
+Round 2 values; agreement with the loader's check; gradient; coefficients;
+round trips (both forms, spectral H); the downwelling factor; `rrs_o25`
+accepts it; the default unchanged; the shipped constants; **the leak guard**
+(the digest equals that of the realisation split's training ids, and differs
+from the digest of all ids or of train plus any one test id); streamed fit
+determinism; a held-out data test. Suite with the data 834 passed, 5 skipped;
+without `$OS_COLOR` 756 passed, 83 skipped.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -3274,6 +3430,7 @@ robust/
     test_pb24_cache.py ✅ M8 24 tests — task 2
     test_pb24.py       ✅ M5; M8 60 tests — task 3 (above-water geometry)
     files/pb24_cache_small.zip ✅ M8 2.2 MB zip, 3 realisations, 4-D at every 10th band
+    files/ztt_nadir_reference.npz ✅ M8 pre-task-4 nadir outputs (θv = 0 bit-identity gate)
 
 design/py/
   train_emulator.py          ✅ M3 real training run (~60 s; --dry-run, --out)
@@ -3285,6 +3442,8 @@ design/py/
   build_pb24_cache.py        ✅ M8 builds/verifies the PB24 cache; --check, --rebuild-check
   make_pb24_splits.py        ✅ M8 the saved PB24 splits (splits.json/.md); --check
   check_pb24_geometry.py     ✅ M8 Fresnel check (all 5000) + interpolation error
+  fit_surface_fresnel.py     ✅ M8 FresnelTransfer fit + held-out table (surface_fresnel.md/.csv); --check
+  gen_ztt_nadir_reference.py ✅ M8 writes ztt_nadir_reference.npz (run on the pre-change tree)
 design/ztt_l23/              ✅ M7 coefficients, metrics, probes, ladder, figures
 design/validation/
   metrics.md                 ✅ M4 every model x split, per zenith, per B_p bin

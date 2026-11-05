@@ -27,10 +27,12 @@ package -- the loader, a public constructor -- and leave ``forward`` clean.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 import jax.numpy as jnp
 import numpy as np
@@ -63,6 +65,24 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "BB_W_RANGE",
     "BB_W_TAIL_EXPONENT",
     "bb_w",
+    # Fresnel surface transfer (M8 task 4)
+    "REFRACTIVE_INDEX",
+    "fresnel_transmittance",
+    "diffuse_transmittance",
+    "TransferLike",
+    "FresnelTransfer",
+    "FRESNEL_A0",
+    "FRESNEL_B",
+    "FRESNEL_TD_A0",
+    "FRESNEL_TD_B",
+    "FRESNEL_N_TRAINING",
+    "FRESNEL_TRAINING_DIGEST",
+    "FRESNEL_PROVENANCE",
+    "default_fresnel_transfer",
+    "realisation_digest",
+    "fresnel_normal_equations",
+    "solve_fresnel",
+    "fit_fresnel_transfer",
     # Geometry-aware surface transfer (M5)
     "SurfaceTransfer",
     "SURFACE_TABLE",
@@ -103,10 +123,15 @@ RRS_POLE = 1.0 / B_RRS
 
 
 def _coefficients(geometry, transfer):
-    """``(A, B)`` for a conversion: the nadir constants, or a fitted table.
+    """``(A, B)`` for a conversion: the nadir constants, or a fitted transfer.
 
     Passing neither is the M0-M4 path and returns :data:`A_RRS`, :data:`B_RRS`
     unchanged, so every existing number is reproducible from a clean checkout.
+    ``transfer`` is duck-typed (:class:`TransferLike`): anything with
+    ``coefficients(geometry) -> (A, B)``, i.e. a :class:`SurfaceTransfer` or a
+    :class:`FresnelTransfer`. With a geometry and no transfer the default is
+    still M5's table (:func:`default_transfer`): M8 task 4 deliberately did
+    not change it (the Fresnel transfer is opt-in).
     """
     if geometry is None and transfer is None:
         return A_RRS, B_RRS
@@ -116,6 +141,11 @@ def _coefficients(geometry, transfer):
             "or neither"
         )
     table = default_transfer() if transfer is None else transfer
+    if hasattr(table, "spectral_coefficients"):
+        # Already shaped to broadcast against (..., n_wave): a FresnelTransfer
+        # with the downwelling factor and a spectral diffuse fraction is
+        # wavelength-dependent.
+        return table.spectral_coefficients(geometry)
     A, B = table.coefficients(geometry)
     return A[..., None], B[..., None]
 
@@ -137,9 +167,11 @@ def Rrs_to_rrs(
         what keeps their numbers reproducible. Supply it to use a fitted
         geometry-dependent transfer, which off-nadir is worth up to a factor of
         six -- see :class:`SurfaceTransfer`.
-    transfer : SurfaceTransfer, optional
-        Which table to use; defaults to :func:`default_transfer` when a geometry
-        is given.
+    transfer : TransferLike, optional
+        Which transfer to use -- a :class:`SurfaceTransfer` table or a
+        :class:`FresnelTransfer` (M8 task 4); defaults to
+        :func:`default_transfer` (M5's table, superseded but still the default)
+        when a geometry is given.
 
     Returns
     -------
@@ -727,6 +759,449 @@ def check_rrs(values, name: str = "rrs", subsurface: bool = True) -> None:
         )
 
 
+# ---------------------------------------------------- Fresnel surface transfer -
+#: float: Refractive index of seawater, the value ZTT's Snell refraction uses
+#: (``robust.rt.ztt.REFRACTIVE_INDEX`` is this constant) and PB24's HydroLight
+#: runs assume for the flat-surface Fresnel law.
+REFRACTIVE_INDEX = 1.34
+
+
+def fresnel_transmittance(theta_air_deg, n: float = REFRACTIVE_INDEX):
+    """Unpolarised flat-surface Fresnel transmittance, air side, ``1 - (Rs + Rp)/2``.
+
+    For a direction at zenith ``θ`` in air and ``θt = asin(sin θ / n)`` in
+    water, ``Rs = ((cos θ - n cos θt)/(cos θ + n cos θt))²`` and
+    ``Rp = ((n cos θ - cos θt)/(n cos θ + cos θt))²``. Radiance crossing the
+    surface in either direction sees the same ``T`` (reciprocity), so this is
+    the factor between ``rrs(θ_w)`` and ``Rrs(θ)`` in the Lee form's ``A``
+    (``rt_fit_pb24.md`` Q9c). ``T(0) = 1 - ((n-1)/(n+1))²`` = 0.97889 at
+    n = 1.34; ``T/T(0)`` = 1.000 / 0.999 / 0.986 / 0.959 / 0.883 at
+    10 / 30 / 50 / 60 / 70° (Q9 Round 2 table, pinned by a test).
+
+    Parameters
+    ----------
+    theta_air_deg : Array
+        Above-water zenith, degrees, in [0, 90].
+    n : float, optional
+        Relative refractive index water/air.
+
+    Returns
+    -------
+    Array
+        ``T``, dimensionless, the shape of ``theta_air_deg``.
+
+    Notes
+    -----
+    Differentiable everywhere in [0, 90]: ``cos θt = sqrt(1 - sin²θ / n²)``
+    stays away from 0 because ``n > 1``. ``jit``-safe; float32 unless x64 is
+    enabled.
+    """
+    ti = jnp.deg2rad(jnp.asarray(theta_air_deg))
+    cos_i = jnp.cos(ti)
+    sin_t = jnp.sin(ti) / n
+    cos_t = jnp.sqrt(1.0 - sin_t**2)
+    rs = (cos_i - n * cos_t) / (cos_i + n * cos_t)
+    rp = (n * cos_i - cos_t) / (n * cos_i + cos_t)
+    return 1.0 - 0.5 * (rs**2 + rp**2)
+
+
+def _fresnel_ratio_np(theta_air_deg, n: float = REFRACTIVE_INDEX) -> np.ndarray:
+    """``T(θ)/T(0)`` in NumPy float64 -- the fit's copy of
+    :func:`fresnel_transmittance`, so a fit does not depend on JAX's x64 flag."""
+    ti = np.radians(np.asarray(theta_air_deg, dtype=float))
+
+    def T(cos_i, sin_i):
+        cos_t = np.sqrt(1.0 - (sin_i / n) ** 2)
+        rs = (cos_i - n * cos_t) / (cos_i + n * cos_t)
+        rp = (n * cos_i - cos_t) / (n * cos_i + cos_t)
+        return 1.0 - 0.5 * (rs**2 + rp**2)
+
+    return T(np.cos(ti), np.sin(ti)) / T(1.0, 0.0)
+
+
+_DIFFUSE_T: dict[float, float] = {}
+
+
+def diffuse_transmittance(n: float = REFRACTIVE_INDEX) -> float:
+    """Transmittance of a **uniform-radiance sky** through a flat surface.
+
+    ``T̄ = 2 ∫ T(θ) cos θ sin θ dθ`` over [0, 90°] (the cosine-weighted
+    hemispherical mean of :func:`fresnel_transmittance`), by the trapezoid
+    rule on 20,001 nodes (error < 1e-8). 0.93249 at n = 1.34. Cached per ``n``.
+
+    Parameters
+    ----------
+    n : float, optional
+
+    Returns
+    -------
+    float
+    """
+    key = float(n)
+    if key not in _DIFFUSE_T:
+        th = np.linspace(0.0, np.pi / 2, 20001)
+        T = _fresnel_ratio_np(np.degrees(th), key) * _fresnel_T0_np(key)
+        _DIFFUSE_T[key] = float(np.trapezoid(2.0 * T * np.cos(th) * np.sin(th), th))
+    return _DIFFUSE_T[key]
+
+
+def _fresnel_T0_np(n: float = REFRACTIVE_INDEX) -> float:
+    """``T(0) = 1 - ((n - 1)/(n + 1))²``, float64."""
+    return 1.0 - ((n - 1.0) / (n + 1.0)) ** 2
+
+
+def _downwelling_ratio_np(theta_s_deg, H, n: float = REFRACTIVE_INDEX):
+    """``t_d / T(0)`` in NumPy float64, ``t_d = (1 - H) T(θs) + H T̄``.
+
+    ``H = None`` is the direct beam alone, ``T(θs)/T(0)``. Shapes broadcast.
+    """
+    direct = _fresnel_ratio_np(theta_s_deg, n)
+    if H is None:
+        return direct
+    H = np.asarray(H, dtype=float)
+    return (1.0 - H) * direct + H * (diffuse_transmittance(n) / _fresnel_T0_np(n))
+
+
+@runtime_checkable
+class TransferLike(Protocol):
+    """What :func:`Rrs_to_rrs` / :func:`rrs_to_Rrs` accept as ``transfer=``.
+
+    Duck-typed: anything with ``coefficients(geometry) -> (A, B)``, each
+    broadcast to the geometry's batch shape, is a surface transfer. Both
+    :class:`SurfaceTransfer` (M5's table) and :class:`FresnelTransfer`
+    (M8 task 4) satisfy it; nothing checks ``isinstance`` on the hot path.
+    A transfer may also define ``spectral_coefficients(geometry)``, returning
+    ``(A, B)`` already shaped to broadcast against ``(..., n_wave)``; the
+    converters prefer it when present (a wavelength-dependent transfer
+    needs it).
+    """
+
+    def coefficients(self, geometry):
+        """``(A, B)`` of the Lee form at ``geometry``."""
+        ...
+
+
+@dataclass(frozen=True)
+class FresnelTransfer:
+    """The Lee form with a Fresnel-scaled numerator: two numbers, any geometry.
+
+    ``Rrs = A(θv) rrs / (1 - B rrs)``, ``A(θv) = A0 T(θv) / T(0)``, with ``T``
+    the flat-surface :func:`fresnel_transmittance` at the **above-water**
+    sensor zenith (``Geometry.theta_v``). ``rrs`` is the subsurface value at
+    the refracted angle, ``asin(sin θv / n)``: the Snell pairing PB24 uses
+    (``rt_fit_pb24.md`` Q9). ``θs`` and ``Δφ`` do not enter.
+
+    This replaces M5's 2600-number :class:`SurfaceTransfer` table as the
+    physical form (Q9c); see :data:`FRESNEL_A0` for the shipped numbers and
+    :func:`default_fresnel_transfer`. It is **opt-in**: the package default
+    when only a geometry is given is still M5's table, and with neither the
+    nadir constants, so no L23 number moves.
+
+    **The downwelling factor** (``downwelling=True``; M8 task 4, measured, not
+    in the task's text). ``rrs`` is normalised by ``Ed(0-)`` and ``Rrs`` by
+    ``Ed(0+)``, so the transfer also carries the surface's downwelling
+    transmittance ``t_d = (1 - H) T(θs) + H T̄`` (direct beam at the sun's
+    zenith, diffuse sky as a uniform-radiance hemisphere,
+    :func:`diffuse_transmittance`):
+    ``A = A0 · T(θv)/T(0) · t_d/T(0)``. ``H`` is ``geometry.diffuse_fraction``
+    (the PB24 loader fills it; spectral, so ``A`` becomes
+    ``(..., n_wave)``); ``None`` takes the direct beam alone (``H = 0``).
+    Held out on PB24 it halves the window error of the θv-only form and
+    removes its failure at large θs (``design/ztt_pb24/surface_fresnel.md``);
+    its fitted ``A0`` is Lee's 0.52. Shipped as :data:`FRESNEL_TD_A0`,
+    :data:`FRESNEL_TD_B`.
+
+    Attributes
+    ----------
+    A0 : float
+        The numerator at nadir (sun and view at zenith, ``H = 0``).
+    B : float
+        The denominator coefficient (Lee's ``B``), constant.
+    n : float
+        Refractive index used in ``T``.
+    provenance : str
+        What was fitted, on what, and when.
+    downwelling : bool
+        Include the downwelling factor ``t_d/T(0)`` (default ``False``: the
+        θv-only form the task specified).
+    """
+
+    A0: float
+    B: float
+    n: float = REFRACTIVE_INDEX
+    provenance: str = ""
+    downwelling: bool = False
+
+    def coefficients(self, geometry):
+        """``(A, B)`` at a geometry.
+
+        Parameters
+        ----------
+        geometry : robust.rt.types.Geometry
+            Angles in degrees; any batch shape. Only ``theta_v`` (above-water)
+            is used.
+
+        Returns
+        -------
+        tuple of Array
+            ``A = A0 T(θv)/T(0)`` (times ``t_d/T(0)`` with ``downwelling``) and
+            ``B``, broadcast to the common shape of ``theta_s``, ``theta_v``
+            and ``dphi`` -- plus a trailing wavelength axis when
+            ``downwelling`` is on and ``geometry.diffuse_fraction`` is set.
+
+        Notes
+        -----
+        Smooth in the angles (no table nodes, so no kinks) and in ``H``;
+        differentiable and ``jit``-safe.
+        """
+        A = self._A(geometry)
+        return A, jnp.broadcast_to(jnp.asarray(self.B, dtype=A.dtype), A.shape)
+
+    def _spectral(self, geometry) -> bool:
+        """Whether ``A`` carries a wavelength axis."""
+        return self.downwelling and geometry.diffuse_fraction is not None
+
+    def _A(self, geometry):
+        """``A`` at ``geometry`` (see :meth:`coefficients`)."""
+        theta_s = jnp.asarray(geometry.theta_s)
+        theta_v = jnp.asarray(geometry.theta_v)
+        shape = jnp.broadcast_shapes(
+            jnp.shape(theta_s), jnp.shape(theta_v), jnp.shape(geometry.dphi)
+        )
+        T0 = fresnel_transmittance(jnp.zeros_like(theta_v), self.n)
+        A = jnp.broadcast_to(
+            self.A0 * fresnel_transmittance(theta_v, self.n) / T0, shape
+        )
+        if not self.downwelling:
+            return A
+        direct = jnp.broadcast_to(fresnel_transmittance(theta_s, self.n) / T0, shape)
+        if geometry.diffuse_fraction is None:
+            return A * direct
+        H = jnp.asarray(geometry.diffuse_fraction)
+        sky = diffuse_transmittance(self.n) / T0[..., None]
+        t_d = (1.0 - H) * direct[..., None] + H * sky
+        return A[..., None] * t_d
+
+    def spectral_coefficients(self, geometry):
+        """``(A, B)`` shaped to broadcast against ``(..., n_wave)``.
+
+        What :func:`rrs_to_Rrs` / :func:`Rrs_to_rrs` use: a trailing
+        length-1 axis for the per-geometry form, the wavelength axis itself
+        when ``A`` is spectral.
+        """
+        A, B = self.coefficients(geometry)
+        if self._spectral(geometry):
+            return A, B
+        return A[..., None], B[..., None]
+
+
+#: float: **Shipped** nadir numerator of :class:`FresnelTransfer` (M8 task 4).
+#: Fitted by ``design/py/fit_surface_fresnel.py`` (``--check`` recomputes it
+#: bit for bit): PB24 hyperspectral cache ``pb24_v1`` (all 451 bands,
+#: 350-800 nm), the **realisation split's training side** of
+#: ``design/ztt_pb24/splits.json`` (all 4000 training realisations;
+#: :data:`FRESNEL_TRAINING_DIGEST`), the window geometries (θs ≤ 70°,
+#: θv_air ≤ 70°; 832 per realisation), ``rrs`` linearly interpolated to the
+#: refracted angle as the loader does; relatively weighted linear least
+#: squares ``1 = A0 (T/T0) rrs/Rrs + B rrs`` (normal equations in float64, no
+#: optimiser); 2026-11-04. Held-out scores: ``design/ztt_pb24/surface_fresnel.md``.
+FRESNEL_A0 = 0.505894615306294
+#: float: **Shipped** denominator coefficient of :class:`FresnelTransfer`;
+#: same fit as :data:`FRESNEL_A0`.
+FRESNEL_B = 1.7281346247647804
+#: float: **Shipped** ``A0`` of the ``downwelling=True`` form (the factor
+#: ``t_d/T(0)`` with PB24's own ``H = 1 - Esdir_Es_ratio`` at each row's θs
+#: and λ in the design matrix); otherwise the same rows, weighting, script and
+#: date as :data:`FRESNEL_A0`.
+FRESNEL_TD_A0 = 0.5199319425562341
+#: float: **Shipped** ``B`` of the ``downwelling=True`` form.
+FRESNEL_TD_B = 1.731512969766272
+#: int: Training realisations behind :data:`FRESNEL_A0` / :data:`FRESNEL_B`.
+FRESNEL_N_TRAINING = 4000
+#: str: :func:`realisation_digest` of the realisation ids the shipped
+#: constants were fitted on. A test checks it equals the digest of the
+#: realisation split's **training** ids in ``splits.json`` -- so a refit that
+#: touched one held-out realisation fails the suite.
+FRESNEL_TRAINING_DIGEST = (
+    "3dd4bcb017fcded0f23f7a899cf091b6fd64e74736f77261d1eec92ca541219c"
+)
+#: str: Provenance of the shipped constants, as one line.
+FRESNEL_PROVENANCE = (
+    "PB24 hyp cache pb24_v1, 451 bands; realisation-split training side of "
+    "design/ztt_pb24/splits.json (4000 realisations); window geometries "
+    "(theta_s, theta_v_air <= 70); 1,500,928,000 rows; relatively weighted "
+    "linear least squares (float64 normal equations); "
+    "design/py/fit_surface_fresnel.py; 2026-11-04"
+)
+
+
+def realisation_digest(ids) -> str:
+    """SHA-256 of a set of realisation ids: sorted, unique, comma-joined ASCII.
+
+    Parameters
+    ----------
+    ids : array_like of int
+
+    Returns
+    -------
+    str
+        Hex digest.
+    """
+    unique = np.unique(np.asarray(ids, dtype=int).ravel())
+    return hashlib.sha256(",".join(str(int(i)) for i in unique).encode()).hexdigest()
+
+
+def default_fresnel_transfer(*, downwelling: bool = False) -> FresnelTransfer:
+    """The shipped :class:`FresnelTransfer`.
+
+    Parameters
+    ----------
+    downwelling : bool, optional
+        ``False`` (default): the θv-only form, :data:`FRESNEL_A0` /
+        :data:`FRESNEL_B`. ``True``: with the downwelling factor,
+        :data:`FRESNEL_TD_A0` / :data:`FRESNEL_TD_B` -- the better transfer
+        on PB24 when ``Geometry.diffuse_fraction`` is set.
+
+    Returns
+    -------
+    FresnelTransfer
+    """
+    if downwelling:
+        return FresnelTransfer(
+            A0=FRESNEL_TD_A0,
+            B=FRESNEL_TD_B,
+            provenance=FRESNEL_PROVENANCE,
+            downwelling=True,
+        )
+    return FresnelTransfer(A0=FRESNEL_A0, B=FRESNEL_B, provenance=FRESNEL_PROVENANCE)
+
+
+def fresnel_normal_equations(
+    rrs,
+    Rrs,
+    theta_v,
+    *,
+    Q=None,
+    factor=None,
+    relative: bool = True,
+    n: float = REFRACTIVE_INDEX,
+):
+    """Normal equations of the :class:`FresnelTransfer` fit, for streaming.
+
+    ``Rrs = A0 r rrs + B (Rrs rrs)`` with ``r = T(θv)/T(0)`` is linear in
+    ``(A0, B)``. ``relative=True`` (the shipped fit) divides each row by
+    ``Rrs`` -- ``1 = A0 r rrs/Rrs + B rrs`` -- so the objective is the
+    relative error the transfer is scored by; ``False`` is the unweighted
+    regression of ``Rrs``. With ``Q`` the ``B`` column is multiplied by ``Q``
+    (the ``Rrs = A rrs / (1 - B Q rrs)`` form, reported, not shipped). With
+    ``factor`` the ``A0`` column is multiplied by it: the downwelling form
+    passes ``t_d/T(0)`` (``_downwelling_ratio_np``).
+
+    The sums are plain float64 ``numpy.sum`` (pairwise, single-threaded), so
+    accumulating chunk by chunk in a fixed order is bit-reproducible.
+
+    Parameters
+    ----------
+    rrs, Rrs : array_like
+        Paired subsurface (at the refracted angle) and above-water
+        reflectance, any common shape.
+    theta_v : array_like
+        Above-water view zenith (degrees), broadcastable against ``rrs``.
+    Q : array_like, optional
+        ``Q`` at the same samples, for the ``Q`` form.
+    factor : array_like, optional
+        Extra multiplier of ``r``, broadcastable against ``rrs``.
+    relative : bool, optional
+    n : float, optional
+
+    Returns
+    -------
+    tuple
+        ``(XtX, Xty, n_rows, n_dropped)``: a (2, 2) and a (2,) float64 array,
+        the rows used and the rows dropped (non-finite or non-positive
+        ``rrs``/``Rrs``).
+    """
+    rrs = np.asarray(rrs, dtype=float)
+    Rrs = np.asarray(Rrs, dtype=float)
+    r = _fresnel_ratio_np(theta_v, n)
+    if factor is not None:
+        r = r * np.asarray(factor, dtype=float)
+    r = np.broadcast_to(r, rrs.shape)
+    good = np.isfinite(rrs) & np.isfinite(Rrs) & (rrs > 0) & (Rrs > 0)
+    second = rrs if Q is None else rrs * np.asarray(Q, dtype=float)
+    if Q is not None:
+        good &= np.isfinite(second)
+    rrs_g, Rrs_g, r_g, second_g = rrs[good], Rrs[good], r[good], second[good]
+    if relative:
+        x0 = r_g * rrs_g / Rrs_g
+        x1 = second_g
+        y = np.ones_like(x0)
+    else:
+        x0 = r_g * rrs_g
+        x1 = second_g * Rrs_g
+        y = Rrs_g
+    XtX = np.array(
+        [
+            [np.sum(x0 * x0), np.sum(x0 * x1)],
+            [np.sum(x0 * x1), np.sum(x1 * x1)],
+        ]
+    )
+    Xty = np.array([np.sum(x0 * y), np.sum(x1 * y)])
+    return XtX, Xty, int(good.sum()), int((~good).sum())
+
+
+def solve_fresnel(XtX, Xty) -> tuple[float, float]:
+    """``(A0, B)`` from accumulated normal equations.
+
+    Parameters
+    ----------
+    XtX, Xty : array_like
+        As :func:`fresnel_normal_equations` returns, summed over chunks.
+
+    Returns
+    -------
+    tuple of float
+    """
+    coef = np.linalg.solve(np.asarray(XtX, dtype=float), np.asarray(Xty, dtype=float))
+    return float(coef[0]), float(coef[1])
+
+
+def fit_fresnel_transfer(
+    rrs,
+    Rrs,
+    theta_v,
+    *,
+    relative: bool = True,
+    n: float = REFRACTIVE_INDEX,
+    provenance: str = "",
+) -> FresnelTransfer:
+    """Fit a :class:`FresnelTransfer` in one pass (small batches, tests).
+
+    ``design/py/fit_surface_fresnel.py`` streams the same normal equations
+    over the cache; this is the one-chunk version.
+
+    Parameters
+    ----------
+    rrs, Rrs : array_like
+        ``(n_sample, n_wave)`` paired reflectances.
+    theta_v : array_like
+        ``(n_sample,)`` above-water view zenith, degrees.
+    relative, n, provenance
+        As :func:`fresnel_normal_equations`; ``provenance`` is recorded.
+
+    Returns
+    -------
+    FresnelTransfer
+    """
+    theta_v = np.asarray(theta_v, dtype=float)
+    rrs = np.asarray(rrs, dtype=float)
+    if theta_v.ndim == rrs.ndim - 1:
+        theta_v = theta_v[..., None]
+    XtX, Xty, _, _ = fresnel_normal_equations(rrs, Rrs, theta_v, relative=relative, n=n)
+    A0, B = solve_fresnel(XtX, Xty)
+    return FresnelTransfer(A0=A0, B=B, n=n, provenance=provenance)
+
+
 # ----------------------------------------------- geometry-aware surface transfer
 #: Where the fitted transfer table ships, relative to this package.
 SURFACE_TABLE = "files/surface_pb24.npz"
@@ -758,6 +1233,18 @@ class SurfaceTransfer:
     - **The residual does not go to zero.** Even fitting both coefficients at
       every geometry leaves a median 1.8%, so the Lee *form* is the floor here,
       not the coefficients. Reported rather than papered over.
+
+    .. note:: **Superseded, 2026-11-04 (M8 task 4, ``rt_fit_pb24.md`` Q9c).**
+       The numbers above, and the shipped table, come from M5's pairing of
+       ``Rrs(θ)`` with ``rrs`` at the *same nominal* ``θ``; PB24 tabulates
+       ``rrs`` at the in-water angle, so the right partner is ``rrs`` at
+       ``asin(sin θ / 1.34)``. Most of "A falls from 0.53 to 0.34" was that
+       mismatch plus Fresnel transmittance, not a property of the water. On
+       correctly paired data the shipped table is *worse* than the nadir
+       constants (16.0% vs 6.8% at θv = 60°, M8 task 3). The class still
+       works for any table -- ``robust.rt.data.pb24.fit_transfer`` fits one on
+       correctly paired rows -- and :class:`FresnelTransfer` is the physical
+       two-number replacement.
 
     Attributes
     ----------
@@ -1018,6 +1505,15 @@ def load_transfer(path) -> SurfaceTransfer:
 
 def default_transfer() -> SurfaceTransfer:
     """The table shipped with the package, read once and cached.
+
+    .. note:: **Superseded, 2026-11-04 (M8 task 4, Q9c).**
+       ``surface_pb24.npz`` encodes M5's mismatched pairing (``rrs`` at the
+       nominal rather than the refracted view angle) and is kept loadable for
+       the record and because it is still what ``rrs_to_Rrs(...,
+       geometry=...)`` uses when no ``transfer`` is passed (changing that
+       default is a deliberate later act, not part of task 4). New work should
+       pass :func:`default_fresnel_transfer` explicitly. Do not regenerate it
+       with ``design/py/fit_surface.py``.
 
     Returns
     -------

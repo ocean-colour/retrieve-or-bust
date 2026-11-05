@@ -399,7 +399,11 @@ class Geometry:
     theta_s : Array
         Solar zenith angle (degrees); 0 = sun overhead.
     theta_v : Array
-        Sensor zenith angle (degrees); 0 = nadir view, as in L23.
+        **Above-water** sensor zenith angle (degrees); 0 = nadir view, as in
+        L23. Since M8 task 4 (``rt_fit_pb24.md`` Q9a) ZTT refracts it into
+        the water itself (:func:`robust.rt.ztt.geometry_to_paper_angles`), as
+        it always did ``theta_s``; before that it was read as in-water. Nadir
+        is the same either way, so every L23 number is unchanged.
     dphi : Array
         Sensor-sun relative azimuth (degrees).
     wind : Array or None
@@ -418,9 +422,12 @@ class Geometry:
         above-surface downwelling irradiance, ``1 - Edir/Ed``, as a spectrum
         (``(n_sample, n_wave)`` from the PB24 loader, which fills it from
         ``1 - Esdir_Es_ratio`` at the sample's ``theta_s``). Appended under the
-        freeze (record §8.0), ``None`` by default, and **not yet consumed**:
-        until M8 task 4 wires it into µd, every model ignores it and ``None``
-        and a value give identical results.
+        freeze (record §8.0), ``None`` by default. **Consumed since M8 task 4**:
+        :func:`robust.rt.ztt.rrs_ZTT` uses it in µd in place of TT's
+        ``H(theta_s', V)`` (Equation 16), so the hybrid's backbone does too;
+        ``None`` is TT's H, bit for bit. It must broadcast against the model's
+        ``(..., n_wave)`` spectra, on the same wavelength grid. Setting it adds
+        a pytree leaf, so a jitted function retraces once.
     """
 
     theta_s: Scalar

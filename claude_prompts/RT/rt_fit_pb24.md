@@ -1107,3 +1107,195 @@ Created from `rt_fit_ztt.md` task 8.
   backbone-usability share (24.5% with FF and with Sullivan, 20 realisations).
 - **No state-changing git command was run** (read-only `git status` /
   `git diff` only).
+
+### 2026-11-04 — Task 4: conventions (Claude Opus 5.5)
+
+- **Re-baselined pins** (each deliberate; PB24-only. L23 value pins, the
+  `mode="ztt"` pin and the emulator SHA-256 `a49d2454ae8332df…` did not move,
+  and no file in `robust/rt/files/` changed):
+  - `test_ztt.py::test_pb24_leaves_the_fitted_scattering_range_on_much_of_the_window`:
+    ψ is now formed from the **refracted** θv. Full-grid min ψ `< 60` →
+    **83.6°** (asserted 80–90). Window min 65.5° → **90.9°** (new pin; Q9d
+    predicted ≈ 91°). Share of the window below 134°: 42% → **25%** (assert
+    0.3–0.6 → 0.2–0.3). New: share below 110.4° 16% → **4.8%**. The old
+    reading is still asserted through `theta_v_in_water=True` (42%).
+  - `test_emulator.py::test_excluding_an_unusable_backbone_also_narrows_the_geometry`:
+    the excluded share is 24% → **18%**; by θv_air 13/15/26/44% →
+    **13/15/18/26%**, a rise of 3.3× → **2.0×**; assert `> 2.5×` →
+    **`> 1.7×`**. The ψ < 110 (88%) and ψ ≥ 134 (14%) assertions are kept,
+    and so is the cell assertion (worst cell 80% → 51%). The cause is the
+    refraction alone: masks with and without the data H are identical.
+  - Nothing else moved. The 3 `test_ztt` PB24 tests other than the one
+    above, the emulator/baselines/conventions OLCI tests and all `test_pb24`
+    tests kept their pins.
+- Read: this doc in full (Code, preamble, tasks 4–6, Q9 a–d with finding 1,
+  Q10 with finding 2, the task-3 log); `ztt.py` (geometry, H, Md_plus, mu_d,
+  mu_d_l23, rrs_ZTT, mu_inf_closure, Rrs_ZTT); `conventions.py` (transfer,
+  `_coefficients`, `SurfaceTransfer`, `interp_geometry`, `default_transfer`);
+  `types.Geometry`; `baselines.Rrs_o25/rrs_o25`; `hybrid.forward`; the
+  emulator's `rrs_ZTT` calls and features; `validation.gradient_report`;
+  `pb24.py` (load_batch assembly, `_fresnel_T`, `fit_transfer`, splits);
+  `fit_surface.py` (style only, **not rerun**); record §7.10, §7.12, §7c.3;
+  the affected tests.
+- **Built.** In `ztt`:
+  - `geometry_to_paper_angles(geometry, *, theta_v_in_water=False)` refracts
+    θv.
+  - `Md_plus(..., *, H=None)`, `mu_d(..., H=None)`, `mu_d_l23(..., *, H=None)`.
+  - `rrs_ZTT`/`mu_inf_closure` pass `geometry.diffuse_fraction` and take
+    `theta_v_in_water`.
+  - `REFRACTIVE_INDEX` = `conventions.REFRACTIVE_INDEX`.
+
+  In `conventions`:
+  - `fresnel_transmittance`, `diffuse_transmittance`, the `TransferLike`
+    Protocol.
+  - `FresnelTransfer(A0, B, n, provenance, downwelling=False)` with
+    `coefficients`/`spectral_coefficients`.
+  - Constants `FRESNEL_A0/B`, `FRESNEL_TD_A0/B`, `FRESNEL_N_TRAINING`,
+    `FRESNEL_TRAINING_DIGEST`, `FRESNEL_PROVENANCE`.
+  - `default_fresnel_transfer(*, downwelling=False)`, `realisation_digest`,
+    `fresnel_normal_equations`, `solve_fresnel`, `fit_fresnel_transfer`.
+  - `_coefficients` prefers `spectral_coefficients`.
+  - Dated "superseded" notes on `SurfaceTransfer`/`default_transfer`.
+
+  Docstrings updated in `types.Geometry` (θv above-water; `diffuse_fraction`
+  consumed), `baselines` and `pb24`. New scripts and data:
+  `design/py/fit_surface_fresnel.py` → `design/ztt_pb24/surface_fresnel.md`
+  and `.csv`; `design/py/gen_ztt_nadir_reference.py` →
+  `robust/tests/files/ztt_nadir_reference.npz` (47.5 kB, made on a read-only
+  `git archive fb253f9 robust` extract). Record: §7.10 and §7.12 correction
+  notes, §7c.4 and the module index.
+- **`theta_v` consumers checked:**
+  - **Changed:** `ztt.geometry_to_paper_angles` (→ `rrs_ZTT`,
+    `mu_inf_closure`, `Rrs_ZTT`, `hybrid.forward`, the emulator's backbone).
+  - **Already above-water, unchanged:**
+    - `baselines.O25Table`/`Rrs_o25`: O25 is in Rrs, tabulated at PB24's air
+      nodes.
+    - `conventions.interp_geometry`/`SurfaceTransfer`: the table axis is the
+      Rrs side's air node.
+    - `emulator.features`: raw `cos θv`; the shipped L23 model is nadir;
+      `PB24_ENVELOPE`/`fit_pb24` are on air angles since task 3.
+    - `validation.gradient_report`: it perturbs whatever it is given.
+    - `l23` (nadir).
+  - **The one in-water reader:** the `pb24` `"in_water_only"` batch. It is
+    handled by the new `theta_v_in_water=batch.in_water_only`; otherwise it
+    would be refracted twice.
+  - `test_ztt.py`'s ψ = 139.7 paper example is **nadir**, so it is unaffected
+    whichever reading was meant; it passes unchanged.
+- **Decisions.**
+  - (i) **Transfer typing:** duck-typed, with a runtime-checkable
+    `TransferLike` Protocol for documentation and `isinstance`. Nothing
+    checks types on the hot path.
+  - (ii) **The package default does not change.** No geometry/transfer gives
+    `A_RRS`/`B_RRS`; a geometry alone still gives M5's table. The Fresnel
+    transfer is opt-in.
+  - (iii) **Weighting:** the shipped fit is **relatively weighted**
+    (`1 = A0 r rrs/Rrs + B rrs`) to match the |pred/true − 1| it is scored
+    by. The unweighted fit is reported (A0 0.5091, B 1.7227).
+  - (iv) **Fit mechanics:** float64 normal equations summed with `np.sum`
+    over chunks of 50 realisations in id order (chunking is part of the
+    definition), so `--check` is exact.
+  - (v) **The leak guard is a digest**, not a refit: SHA-256 of the sorted
+    training ids, computed by the script from the ids it actually read. The
+    test checks it equals the digest of the split's training ids and that
+    adding any test id breaks it.
+  - (vi) **A downwelling factor was added** to the task's form, as an option
+    (next bullet). Both forms ship from the same rows. The task's θv-only
+    form stays the default; `downwelling=True` is the better transfer on
+    PB24.
+  - (vii) `theta_v_in_water` keyword (above).
+  - (viii) The strict nadir tier is anchored to the reference host `profx`
+    (and to `ROBUST_HASH_ANCHOR`), as the elastic hash pins are. A
+    machine-independent bit-identity test of the angles runs everywhere.
+  - (ix) **Per-cell comparator:** fitted by the script's own streamed normal
+    equations, because `pb24.fit_transfer` needs a materialised
+    4000 × 1300 × 451 batch. It is checked equal to `fit_transfer` on three
+    realisations (2.9e-14).
+- **Measured, a prediction tested first.** The task's form
+  `A = A0 T(θv)/T(0)` on a 200/50 probe: window median 2.73%, no better than
+  Lee's constants (2.71%); worse at θv ≤ 40°; 8.4% at θs = 70°.
+  - *Prediction, written in the probe before running:* the missing term is
+    the downwelling transmittance (rrs is per Ed(0−), Rrs per Ed(0+)),
+    `t_d = (1 − H) T(θs) + H T̄`. With it the window should approach the
+    per-cell refit and θs = 70 should fall to ~2%.
+  - *Outcome:* 1.33% and 1.31%, and A0 = 0.520 (Lee's constant). Confirmed.
+- **Fit** (all 4000 training realisations, window, 451 bands,
+  1,500,928,000 rows, fit 805–1584 s):
+  - θv-only **A0 = 0.505894615306294, B = 1.7281346247647804**;
+  - downwelling **A0 = 0.5199319425562341, B = 1.731512969766272**;
+  - Q form c = 0.4900 (no gain: 2.74% vs 2.72%).
+  - `--check`: "OK, bit-identical". A second full run's CSV is
+    byte-identical to the first's.
+- **Held out** (1000 test realisations, all air geometries, 451 bands;
+  median |Rrs_pred/Rrs − 1| %). Columns: Fresnel θv-only / Fresnel +
+  downwelling / nadir constants / M5 table on correctly paired data /
+  per-cell refit:
+
+  | cut | θv-only | + downwelling | nadir | M5 table | per-cell |
+  |---|---|---|---|---|---|
+  | θv_air = 0 | 3.50 | 1.53 | 1.58 | 1.31 | 0.99 |
+  | θv_air = 20 | 3.28 | 1.31 | 1.42 | 1.18 | 0.87 |
+  | θv_air = 40 | 2.73 | 0.93 | 1.40 | 6.39 | 0.81 |
+  | θv_air = 50 | 2.28 | 0.72 | 3.20 | 10.53 | 0.88 |
+  | θv_air = 60 | 1.97 | 1.05 | 6.88 | 16.05 | 1.11 |
+  | θv_air = 70 | 1.53 | 2.36 | 17.64 | 21.55 | 1.09 |
+  | **window** | **2.72** (q90 7.42) | **1.32** (3.04) | 2.73 (16.31) | 5.02 (22.46) | 0.94 (2.77) |
+  | **shell** | **15.36** | **8.80** | 38.15 | 26.33 | 2.29 |
+  | shell, θv_air = 87.5 | 57.6 | 58.3 | 79.5 | 36.6 | 2.4 |
+
+  Per θs, per band group and the shell in full: `surface_fresnel.md`/`.csv`.
+  66 of the 1000 test realisations sit in M5's 1–400 fitting pool, which
+  flatters only the M5 column.
+- **µd sanity check only** (task 6 owns the diagnostic; 25 realisations,
+  nadir, against PB24 `mu_d`): median 4.57% with TT's H → 3.99% with the
+  data H. Per θs: 0° 4.0 → 1.4%, 30° 1.9 → 0.5%, 60° 9.2 → 5.9%,
+  70° 14.0 → 7.4%.
+- **Gates.**
+  - Pins unchanged: `test_env.py::test_the_default_path_produces_pinned_numbers`
+    (L23 hybrid values + emulator SHA-256),
+    `::test_the_backbone_path_produces_pinned_numbers` (`mode="ztt"`), and
+    `test_hybrid.py::test_mode_ztt_is_bitwise_the_backbone_and_needs_no_emulator`
+    all PASSED. So did `test_ztt_l23.py::test_shipped_emulator_is_pinned_to_tt2017`,
+    `::test_default_backbone_with_ff_on_real_scenes_is_pinned` and
+    `::test_acceptance_gate_on_the_release`.
+  - θv = 0 bit-identity:
+    - `test_ztt.py::test_nadir_matches_the_pre_task4_reference` covers seven
+      outputs incl. `forward`, `array_equal` on `profx`;
+    - `::test_nadir_paper_angles_are_bit_identical_to_the_unrefracted_formula`;
+    - `::test_none_diffuse_fraction_is_tts_H_bit_for_bit`.
+  - Gradients: `::test_gradients_through_the_refraction_and_the_diffuse_fraction`
+    (float64, θv = 37.3°, d/dH directional and elementwise, rel 1e-6).
+  - Leak guard:
+    `test_conventions.py::test_the_fresnel_transfer_was_fitted_on_training_rows_only`.
+- **Suite** (`python -m pytest robust/tests -q -p no:cacheprovider`): with
+  the data `834 passed, 5 skipped, 2 warnings in 383.78s (0:06:23)` (was
+  814/5; +8 `test_ztt`, +12 `test_conventions`); with `env -u OS_COLOR`
+  `756 passed, 83 skipped, 4 warnings in 232.54s (0:03:52)`. `ruff check
+  robust/ design/`: "All checks passed!"; `ruff format --check robust/
+  design/`: "64 files already formatted".
+- **Surprises.**
+  - (1) The task's θv-only form does not beat Lee's constants in the median
+    (2.72% vs 2.73%). It wins only the tail (q90 7.4% vs 16.3%) and
+    θv ≥ 50°. The θs term had been hidden in M5's table.
+  - (2) With the downwelling factor the fitted A0 is Lee's 0.52 to 4
+    digits.
+  - (3) Every flat-surface form fails at θv_air = 87.5 (58%), as task 3's
+    Fresnel check predicts for a 5 m/s surface. Only a fitted table survives
+    there.
+  - (4) The data H never changes the backbone-usability mask: µd is a
+    positive scale.
+  - (5) `fresnel_transmittance` gradients near nadir need a coarse FD step
+    (T is flat there).
+
+  Nothing in the data contradicts the task doc, except that the θv-only form
+  the doc specified is not enough on its own (above).
+- **Open issues for later tasks.**
+  - Task 6 should score the common `rrs` table through
+    `default_fresnel_transfer(downwelling=True)` (with the loader's
+    `diffuse_fraction`), with the θv-only form beside it.
+  - Pass `theta_v_in_water=batch.in_water_only` for the in-water-only set.
+  - Whether M7's c(θs′) should still multiply a supplied H is task 7(i).
+  - The package default with a geometry is still M5's superseded table;
+    switching it is a deliberate later act.
+  - Do not rerun `fit_surface.py`.
+- No state-changing git command was run (read-only `git status`/`git diff`/
+  `git log`, and `git archive HEAD|fb253f9 robust` into the scratchpad).

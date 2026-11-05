@@ -1,0 +1,337 @@
+set,cut,value,model,label,n,median_pct,q90_pct,q99_pct,max_pct
+window,all,,fresnel,Fresnel θv-only (shipped),375232000,2.72,7.42,11.36,23.76
+window,all,,fresnel_td,Fresnel + downwelling (shipped),375232000,1.32,3.04,5.77,13.99
+window,all,,nadir,"nadir constants (0.52, 1.7)",375232000,2.73,16.31,28.81,42.00
+window,all,,m5_table,"M5 table (shipped, mismatched)",375232000,5.02,22.46,44.41,57.03
+window,all,,cell_refit,per-cell refit (2600 numbers),375232000,0.94,2.77,4.47,7.44
+window,all,,fresnel_unweighted,"Fresnel, unweighted fit",375232000,2.40,8.12,12.09,24.22
+window,all,,fresnel_Q,"Fresnel, Q form",375232000,2.74,7.59,11.21,15.49
+window,theta_v_air,0,fresnel,Fresnel θv-only (shipped),46904000,3.50,6.36,8.46,9.93
+window,theta_v_air,0,fresnel_td,Fresnel + downwelling (shipped),46904000,1.53,2.67,4.70,7.17
+window,theta_v_air,0,nadir,"nadir constants (0.52, 1.7)",46904000,1.58,9.28,11.47,13.00
+window,theta_v_air,0,m5_table,"M5 table (shipped, mismatched)",46904000,1.31,3.59,5.27,6.72
+window,theta_v_air,0,cell_refit,per-cell refit (2600 numbers),46904000,0.99,3.16,4.80,6.97
+window,theta_v_air,0,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.99,7.02,9.15,10.64
+window,theta_v_air,0,fresnel_Q,"Fresnel, Q form",46904000,3.46,7.27,8.62,9.83
+window,theta_v_air,10,fresnel,Fresnel θv-only (shipped),46904000,3.64,6.23,8.52,10.65
+window,theta_v_air,10,fresnel_td,Fresnel + downwelling (shipped),46904000,1.68,2.92,4.78,7.67
+window,theta_v_air,10,nadir,"nadir constants (0.52, 1.7)",46904000,1.71,9.05,11.52,13.74
+window,theta_v_air,10,m5_table,"M5 table (shipped, mismatched)",46904000,1.04,3.18,4.88,6.97
+window,theta_v_air,10,cell_refit,per-cell refit (2600 numbers),46904000,0.97,3.20,4.86,7.12
+window,theta_v_air,10,fresnel_unweighted,"Fresnel, unweighted fit",46904000,3.11,6.80,9.22,11.36
+window,theta_v_air,10,fresnel_Q,"Fresnel, Q form",46904000,3.63,6.77,8.66,10.55
+window,theta_v_air,20,fresnel,Fresnel θv-only (shipped),46904000,3.28,6.74,8.86,10.53
+window,theta_v_air,20,fresnel_td,Fresnel + downwelling (shipped),46904000,1.31,2.44,4.42,7.50
+window,theta_v_air,20,nadir,"nadir constants (0.52, 1.7)",46904000,1.42,9.69,11.87,13.64
+window,theta_v_air,20,m5_table,"M5 table (shipped, mismatched)",46904000,1.18,2.41,3.87,7.09
+window,theta_v_air,20,cell_refit,per-cell refit (2600 numbers),46904000,0.87,2.94,4.60,7.31
+window,theta_v_air,20,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.77,7.42,9.54,11.24
+window,theta_v_air,20,fresnel_Q,"Fresnel, Q form",46904000,3.26,7.42,9.03,10.43
+window,theta_v_air,30,fresnel,Fresnel θv-only (shipped),46904000,3.42,7.10,8.88,11.05
+window,theta_v_air,30,fresnel_td,Fresnel + downwelling (shipped),46904000,1.42,2.46,4.34,7.31
+window,theta_v_air,30,nadir,"nadir constants (0.52, 1.7)",46904000,1.51,10.15,12.04,14.27
+window,theta_v_air,30,m5_table,"M5 table (shipped, mismatched)",46904000,3.28,6.60,8.92,10.79
+window,theta_v_air,30,cell_refit,per-cell refit (2600 numbers),46904000,0.80,2.68,4.37,7.38
+window,theta_v_air,30,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.91,7.79,9.58,11.77
+window,theta_v_air,30,fresnel_Q,"Fresnel, Q form",46904000,3.45,7.56,9.01,11.02
+window,theta_v_air,40,fresnel,Fresnel θv-only (shipped),46904000,2.73,7.56,9.65,12.43
+window,theta_v_air,40,fresnel_td,Fresnel + downwelling (shipped),46904000,0.93,1.98,4.52,7.40
+window,theta_v_air,40,nadir,"nadir constants (0.52, 1.7)",46904000,1.40,10.98,13.17,14.93
+window,theta_v_air,40,m5_table,"M5 table (shipped, mismatched)",46904000,6.39,13.11,17.72,19.22
+window,theta_v_air,40,cell_refit,per-cell refit (2600 numbers),46904000,0.81,2.62,4.40,6.78
+window,theta_v_air,40,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.31,8.23,10.36,12.88
+window,theta_v_air,40,fresnel_Q,"Fresnel, Q form",46904000,2.80,7.86,9.72,11.22
+window,theta_v_air,50,fresnel,Fresnel θv-only (shipped),46904000,2.28,9.01,10.85,15.38
+window,theta_v_air,50,fresnel_td,Fresnel + downwelling (shipped),46904000,0.72,2.45,5.71,9.34
+window,theta_v_air,50,nadir,"nadir constants (0.52, 1.7)",46904000,3.20,13.60,15.51,18.74
+window,theta_v_air,50,m5_table,"M5 table (shipped, mismatched)",46904000,10.53,21.36,28.74,30.08
+window,theta_v_air,50,cell_refit,per-cell refit (2600 numbers),46904000,0.88,2.36,4.18,7.36
+window,theta_v_air,50,fresnel_unweighted,"Fresnel, unweighted fit",46904000,1.87,9.72,11.55,15.83
+window,theta_v_air,50,fresnel_Q,"Fresnel, Q form",46904000,2.36,9.07,10.80,13.29
+window,theta_v_air,60,fresnel,Fresnel θv-only (shipped),46904000,1.97,9.17,11.84,18.95
+window,theta_v_air,60,fresnel_td,Fresnel + downwelling (shipped),46904000,1.05,3.35,6.66,10.10
+window,theta_v_air,60,nadir,"nadir constants (0.52, 1.7)",46904000,6.88,16.96,19.75,25.77
+window,theta_v_air,60,m5_table,"M5 table (shipped, mismatched)",46904000,16.05,31.81,42.51,44.11
+window,theta_v_air,60,cell_refit,per-cell refit (2600 numbers),46904000,1.11,2.31,4.08,7.44
+window,theta_v_air,60,fresnel_unweighted,"Fresnel, unweighted fit",46904000,1.66,9.87,12.55,19.40
+window,theta_v_air,60,fresnel_Q,"Fresnel, Q form",46904000,2.04,9.09,11.63,13.66
+window,theta_v_air,70,fresnel,Fresnel θv-only (shipped),46904000,1.53,9.90,13.14,23.76
+window,theta_v_air,70,fresnel_td,Fresnel + downwelling (shipped),46904000,2.36,4.67,7.92,13.99
+window,theta_v_air,70,nadir,"nadir constants (0.52, 1.7)",46904000,17.64,27.83,31.59,42.00
+window,theta_v_air,70,m5_table,"M5 table (shipped, mismatched)",46904000,21.55,41.73,55.02,57.03
+window,theta_v_air,70,cell_refit,per-cell refit (2600 numbers),46904000,1.09,2.48,3.98,7.09
+window,theta_v_air,70,fresnel_unweighted,"Fresnel, unweighted fit",46904000,1.81,10.58,13.85,24.22
+window,theta_v_air,70,fresnel_Q,"Fresnel, Q form",46904000,1.46,9.67,12.72,15.49
+window,theta_s,0,fresnel,Fresnel θv-only (shipped),46904000,2.87,4.57,5.22,7.35
+window,theta_s,0,fresnel_td,Fresnel + downwelling (shipped),46904000,1.41,2.57,3.92,10.12
+window,theta_s,0,nadir,"nadir constants (0.52, 1.7)",46904000,1.70,15.12,19.03,23.45
+window,theta_s,0,m5_table,"M5 table (shipped, mismatched)",46904000,3.73,17.44,20.49,21.09
+window,theta_s,0,cell_refit,per-cell refit (2600 numbers),46904000,0.76,2.07,3.47,4.39
+window,theta_s,0,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.34,3.96,4.64,7.79
+window,theta_s,0,fresnel_Q,"Fresnel, Q form",46904000,2.96,4.62,5.18,6.23
+window,theta_s,10,fresnel,Fresnel θv-only (shipped),46904000,2.78,4.48,5.21,7.73
+window,theta_s,10,fresnel_td,Fresnel + downwelling (shipped),46904000,1.38,2.58,4.20,10.51
+window,theta_s,10,nadir,"nadir constants (0.52, 1.7)",46904000,1.69,15.19,19.43,23.86
+window,theta_s,10,m5_table,"M5 table (shipped, mismatched)",46904000,3.97,17.52,24.52,26.05
+window,theta_s,10,cell_refit,per-cell refit (2600 numbers),46904000,0.80,2.21,3.67,4.62
+window,theta_s,10,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.26,3.90,4.64,8.17
+window,theta_s,10,fresnel_Q,"Fresnel, Q form",46904000,2.85,4.52,5.13,6.23
+window,theta_s,20,fresnel,Fresnel θv-only (shipped),46904000,2.75,4.45,5.30,8.23
+window,theta_s,20,fresnel_td,Fresnel + downwelling (shipped),46904000,1.38,2.62,4.22,10.99
+window,theta_s,20,nadir,"nadir constants (0.52, 1.7)",46904000,1.67,15.15,19.52,24.41
+window,theta_s,20,m5_table,"M5 table (shipped, mismatched)",46904000,4.31,19.03,28.94,30.89
+window,theta_s,20,cell_refit,per-cell refit (2600 numbers),46904000,0.79,2.31,3.84,4.99
+window,theta_s,20,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.24,3.87,4.76,8.67
+window,theta_s,20,fresnel_Q,"Fresnel, Q form",46904000,2.80,4.48,5.17,6.33
+window,theta_s,30,fresnel,Fresnel θv-only (shipped),46904000,2.66,4.32,5.41,8.81
+window,theta_s,30,fresnel_td,Fresnel + downwelling (shipped),46904000,1.38,2.69,4.32,11.47
+window,theta_s,30,nadir,"nadir constants (0.52, 1.7)",46904000,1.63,15.22,19.79,25.04
+window,theta_s,30,m5_table,"M5 table (shipped, mismatched)",46904000,4.74,21.06,33.54,35.86
+window,theta_s,30,cell_refit,per-cell refit (2600 numbers),46904000,0.78,2.49,4.16,5.56
+window,theta_s,30,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.17,3.74,4.91,9.24
+window,theta_s,30,fresnel_Q,"Fresnel, Q form",46904000,2.68,4.33,5.11,6.39
+window,theta_s,40,fresnel,Fresnel θv-only (shipped),46904000,2.33,3.96,5.53,9.83
+window,theta_s,40,fresnel_td,Fresnel + downwelling (shipped),46904000,1.34,2.85,4.60,12.14
+window,theta_s,40,nadir,"nadir constants (0.52, 1.7)",46904000,1.71,15.51,20.49,26.16
+window,theta_s,40,m5_table,"M5 table (shipped, mismatched)",46904000,5.36,24.13,39.95,42.39
+window,theta_s,40,cell_refit,per-cell refit (2600 numbers),46904000,0.85,2.77,4.60,6.30
+window,theta_s,40,fresnel_unweighted,"Fresnel, unweighted fit",46904000,1.89,3.46,5.18,10.25
+window,theta_s,40,fresnel_Q,"Fresnel, Q form",46904000,2.29,3.91,4.87,6.34
+window,theta_s,50,fresnel,Fresnel θv-only (shipped),46904000,1.65,3.39,5.58,11.61
+window,theta_s,50,fresnel_td,Fresnel + downwelling (shipped),46904000,1.23,3.10,5.16,12.92
+window,theta_s,50,nadir,"nadir constants (0.52, 1.7)",46904000,2.47,16.69,22.05,28.16
+window,theta_s,50,m5_table,"M5 table (shipped, mismatched)",46904000,5.95,26.88,45.87,48.30
+window,theta_s,50,cell_refit,per-cell refit (2600 numbers),46904000,0.94,3.07,5.06,7.15
+window,theta_s,50,fresnel_unweighted,"Fresnel, unweighted fit",46904000,1.41,3.40,5.90,12.04
+window,theta_s,50,fresnel_Q,"Fresnel, Q form",46904000,1.57,3.00,4.88,7.85
+window,theta_s,60,fresnel,Fresnel θv-only (shipped),46904000,2.15,5.15,8.25,15.52
+window,theta_s,60,fresnel_td,Fresnel + downwelling (shipped),46904000,1.12,3.72,6.35,13.98
+window,theta_s,60,nadir,"nadir constants (0.52, 1.7)",46904000,5.39,20.11,25.56,32.59
+window,theta_s,60,m5_table,"M5 table (shipped, mismatched)",46904000,6.39,29.21,50.64,53.00
+window,theta_s,60,cell_refit,per-cell refit (2600 numbers),46904000,1.11,3.24,5.22,7.44
+window,theta_s,60,fresnel_unweighted,"Fresnel, unweighted fit",46904000,2.73,5.81,8.92,15.95
+window,theta_s,60,fresnel_Q,"Fresnel, Q form",46904000,2.15,5.05,7.86,10.75
+window,theta_s,70,fresnel,Fresnel θv-only (shipped),46904000,8.38,11.10,13.20,23.76
+window,theta_s,70,fresnel_td,Fresnel + downwelling (shipped),46904000,1.36,4.83,8.16,13.99
+window,theta_s,70,nadir,"nadir constants (0.52, 1.7)",46904000,11.65,27.77,31.59,42.00
+window,theta_s,70,m5_table,"M5 table (shipped, mismatched)",46904000,6.29,31.08,55.02,57.03
+window,theta_s,70,cell_refit,per-cell refit (2600 numbers),46904000,1.89,3.20,4.21,7.38
+window,theta_s,70,fresnel_unweighted,"Fresnel, unweighted fit",46904000,9.07,11.79,13.88,24.22
+window,theta_s,70,fresnel_Q,"Fresnel, Q form",46904000,8.50,10.95,12.75,15.49
+window,band_nm,350-399,fresnel,Fresnel θv-only (shipped),41600000,1.78,8.38,12.90,16.45
+window,band_nm,350-399,fresnel_td,Fresnel + downwelling (shipped),41600000,1.83,5.15,8.27,11.43
+window,band_nm,350-399,nadir,"nadir constants (0.52, 1.7)",41600000,5.15,19.75,31.08,34.71
+window,band_nm,350-399,m5_table,"M5 table (shipped, mismatched)",41600000,4.36,20.11,43.10,55.32
+window,band_nm,350-399,cell_refit,per-cell refit (2600 numbers),41600000,3.08,4.40,5.48,7.44
+window,band_nm,350-399,fresnel_unweighted,"Fresnel, unweighted fit",41600000,2.03,9.07,13.60,17.07
+window,band_nm,350-399,fresnel_Q,"Fresnel, Q form",41600000,1.69,8.68,12.60,15.49
+window,band_nm,400-499,fresnel,Fresnel θv-only (shipped),83200000,2.12,7.19,11.84,19.56
+window,band_nm,400-499,fresnel_td,Fresnel + downwelling (shipped),83200000,1.20,3.42,5.64,11.71
+window,band_nm,400-499,nadir,"nadir constants (0.52, 1.7)",83200000,3.20,17.93,29.82,37.82
+window,band_nm,400-499,m5_table,"M5 table (shipped, mismatched)",83200000,4.14,21.40,43.90,55.84
+window,band_nm,400-499,cell_refit,per-cell refit (2600 numbers),83200000,1.34,2.68,3.71,5.47
+window,band_nm,400-499,fresnel_unweighted,"Fresnel, unweighted fit",83200000,1.88,7.86,12.57,20.10
+window,band_nm,400-499,fresnel_Q,"Fresnel, Q form",83200000,2.13,7.84,11.60,14.70
+window,band_nm,500-599,fresnel,Fresnel θv-only (shipped),83200000,2.79,6.74,11.10,21.45
+window,band_nm,500-599,fresnel_td,Fresnel + downwelling (shipped),83200000,1.28,2.82,4.53,12.77
+window,band_nm,500-599,nadir,"nadir constants (0.52, 1.7)",83200000,2.30,16.50,28.74,39.67
+window,band_nm,500-599,m5_table,"M5 table (shipped, mismatched)",83200000,5.17,22.41,44.51,56.42
+window,band_nm,500-599,cell_refit,per-cell refit (2600 numbers),83200000,0.63,1.69,3.17,4.80
+window,band_nm,500-599,fresnel_unweighted,"Fresnel, unweighted fit",83200000,2.39,7.40,11.79,21.95
+window,band_nm,500-599,fresnel_Q,"Fresnel, Q form",83200000,2.81,7.37,10.90,13.26
+window,band_nm,600-699,fresnel,Fresnel θv-only (shipped),83200000,3.12,7.40,10.65,22.97
+window,band_nm,600-699,fresnel_td,Fresnel + downwelling (shipped),83200000,1.31,2.47,4.33,13.55
+window,band_nm,600-699,nadir,"nadir constants (0.52, 1.7)",83200000,2.09,15.69,28.15,41.21
+window,band_nm,600-699,m5_table,"M5 table (shipped, mismatched)",83200000,5.71,23.09,46.08,56.72
+window,band_nm,600-699,cell_refit,per-cell refit (2600 numbers),83200000,0.63,1.78,2.94,6.43
+window,band_nm,600-699,fresnel_unweighted,"Fresnel, unweighted fit",83200000,2.69,8.10,11.36,23.44
+window,band_nm,600-699,fresnel_Q,"Fresnel, Q form",83200000,3.19,7.56,10.53,12.80
+window,band_nm,700-800,fresnel,Fresnel θv-only (shipped),84032000,3.46,7.47,10.29,23.76
+window,band_nm,700-800,fresnel_td,Fresnel + downwelling (shipped),84032000,1.36,2.42,3.74,13.99
+window,band_nm,700-800,nadir,"nadir constants (0.52, 1.7)",84032000,2.09,15.08,27.57,42.00
+window,band_nm,700-800,m5_table,"M5 table (shipped, mismatched)",84032000,6.09,23.58,46.72,57.03
+window,band_nm,700-800,cell_refit,per-cell refit (2600 numbers),84032000,0.81,1.99,2.84,7.38
+window,band_nm,700-800,fresnel_unweighted,"Fresnel, unweighted fit",84032000,2.94,8.16,11.00,24.22
+window,band_nm,700-800,fresnel_Q,"Fresnel, Q form",84032000,3.54,7.40,10.20,12.59
+shell,all,,fresnel,Fresnel θv-only (shipped),211068000,15.36,58.68,62.16,66.20
+shell,all,,fresnel_td,Fresnel + downwelling (shipped),211068000,8.80,59.22,64.34,71.22
+shell,all,,nadir,"nadir constants (0.52, 1.7)",211068000,38.15,84.04,107.28,149.38
+shell,all,,m5_table,"M5 table (shipped, mismatched)",211068000,26.33,50.87,70.06,79.67
+shell,all,,cell_refit,per-cell refit (2600 numbers),211068000,2.29,7.30,10.88,22.53
+shell,all,,fresnel_unweighted,"Fresnel, unweighted fit",211068000,16.01,58.41,62.02,65.98
+shell,all,,fresnel_Q,"Fresnel, Q form",211068000,15.65,58.82,62.30,66.24
+shell,theta_v_air,0,fresnel,Fresnel θv-only (shipped),11726000,13.51,19.61,20.21,20.45
+shell,theta_v_air,0,fresnel_td,Fresnel + downwelling (shipped),11726000,5.72,9.90,13.60,19.26
+shell,theta_v_air,0,nadir,"nadir constants (0.52, 1.7)",11726000,16.61,22.94,23.58,23.81
+shell,theta_v_air,0,m5_table,"M5 table (shipped, mismatched)",11726000,4.57,9.43,12.57,13.09
+shell,theta_v_air,0,cell_refit,per-cell refit (2600 numbers),11726000,4.12,8.82,11.95,12.47
+shell,theta_v_air,0,fresnel_unweighted,"Fresnel, unweighted fit",11726000,14.21,20.39,21.01,21.23
+shell,theta_v_air,0,fresnel_Q,"Fresnel, Q form",11726000,14.40,19.57,20.11,20.34
+shell,theta_v_air,10,fresnel,Fresnel θv-only (shipped),11726000,13.26,19.30,20.25,21.49
+shell,theta_v_air,10,fresnel_td,Fresnel + downwelling (shipped),11726000,5.73,10.08,13.85,19.63
+shell,theta_v_air,10,nadir,"nadir constants (0.52, 1.7)",11726000,16.39,22.62,23.58,24.88
+shell,theta_v_air,10,m5_table,"M5 table (shipped, mismatched)",11726000,4.03,8.86,12.01,12.88
+shell,theta_v_air,10,cell_refit,per-cell refit (2600 numbers),11726000,4.04,8.90,11.84,13.07
+shell,theta_v_air,10,fresnel_unweighted,"Fresnel, unweighted fit",11726000,13.98,20.07,21.01,22.28
+shell,theta_v_air,10,fresnel_Q,"Fresnel, Q form",11726000,14.11,19.25,20.11,21.38
+shell,theta_v_air,20,fresnel,Fresnel θv-only (shipped),11726000,13.88,19.88,20.63,21.23
+shell,theta_v_air,20,fresnel_td,Fresnel + downwelling (shipped),11726000,5.73,9.56,13.38,19.26
+shell,theta_v_air,20,nadir,"nadir constants (0.52, 1.7)",11726000,17.04,23.25,24.02,24.64
+shell,theta_v_air,20,m5_table,"M5 table (shipped, mismatched)",11726000,2.85,6.82,9.81,10.68
+shell,theta_v_air,20,cell_refit,per-cell refit (2600 numbers),11726000,3.91,8.56,11.65,12.28
+shell,theta_v_air,20,fresnel_unweighted,"Fresnel, unweighted fit",11726000,14.60,20.63,21.40,22.01
+shell,theta_v_air,20,fresnel_Q,"Fresnel, Q form",11726000,14.67,19.79,20.54,21.12
+shell,theta_v_air,30,fresnel,Fresnel θv-only (shipped),11726000,14.11,20.02,21.01,21.74
+shell,theta_v_air,30,fresnel_td,Fresnel + downwelling (shipped),11726000,5.67,9.34,13.26,18.90
+shell,theta_v_air,30,nadir,"nadir constants (0.52, 1.7)",11726000,17.36,23.52,24.52,25.27
+shell,theta_v_air,30,m5_table,"M5 table (shipped, mismatched)",11726000,3.39,6.91,10.63,13.05
+shell,theta_v_air,30,cell_refit,per-cell refit (2600 numbers),11726000,3.69,8.37,11.42,12.04
+shell,theta_v_air,30,fresnel_unweighted,"Fresnel, unweighted fit",11726000,14.84,20.82,21.80,22.52
+shell,theta_v_air,30,fresnel_Q,"Fresnel, Q form",11726000,14.77,19.98,20.92,21.69
+shell,theta_v_air,40,fresnel,Fresnel θv-only (shipped),11726000,14.77,20.39,21.21,24.17
+shell,theta_v_air,40,fresnel_td,Fresnel + downwelling (shipped),11726000,5.79,9.36,12.96,17.86
+shell,theta_v_air,40,nadir,"nadir constants (0.52, 1.7)",11726000,18.43,24.29,25.09,26.65
+shell,theta_v_air,40,m5_table,"M5 table (shipped, mismatched)",11726000,8.03,14.27,19.08,20.88
+shell,theta_v_air,40,cell_refit,per-cell refit (2600 numbers),11726000,3.43,7.95,10.95,11.75
+shell,theta_v_air,40,fresnel_unweighted,"Fresnel, unweighted fit",11726000,15.51,21.16,21.95,24.68
+shell,theta_v_air,40,fresnel_Q,"Fresnel, Q form",11726000,15.26,20.30,21.11,21.64
+shell,theta_v_air,50,fresnel,Fresnel θv-only (shipped),11726000,16.16,21.60,22.21,27.75
+shell,theta_v_air,50,fresnel_td,Fresnel + downwelling (shipped),11726000,5.63,9.81,12.06,16.98
+shell,theta_v_air,50,nadir,"nadir constants (0.52, 1.7)",11726000,21.01,26.76,27.38,31.47
+shell,theta_v_air,50,m5_table,"M5 table (shipped, mismatched)",11726000,14.47,24.80,29.96,30.99
+shell,theta_v_air,50,cell_refit,per-cell refit (2600 numbers),11726000,3.08,7.52,10.48,11.35
+shell,theta_v_air,50,fresnel_unweighted,"Fresnel, unweighted fit",11726000,16.92,22.41,23.04,28.25
+shell,theta_v_air,50,fresnel_Q,"Fresnel, Q form",11726000,16.42,21.50,22.11,22.46
+shell,theta_v_air,60,fresnel,Fresnel θv-only (shipped),11726000,16.85,21.75,23.04,31.99
+shell,theta_v_air,60,fresnel_td,Fresnel + downwelling (shipped),11726000,5.68,10.36,12.09,15.87
+shell,theta_v_air,60,nadir,"nadir constants (0.52, 1.7)",11726000,25.15,30.44,31.88,39.55
+shell,theta_v_air,60,m5_table,"M5 table (shipped, mismatched)",11726000,22.72,37.71,43.50,44.75
+shell,theta_v_air,60,cell_refit,per-cell refit (2600 numbers),11726000,2.71,7.02,9.81,11.05
+shell,theta_v_air,60,fresnel_unweighted,"Fresnel, unweighted fit",11726000,17.60,22.57,23.85,32.50
+shell,theta_v_air,60,fresnel_Q,"Fresnel, Q form",11726000,16.88,21.65,22.94,23.80
+shell,theta_v_air,70,fresnel,Fresnel θv-only (shipped),11726000,18.05,22.88,24.29,37.83
+shell,theta_v_air,70,fresnel_td,Fresnel + downwelling (shipped),11726000,5.59,11.13,12.93,14.77
+shell,theta_v_air,70,nadir,"nadir constants (0.52, 1.7)",11726000,37.28,43.00,44.62,58.10
+shell,theta_v_air,70,m5_table,"M5 table (shipped, mismatched)",11726000,31.01,50.52,56.43,57.87
+shell,theta_v_air,70,cell_refit,per-cell refit (2600 numbers),11726000,2.46,6.74,9.58,11.49
+shell,theta_v_air,70,fresnel_unweighted,"Fresnel, unweighted fit",11726000,18.77,23.69,25.09,38.32
+shell,theta_v_air,70,fresnel_Q,"Fresnel, Q form",11726000,17.84,22.72,24.13,25.91
+shell,theta_v_air,80,fresnel,Fresnel θv-only (shipped),58630000,9.01,12.52,14.95,24.61
+shell,theta_v_air,80,fresnel_td,Fresnel + downwelling (shipped),58630000,9.01,13.85,21.50,27.67
+shell,theta_v_air,80,nadir,"nadir constants (0.52, 1.7)",58630000,41.07,59.91,69.10,90.09
+shell,theta_v_air,80,m5_table,"M5 table (shipped, mismatched)",58630000,30.87,55.78,67.84,70.38
+shell,theta_v_air,80,cell_refit,per-cell refit (2600 numbers),58630000,1.56,4.18,7.15,13.79
+shell,theta_v_air,80,fresnel_unweighted,"Fresnel, unweighted fit",58630000,8.58,11.95,14.40,25.05
+shell,theta_v_air,80,fresnel_Q,"Fresnel, Q form",58630000,9.30,12.72,15.08,17.25
+shell,theta_v_air,87.5,fresnel,Fresnel θv-only (shipped),58630000,57.61,61.02,63.31,66.20
+shell,theta_v_air,87.5,fresnel_td,Fresnel + downwelling (shipped),58630000,58.28,62.16,66.45,71.22
+shell,theta_v_air,87.5,nadir,"nadir constants (0.52, 1.7)",58630000,79.52,98.74,115.21,149.38
+shell,theta_v_air,87.5,m5_table,"M5 table (shipped, mismatched)",58630000,36.60,61.87,75.60,79.67
+shell,theta_v_air,87.5,cell_refit,per-cell refit (2600 numbers),58630000,2.43,6.09,10.20,22.53
+shell,theta_v_air,87.5,fresnel_unweighted,"Fresnel, unweighted fit",58630000,57.35,60.74,63.02,65.98
+shell,theta_v_air,87.5,fresnel_Q,"Fresnel, Q form",58630000,57.88,61.16,63.46,66.24
+shell,theta_s,0,fresnel,Fresnel θv-only (shipped),11726000,14.08,59.91,61.59,63.06
+shell,theta_s,0,fresnel_td,Fresnel + downwelling (shipped),11726000,12.01,59.09,60.74,62.17
+shell,theta_s,0,nadir,"nadir constants (0.52, 1.7)",11726000,48.47,82.51,90.47,98.86
+shell,theta_s,0,m5_table,"M5 table (shipped, mismatched)",11726000,26.70,32.70,34.71,35.85
+shell,theta_s,0,cell_refit,per-cell refit (2600 numbers),11726000,1.71,4.34,6.43,8.91
+shell,theta_s,0,fresnel_unweighted,"Fresnel, unweighted fit",11726000,13.54,59.77,61.45,62.83
+shell,theta_s,0,fresnel_Q,"Fresnel, Q form",11726000,14.21,60.05,61.73,63.11
+shell,theta_s,10,fresnel,Fresnel θv-only (shipped),11726000,14.67,60.05,62.02,63.07
+shell,theta_s,10,fresnel_td,Fresnel + downwelling (shipped),11726000,12.60,59.22,61.16,62.18
+shell,theta_s,10,nadir,"nadir constants (0.52, 1.7)",11726000,48.70,82.51,90.68,100.06
+shell,theta_s,10,m5_table,"M5 table (shipped, mismatched)",11726000,28.02,35.36,40.04,41.82
+shell,theta_s,10,cell_refit,per-cell refit (2600 numbers),11726000,1.76,4.41,7.09,9.79
+shell,theta_s,10,fresnel_unweighted,"Fresnel, unweighted fit",11726000,14.11,59.77,61.73,62.83
+shell,theta_s,10,fresnel_Q,"Fresnel, Q form",11726000,14.77,60.19,62.02,63.11
+shell,theta_s,20,fresnel,Fresnel θv-only (shipped),11726000,15.54,60.33,62.45,63.89
+shell,theta_s,20,fresnel_td,Fresnel + downwelling (shipped),11726000,13.54,59.50,61.59,63.02
+shell,theta_s,20,nadir,"nadir constants (0.52, 1.7)",11726000,49.26,82.13,90.26,100.60
+shell,theta_s,20,m5_table,"M5 table (shipped, mismatched)",11726000,29.01,39.95,45.45,47.79
+shell,theta_s,20,cell_refit,per-cell refit (2600 numbers),11726000,1.79,4.56,7.93,10.75
+shell,theta_s,20,fresnel_unweighted,"Fresnel, unweighted fit",11726000,15.01,60.05,62.16,63.66
+shell,theta_s,20,fresnel_Q,"Fresnel, Q form",11726000,15.65,60.46,62.45,63.93
+shell,theta_s,30,fresnel,Fresnel θv-only (shipped),11726000,16.39,60.74,62.88,64.76
+shell,theta_s,30,fresnel_td,Fresnel + downwelling (shipped),11726000,14.47,59.91,62.02,63.95
+shell,theta_s,30,nadir,"nadir constants (0.52, 1.7)",11726000,49.72,81.75,89.85,101.21
+shell,theta_s,30,m5_table,"M5 table (shipped, mismatched)",11726000,30.30,44.82,50.87,53.54
+shell,theta_s,30,cell_refit,per-cell refit (2600 numbers),11726000,1.83,4.79,8.74,11.80
+shell,theta_s,30,fresnel_unweighted,"Fresnel, unweighted fit",11726000,15.83,60.46,62.59,64.53
+shell,theta_s,30,fresnel_Q,"Fresnel, Q form",11726000,16.46,60.74,62.88,64.80
+shell,theta_s,40,fresnel,Fresnel θv-only (shipped),11726000,17.16,61.02,63.61,65.70
+shell,theta_s,40,fresnel_td,Fresnel + downwelling (shipped),11726000,15.54,60.33,62.88,65.03
+shell,theta_s,40,nadir,"nadir constants (0.52, 1.7)",11726000,47.92,81.56,89.85,102.34
+shell,theta_s,40,m5_table,"M5 table (shipped, mismatched)",11726000,32.25,51.70,58.14,60.62
+shell,theta_s,40,cell_refit,per-cell refit (2600 numbers),11726000,1.91,5.17,9.72,12.92
+shell,theta_s,40,fresnel_unweighted,"Fresnel, unweighted fit",11726000,16.61,60.74,63.31,65.48
+shell,theta_s,40,fresnel_Q,"Fresnel, Q form",11726000,17.24,61.16,63.61,65.74
+shell,theta_s,50,fresnel,Fresnel θv-only (shipped),11726000,17.08,61.16,64.05,66.20
+shell,theta_s,50,fresnel_td,Fresnel + downwelling (shipped),11726000,16.27,60.88,63.75,65.86
+shell,theta_s,50,nadir,"nadir constants (0.52, 1.7)",11726000,48.47,82.70,91.31,104.78
+shell,theta_s,50,m5_table,"M5 table (shipped, mismatched)",11726000,34.55,58.01,64.94,67.08
+shell,theta_s,50,cell_refit,per-cell refit (2600 numbers),11726000,1.99,5.51,10.39,13.64
+shell,theta_s,50,fresnel_unweighted,"Fresnel, unweighted fit",11726000,16.58,60.88,63.75,65.98
+shell,theta_s,50,fresnel_Q,"Fresnel, Q form",11726000,17.20,61.31,64.19,66.24
+shell,theta_s,60,fresnel,Fresnel θv-only (shipped),11726000,15.22,60.46,63.61,65.86
+shell,theta_s,60,fresnel_td,Fresnel + downwelling (shipped),11726000,16.50,61.02,64.19,66.37
+shell,theta_s,60,nadir,"nadir constants (0.52, 1.7)",11726000,51.94,87.00,95.83,111.06
+shell,theta_s,60,m5_table,"M5 table (shipped, mismatched)",11726000,37.03,63.31,70.88,72.74
+shell,theta_s,60,cell_refit,per-cell refit (2600 numbers),11726000,1.97,5.60,10.63,13.95
+shell,theta_s,60,fresnel_unweighted,"Fresnel, unweighted fit",11726000,14.67,60.19,63.46,65.64
+shell,theta_s,60,fresnel_Q,"Fresnel, Q form",11726000,15.33,60.60,63.75,65.91
+shell,theta_s,70,fresnel,Fresnel θv-only (shipped),11726000,11.87,58.28,62.02,64.33
+shell,theta_s,70,fresnel_td,Fresnel + downwelling (shipped),11726000,17.40,61.45,64.94,67.20
+shell,theta_s,70,nadir,"nadir constants (0.52, 1.7)",11726000,58.41,96.72,104.59,124.90
+shell,theta_s,70,m5_table,"M5 table (shipped, mismatched)",11726000,39.95,68.31,76.65,78.07
+shell,theta_s,70,cell_refit,per-cell refit (2600 numbers),11726000,1.71,5.02,9.97,16.25
+shell,theta_s,70,fresnel_unweighted,"Fresnel, unweighted fit",11726000,12.26,58.14,61.73,64.10
+shell,theta_s,70,fresnel_Q,"Fresnel, Q form",11726000,10.29,58.55,62.16,64.39
+shell,theta_s,80,fresnel,Fresnel θv-only (shipped),58630000,17.93,37.80,56.04,60.86
+shell,theta_s,80,fresnel_td,Fresnel + downwelling (shipped),58630000,5.98,23.85,65.09,70.11
+shell,theta_s,80,nadir,"nadir constants (0.52, 1.7)",58630000,23.47,71.70,114.42,149.38
+shell,theta_s,80,m5_table,"M5 table (shipped, mismatched)",58630000,11.60,49.26,74.56,79.67
+shell,theta_s,80,cell_refit,per-cell refit (2600 numbers),58630000,3.57,7.49,8.46,22.53
+shell,theta_s,80,fresnel_unweighted,"Fresnel, unweighted fit",58630000,18.69,38.33,55.78,60.61
+shell,theta_s,80,fresnel_Q,"Fresnel, Q form",58630000,18.09,25.91,56.43,60.92
+shell,theta_s,87.75,fresnel,Fresnel θv-only (shipped),58630000,12.60,35.03,56.82,60.70
+shell,theta_s,87.75,fresnel_td,Fresnel + downwelling (shipped),58630000,6.96,27.70,65.39,71.22
+shell,theta_s,87.75,nadir,"nadir constants (0.52, 1.7)",58630000,20.30,71.53,106.29,145.71
+shell,theta_s,87.75,m5_table,"M5 table (shipped, mismatched)",58630000,11.87,45.55,66.60,71.38
+shell,theta_s,87.75,cell_refit,per-cell refit (2600 numbers),58630000,2.54,9.24,11.65,20.72
+shell,theta_s,87.75,fresnel_unweighted,"Fresnel, unweighted fit",58630000,13.32,35.52,56.56,60.44
+shell,theta_s,87.75,fresnel_Q,"Fresnel, Q form",58630000,12.63,25.73,56.95,60.82
+shell,band_nm,350-399,fresnel,Fresnel θv-only (shipped),23400000,11.52,57.21,59.77,62.89
+shell,band_nm,350-399,fresnel_td,Fresnel + downwelling (shipped),23400000,8.16,57.35,59.50,62.99
+shell,band_nm,350-399,nadir,"nadir constants (0.52, 1.7)",23400000,42.71,88.82,105.32,130.27
+shell,band_nm,350-399,m5_table,"M5 table (shipped, mismatched)",23400000,24.92,49.60,68.63,78.94
+shell,band_nm,350-399,cell_refit,per-cell refit (2600 numbers),23400000,1.93,4.45,7.35,21.58
+shell,band_nm,350-399,fresnel_unweighted,"Fresnel, unweighted fit",23400000,12.20,56.95,59.50,62.65
+shell,band_nm,350-399,fresnel_Q,"Fresnel, Q form",23400000,11.74,57.35,59.91,62.96
+shell,band_nm,400-499,fresnel,Fresnel θv-only (shipped),46800000,11.74,57.61,60.33,63.75
+shell,band_nm,400-499,fresnel_td,Fresnel + downwelling (shipped),46800000,7.54,57.74,60.46,65.13
+shell,band_nm,400-499,nadir,"nadir constants (0.52, 1.7)",46800000,39.58,86.40,105.08,126.52
+shell,band_nm,400-499,m5_table,"M5 table (shipped, mismatched)",46800000,25.67,50.06,68.94,78.98
+shell,band_nm,400-499,cell_refit,per-cell refit (2600 numbers),46800000,1.19,3.11,5.46,10.83
+shell,band_nm,400-499,fresnel_unweighted,"Fresnel, unweighted fit",46800000,12.37,57.35,60.05,63.52
+shell,band_nm,400-499,fresnel_Q,"Fresnel, Q form",46800000,12.15,57.88,60.60,63.87
+shell,band_nm,500-599,fresnel,Fresnel θv-only (shipped),46800000,13.47,58.41,61.45,64.89
+shell,band_nm,500-599,fresnel_td,Fresnel + downwelling (shipped),46800000,7.88,58.95,62.30,67.63
+shell,band_nm,500-599,nadir,"nadir constants (0.52, 1.7)",46800000,38.15,83.85,107.28,136.08
+shell,band_nm,500-599,m5_table,"M5 table (shipped, mismatched)",46800000,26.15,50.52,69.42,79.14
+shell,band_nm,500-599,cell_refit,per-cell refit (2600 numbers),46800000,1.78,4.87,6.69,12.67
+shell,band_nm,500-599,fresnel_unweighted,"Fresnel, unweighted fit",46800000,14.11,58.14,61.16,64.67
+shell,band_nm,500-599,fresnel_Q,"Fresnel, Q form",46800000,14.11,58.68,61.59,64.95
+shell,band_nm,600-699,fresnel,Fresnel θv-only (shipped),46800000,17.32,59.50,62.45,65.69
+shell,band_nm,600-699,fresnel_td,Fresnel + downwelling (shipped),46800000,8.94,60.33,64.49,69.26
+shell,band_nm,600-699,nadir,"nadir constants (0.52, 1.7)",46800000,37.28,81.00,108.52,144.63
+shell,band_nm,600-699,m5_table,"M5 table (shipped, mismatched)",46800000,26.70,51.46,70.39,79.51
+shell,band_nm,600-699,cell_refit,per-cell refit (2600 numbers),46800000,3.78,7.17,8.64,15.18
+shell,band_nm,600-699,fresnel_unweighted,"Fresnel, unweighted fit",46800000,18.09,59.22,62.30,65.47
+shell,band_nm,600-699,fresnel_Q,"Fresnel, Q form",46800000,17.60,59.50,62.59,65.77
+shell,band_nm,700-800,fresnel,Fresnel θv-only (shipped),47268000,20.02,60.05,63.17,66.20
+shell,band_nm,700-800,fresnel_td,Fresnel + downwelling (shipped),47268000,11.03,61.16,66.60,71.22
+shell,band_nm,700-800,nadir,"nadir constants (0.52, 1.7)",47268000,36.86,79.16,111.56,149.38
+shell,band_nm,700-800,m5_table,"M5 table (shipped, mismatched)",47268000,26.88,52.30,70.88,79.67
+shell,band_nm,700-800,cell_refit,per-cell refit (2600 numbers),47268000,5.60,9.85,11.82,22.53
+shell,band_nm,700-800,fresnel_unweighted,"Fresnel, unweighted fit",47268000,20.77,59.77,62.88,65.98
+shell,band_nm,700-800,fresnel_Q,"Fresnel, Q form",47268000,19.93,60.05,63.17,66.24

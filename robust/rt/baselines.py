@@ -244,6 +244,9 @@ def Rrs_o25(
     geometry : robust.rt.types.Geometry
         Solar zenith is **used** (unlike Gordon). ``theta_v`` and ``dphi`` are ignored
         by this refit because L23 is nadir-only; the published model indexes them.
+        ``theta_v`` is the **above-water** view zenith, which is what an
+        :class:`O25Table` is indexed by (O25 is defined in ``Rrs``, tabulated at
+        PB24's above-water nodes), so nothing here refracts it.
     wave : Array, optional
         **Ignored.** The coefficients are wavelength-independent *by construction* --
         λ enters only through the IOPs. This is a design feature of O25, not a
@@ -298,8 +301,9 @@ def rrs_o25(
     ----------
     iops, phase_params, geometry, wave, coeffs
         As :func:`Rrs_o25`.
-    transfer : robust.rt.conventions.SurfaceTransfer, optional
-        Geometry-aware surface transfer. ``None`` (the default) uses the nadir
+    transfer : robust.rt.conventions.TransferLike, optional
+        Geometry-aware surface transfer: a ``SurfaceTransfer`` table or (M8
+        task 4) a ``FresnelTransfer``. ``None`` (the default) uses the nadir
         constants, which is what M0-M4 measured. See the Notes.
 
     Returns
@@ -317,9 +321,12 @@ def rrs_o25(
     **This is the one scoring path the nadir surface transfer contaminates.**
     ``rrs_gordon`` and ``rrs_ZTT`` are primitives and never touch it; O25 alone is
     defined in ``Rrs``. On a multi-angular dataset, leaving ``transfer=None``
-    charges O25 with the interface's error (a median 33% at ``theta_v = 60``,
-    record §7.10) on top of its own -- so pass a fitted transfer whenever the
-    geometry leaves nadir, or the benchmark is one we broke.
+    charges O25 with the interface's error on top of its own -- so pass a
+    fitted transfer whenever the geometry leaves nadir, or the benchmark is one
+    we broke. (M5 measured that error as a median 33% at ``theta_v = 60``,
+    record §7.10, on a mismatched pairing; correctly paired it is 6.8%, M8
+    task 3, and ``design/ztt_pb24/surface_fresnel.md`` has the per-angle
+    numbers for every transfer.)
     """
     Rrs = Rrs_o25(iops, phase_params, geometry, wave, coeffs=coeffs)
     if transfer is None:

@@ -1141,9 +1141,17 @@ def test_excluding_an_unusable_backbone_also_narrows_the_geometry():
     5x M5 asserted, because 13% of *nadir* samples are excluded too (water, not
     geometry). The cause the docstring names is now asserted directly: below
     psi = 110 (where ``psi_KLu`` turns negative) 94% of samples are excluded,
-    at psi >= 134 (the paper's fitted range) 14%. Until task 4 refracts
-    ``theta_v``, ``geometry_to_paper_angles`` reads this above-water angle as if
-    it were in-water; the shares above are on that basis.
+    at psi >= 134 (the paper's fitted range) 14%.
+
+    **Re-baselined for M8 task 4**: ``geometry_to_paper_angles`` now refracts
+    ``theta_v`` (the numbers above read the air angle as in-water). Fewer
+    samples reach psi < 110 (180, was 480), so the excluded share falls to
+    **18%** and rises 13 / 15 / 18 / **26%** at 0 / 20 / 40 / 60 degrees --
+    **2.0x** (assert > 1.7x, was > 2.5x); 88% are excluded below psi = 110 and
+    14% at psi >= 134; the worst (theta_v, dphi) cell loses 51% against the
+    best's 12.5% (was 80%). The diffuse fraction task 4 also wires in moves
+    none of this: it rescales µd and cannot flip the backbone's sign (checked:
+    identical masks with and without it).
     """
     from robust.rt.data import pb24 as P
 
@@ -1165,7 +1173,7 @@ def test_excluding_an_unusable_backbone_also_narrows_the_geometry():
     }
     shares_by_view = [by_view[v] for v in sorted(by_view)]
     assert all(np.diff(shares_by_view) > 0), by_view
-    assert by_view[max(by_view)] > 2.5 * max(by_view[min(by_view)], 1e-3)
+    assert by_view[max(by_view)] > 1.7 * max(by_view[min(by_view)], 1e-3)
 
     # because of the scattering angle: psi_KLu < 0 below ~110 degrees
     _, _, _, psi = Z.geometry_to_paper_angles(batch.geometry)

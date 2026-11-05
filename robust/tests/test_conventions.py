@@ -24,7 +24,12 @@ import numpy as np
 import pytest
 
 from robust.rt import conventions as C
-from robust.tests.conftest import needs_l23, needs_pb24_olci, pb24_mixed_realisations
+from robust.tests.conftest import (
+    needs_l23,
+    needs_pb24,
+    needs_pb24_olci,
+    pb24_mixed_realisations,
+)
 
 #: A realistic above-water Rrs range: 1e-4 to ~5e-2 sr^-1.
 RRS_SAMPLES = np.logspace(-4.0, -1.3, 400)
@@ -866,3 +871,283 @@ def test_interp_spectrum_jit_and_grad_wrt_wave():
         ).sum()
     )(jnp.asarray(550.0))
     assert np.isfinite(float(g))
+
+
+# ------------------------------------- the Fresnel surface transfer (M8 task 4)
+# ``rt_fit_pb24.md`` Q9c: M5's 1300-cell table was fitted across mismatched
+# directions; the physical form is ``A(θv) = A0 T(θv)/T(0)``, two numbers.
+
+
+def _geometry(theta_s, theta_v, dphi=None, H=None):
+    from robust.rt.types import Geometry
+
+    theta_s = jnp.asarray(theta_s, dtype=float)
+    theta_v = jnp.asarray(theta_v, dtype=float)
+    dphi = jnp.zeros_like(theta_s) if dphi is None else jnp.asarray(dphi, dtype=float)
+    return Geometry(theta_s=theta_s, theta_v=theta_v, dphi=dphi, diffuse_fraction=H)
+
+
+def test_fresnel_transmittance_reproduces_the_round_2_table():
+    """Q9 finding 1: T(θ)/T(0) = 1.000/0.999/0.986/0.959/0.883 at 10-70°."""
+    theta = np.array([10.0, 30.0, 50.0, 60.0, 70.0])
+    T = np.asarray(C.fresnel_transmittance(theta), dtype=float) / float(
+        C.fresnel_transmittance(0.0)
+    )
+    np.testing.assert_allclose(
+        T, np.array([1.000, 0.999, 0.986, 0.959, 0.883]), atol=5e-4, rtol=0
+    )
+    n = C.REFRACTIVE_INDEX
+    assert float(C.fresnel_transmittance(0.0)) == pytest.approx(
+        1 - ((n - 1) / (n + 1)) ** 2, rel=1e-6
+    )
+    assert float(C.fresnel_transmittance(90.0)) == pytest.approx(0.0, abs=1e-6)
+    # ZTT's Snell refraction and the transfer use the same n.
+    from robust.rt import ztt
+
+    assert ztt.REFRACTIVE_INDEX == C.REFRACTIVE_INDEX == 1.34
+
+
+def test_fresnel_transmittance_matches_the_loaders_check(jax_x64):
+    """The loader's private Fresnel check (task 3) and the public law agree."""
+    from robust.rt.data import pb24 as P
+
+    theta = np.linspace(0.0, 89.0, 90)
+    np.testing.assert_allclose(
+        np.asarray(C.fresnel_transmittance(jnp.asarray(theta))),
+        P._fresnel_T(theta),
+        rtol=1e-12,
+    )
+
+
+def test_fresnel_transmittance_gradient(jax_x64):
+    """Differentiable, and right: float64 grad vs central differences."""
+    for theta in (5.0, 37.3, 70.0, 85.0):
+        x = jnp.asarray(theta, dtype=jnp.float64)
+        grad = float(jax.grad(C.fresnel_transmittance)(x))
+        h = 1e-3  # T is flat near nadir: a smaller step is all round-off
+        fd = (
+            float(C.fresnel_transmittance(x + h))
+            - float(C.fresnel_transmittance(x - h))
+        ) / (2 * h)
+        assert grad == pytest.approx(fd, rel=1e-6, abs=1e-12), theta
+        assert grad < 0.0  # T falls monotonically off nadir
+    assert float(jax.grad(C.fresnel_transmittance)(jnp.asarray(0.0))) == 0.0
+
+
+def test_fresnel_transfer_coefficients():
+    """``A = A0 T(θv)/T(0)``, ``B`` constant, broadcast to the geometry."""
+    f = C.FresnelTransfer(A0=0.5, B=1.7)
+    g = _geometry([0.0, 30.0, 60.0], [0.0, 60.0, 37.3], [0.0, 90.0, 180.0])
+    A, B = f.coefficients(g)
+    T = np.asarray(C.fresnel_transmittance(jnp.asarray([0.0, 60.0, 37.3])))
+    np.testing.assert_allclose(np.asarray(A), 0.5 * T / T[0], rtol=1e-6)
+    np.testing.assert_array_equal(np.asarray(B), np.full(3, 1.7, dtype=np.float32))
+    assert float(A[0]) == 0.5  # exactly A0 at nadir
+    assert isinstance(f, C.TransferLike)
+    assert isinstance(C.default_transfer(), C.TransferLike)
+    # θs and Δφ do not enter the θv-only form
+    A2, _ = f.coefficients(_geometry([80.0, 0.0, 10.0], [0.0, 60.0, 37.3]))
+    np.testing.assert_array_equal(np.asarray(A2), np.asarray(A))
+
+
+def test_fresnel_transfer_round_trips_through_the_converters():
+    """Accepted wherever ``SurfaceTransfer`` is: ``rrs_to_Rrs``/``Rrs_to_rrs``."""
+    rrs = jnp.asarray(np.linspace(1e-3, 4e-2, 3 * 5).reshape(3, 5))
+    g = _geometry([10.0, 40.0, 65.0], [0.0, 37.3, 70.0], [0.0, 90.0, 135.0])
+    for f in (
+        C.default_fresnel_transfer(),
+        C.default_fresnel_transfer(downwelling=True),
+        dataclasses_replace_H(g),
+    ):
+        transfer, geometry = f if isinstance(f, tuple) else (f, g)
+        Rrs = C.rrs_to_Rrs(rrs, geometry=geometry, transfer=transfer)
+        back = C.Rrs_to_rrs(Rrs, geometry=geometry, transfer=transfer)
+        np.testing.assert_allclose(np.asarray(back), np.asarray(rrs), rtol=1e-6)
+    # And it is not the nadir path off nadir.
+    Rrs_f = C.rrs_to_Rrs(rrs, geometry=g, transfer=C.default_fresnel_transfer())
+    assert not np.allclose(np.asarray(Rrs_f), np.asarray(C.rrs_to_Rrs(rrs)))
+
+
+def dataclasses_replace_H(g):
+    """The downwelling transfer with a spectral diffuse fraction on ``g``."""
+    import dataclasses
+
+    H = jnp.broadcast_to(jnp.linspace(0.2, 0.08, 5), (3, 5))
+    return C.default_fresnel_transfer(downwelling=True), dataclasses.replace(
+        g, diffuse_fraction=H
+    )
+
+
+def test_the_downwelling_factor(jax_x64):
+    """``t_d = (1 − H) T(θs) + H T̄``; spectral with H, direct beam without."""
+    import dataclasses
+
+    f = C.FresnelTransfer(A0=0.52, B=1.73, downwelling=True)
+    g = _geometry([0.0, 45.0, 70.0], [0.0, 30.0, 60.0])
+    H = jnp.asarray(np.linspace(0.3, 0.05, 4)[None, :].repeat(3, axis=0))
+    gH = dataclasses.replace(g, diffuse_fraction=H)
+
+    A, B = f.coefficients(gH)
+    assert A.shape == B.shape == (3, 4)
+    ts, tv = np.array([0.0, 45.0, 70.0]), np.array([0.0, 30.0, 60.0])
+    expected = (
+        0.52
+        * C._fresnel_ratio_np(tv)[:, None]
+        * C._downwelling_ratio_np(ts[:, None], np.asarray(H))
+    )
+    np.testing.assert_allclose(np.asarray(A), expected, rtol=1e-12)
+    T0 = float(C.fresnel_transmittance(0.0))
+    assert C.diffuse_transmittance() == pytest.approx(0.932489, abs=1e-6)
+    assert float(A[0, 0]) == pytest.approx(
+        0.52 * ((1 - 0.3) + 0.3 * C.diffuse_transmittance() / T0)
+    )
+
+    A_direct, _ = f.coefficients(g)  # H = None: the direct beam alone
+    np.testing.assert_allclose(
+        np.asarray(A_direct), 0.52 * C._fresnel_ratio_np(tv) * C._fresnel_ratio_np(ts)
+    )
+    # and the converters see the spectral shape
+    rrs = jnp.full((3, 4), 0.01)
+    Rrs = C.rrs_to_Rrs(rrs, geometry=gH, transfer=f)
+    np.testing.assert_allclose(
+        np.asarray(Rrs), expected * 0.01 / (1 - 1.73 * 0.01), rtol=1e-12
+    )
+
+
+def test_rrs_o25_accepts_the_fresnel_transfer():
+    """O25 is defined in ``Rrs``; its ``rrs`` goes through any transfer."""
+    from robust.rt import baselines as Bl
+    from robust.rt.types import IOPs
+
+    n = 3
+    iops = IOPs(
+        a=jnp.full((n, 5), 0.1),
+        bb_w=jnp.full((n, 5), 2e-3),
+        bb_p=jnp.full((n, 5), 5e-3),
+    )
+    g = _geometry([0.0, 30.0, 60.0], [0.0, 37.3, 60.0], [0.0, 90.0, 180.0])
+    f = C.default_fresnel_transfer()
+    got = Bl.rrs_o25(iops, None, g, coeffs=Bl.O25_L23_REFIT, transfer=f)
+    Rrs = Bl.Rrs_o25(iops, None, g, coeffs=Bl.O25_L23_REFIT)
+    np.testing.assert_array_equal(
+        np.asarray(got), np.asarray(C.Rrs_to_rrs(Rrs, geometry=g, transfer=f))
+    )
+    assert np.all(np.isfinite(np.asarray(got)))
+
+
+def test_the_package_default_transfer_did_not_change():
+    """Task 4 makes the Fresnel transfer opt-in: no transfer is still the nadir
+    constants, a geometry alone is still M5's (superseded) table."""
+    rrs = jnp.asarray(np.linspace(1e-3, 4e-2, 10).reshape(2, 5))
+    g = _geometry([10.0, 40.0], [20.0, 50.0], [30.0, 90.0])
+    np.testing.assert_array_equal(
+        np.asarray(C.rrs_to_Rrs(rrs)),
+        np.asarray(C.A_RRS * rrs / (1.0 - C.B_RRS * rrs)),
+    )
+    np.testing.assert_array_equal(
+        np.asarray(C.rrs_to_Rrs(rrs, geometry=g)),
+        np.asarray(C.rrs_to_Rrs(rrs, geometry=g, transfer=C.default_transfer())),
+    )
+    assert "Superseded" in C.default_transfer.__doc__
+
+
+def test_shipped_fresnel_constants():
+    """The shipped numbers and their provenance (fit: ``fit_surface_fresnel.py``)."""
+    f = C.default_fresnel_transfer()
+    assert (f.A0, f.B, f.downwelling) == (C.FRESNEL_A0, C.FRESNEL_B, False)
+    td = C.default_fresnel_transfer(downwelling=True)
+    assert (td.A0, td.B, td.downwelling) == (C.FRESNEL_TD_A0, C.FRESNEL_TD_B, True)
+    # Physically sensible: near Lee's nadir pair; the downwelling form's A0 is
+    # Lee's 0.52 itself (measured 0.5199).
+    assert 0.49 < C.FRESNEL_A0 < 0.53 and 1.5 < C.FRESNEL_B < 1.9
+    assert abs(C.FRESNEL_TD_A0 - C.A_RRS) < 0.005 and 1.5 < C.FRESNEL_TD_B < 1.9
+    for needle in ("splits.json", "4000", "fit_surface_fresnel.py", "2026-11-04"):
+        assert needle in C.FRESNEL_PROVENANCE
+
+
+def test_the_fresnel_transfer_was_fitted_on_training_rows_only():
+    """**The leak guard.** Fails if the shipped constants ever saw a held-out row.
+
+    The constants carry the digest of the realisation ids they were fitted on
+    (``fit_surface_fresnel.py`` computes it from the ids it actually reads).
+    It must be the digest of the realisation split's **training** ids in the
+    committed ``splits.json`` -- not of all 5000, not of the training ids plus
+    any test id. Deliberately *not* a refit on the committed miniature: its
+    three realisations straddle the split (993 is held out), so a refit there
+    could not tell a leak from noise.
+    """
+    from robust.rt.data import pb24 as P
+
+    content = P.read_splits()
+    every = np.asarray(content["realisations"], dtype=int)
+    test = np.asarray(content["realisation"]["test"], dtype=int)
+    train = np.setdiff1d(every, test)
+    assert np.intersect1d(train, test).size == 0 and test.size > 0
+
+    assert C.FRESNEL_N_TRAINING == train.size
+    assert C.realisation_digest(train) == C.FRESNEL_TRAINING_DIGEST
+    # Any held-out id in the fitting set changes the digest, so the test fails.
+    assert C.realisation_digest(every) != C.FRESNEL_TRAINING_DIGEST
+    leaky = np.append(train, test[0])
+    assert C.realisation_digest(leaky) != C.FRESNEL_TRAINING_DIGEST
+    # The digest is order- and duplicate-insensitive, so only the *set* counts.
+    assert C.realisation_digest(train[::-1]) == C.realisation_digest(
+        np.concatenate([train, train[:5]])
+    )
+
+
+def test_the_fresnel_fit_is_deterministic_and_streams(pb24_small_batch):
+    """One-shot and chunked normal equations agree; a rerun is bit-identical.
+
+    Runs on the miniature for the *mechanics* only (it straddles the split, so
+    the numbers it fits are not compared with the shipped ones).
+    """
+    batch = pb24_small_batch
+    rrs, Rrs = np.asarray(batch.rrs, dtype=float), np.asarray(batch.Rrs, dtype=float)
+    theta_v = np.asarray(batch.theta_v, dtype=float)[:, None]
+
+    once = C.fit_fresnel_transfer(rrs, Rrs, batch.theta_v)
+    again = C.fit_fresnel_transfer(rrs, Rrs, batch.theta_v)
+    assert (once.A0, once.B) == (again.A0, again.B)
+    assert 0.45 < once.A0 < 0.56 and 1.0 < once.B < 2.5
+
+    half = rrs.shape[0] // 2
+    parts = [
+        C.fresnel_normal_equations(rrs[s], Rrs[s], theta_v[s])
+        for s in (slice(0, half), slice(half, None))
+    ]
+    A0, B = C.solve_fresnel(parts[0][0] + parts[1][0], parts[0][1] + parts[1][1])
+    assert A0 == pytest.approx(once.A0, rel=1e-12) and B == pytest.approx(
+        once.B, rel=1e-10
+    )
+
+
+@needs_pb24
+def test_the_fresnel_transfers_beat_the_nadir_constants_held_out():
+    """On held-out realisations (window): the downwelling form beats Lee's
+    constants overall and the θv-only form beats them at θv_air = 60°.
+
+    Full-sample numbers: ``design/ztt_pb24/surface_fresnel.md``.
+    """
+    from robust.rt.data import pb24 as P
+
+    test_ids = sorted(P.read_splits()["realisation"]["test"])[:6]
+    batch = P.load_batch(realisations=test_ids, angles="window", check_fresnel=False)
+    rrs, Rrs = np.asarray(batch.rrs), np.asarray(batch.Rrs)
+
+    def err(transfer):
+        if transfer is None:
+            pred = C.rrs_to_Rrs(batch.rrs)
+        else:
+            pred = C.rrs_to_Rrs(batch.rrs, geometry=batch.geometry, transfer=transfer)
+        return np.abs(np.asarray(pred) / Rrs - 1.0)
+
+    nadir = err(None)
+    theta_v_only = err(C.default_fresnel_transfer())
+    downwelling = err(C.default_fresnel_transfer(downwelling=True))
+    at_60 = batch.theta_v == 60.0
+
+    assert np.median(downwelling) < 0.7 * np.median(nadir)
+    assert np.median(theta_v_only[at_60]) < 0.5 * np.median(nadir[at_60])
+    assert np.quantile(theta_v_only, 0.9) < 0.6 * np.quantile(nadir, 0.9)
+    assert rrs.shape == Rrs.shape

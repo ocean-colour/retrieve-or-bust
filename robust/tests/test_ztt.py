@@ -612,7 +612,17 @@ def test_l23_geometry_never_leaves_the_fitted_scattering_range(l23_batch):
 
 @needs_pb24
 def test_pb24_leaves_the_fitted_scattering_range_on_much_of_the_window():
-    """And why PB24 does: a full BRDF sweeps ψ through 90°, not just backscatter."""
+    """And why PB24 does: a full BRDF sweeps ψ well below backscatter.
+
+    **Re-baselined for M8 task 4** (``rt_fit_pb24.md`` Q9a, Q9d): ``theta_v`` is
+    the above-water angle and is now refracted before ψ is formed, so the
+    in-water view zenith never exceeds the critical 48.3°. M5 (and task 3,
+    which left ψ alone) read it unrefracted: min ψ 44.3° on the full grid,
+    65.5° in the window, 42% of the window below 134°, 16% below 110.4°.
+    Refracted: min ψ **83.6°** on the full grid, **90.9°** in the window (Q9d
+    predicted ≈ 91°), **25%** below 134° and **4.8%** below 110.4° (Q9d
+    predicted "a far smaller share than 16%").
+    """
     from robust.rt.data import pb24 as P
 
     batch = P.load_batch(realisations=4, angles="all")
@@ -620,12 +630,19 @@ def test_pb24_leaves_the_fitted_scattering_range_on_much_of_the_window():
     psi = np.asarray(psi)
     window = (batch.theta_s <= 70.0) & (batch.theta_v <= 70.0)
 
-    assert psi.min() < 60.0  # the full grid reaches deep forward scattering
+    assert 80.0 < psi.min() < 90.0  # refraction keeps ψ out of forward scattering
+    assert psi[window].min() == pytest.approx(90.94, abs=0.05)
     outside = float(np.mean(psi[window] < 134.0))
-    assert 0.3 < outside < 0.6, (
+    assert 0.2 < outside < 0.3, (
         f"{100 * outside:.0f}% of the sanctioned window is outside ZTT's fitted "
-        "scattering range; the record quotes ~42%"
+        "scattering range; measured 25% at M8 task 4 (42% before refraction)"
     )
+    negative = float(np.mean(psi[window] < 110.4))
+    assert 0.03 < negative < 0.07, f"{100 * negative:.1f}% below the Ψ_KLu sign flip"
+
+    # The pre-task-4 reading is still reachable, and reproduces M5's numbers.
+    _, _, _, old = Z.geometry_to_paper_angles(batch.geometry, theta_v_in_water=True)
+    assert 0.4 < float(np.mean(np.asarray(old)[window] < 134.0)) < 0.45
 
 
 @needs_pb24
@@ -862,3 +879,300 @@ def test_a_per_sample_backward_parameter_broadcasts_against_wavelength():
     out = Z.rrs_ZTT(iops, phase, geometry, jnp.linspace(440.0, 600.0, n_wave))
 
     assert out.shape == (n, n_wave)
+
+
+# ------------------- M8 task 4: the view angle and the diffuse fraction ------
+# ``geometry_to_paper_angles`` now refracts ``theta_v`` (above-water -> in-water)
+# and ``rrs_ZTT`` passes ``Geometry.diffuse_fraction`` into µd in place of TT's
+# H. Both must leave nadir with no diffuse fraction bit-identical
+# (``rt_fit_pb24.md`` task 4).
+
+#: The pre-change outputs, computed by ``design/py/gen_ztt_nadir_reference.py``
+#: on a read-only extract of commit fb253f9 (before task 4).
+NADIR_REFERENCE = (
+    __import__("pathlib").Path(__file__).parent / "files" / "ztt_nadir_reference.npz"
+)
+
+
+def _nadir_reference_inputs(ref):
+    """The reference's stored inputs as containers, ``theta_v = 0``."""
+    from robust.rt import hybrid
+
+    iops = IOPs(
+        a=jnp.asarray(ref["a"]),
+        bb_w=jnp.asarray(ref["bb_w"]),
+        bb_p=jnp.asarray(ref["bb_p"]),
+    )
+    phase = PhaseParams(
+        B_p=jnp.asarray(ref["B_p"]),
+        ff_B=jnp.asarray(ref["ff_B"]),
+        ff_weight=jnp.asarray(ref["ff_weight"]),
+    )
+    geometry = Geometry(
+        theta_s=jnp.asarray(ref["theta_s"]),
+        theta_v=jnp.zeros(ref["theta_s"].shape),
+        dphi=jnp.asarray(ref["dphi"]),
+    )
+    return hybrid, iops, phase, geometry, jnp.asarray(ref["wave"])
+
+
+def _nadir_outputs(ref):
+    hybrid, iops, phase, geometry, wave = _nadir_reference_inputs(ref)
+    rrs_l23 = Z.rrs_ZTT(iops, phase, geometry, wave)
+    return {
+        "rrs_l23": rrs_l23,
+        "rrs_tt2017": Z.rrs_ZTT(iops, phase, geometry, wave, variant="tt2017"),
+        "Rrs_l23": Z.Rrs_ZTT(iops, phase, geometry, wave),
+        "mu_inf_closure": Z.mu_inf_closure(iops, phase, geometry, rrs_l23, wave),
+        "psi": Z.geometry_to_paper_angles(geometry)[3],
+        "forward_ztt": hybrid.forward(iops, phase, geometry, wave, "ztt"),
+        "forward_hybrid": hybrid.forward(
+            iops, phase, geometry, wave, check_domain=False
+        ),
+    }
+
+
+#: The host the nadir reference was computed on (``platform.node()``). float32
+#: bits are machine-anchored in this suite (``test_inelastic_types``), so the
+#: strict tier runs there, or wherever ``ROBUST_HASH_ANCHOR`` names it.
+NADIR_REFERENCE_HOST = "profx"
+
+
+def _on_nadir_reference_host() -> bool:
+    import os
+    import platform
+
+    if os.environ.get("CI"):
+        return False
+    declared = os.environ.get("ROBUST_HASH_ANCHOR", "").lower().split(",")
+    return (
+        platform.node().strip().lower() == NADIR_REFERENCE_HOST
+        or NADIR_REFERENCE_HOST in [d.strip() for d in declared]
+    )
+
+
+def test_nadir_matches_the_pre_task4_reference():
+    """**The gate.** θv = 0 with no diffuse fraction reproduces the pre-change code.
+
+    ``rrs_ZTT`` (both variants), ``Rrs_ZTT``, ``mu_inf_closure``, ψ and
+    ``forward`` (``"ztt"`` and the hybrid) on six nadir samples. Bit for bit on
+    the machine the reference was made on (:data:`NADIR_REFERENCE_HOST`); to
+    ulp scale everywhere else, as the elastic hash pins do. The
+    machine-independent bit-identity is the next test.
+    """
+    ref = np.load(NADIR_REFERENCE)
+    outputs = _nadir_outputs(ref)
+    strict = _on_nadir_reference_host()
+    for name, value in outputs.items():
+        expected = ref[f"out_{name}"]
+        np.testing.assert_allclose(np.asarray(value), expected, rtol=2e-6, err_msg=name)
+        if strict:
+            np.testing.assert_array_equal(np.asarray(value), expected, err_msg=name)
+
+
+def test_nadir_paper_angles_are_bit_identical_to_the_unrefracted_formula():
+    """Machine-independent half of the gate: ``asin(sin 0 / 1.34)`` is exactly 0,
+    so θv_paper is exactly 180 and ψ is exactly the old ψ at every θs, Δφ."""
+    theta_s = jnp.asarray([0.0, 10.0, 30.0, 45.0, 60.0, 75.0, 87.75])
+    dphi = jnp.asarray([0.0, 15.0, 90.0, 135.0, 180.0, 60.0, 30.0])
+    geometry = Geometry(theta_s=theta_s, theta_v=jnp.zeros(7), dphi=dphi)
+
+    ts_w, ts_air, tv_paper, psi = Z.geometry_to_paper_angles(geometry)
+    old_psi = Z.scattering_angle(Z.in_water_zenith(theta_s), 180.0 - jnp.zeros(7), dphi)
+
+    np.testing.assert_array_equal(np.asarray(tv_paper), np.full(7, 180.0))
+    np.testing.assert_array_equal(np.asarray(psi), np.asarray(old_psi))
+
+
+def test_off_nadir_theta_v_is_refracted_before_psi():
+    """θv is above-water: the paper's θv is ``180 − asin(sin θv / 1.34)``.
+
+    ``theta_v_in_water=True`` restores the pre-task-4 reading (for PB24's
+    ``"in_water_only"`` nodes, which have no above-water direction)."""
+    theta_v = 37.3
+    geometry = Geometry(
+        theta_s=jnp.asarray(30.0), theta_v=jnp.asarray(theta_v), dphi=jnp.asarray(90.0)
+    )
+    theta_w = float(np.degrees(np.arcsin(np.sin(np.radians(theta_v)) / 1.34)))
+
+    _, _, tv_paper, psi = Z.geometry_to_paper_angles(geometry)
+    assert float(tv_paper) == pytest.approx(180.0 - theta_w, abs=1e-4)
+    expected = Z.scattering_angle(Z.in_water_zenith(30.0), 180.0 - theta_w, 90.0)
+    assert float(psi) == pytest.approx(float(expected), abs=1e-4)
+
+    _, _, tv_old, psi_old = Z.geometry_to_paper_angles(geometry, theta_v_in_water=True)
+    assert float(tv_old) == pytest.approx(180.0 - theta_v, abs=1e-5)
+    assert float(psi_old) < float(psi)  # refraction pulls ψ back towards 180°
+
+    # And rrs_ZTT honours the switch: an in-water angle read as such equals the
+    # above-water angle that refracts onto it.
+    iops, phase = simple_iops(), simple_params()
+    as_water = Geometry(
+        theta_s=jnp.asarray(30.0), theta_v=jnp.asarray(theta_w), dphi=jnp.asarray(90.0)
+    )
+    np.testing.assert_allclose(
+        np.asarray(Z.rrs_ZTT(iops, phase, as_water, theta_v_in_water=True)),
+        np.asarray(Z.rrs_ZTT(iops, phase, geometry)),
+        rtol=1e-5,
+    )
+
+
+def test_none_diffuse_fraction_is_tts_H_bit_for_bit():
+    """``H=None`` is Equation (16); passing Equation (16)'s value changes no bit."""
+    theta = jnp.asarray([0.0, 20.0, 45.0, 62.0, 80.0])
+    for V in (15.0, 40.0):
+        tt = Z.diffuse_fraction(theta, V)
+        np.testing.assert_array_equal(
+            np.asarray(Z.Md_plus(theta, V)), np.asarray(Z.Md_plus(theta, V, H=tt))
+        )
+        np.testing.assert_array_equal(
+            np.asarray(Z.Md_plus(theta, V)), np.asarray(Z.Md_plus(theta, V, H=None))
+        )
+
+    # Through the model: geometry.diffuse_fraction = TT's own H, broadcast to
+    # the spectrum, gives the None result exactly, in both variants.
+    n = 3
+    iops = simple_iops(shape=(n, N))
+    phase = simple_params()
+    base = Geometry(
+        theta_s=jnp.asarray([10.0, 40.0, 65.0]),
+        theta_v=jnp.asarray([0.0, 25.0, 50.0]),
+        dphi=jnp.asarray([0.0, 90.0, 150.0]),
+    )
+    tt_H = jnp.broadcast_to(Z.diffuse_fraction(base.theta_s)[:, None], (n, N))
+    with_H = dataclasses.replace(base, diffuse_fraction=tt_H)
+    for variant in Z.VARIANTS:
+        np.testing.assert_array_equal(
+            np.asarray(Z.rrs_ZTT(iops, phase, with_H, variant=variant)),
+            np.asarray(Z.rrs_ZTT(iops, phase, base, variant=variant)),
+            err_msg=variant,
+        )
+
+
+def test_the_diffuse_fraction_reaches_mu_d_and_only_mu_d():
+    """A supplied H changes ``rrs`` by exactly the µd ratio, per sample and band."""
+    n = 2
+    iops = simple_iops(shape=(n, N))
+    phase = simple_params()
+    base = Geometry(
+        theta_s=jnp.asarray([30.0, 60.0]),
+        theta_v=jnp.asarray([10.0, 40.0]),
+        dphi=jnp.asarray([45.0, 120.0]),
+    )
+    H = jnp.broadcast_to(jnp.linspace(0.3, 0.08, N), (n, N))  # a Rayleigh-like fall
+    with_H = dataclasses.replace(base, diffuse_fraction=H)
+
+    bb = iops.bb
+    th = base.theta_s[:, None]
+    ratio = Z.mu_d_l23(th, bb / iops.a, iops.bb_w / bb) / Z.mu_d_l23(
+        th, bb / iops.a, iops.bb_w / bb, H=H
+    )
+    np.testing.assert_allclose(
+        np.asarray(Z.rrs_ZTT(iops, phase, with_H)),
+        np.asarray(Z.rrs_ZTT(iops, phase, base) * ratio),
+        rtol=2e-6,
+    )
+    assert not np.allclose(np.asarray(ratio), 1.0)
+
+
+def test_vmap_and_jit_with_a_diffuse_fraction():
+    """``(n, λ)`` per batch, ``(λ,)`` per sample under ``vmap``; jit retraces once."""
+    n = 4
+    iops = simple_iops(shape=(n, N))
+    phase = PhaseParams(B_p=jnp.full((n, N), 0.0126))
+    geometry = Geometry(
+        theta_s=jnp.asarray([0.0, 20.0, 45.0, 70.0]),
+        theta_v=jnp.asarray([0.0, 15.0, 37.3, 60.0]),
+        dphi=jnp.asarray([0.0, 60.0, 90.0, 180.0]),
+        diffuse_fraction=jnp.broadcast_to(jnp.linspace(0.25, 0.1, N), (n, N)),
+    )
+    wave = C.canonical_wave()
+    batched = Z.rrs_ZTT(iops, phase, geometry, wave)
+    mapped = jax.vmap(lambda i, p, g: Z.rrs_ZTT(i, p, g, wave))(iops, phase, geometry)
+    jitted = jax.jit(lambda i, p, g: Z.rrs_ZTT(i, p, g, wave))(iops, phase, geometry)
+
+    assert mapped.shape == batched.shape == (n, N)
+    np.testing.assert_allclose(np.asarray(mapped), np.asarray(batched), rtol=1e-6)
+    np.testing.assert_allclose(np.asarray(jitted), np.asarray(batched), rtol=1e-6)
+
+
+def test_gradients_through_the_refraction_and_the_diffuse_fraction(jax_x64):
+    """**The gate's gradient half.** float64 ``jax.grad`` vs central differences.
+
+    At θv = 37.3° (between any table nodes; the refraction itself is smooth), and
+    with respect to every element of ``diffuse_fraction`` (a directional
+    derivative along a fixed random direction, plus one element exactly).
+    """
+    f64 = lambda x: jnp.asarray(np.asarray(x), dtype=jnp.float64)  # noqa: E731
+    n_wave = 6
+    wave = f64(np.linspace(420.0, 680.0, n_wave))
+    iops = IOPs(
+        a=f64(np.linspace(0.05, 0.4, n_wave)),
+        bb_w=f64(np.full(n_wave, 2.5e-3)),
+        bb_p=f64(np.full(n_wave, 5e-3)),
+    )
+    phase = PhaseParams(B_p=f64(0.015))
+    H0 = f64(np.linspace(0.22, 0.09, n_wave))
+
+    def as_geometry(theta_v, H):
+        return Geometry(
+            theta_s=f64(35.0), theta_v=theta_v, dphi=f64(100.0), diffuse_fraction=H
+        )
+
+    def f_view(theta_v):
+        return jnp.sum(Z.rrs_ZTT(iops, phase, as_geometry(theta_v, H0), wave))
+
+    x, h = f64(37.3), 1e-4
+    grad = float(jax.grad(f_view)(x))
+    fd = (float(f_view(x + h)) - float(f_view(x - h))) / (2 * h)
+    assert grad == pytest.approx(fd, rel=1e-6), (grad, fd)
+    assert grad != 0.0
+
+    # The refraction is in the chain: d/dθv differs from the unrefracted model's
+    # by the Snell factor's presence (not a numerical nicety).
+    def f_unrefracted(theta_v):
+        g = as_geometry(theta_v, H0)
+        return jnp.sum(Z.rrs_ZTT(iops, phase, g, wave, theta_v_in_water=True))
+
+    assert abs(float(jax.grad(f_unrefracted)(x)) / grad - 1.0) > 0.05
+
+    def f_H(H):
+        return jnp.sum(Z.rrs_ZTT(iops, phase, as_geometry(x, H), wave) ** 2)
+
+    g_H = np.asarray(jax.grad(f_H)(H0))
+    direction = np.random.default_rng(23).normal(size=n_wave)
+    eps = 1e-6
+    fd_dir = (
+        float(f_H(H0 + eps * f64(direction))) - float(f_H(H0 - eps * f64(direction)))
+    ) / (2 * eps)
+    assert float(g_H @ direction) == pytest.approx(fd_dir, rel=1e-6)
+    e2 = np.zeros(n_wave)
+    e2[2] = 1.0
+    fd_2 = (float(f_H(H0 + eps * f64(e2))) - float(f_H(H0 - eps * f64(e2)))) / (2 * eps)
+    assert float(g_H[2]) == pytest.approx(fd_2, rel=1e-6)
+    assert np.all(g_H != 0.0)
+
+
+def test_pb24_fixture_batch_runs_with_its_own_diffuse_fraction(pb24_small_batch):
+    """Data-free: the loader's ``(n, λ)`` diffuse fraction drives µd, finite."""
+    batch = pb24_small_batch
+    sub = P_select_first(batch, 64)
+    with_H = Z.rrs_ZTT(sub.iops, sub.phase_params, sub.geometry, sub.wave)
+    without = Z.rrs_ZTT(
+        sub.iops,
+        sub.phase_params,
+        dataclasses.replace(sub.geometry, diffuse_fraction=None),
+        sub.wave,
+    )
+    assert sub.geometry.diffuse_fraction.shape == with_H.shape
+    assert np.all(np.isfinite(np.asarray(with_H)))
+    # PB24's sky is about half as diffuse as TT's (Q10): µd rises, rrs falls.
+    assert float(jnp.median(with_H / without)) < 1.0
+
+
+def P_select_first(batch, n):
+    """The first ``n`` samples of a PB24 batch (avoids importing pb24 at module
+    import time in a data-free test)."""
+    from robust.rt.data import pb24 as P
+
+    return P.select(batch, np.arange(batch.n_sample) < n)
