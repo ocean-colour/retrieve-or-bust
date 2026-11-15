@@ -271,6 +271,18 @@ the original list.*
    float64 rounding.
    Use Opus 5.5. Log your work.
 
+5b. **Task 6 OOM?**  I am having OOM issues when running several jobs including
+Task 6 on this workstation.  These are described in some detail in the Logs section of the 
+`/home/xavier/bin/claude_prompts/profx_issues.md` file.  Please read that file, and
+consider whether any aspects of running Task 6 might be causing the OOM issues.
+If so, suggest a solution to the OOM issues.
+Put your findings, suggestions and any questions in the Q&A/OOM section below.
+Fable 5.2 Log your work.
+
+5c. **OOM modifications.** Please read my answers Q18-Q20 and implement the suggested modifications.
+I will then cap the ZFS ARC as suggested and log in/out and resume with Task 6.
+Fable 5.2 Log your work.
+
 6. **Task 6 — Baseline: every elastic model we have, scored on PB24.**
    `design/py/run_pb24_baseline.py`, writing to `design/ztt_pb24/`
    (CSV + markdown + figures, dataviz conventions), on the saved splits, all
@@ -352,6 +364,129 @@ the original list.*
 
 
 ## Q&A
+
+### OOM
+
+*Task 5b, Claude Fable 5.1, 2026-11-14. (Fable 5.2 is not available to this
+session; 5.1 is the newest I can run.) Read-only on the system; no code and
+no settings changed. Numbers measured on profx between 15:42 and 15:52.*
+
+**Finding 1: today's 15:14 logout was the Task 6 run.** The eigen product
+was written at 15:13:38. systemd-oomd killed the Cursor/Chromium scope at
+15:14:17, reporting 74.3 GB in it and avg10 memory pressure 78.5%. The
+baseline runner starts its scoring pass right after the eigen product, with
+the script's default `--workers 12`. Measured: one worker scoring one
+20-realisation chunk (all 451 bands, every model, both passes) peaks at
+**6.25 GB RSS** and takes 113 s. Twelve of them start together, so the burst
+is ≈ 75 GB within ~20 s, which is the 74.3 GB oomd saw (Cursor itself is
+~10 GB; the scope is also charged with page-cache pages from the memmapped
+36 GB cache). The run was inside Cursor's cgroup because Claude Code runs in
+Cursor's terminal, so the kill took Cursor, the Claude session, `dbus` and
+`gnome-shell` with it.
+
+**Finding 2: pressure, not exhaustion, and why 75 GB is enough to cause it.**
+The box has 791 GB, but at the time of writing the ZFS ARC holds **340–365 GB**
+(`zfs_arc_max` unset, so `c_max` is half of RAM, 378–405 GB), the page cache
+283–296 GB, and `MemFree` is 54–89 GB. A burst of ~75 GB of fresh anonymous
+allocation against ~85 GB free makes the kernel direct-reclaim and compact
+(THP defrag is `madvise`, `vm.watermark_scale_factor` 10,
+`vm.min_free_kbytes` 110 MB; since boot `compact_stall` 10.5 M with 98%
+failing, `pgscan_direct` 107 M). Those stalls are what PSI measures, and
+`user@1000.service` still has `ManagedOOMMemoryPressure=kill` at 50%: the
+override recommended in `profx_issues.md` on 2026-11-14 is **not installed**,
+nor are the THP/watermark sysctls.
+
+**Finding 3, tested rather than assumed.** A 4-worker, 80-realisation run in
+its own scope (`systemd-run --user --scope -p MemoryMax=60G`) peaked at
+**29.2 GB** (7.3 GB per worker), the session's PSI `full avg10` stayed
+**0.00** for all 198 s, and the compaction and direct-reclaim counters did
+not move. So at 4 workers the runner causes no pressure at all; the runner
+does not leak (worker RSS is bounded per chunk; the scope's growth from 6 to
+29 GB over three minutes is reclaimable page cache from the memmap reads).
+The 12-worker case is inferred from the size match and the timing, not
+reproduced: reproducing it would risk another logout.
+
+**Finding 4: the other occupants at 15:14 were small.** PypeIt's unit held
+5.4 GB at 11% pressure, Chrome 4.6 GB. The ARC is the structural one.
+
+**Suggestions.**
+
+A. System, needs sudo (JXP):
+1. The oomd override from `profx_issues.md` (`ManagedOOMMemoryPressure=auto`
+   in `/etc/systemd/system/user@.service.d/90-no-oomd.conf`, or a 90%
+   limit). This alone stops the logouts; the kernel OOM killer still covers
+   real exhaustion.
+2. The THP `defrag=defer` and watermark sysctls from the same note.
+3. **New:** cap the ZFS ARC, e.g. 128 GB:
+   `echo 137438953472 | sudo tee /sys/module/zfs/parameters/zfs_arc_max`,
+   persisted as `options zfs zfs_arc_max=137438953472` in
+   `/etc/modprobe.d/zfs.conf`. That returns ~230 GB to the free pool. The
+   PB24 cache is memmapped through the page cache anyway (on ZFS, mmap'd data
+   is held in both), so a smaller ARC costs these jobs nothing.
+
+B. Runner, no sudo, before Task 6 resumes (I would implement these):
+1. Default `--workers 6`: burst ≈ 38 GB; the full run becomes ≈ 250 chunks ×
+   113 s / 6 ≈ 80 min instead of 40.
+2. Stagger the workers' first loads (worker *i* waits *i* × 10 s, or chunks
+   are handed out from a queue rather than static lists), so the six first
+   chunks do not land in the same second.
+3. `CHUNK = 10`, halving the per-worker peak to ≈ 3 GB. Allowed now because
+   no baseline number is committed, but it changes the chunk-order float
+   sums, so it must precede the first committed run.
+4. A guard: refuse `--workers` above 6 without an explicit override, and
+   print the predicted peak (`workers × 6.5 GB`) at start.
+5. Run it as `systemd-run --user --scope -p MemoryMax=80G python
+   design/py/run_pb24_baseline.py ...` **from a plain terminal, not from
+   Cursor's**, so any kill lands on the job alone and never on the IDE or the
+   Claude session. Document this in the script's docstring.
+6. Do not run it beside a PypeIt DevSuite run.
+
+**Questions.**
+
+**Q18.** May I apply B1–B5 to the runner before Task 6 resumes?
+Recommendation: yes; B3 must come before the first committed run.
+
+**JXP:** Yes, that is fine.  Note that I have executed the sudo command but need
+to logout and back in for it to take effect.
+
+**Q19.** Will you apply A1–A3? A3 is new relative to `profx_issues.md`;
+128 GB is my recommendation. If you would rather not touch ZFS, A1 alone
+prevents the logouts and B keeps the job's own stalls short.
+**JXP:** Give me the precise commands to impose the new cap on the ZFS ARC.
+
+**Claude (Fable 5.1, 2026-11-14, task 5c).** Checked first: OpenZFS
+2.2.2-0ubuntu9.5; root is ext4 on `/dev/md0` and the zfs module is not in the
+initramfs, so `/etc/modprobe.d/zfs.conf` is read when the module loads at
+boot and no initramfs rebuild is needed; `zfs_arc_max` and `zfs_arc_min` are
+both 0 (defaults), `c_max` 377.6 GB, `c_min` 23.6 GB, ARC size 340 GB. The
+cap must exceed `c_min`; 128 GB does. Three commands:
+
+```
+# 1. now, no reboot (c_max drops at once; the ARC evicts down to it over the next minutes)
+echo 137438953472 | sudo tee /sys/module/zfs/parameters/zfs_arc_max
+
+# 2. persist across reboots
+echo 'options zfs zfs_arc_max=137438953472' | sudo tee /etc/modprobe.d/zfs.conf
+
+# 3. verify (c_max should read ~128 GB; size follows)
+awk '$1=="c_max"||$1=="size"{printf "%s %.1f GB\n",$1,$3/1073741824}' /proc/spl/kstat/zfs/arcstats
+```
+
+`sudo update-initramfs -u` after step 2 is harmless but unnecessary here.
+If the ARC does not shrink within a few minutes after step 1 (it should),
+`echo 3 | sudo tee /proc/sys/vm/drop_caches` nudges it; a reboot makes it
+certain. Logging out and in is not needed for the ARC cap, only for the oomd
+override from Q18.
+
+**Q20.** Resume Task 6 with the stopped Opus agent (its transcript is saved
+and the partial work is on disk, uncommitted: the runner, `pb24_eigen.py`,
+`test_pb24_baseline.py`, the `asymptotic.py` additions, and the eigen product
+at `$OS_COLOR/SD/derived/pb24_mu_inf_eigen_v1.npz`, 16.7 MB) or start a fresh
+agent on the same files? Recommendation: resume the same agent after Q18,
+with `--skip-eigen` on the first scoring run since the product exists.
+
+**JXP:** We will resume Task 6 with the stopped Opus agent after I have applied
+the cap, and logged in/out.
 
 ### Plan
 
@@ -1418,3 +1553,67 @@ Created from `rt_fit_ztt.md` task 8.
     surface).
 - No state-changing git command was run (read-only `git status`, and
   `git -C <O25> rev-parse HEAD` inside the reader).
+
+### 2026-11-14 — Task 5b: Task 6 and the OOM logouts (Claude Fable 5.1)
+
+- Fable 5.2 was asked for; it is not available to this session, so Fable 5.1
+  did the task itself (an analysis, no agent).
+- Read `profx_issues.md` (its 2026-11-14 diagnosis: systemd-oomd kills the
+  session on 50% memory *pressure*; compaction stalls, not exhaustion), the
+  runner `design/py/run_pb24_baseline.py` (chunking, spawn pool, worker env),
+  the journal for 15:08–15:16, cgroup sizes and pressure, THP/sysctl/oomd
+  settings, `/proc/vmstat`, and the ZFS ARC stats.
+- **Measured.** One worker, one 20-realisation chunk, all models and bands:
+  6.25 GB peak RSS, 113 s (`/usr/bin/time -v`, `--workers 0`). Four workers
+  over 80 realisations in a capped scope: 29.2 GB peak, session PSI 0.00
+  throughout, compaction/direct-reclaim counters unchanged, 198 s. Timeline:
+  eigen product written 15:13:38, oomd kill 15:14:17 with the scope at
+  74.3 GB and avg10 78.5%, which matches 12 × 6.25 GB plus Cursor.
+  ARC 340–365 GB of 791, MemFree 54–89 GB, oomd override and sysctls from
+  `profx_issues.md` not installed.
+- Wrote findings, suggestions (system: oomd override, THP/watermarks, ARC
+  cap; runner: 6 workers, staggered start, `CHUNK = 10`, a guard, own
+  systemd scope from a plain terminal) and Q18–Q20 under Q&A/OOM.
+- No code, settings or system state changed; the two probes wrote only to
+  the scratchpad. No state-changing git command was run. Task 6's partial
+  work stays on disk, uncommitted, with the eigen product in `derived/`.
+
+### 2026-11-14 — Task 5c: the OOM modifications (Claude Fable 5.1)
+
+- Read JXP's answers to Q18–Q20: runner changes approved (Q18), the oomd
+  override installed and pending a re-login; ARC-cap commands requested
+  (Q19, answered inline under Q19 with the commands, after checking OpenZFS
+  2.2.2, ext4 root, zfs not in the initramfs, `c_min` 23.6 GB); Task 6 to be
+  resumed with the stopped Opus agent after the cap and a re-login (Q20).
+- **Built** in `design/py/run_pb24_baseline.py` (B1–B5): `DEFAULT_WORKERS =
+  6`, `MAX_WORKERS = 6` with `--allow-more-workers` to override (the guard
+  runs before the plan, so it needs no `$OS_COLOR`); a start-up line that
+  prints the predicted peak (`workers × WORKER_PEAK_GB`); `STAGGER_S = 10`
+  through a spawn-pool initializer (`stagger_delay`, a shared counter: the
+  n-th worker sleeps n × 10 s before its first task, every pool); `CHUNK =
+  10`; the docstring says to run it as `systemd-run --user --scope -p
+  MemoryMax=80G …` from a plain terminal, not Cursor's, and not beside a
+  PypeIt DevSuite run. Three tests added in `robust/tests/test_pb24_baseline.py`
+  (the guard, the constants, the stagger delays).
+- **Measured, and one expectation corrected.** A worker's peak RSS is
+  **6.2 GB at CHUNK = 10 and at 20** (10 realisations: 6,213,384 kB; 20:
+  6,248,364 kB), so B3 does not halve the peak as task 5b expected. A 2 s
+  RSS trace of the single-process run shows why: 2.1 GB after imports, a
+  ramp to 5.2 GB during scoring, back to 3.1 GB after. The ramp is the
+  per-worker integer histogram accumulators (`new_ints`: every model × pass
+  × group × `N_BIN` = 4,502 bins, ~4 GB), filled over the worker's life and
+  independent of the chunk. CHUNK = 10 is kept because it halves the
+  per-chunk working set, i.e. the start-up allocation burst that task 5b
+  identified as the pressure source; `WORKER_PEAK_GB = 6.5` is the measured
+  number, so 6 workers predict ~39 GB. A 2-worker, 20-realisation run went
+  end to end through the staggered pool (125 s); `--workers 7` is refused
+  with the expected message.
+- Suggestion left for the Task 6 agent, not implemented here: the
+  accumulator size is the real per-worker cost; a coarser `HIST_WIDTH` (0.01
+  dex → 902 bins) or shared accumulators would cut it ~5×, at the price of
+  the stated quantile resolution.
+- Checks: `ruff check` / `ruff format --check` clean on `robust/` and
+  `design/`; `test_pb24_baseline.py` 16 passed with the data, 15 passed and
+  1 skipped without `$OS_COLOR`. The full suite was not rerun (only the
+  script and its own test file changed). No state-changing git command was
+  run; no system setting was changed.

@@ -65,6 +65,8 @@ __all__ = [
     "build_kernel",
     "l23_kernels",
     "mu_infinity_eigen",
+    "KernelGrid",
+    "ff_kernel_grid",
 ]
 
 #: Streams in µ (double-Gauss, half on each hemisphere). 80 → 160 moves µ∞ by
@@ -311,3 +313,116 @@ def mu_infinity_eigen(a, b, mu, weight, kernels) -> np.ndarray:
             raise ValueError("mu_infinity_eigen: no positive real eigenvalue")
         out[start:stop] = flat_a[start:stop] / K
     return out.reshape(a.shape)
+
+
+@dataclass(frozen=True)
+class KernelGrid:
+    """Fournier–Forand kernels tabulated on a grid of backscatter ratios ``B``.
+
+    **M8 task 6.** PB24 gives every realisation its own FF pair (B_ph, B_NAP),
+    and :func:`build_kernel` costs seconds per call, so the 10,000 kernels of
+    the release are not built one by one: they are tabulated once on a
+    log-spaced ``B`` grid and interpolated **linearly in log B**, matrix and
+    truncated fraction alike. A convex combination of two energy-renormalized
+    kernels is itself energy-conserving (each row integrates to one), so the
+    interpolated kernel stays physical. The interpolation error on µ∞ is a
+    property of the grid spacing and must be measured by whoever uses it
+    (``design/py/run_pb24_baseline.py`` does, against exact kernels).
+
+    Attributes
+    ----------
+    B : numpy.ndarray
+        ``(n_node,)`` ascending backscatter ratios.
+    matrices : numpy.ndarray
+        ``(n_node, n_streams, n_streams)``, :attr:`Kernel.matrix` per node.
+    truncated : numpy.ndarray
+        ``(n_node,)``, :attr:`Kernel.truncated` per node.
+    """
+
+    B: np.ndarray
+    matrices: np.ndarray
+    truncated: np.ndarray
+
+    def at(self, B: float) -> Kernel:
+        """The kernel at ``B``, linear in ``log B`` between nodes.
+
+        Exactly the node's kernel at a node.
+
+        Raises
+        ------
+        ValueError
+            If ``B`` is outside the grid (no extrapolation).
+        """
+        B = float(B)
+        lo, hi = float(self.B[0]), float(self.B[-1])
+        if not lo <= B <= hi:
+            raise ValueError(f"KernelGrid.at: B = {B} is outside [{lo}, {hi}]")
+        i = int(np.searchsorted(self.B, B, side="right")) - 1
+        i = min(max(i, 0), self.B.size - 2)
+        if B == float(self.B[i]):
+            return Kernel(
+                matrix=self.matrices[i].copy(), truncated=float(self.truncated[i])
+            )
+        if B == float(self.B[i + 1]):
+            return Kernel(
+                matrix=self.matrices[i + 1].copy(),
+                truncated=float(self.truncated[i + 1]),
+            )
+        t = (np.log(B) - np.log(self.B[i])) / (
+            np.log(self.B[i + 1]) - np.log(self.B[i])
+        )
+        return Kernel(
+            matrix=(1.0 - t) * self.matrices[i] + t * self.matrices[i + 1],
+            truncated=float((1.0 - t) * self.truncated[i] + t * self.truncated[i + 1]),
+        )
+
+
+def _ff_kernel_task(task):
+    """One grid node's kernel (module level so a process pool can pickle it)."""
+    B, mu, weight, truncation_deg, n_phi = task
+    k = build_kernel(
+        ff_phase_numpy(B), mu, weight, truncation_deg=truncation_deg, n_phi=n_phi
+    )
+    return k.matrix, k.truncated
+
+
+def ff_kernel_grid(
+    B_grid,
+    mu: np.ndarray,
+    weight: np.ndarray,
+    *,
+    truncation_deg: float = TRUNCATION_DEG,
+    n_phi: int = N_PHI,
+    mapper=map,
+) -> KernelGrid:
+    """Build :class:`KernelGrid` on ``B_grid`` (M8 task 6).
+
+    Parameters
+    ----------
+    B_grid : array_like
+        Strictly ascending, positive backscatter ratios.
+    mu, weight : numpy.ndarray
+        The stream grid (:func:`double_gauss`).
+    truncation_deg, n_phi : optional
+        As :func:`build_kernel`.
+    mapper : callable, optional
+        ``map``-like (e.g. a process pool's ``map``); results must come back
+        in order. Each node is built independently, so the result does not
+        depend on it.
+
+    Returns
+    -------
+    KernelGrid
+    """
+    B = np.asarray(B_grid, dtype=float)
+    if B.ndim != 1 or B.size < 2 or np.any(B <= 0) or np.any(np.diff(B) <= 0):
+        raise ValueError(
+            "ff_kernel_grid: B_grid must be >= 2 ascending positive values"
+        )
+    tasks = [(float(b), mu, weight, truncation_deg, n_phi) for b in B]
+    built = list(mapper(_ff_kernel_task, tasks))
+    return KernelGrid(
+        B=B,
+        matrices=np.stack([m for m, _ in built]),
+        truncated=np.array([f for _, f in built]),
+    )
