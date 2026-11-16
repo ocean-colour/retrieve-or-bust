@@ -1,0 +1,45 @@
+sample,model,theta_s_deg,side,n,median_abs_rel_err_pct,q90_abs_rel_err_pct,rrms_pct,nonphysical_pct
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",all,all realisations,22550000,7.0432,38.0787,27559,2.7859
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",0,all realisations,2255000,3.6231,35.7062,4486.26,0.8445
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",10,all realisations,2255000,3.6845,34.7715,6637.38,1.4207
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",20,all realisations,2255000,3.2034,33.7287,33214.3,2.0564
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",30,all realisations,2255000,3.1355,33.9021,19270.2,2.6058
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",40,all realisations,2255000,4.2090,35.4570,5791.96,2.9794
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",50,all realisations,2255000,5.5294,36.6366,10941.7,3.2290
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",60,all realisations,2255000,4.7369,36.0811,9386.06,3.4374
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",70,all realisations,2255000,9.0363,33.0868,55515.1,3.6378
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",80,all realisations,2255000,18.3952,28.7843,34912,3.7919
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",87.75,all realisations,2255000,28.6708,43.3599,38911.7,3.8566
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",all,realisation held out,4510000,6.9579,37.9398,6103.22,2.8018
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",0,realisation held out,451000,3.7078,35.2312,1920.59,0.9086
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",10,realisation held out,451000,3.7721,34.4475,4744.62,1.4756
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",20,realisation held out,451000,3.2429,33.6275,2285.51,2.0745
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",30,realisation held out,451000,3.1850,33.7899,5928.62,2.6647
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",40,realisation held out,451000,4.2212,35.2836,3583.73,3.0086
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",50,realisation held out,451000,5.5090,36.4566,8494.25,3.2244
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",60,realisation held out,451000,4.7175,35.8472,10518,3.4040
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",70,realisation held out,451000,8.8832,32.6821,5182.31,3.6202
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",80,realisation held out,451000,18.4153,28.7570,5046.08,3.7818
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb (nadir)",87.75,realisation held out,451000,28.9167,43.3262,7614.34,3.8552
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",all,all realisations,22550000,9.2075,62.8560,25011.4,3.1798
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",0,all realisations,2255000,3.7793,22.7574,16407.5,1.0722
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",10,all realisations,2255000,5.2752,35.7346,13068.5,1.8941
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",20,all realisations,2255000,6.1024,50.0819,6452.85,2.7549
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",30,all realisations,2255000,6.4707,64.1338,10652.8,3.4681
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",40,all realisations,2255000,5.3219,68.8191,43010.2,3.8087
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",50,all realisations,2255000,4.1251,68.5067,16235.2,3.9175
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",60,all realisations,2255000,4.4298,66.5255,26562.6,3.8429
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",70,all realisations,2255000,7.3769,61.2598,11049.7,3.5408
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",80,all realisations,2255000,16.7879,71.6787,44824.4,3.4070
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",87.75,all realisations,2255000,34.5585,126.6406,26650.1,4.0923
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",all,realisation held out,4510000,9.2189,62.1702,15485.9,3.2030
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",0,realisation held out,451000,3.7617,22.8104,1363.96,1.1579
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",10,realisation held out,451000,5.2447,35.7469,6893.53,1.9064
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",20,realisation held out,451000,6.0362,49.4560,7649.75,2.7579
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",30,realisation held out,451000,6.2926,62.8731,6999.55,3.4965
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",40,realisation held out,451000,5.1793,67.4312,33485.4,3.7989
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",50,realisation held out,451000,4.0497,67.3112,16116.1,3.9122
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",60,realisation held out,451000,4.3908,65.5916,15310.3,3.8506
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",70,realisation held out,451000,7.3688,60.5938,21202.2,3.5723
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",80,realisation held out,451000,16.7677,70.8819,4108.95,3.4610
+full-5000x451,"ZTT (L23 µ∞), PB24 FF Pbb + oracle KLu/a (Ψ_KLu/µ∞ := KLu/a)",87.75,realisation held out,451000,34.5292,125.2620,12626.4,4.1166

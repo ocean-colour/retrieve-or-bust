@@ -1,0 +1,56 @@
+sample,cut,statistic,value
+full-5000x451,"window (θs, θv_air ≤ 70°)",n_geometries,832.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)",min_deg,90.9431
+full-5000x451,"window (θs, θv_air ≤ 70°)",q01_deg,98.8762
+full-5000x451,"window (θs, θv_air ≤ 70°)",median_deg,145.1329
+full-5000x451,"window (θs, θv_air ≤ 70°)",max_deg,180.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)",share_below_110.4_pct,4.8077
+full-5000x451,"window (θs, θv_air ≤ 70°)",share_below_134_pct,25.0000
+full-5000x451,"window, ψ ≥ 134°",n_geometries,624.0000
+full-5000x451,"window, ψ ≥ 134°",min_deg,134.0371
+full-5000x451,"window, ψ ≥ 134°",q01_deg,134.9825
+full-5000x451,"window, ψ ≥ 134°",median_deg,151.4328
+full-5000x451,"window, ψ ≥ 134°",max_deg,180.0000
+full-5000x451,"window, ψ ≥ 134°",share_below_110.4_pct,0.0000
+full-5000x451,"window, ψ ≥ 134°",share_below_134_pct,0.0000
+full-5000x451,shell (θs or θv_air ≥ 80°),n_geometries,468.0000
+full-5000x451,shell (θs or θv_air ≥ 80°),min_deg,83.5742
+full-5000x451,shell (θs or θv_air ≥ 80°),q01_deg,85.5022
+full-5000x451,shell (θs or θv_air ≥ 80°),median_deg,131.2156
+full-5000x451,shell (θs or θv_air ≥ 80°),max_deg,180.0000
+full-5000x451,shell (θs or θv_air ≥ 80°),share_below_110.4_pct,22.2222
+full-5000x451,shell (θs or θv_air ≥ 80°),share_below_134_pct,64.5299
+full-5000x451,everything (window + shell),n_geometries,1300.0000
+full-5000x451,everything (window + shell),min_deg,83.5742
+full-5000x451,everything (window + shell),q01_deg,88.2735
+full-5000x451,everything (window + shell),median_deg,139.7377
+full-5000x451,everything (window + shell),max_deg,180.0000
+full-5000x451,everything (window + shell),share_below_110.4_pct,11.0769
+full-5000x451,everything (window + shell),share_below_134_pct,39.2308
+full-5000x451,in-water-only (θ_w 50-87.5°),n_geometries,650.0000
+full-5000x451,in-water-only (θ_w 50-87.5°),min_deg,44.2813
+full-5000x451,in-water-only (θ_w 50-87.5°),q01_deg,51.8724
+full-5000x451,in-water-only (θ_w 50-87.5°),median_deg,108.5579
+full-5000x451,in-water-only (θ_w 50-87.5°),max_deg,178.2186
+full-5000x451,in-water-only (θ_w 50-87.5°),share_below_110.4_pct,53.6923
+full-5000x451,in-water-only (θ_w 50-87.5°),share_below_134_pct,82.9231
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [80, 85)",0.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [85, 90)",0.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [90, 95)",3.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [95, 100)",8.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [100, 105)",12.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [105, 110)",16.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [110, 115)",21.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [115, 120)",28.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [120, 125)",33.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [125, 130)",42.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [130, 135)",53.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [135, 140)",109.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [140, 145)",67.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [145, 150)",79.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [150, 155)",89.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [155, 160)",83.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [160, 165)",38.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [165, 170)",72.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [170, 175)",54.0000
+full-5000x451,"window (θs, θv_air ≤ 70°)","geometries in [175, 180)",5.0000

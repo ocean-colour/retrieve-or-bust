@@ -3403,6 +3403,142 @@ RSS 26 GB.
 
 Marker `needs_o25_checkout` in conftest.
 
+### 7c.6 Task 6 as built — the baseline
+
+**Nothing re-baselined; no model code or number changed.** Two additive
+package helpers (`asymptotic.KernelGrid`/`ff_kernel_grid`, and the new
+`robust/rt/data/pb24_eigen.py`), one runner, one test file. L23 pins, the
+`mode="ztt"` pin and the emulator digest are untouched (suite green).
+
+**Built.**
+- `design/py/run_pb24_baseline.py` → `design/ztt_pb24/baseline_*` (11 CSVs,
+  `baseline_report.md`, 5 PNGs). Flags: `--quick` (50 realisations, seed 6,
+  every 10th band; refuses the default out dir), `--out-dir`, `--check`,
+  `--skip-eigen` / `--eigen-only` / `--rebuild-eigen`, `--workers`
+  (default and maximum 6, staggered spawn pool; task 5c), `--cache-dir`,
+  `--realisations`. Run inside `systemd-run --user --scope -p MemoryMax=80G`.
+- **Streaming and statistics.** Chunks of 10 realisations (`CHUNK`); per
+  value `e = pred/true − 1`, binned into a log10|e| histogram (−6…3, 0.002 dex,
+  4,502 bins incl. under/overflow) keyed by split category × angle category ×
+  band and by each breakdown; medians and q90 from the histograms over **all
+  values** (±0.23% of the value); rRMS and counts are exact float64 sums over
+  all values, summed per chunk and then in chunk order (bit-identical for any
+  worker count: quick runs at 3 and 8 workers gave identical bytes, PNGs and
+  the eigen product included). Non-physical predictions (≤ 0 or non-finite)
+  stay in the median/q90 and are counted; rRMS with them and, labelled,
+  without. The only exclusion is a zero truth (in-water 87.5° node), counted.
+- **Models** (names identical in every artefact; headers and cells come
+  from one `Column` tuple): standard Gordon; ZTT with TT2017 / L23 / L23-closure
+  µ∞ × Sullivan / PB24 FF Pbb (all six exist: the variant's own pair through
+  `rrs_ZTT`, the crossed one through its public `P_bb=`); the L23-trained
+  hybrid (`hybrid.rrs_forward`) without and with `on_out_of_domain="ztt"`,
+  called separately on 350–750 and 751–800 nm (the out-of-domain mask is per
+  sample over a call's bands); O25 published (`Rrs`); the O25 form refit per
+  split (float64 normal equations of `fit_o25_table`'s relatively weighted
+  objective, equal to it to 1e-7 in a test) and the paper's unweighted,
+  Rrs ≤ 0.06 objective on the realisation split; the common `rrs` table with
+  O25 through the task-4 Fresnel transfer (with downwelling, and θv-only) and
+  the transfer alone on PB24's true `Rrs`.
+- **Cuts:** window, window ∩ ψ ≥ 134°, shell, everything, in-water-only (ZTT
+  and Gordon, `theta_v_in_water=True`); per band (CSV), band group, θs,
+  θv, ψ bin, B_p bin (equal-count over the 5000 realisation means), water
+  class; sides: all, realisation held out/train, B_p band held out/train; the
+  geometry split's sides are the shell/window (its refit fitted on the window).
+- **Eigen µ∞ product** `$OS_COLOR/SD/derived/pb24_mu_inf_eigen_v1.npz`
+  (16,703,239 B; beside, not inside, the `pb24_v1` cache): every (realisation,
+  λ), 2,255,000 solves, 80 streams, 2° truncation, water + FF(B_ph) +
+  FF(B_NAP) with each realisation's λ-mean ratios (λ variation ≤ 1.05%); FF
+  kernels on 97 geometric B nodes 0.0008–0.06, linear in log B; interpolation
+  error against exact kernels on 40 realisations (seed 15, 18,040 solves):
+  median 5.5e-6, max 3.8e-5. Built in 185 s (kernels 20, solves 149, check
+  16) at 20 workers before the OOM policy; provenance JSON, no timestamp.
+
+**Headline: window, realisation split held out** (median / q90 / rRMS % /
+non-physical % of values; primary bands; full tables in `baseline_report.md`):
+
+| model | median | q90 | rRMS | non-phys. |
+|---|---|---|---|---|
+| standard Gordon | 7.84 | 21.0 | 12.95 | 0 |
+| ZTT (TT2017 µ∞), Sullivan | 10.42 | 73.0 | 1.3e6 | 5.20 |
+| ZTT (TT2017 µ∞), FF | 8.70 | 75.0 | 1.3e6 | 5.20 |
+| ZTT (L23 µ∞), Sullivan | 11.70 | 117 | 1.5e5 | 6.86 |
+| ZTT (L23 µ∞), FF (package default) | 10.33 | 119 | 1.5e5 | 6.86 |
+| ZTT (L23 closure µ∞), Sullivan | 10.12 | 180 | 1.2e5 | 9.39 |
+| ZTT (L23 closure µ∞), FF | 9.17 | 182 | 1.2e5 | 9.39 |
+| hybrid, no fallback, 350–750 | 7.31 | 111 | 1.4e6 | 5.46 |
+| hybrid, fallback, 350–750 | 10.60 | 82 | 1.4e6 | 5.46 |
+| O25 published (in-sample) `Rrs` | 4.08 | 18.1 | 10.46 | 0 |
+| O25 refit, weighted `Rrs` | 1.51 | 5.61 | 3.51 | 0 |
+| O25 refit, unweighted ≤ 0.06 `Rrs` | 3.92 | 17.9 | 10.27 | 0 |
+
+Everything (window + shell), same side: Gordon 9.28 / 26.1; ZTT TT2017 FF
+10.13 / 170; ZTT L23 FF 14.29 / 182 (non-physical 12.2%); hybrid no fallback
+9.35 / 187; O25 published 4.88 / 22.6; O25 refit 2.00 / 6.87. 751–800 nm
+(hybrid, out of domain): 6.44% median without and 9.19% with the fallback.
+In-water-only: Gordon 37.4%, every ZTT 109–121% median, 38–40% non-physical.
+Shell, geometry split (O25 refit on the window only): 12.97% vs 3.26% when
+the shell nodes are fitted (realisation split). The rRMS of every ZTT/hybrid
+row is set by a handful of near-pole values (10⁵–10⁶ %); the physical-only
+rRMS can exceed the all-finite one because dropping the moderate negative
+values leaves those positive spikes over fewer values.
+
+**Common `rrs` table** (window, realisation held out, median / q90 %): the
+transfer alone costs 1.30 / 2.89 with the downwelling factor and 2.71 / 6.79
+θv-only; O25 published → rrs 4.51 / 18.3 (θv-only 5.68); O25 refit → rrs 2.06 /
+6.15 (3.47). So the mapping adds ~0.4–0.6 pp to O25's native median; in the
+shell the downwelling form fails (transfer alone 9.11%, O25 published → rrs
+23.6% vs 11.7% θv-only), as task 4's θs ≥ 80° numbers foreshadowed.
+
+**Diagnostics, prediction then outcome.**
+- **ψ and non-physical share (Q9d): confirmed.** Window ψ_min 90.9°; 4.81%
+  of window geometries below 110.4°, 25.0% below 134°. ZTT (TT2017 µ∞),
+  Sullivan is non-physical on 5.19% of window values (11.3% of spectra), all
+  realisations, against M5's 22%. The hybrid's fallback fired on 99.6% of
+  window samples (nadir, Δφ = 0 and L23's B_p range are its whole domain).
+- **µd (Q10): first half not confirmed, second confirmed.** Span of the median
+  signed deviation over θs 0–70°: TT H V = 15 km 18.1 pp, V = 40 km 17.0 pp,
+  data H 9.1 pp (half, not "most"; criterion < 0.5×), data H × c(θs′) 6.4 pp.
+  With the data H the L23 M*_d still runs +8–10% at θs 60–70° and the median
+  |dev| is 2.9% at bb/a < 0.1 and 19.5% at bb/a ≥ 0.59. c(θs′) cancels the
+  in-window trend (−2.1% at 60°, −5.7% at 70°) but overcorrects outside
+  (−13.9% at 80°, −26.9% at 87.75°). Table A2's M*_d with the data H spans
+  8.7 pp.
+- **Ψ_KLu/µ∞ vs KLu/a at nadir: first half not confirmed, second confirmed.**
+  Median ratio at θs ≤ 30°: L23 µ∞ 1.19–1.21 (criterion 1.05–1.20; L23 gave
+  1.11–1.13), TT2017 1.14–1.15, closure 1.08–1.10, **eigen 1.20–1.21**: with
+  the physical µ∞ ZTT's implied K_Lu is 20% above PB24's at nadir, falling to
+  1.08 at θs = 80°. Oracle rung (Ψ_KLu/µ∞ := KLu/a), held out: median 9.22%
+  vs 6.96% for the L23 variant, worse at every θs ≤ 40°.
+- **Eigen µ∞ (Q15): confirmed.** At fixed (bb/a, η_bb) (0.1 dex bins, 499
+  bins with ≥ 30 points and ≥ 4× B_p span, 76% of points) the B_p slope
+  implies a span of **6.2%** (point-weighted median; q10 1.2%, q90 13.7%)
+  across B_p 0.001–0.036; 83% of points exceed 2%; within-bin sd falls from
+  0.65% to 0.18% once ln B_p is added. Eq. (8)'s sixteen-term form refit to
+  the eigen µ∞ leaves 2.3% rms with a monotone B_p trend (median +1.6% at
+  B_p < 0.003, −2.0% at > 0.03). Variants vs eigen, median |dev|: TT2017
+  1.75%, L23 0.91%, closure 6.1%; L23 holds to ~1% up to bb/a 0.1, then
+  −1.6% at 0.1–0.59 and +54% beyond (its clamp), TT2017 +5% / −10%.
+- **bb_w:** the files' `bbw` is `conventions.bb_w` × 0.9967 at 350–750 nm
+  (0.764 at 800 nm under the clamp, 0.998 with `mode="extrapolate"`);
+  `bbw/(bw/2)` 0.999–1.000.
+
+**Reproducibility and cost.** Full run 6,299 s at 6 workers (fits 275 s,
+scores 5,951 s, tables, diagnostics and figures 68 s), in its own scope:
+`memory.peak` 80 GiB = the cap, of which anon 40.5 GB (6 × 6.5 GB, as
+predicted) and the rest the memmapped cache in page cache, reclaimed at the
+cap; scope PSI 0.00 when sampled 10 min into scoring, `memory.events` oom 0. `--check` (6 workers, same scope): the eigen product rebuilt byte-identical (380 s), every CSV, the markdown and all five PNGs byte-identical; 6,787 s in all.
+
+**Tests:** `robust/tests/test_pb24_baseline.py` (16 with the data; 15 + 1
+skip without): the kernel grid (exact at nodes, energy-conserving, close
+between nodes, refuses to extrapolate); the eigen product (deterministic
+round trip, version and shape checks; the release product reads back,
+skipping without it); histogram quantiles within a bin; the runner end to end
+on the fixture (headers are the column objects, every model is in the
+registry, the hybrid's 751–800 nm rows are separate, the transfer-error rows
+are present, every value counted, the markdown generated from the CSVs with
+each prediction before its outcome, the streamed O25 fit equals
+`fit_o25_table`); plus task 5c's worker-policy tests.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -3536,10 +3672,11 @@ robust/
       pb24.py          ✅ M5  PB24 batches; M8: on the caches, above-water
                              geometry, Fresnel check, saved splits (§7c.3)
       pb24_cache.py    ✅ M8  PB24 memmap caches: build/open/verify (§7c.2)
+      pb24_eigen.py    ✅ M8  the eigen µ∞ product: save/load (§7c.6)
     ztt.py             ✅ M2  ZTT; M7: variant="l23" (default) / "tt2017",
                              µ∞/µd refits, closure µ∞, clamps (§7b.7-9)
     phase.py           ✅ M7  Fournier–Forand (Mobley 2002), L23 FF mixture
-    asymptotic.py      ✅ M7  µ∞ from the asymptotic RTE eigenproblem (fitting-only)
+    asymptotic.py      ✅ M7  µ∞ from the asymptotic RTE eigenproblem (fitting-only); M8 KernelGrid (§7c.6)
     emulator.py        ✅ M3  relative-δ Flax MLP + Optax training, save/load;
                              M7: backbone_variant (§7b.8)
     hybrid.py          ✅ M3  forward()/rrs_forward(), MODES, DomainWarning,
@@ -3581,6 +3718,7 @@ design/py/
   run_ztt_l23.py             ✅ M7 the ladder + acceptance gate
   explore_mu_inf_eigen.py    ✅ M7 exploratory (Q13 evidence), not pipeline
   build_pb24_cache.py        ✅ M8 builds/verifies the PB24 cache; --check, --rebuild-check
+  run_pb24_baseline.py       ✅ M8 task 6 baseline on PB24 → ztt_pb24/baseline_*; --check
   make_pb24_splits.py        ✅ M8 the saved PB24 splits (splits.json/.md); --check
   check_pb24_geometry.py     ✅ M8 Fresnel check (all 5000) + interpolation error
   fit_surface_fresnel.py     ✅ M8 FresnelTransfer fit + held-out table (surface_fresnel.md/.csv); --check

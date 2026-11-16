@@ -1617,3 +1617,110 @@ Created from `rt_fit_ztt.md` task 8.
   1 skipped without `$OS_COLOR`. The full suite was not rerun (only the
   script and its own test file changed). No state-changing git command was
   run; no system setting was changed.
+
+### 2026-11-14 — Task 6: the baseline (Claude Opus 5.5)
+
+- **Interrupted and resumed.** The first full run (12 workers, inside
+  Cursor's cgroup) was killed with the whole desktop session by
+  systemd-oomd at 15:14, as the scoring pass started; the eigen product had
+  been written at 15:13 and survived. Resumed under the Task 5b/5c policy:
+  ≤ 6 staggered workers, `CHUNK = 10`, every multi-worker run in its own
+  `systemd-run --user --scope -p MemoryMax=80G`. Fable's 5c changes kept as
+  they are; worker policy, `CHUNK` and the histogram constants unchanged.
+- Read: this doc (Code, preamble, tasks 6–7, Q6, Q9d, Q10, Q12, Q13, Q15,
+  Q&A/OOM, the task 3–5c logs); `pb24.py`, `pb24_cache.py`, `ztt.py` (variants,
+  µd, µ∞, closure, `P_bb_from_phase`), `hybrid.py`, `emulator.py` (domain,
+  envelope), `baselines.py` (Gordon, O25), `conventions.py` (Fresnel
+  transfers), `validation.py`, `asymptotic.py`, `run_pb24_validation.py`,
+  `run_validation.py`, `run_ztt_l23.py`, record §7b.5–§7b.10 and §7c.5.
+- **Built.** `design/py/run_pb24_baseline.py` → `design/ztt_pb24/baseline_*`
+  (11 CSVs, `baseline_report.md` generated from them, 5 PNGs; 14.3 MB in
+  all, `per_band.csv` 8.2 MB, `breakdowns.csv` 4.3 MB). Package, additive:
+  `asymptotic.KernelGrid`/`ff_kernel_grid`; new `robust/rt/data/pb24_eigen.py`
+  (save/load of the eigen product). `robust/tests/test_pb24_baseline.py`
+  (13 of mine + Fable's 3). Record §7c.6 and the module index.
+- **Decisions.** (i) Streaming: chunks of `CHUNK` realisations; per-value
+  log10|e| histograms (−6…3, 0.002 dex, `N_BIN` 4,502) keyed by split
+  category × angle category × band and by each breakdown; median and q90 from
+  them (all values, ±0.23%); rRMS and counts as exact float64 sums per chunk,
+  added in chunk order. No subsample anywhere except `--quick` (50
+  realisations, seed 6, every 10th band). (ii) The hybrid is
+  `hybrid.rrs_forward` (subsurface), called separately on 350–750 and
+  751–800 nm: its out-of-domain mask is per sample over a call's bands, so
+  one call would zero every correction. (iii) All six ZTT (µ∞, Pbb)
+  combinations exist through public inputs (crossed Pbb via `P_bb=`); every
+  ZTT/hybrid evaluation uses the loader's data H. (iv) O25 refits are float64
+  normal equations of `fit_o25_table`'s objectives per node (equal to it to
+  1e-7 on the fixture); realisation/B_p splits fit all 1300 geometries of
+  their training realisations, the geometry split fits the window and clamps
+  the shell. (v) The geometry split's sides are the window/shell cuts.
+  (vi) ψ ≥ 134° is taken inside the window. (vii) Zero truths (in-water
+  87.5° node) are the only exclusion, counted. (viii) Eigen: λ-mean FF ratios
+  per realisation (λ variation ≤ 1.05%), 97 geometric B nodes 0.0008–0.06,
+  linear in log B; product beside, not inside, `pb24_v1/`.
+  (ix) `fit_o25_table` itself is not called on the full set (it needs the
+  materialised batch). (x) `validate` and the Fresnel check are off in the
+  loads (task 3 ran them on the release).
+- **Headline, window, realisation held out** (median / q90 / non-physical %):
+  Gordon 7.84 / 21.0 / 0; ZTT TT2017 Sullivan 10.42 / 73.0 / 5.20, FF 8.70 /
+  75.0; ZTT L23 FF (package default) 10.33 / 119 / 6.86; closure FF 9.17 /
+  182 / 9.39; hybrid 350–750 nm 7.31 / 111 (fallback 10.60 / 82); O25
+  published `Rrs` 4.08 / 18.1 (in-sample); O25 refit weighted 1.51 / 5.61;
+  unweighted ≤ 0.06 3.92 / 17.9. Everything: Gordon 9.28, ZTT L23 FF 14.29,
+  O25 published 4.88, refit 2.00. ZTT/hybrid rRMS 10⁵–10⁶ % (near-pole
+  values). Common `rrs`: the transfer alone 1.30% (downwelling) / 2.71%
+  (θv-only); O25 published → rrs 4.51%, refit → rrs 2.06%; in the shell the
+  downwelling form fails (9.1%; O25 published → rrs 23.6% vs 11.7% θv-only).
+- **Predictions.** Q9d **confirmed**: window ψ_min 90.9°; ZTT (TT2017,
+  Sullivan) non-physical on 5.19% of window values (11.3% of spectra) vs
+  M5's 22%. Q10 **half confirmed**: the data H halves the θs trend of µd
+  (18.1 → 9.1 pp; criterion "less than half" missed narrowly) rather than
+  removing most of it; the remainder grows with bb/a (2.9% → 19.5% median
+  |dev| from bb/a < 0.1 to ≥ 0.59), confirmed. KLu: ZTT's Ψ_KLu/µ∞ is 19–21%
+  above PB24's KLu/a at θs ≤ 30° (criterion 1.05–1.20: **not confirmed**,
+  higher than L23's 11–13%; with the eigen µ∞ 1.20–1.21), and the oracle
+  rung worsens rrs (9.22% vs 6.96%, **confirmed**). Q15 **confirmed**: at
+  fixed (bb/a, η_bb) the eigen µ∞ spans a median 6.2% (q10 1.2, q90 13.7%)
+  across B_p 0.001–0.036; Eq. (8)'s form refit to it leaves 2.3% rms with a
+  monotone B_p trend (+1.6% → −2.0%).
+- **Measured, other.** Eigen product 16,703,239 B, 2,255,000 solves, built
+  in 185 s at 20 workers (before the policy), interpolation error vs exact
+  kernels (40 realisations, 18,040 solves) median 5.5e-6, max 3.8e-5.
+  Variants vs eigen, median |dev|: L23 0.91%, TT2017 1.75%, closure 6.1%; L23
+  +54% at bb/a ≥ 0.59 (clamp). Files' `bbw` = `conventions.bb_w` × 0.9967 to
+  750 nm. Hybrid fallback fires on 99.6% of window samples.
+- **Wall times and memory.** Full run 6,299 s at 6 workers (fits 275, scores
+  5,951, rest 68 s); scope `memory.peak` 80 GiB = the cap: anon 40.5 GB (as
+  predicted, 6 × 6.5 GB), the rest page cache of the memmapped 36 GB cache,
+  reclaimed at the cap; `memory.events` oom 0; scope PSI 0.00 when sampled.
+  `--check` (same scope, eigen rebuilt too): "pb24_mu_inf_eigen_v1.npz:
+  byte-identical (379.5 s)", every CSV, `baseline_report.md` and all 5 PNGs
+  "byte-identical", "CHECK OK", 6,787 s. Quick runs at 3 and 8 workers were
+  byte-identical too; the eigen product rebuilt at 6 workers/CHUNK 10 equals
+  the one built at 20/CHUNK 20.
+- **Suite** (`python -m pytest robust/tests -q -p no:cacheprovider`): with the
+  data `865 passed, 5 skipped, 2 warnings in 313.33s (0:05:13)`; `env -u
+  OS_COLOR` `785 passed, 85 skipped, 4 warnings in 251.11s (0:04:11)`. `ruff
+  check robust/ design/`: "All checks passed!"; `ruff format --check`: "69
+  files already formatted".
+- **Surprises.** (1) `hybrid.forward` returns `Rrs` (nadir constants); the
+  first draft scored it against `rrs` (≈ 49% "error"), caught on the fixture.
+  (2) The rRMS "physical only" can exceed the all-finite rRMS (dropping
+  moderate negative values leaves the positive near-pole spikes over fewer
+  values). (3) Pbb (Sullivan vs FF) never changes the non-physical share: the
+  sign comes from the denominator. (4) ZTT is worse than Gordon in median
+  in the window; the hybrid without fallback beats both (7.3%) although almost
+  every sample is outside its domain. (5) c(θs′) cancels µd's in-window trend
+  but overcorrects at 80–87.75° (−14%, −27%).
+- **Recommendation (not applied).** The per-worker accumulators (~4 GB at
+  `N_BIN` 4,502) dominate memory; 0.01 dex bins (902) would cut them ~5× at
+  ±1.15% quantile resolution, or the band-keyed histogram could drop the B_p
+  split category. Both change committed numbers, so they wait for JXP.
+  Also: `baseline_per_band.csv` is 8.2 MB; trim its (cut, side) combinations
+  if that is too large to commit.
+- **Open for task 7.** The µd atmospheric factor (data H halves, c(θs′)
+  over-corrects outside the window); a µ∞ with a B_p term (6% span, Eq. (8)
+  form leaves 2.3%); ZTT's implied K_Lu 20% high at nadir on PB24; the
+  in-water-only set (ZTT median > 100%, ~39% non-physical); the downwelling
+  transfer's failure in the shell; the emulator's domain (99.6% fallback).
+- No state-changing git command was run (read-only `git status` only).
