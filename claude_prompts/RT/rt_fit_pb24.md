@@ -500,6 +500,7 @@ primary: it is what PACE wants. Band subsets can be drawn from it, and the
 consolidation layer makes that cheap. The cost: M5's OLCI numbers and the
 class-based reporting can't be reproduced unless the OLCI files and the
 `.mat` are fetched too. Fetch them, or retire the OLCI path?
+
 **JXP:** I have fetched them.
 
 **Q2. Where does `ocpy` stop and `robust` start?** My proposal mirrors L23:
@@ -511,6 +512,7 @@ class-based reporting can't be reproduced unless the OLCI files and the
 Module name: `ocpy/hydrolight/pitarch24.py` (by author and year, as
 `loisel23.py`) or `pb24.py`? And should the cache-building code live in `ocpy`
 (reusable by others) or in `robust`?
+
 **JXP:** Your split is good.  Use `pb24.py`.  Put the cache-building code in `robust`.
 
 **Q3. Cache format and location.** The full 4-D `rrs` is ~12 GB per field,
@@ -522,6 +524,7 @@ so caches are subsets. I propose:
 
 zarr would be a new dependency for `ocpy`. Fine, or prefer netCDF/npz
 throughout? Rclone to `RoB` as before?
+
 **JXP:** For `ocpy`, only work on the NetCDF files.  Put the cache-building code in `robust`.
 Defer the `rclone` to `RoB` for now. 
 
@@ -538,12 +541,14 @@ another family? Please put the PB24 dataset paper (Pitarch & Brando) in
 5 nm (81 bands); PB24 runs to 800 nm at 1 nm. Score on PB24's own 451 bands
 (ZTT's f_L table covers 350–800), on the canonical 81 for comparability with
 M7, or both?
+
 **JXP:** Use PB24's bands
 
 **Q6. Geometry scope.** M5 sanctioned 0–70° in both zeniths (M5 Q14) and held
 the 80/87.75° shell out as an extrapolation test. Keep that window for M8's
 gates? Should a ψ ≥ 134° subset be a first-class reporting cut, given that's
 where ZTT's Ψ_KLu is fitted?
+
 **JXP:** Yes, keep that window, and do a ψ ≥ 134° subset as a first-class reporting cut.
 
 **Q7. Splits.** M5 used three: realisation, B_p band, and geometry. A
@@ -551,6 +556,7 @@ reminder from M5's gotchas: refit per split, and a seed doesn't name a
 partition when the realisation set changes. Keep all three, with task 2 fixing
 the partitions once (saved by realisation id) so every later task scores on
 identical sets?
+
 **JXP:** Yes, do so.
 
 #### Round 2 — Claude (Fable 5.1), 2026-10-31, after JXP's answers to Q1–Q7
@@ -652,6 +658,7 @@ and the 26 skipping tests run again with no code change. May I do that at the
 start of task 1, or will you? Two follow-ons, where I recommend "yes" to both:
 the `ocpy` reader takes `resolution={"hyp", "olci"}` with "hyp" the default;
 and the `.mat` class reader stays in `robust` (Q3: `ocpy` reads netCDF only).
+
 **JXP:** I have unpacked it into `$OS_COLOR/SD/v5`.
 
 **Q9. Adopt Snell pairing, and express the geometry in above-water terms.**
@@ -842,6 +849,370 @@ and keep the published LUT as an external reference. I recommend (a) now and
 the published model stays scorable on any machine with the checkout. OK?
 
 **JXP:** Go with (a) for now
+
+### Design
+
+*Task 7, Claude (Fable 5.1), 2026-11-16. No code was changed. The numbers
+are task 6's (`design/ztt_pb24/baseline_*.csv`, record §7c.6). One scratch
+evaluation of Eq. (12)'s denominator with the package's own functions (no
+data, not committed) is quoted where marked. Every option carries a
+prediction written before any test, with the criterion that would falsify
+it. Numbered questions continue from Q20; answer inline under each
+**JXP:** line.*
+
+#### What task 6 says, read for design
+
+Window, realisation split held out, median |e| unless stated.
+
+1. **The error is in the geometry, not on the IOP axis.** Every model's error
+   grows with θv_air, and ZTT's grows fastest: Gordon 6.5 → 11.2% (θv_air
+   0 → 70°), O25 refit 1.2 → 2.5%, ZTT (L23 µ∞, FF) 4.7 → 15.3%, the hybrid
+   2.2 → 14.4%. Gordon has no view-angle term at all and still beats ZTT
+   beyond θv_air ≈ 15–25° (depending on the variant). Per ψ: ZTT is
+   4.5–5.8% at ψ ≥ 155° (Gordon 8.5–8.7%), 11–12% at 134–145° (Gordon
+   6.8%), 43% at 110.4–120° and 300% at 100–110.4°. Gordon's own 31% and
+   16% in the two lowest ψ bins measure how far PB24's BRDF departs from a
+   nadir-like value there: that is the signal ZTT's ψ terms are supposed to
+   carry and currently invert. So ZTT's ψ-dependent terms (Ψ_KLu, f_L, the
+   cos θv factor) are the problem. Its phase-function terms are not: PB24's
+   FF Pbb is exact for it and is worth a steady 1–1.7 pp at every µ∞.
+2. **At nadir ZTT's structure works, and the hybrid transfers.** At
+   θv_air = 0: ZTT (L23 µ∞, FF) 4.7%, Gordon 6.5%, O25 published 3.1%, O25
+   refit 1.2%, and the L23-trained hybrid **2.2%** — on PB24's B_p
+   0.0014–0.043 with an emulator that saw B_p 0.010–0.018, Sullivan's Pbb
+   and one sky.
+3. **µd is nearly solved.** With the data H and M7's c(θs′), µd's median
+   |deviation| is 0.52% at bb/a < 0.1 and 1.15% at 0.1–0.59 over the window
+   suns; only bb/a ≥ 0.59 (4.6% of (realisation, λ) pairs, beyond M*_d's
+   clamp) is bad, at 13.6%. µd is no longer where ZTT's 10% lives.
+4. **The physical µ∞ exposes Ψ_KLu rather than fixing rrs.** The L23 µ∞ is
+   within 0.9% (median) of the eigen µ∞ on PB24, yet the L23 variant scores
+   worse than TT2017's (10.33 vs 8.70%) with more non-physical values (6.9
+   vs 5.2%), because with a physical µ∞ ZTT's implied K_Lu/a at nadir is
+   20% above PB24's (ratio 1.19–1.21 at θs ≤ 60°; 16–84% range **1.03–1.68**,
+   so Ψ_KLu is IOP-dependent where TT assumed < 2%). M7's lesson holds:
+   the oracle Ψ_KLu/µ∞ := KLu/a makes rrs worse (6.96 → 9.22%) because f_L
+   is calibrated against the wrong Ψ_KLu. Nothing in µ∞ pays off until
+   Ψ_KLu and f_L are refit with it.
+5. **Eq. (12) has two sign-flip mechanisms, and only one is ψ < 110.4°.**
+   *[scratch check]* The denominator is
+   `D = (a/bb)(1 + |cos θv| Ψ_KLu/µ∞) + (1 − f_L)/b̃b + f_L`. With f_L =
+   1.03–1.11 (Table A3 × the sin ψ scaling; FL_AVE itself is 0.98–1.03)
+   and b̃b = B_p = 0.005–0.03, the last two terms are **negative for
+   B_p < 0.03 at nadir and for every B_p off-nadir**, at −(f_L − 1)/b̃b ≈
+   −0.9 (B_p 0.03, nadir) to −20 (B_p 0.005, ψ ≤ 120°). D < 0 once bb/a
+   exceeds `(1 + |cos θv| Ψ_KLu/µ∞) / [(f_L − 1)/b̃b − f_L]` (µ∞ = 0.77,
+   PB24's median):
+
+   | B_p | nadir (ψ = 180°) | ψ = 160° | ψ = 135° | ψ = 120° |
+   |---|---|---|---|---|
+   | 0.005 | bb/a > 0.49 | 0.24 | 0.17 | 0.12 |
+   | 0.015 | 2.6 | 0.92 | 0.61 | 0.42 |
+   | 0.030 | never | 3.1 | 1.6 | 1.1 |
+
+   PB24 has 37% of its (realisation, λ) pairs above bb/a = 0.1 and 4.6%
+   above 0.59. That is why 1.2–5.6% of values are non-physical even at
+   ψ ≥ 134°, why every ZTT variant is worst in the lowest B_p bin, and why
+   the rRMS is 10⁵–10⁶%: a pole at finite bb/a whose position scales with
+   b̃b/(f_L − 1). Any ZTT-family backbone must either keep
+   f_L ≤ 1/(1 − b̃b) or bound D away from zero by construction, or the
+   emulator inherits a pole it cannot repair (M5's oracle: no bounded
+   relative correction fixes a negative backbone).
+6. **O25's form is the standard, and its remaining error has a B_p
+   signature.** Refit with M5's relative weighting it is 1.51% (q90 5.6%,
+   rRMS 3.5%, zero non-physical); the published 4.08% is the objective
+   (the paper's own recipe refit scores 3.92%), not the data. Its per-B_p
+   medians run 2.43% (B_p ≤ 0.011) → 1.11% (≥ 0.018): the phase-function
+   dependence it lacks is a 1–2% effect on PB24. Its 4 × 1300 node values
+   vary smoothly with geometry (Gw0 5.9 → 4.6 × 10⁻² over θv_air 0–70° at
+   θs = 0°; 6.7 → 3.9 × 10⁻² over Δφ 0–180° at θs = θv = 60°), so a
+   low-order parametric form in (cos θs, cos θv, cos Δφ) should carry them
+   and make the geometry dependence smooth and differentiable.
+7. **Not remote sensing, and not a target.** The in-water-only nodes
+   (θ_w 50–87.5°, beyond the critical angle) give ZTT > 100% and 39%
+   non-physical; the shell (θs or θv_air ≥ 80°) breaks the downwelling
+   transfer (9.1%) and every model. Both stay diagnostic cuts in task 8;
+   nothing is fitted or accepted on them.
+
+#### (i) µd's atmospheric factor
+
+**Measured.** With the data H alone the signed deviation is +0.5% (θs = 0°)
+rising monotonically to +9.6% (70°); with M7's c(θs′) on top it is within
+±0.8% to 50°, −2.1% at 60°, −5.7% at 70°, −13.9% at 80°, −26.9% at 87.75°.
+TT's H is spectrally flat and about twice PB24's at 550 nm. So what the data
+H leaves is M⁺_d's own form: the cardioidal-sky mean cosine 0.859 and TT's
+P3(cos θs′), both fitted against TT's sky *together with* TT's H, plus the
+5 m/s rough-surface direct beam at θs ≥ 80°, which no (1 − cos θs′)
+polynomial fitted at 0–70° can follow.
+
+**Options.**
+- (a) **Ship H_PB24(θs′, λ)** — the 10 × 451 table of 1 − `Esdir_Es_ratio`
+  (realisation-independent, an above-surface quantity), interpolated
+  linearly in cos θs′ and λ — as the default behind the `diffuse_fraction`
+  seam for the new variant; TT's H stays the default of `"tt2017"` and
+  `"l23"`, bit for bit. It is tied to PB24's sky (RADTRANX, V = 40 km, US
+  Navy aerosol, 354.9 DU) and says so.
+  *Prediction:* leaving the 30° and 60° nodes out and interpolating from
+  their neighbours reproduces H within 1% of its value (< 0.3% in µd).
+- (b) **Refit c(θs′) jointly with M*_d on PB24**, as M7 did on L23: the data
+  H inside M⁺_d, the window suns (0–70°) of the training realisations, the
+  (X, L) box widened to PB24's range (bb/a to 20, η_bb to 4e-6), target
+  PB24's own `mu_d`, linear LSQ in log µd (M7's exact linearisation).
+  *Prediction:* median |dev| < 0.5% at every θs ≤ 70° and at bb/a < 0.59;
+  at bb/a ≥ 0.59 under 3% (from 13.6%) if Eq. (17)'s cubic in X holds over
+  five decades — if it does not, the residual at bb/a > 2 shows it and a
+  quartic in X, or a fit in u = bb/(a + bb), is the fallback. The 80° and
+  87.75° nodes, extrapolated, stay within 5% and 15%: the rough-surface
+  regime the form cannot describe, reported as such.
+- (c) Replace `P3 · [(1 − H)/µw + H/0.859]⁻¹` by `[(1 − H)/µw + H/µ_sky]⁻¹`
+  with one fitted µ_sky and no P3. More physical, one number instead of
+  six, but nonlinear in µ_sky. *Prediction:* equal to (b) within 0.2% in
+  the window, so it buys nothing (b) does not.
+
+**Recommendation.** (a) + (b), shipped as the µd of a new `variant="pb24"`
+(the seam stays per-sample; a supplied H overrides the table). The `"l23"`
+variant keeps M7's c(θs′) with whatever H it is given, unchanged.
+
+**Q21.** (a) + (b) as `variant="pb24"`'s µd, fitted on the window suns only
+(0–70°), with 80°/87.75° reported as extrapolation? The alternative is to
+fit all ten suns, which buys the shell at the cost of the window.
+Recommendation: window suns.
+
+**JXP:**
+
+#### (ii) µ∞ from the eigenproblem on PB24
+
+**Measured.** The eigen µ∞ (every (realisation, λ), PB24's own FF pair)
+spans 6.2% across B_p 0.001–0.036 at fixed (bb/a, η_bb) (q10 1.2%, q90
+13.7%); the L23 fit is 0.91% from it (median |dev|), with a monotone B_p
+trend from +1.5% (B_p < 0.003) to −2.4% (> 0.03), and +54% beyond its
+bb/a = 0.59 clamp. Eq. (8)'s sixteen-term form refit to the eigen values
+leaves 2.3% rms and the same trend; the within-bin scatter falls from 0.65%
+to 0.18% once ln B_p is a regressor. Range: PB24 reaches bb/a = 20 and
+η_bb = 4e-6, far outside both fitted boxes.
+
+**Options.**
+- (a) **Refit Eq. (8) alone** to PB24's eigen µ∞, box extended.
+  *Prediction:* median |dev| ≈ 0.9%, no better than the L23 fit; the B_p
+  trend stays at ±2%; rms ≈ 2.3%. Not worth shipping.
+- (b) **Add a B term**: each of Eq. (8)'s four X-cubic coefficient groups
+  gains a ln B_p term (4 numbers; or the full 16 × (1, ln B_p) = 32), fit by
+  the same linear LSQ, output-bounded as M7's guard.
+  *Prediction:* held-out median |dev| ≤ 0.3%, rms ≤ 0.5% at bb/a ≤ 0.59,
+  and every B_p-bin median within ±0.3% (the 0.18% within-bin sd is the
+  floor). *Second prediction, cheap to test first:* the bulk B_p is enough —
+  a single-FF eigen at the bulk B differs from the two-component eigen by
+  < 0.3% median on 40 realisations; if it does not, the variant needs the
+  (B_ph, B_NAP, weight) triple, which `PhaseParams` already carries.
+- (c) **A small differentiable emulator of the eigen µ∞** (inputs X, L,
+  ln B_p). *Prediction:* ≤ 0.1%. Only if (b) misses its 0.5% criterion;
+  a bounded polynomial is what the clamp/guard machinery already supports.
+- **Range.** Over X ∈ [−4, 1.3] a cubic in X will not hold.
+  *Prediction:* (b) fitted in X exceeds 1% at bb/a > 2 or η_bb < 1e-4;
+  fitted in u = bb/(a + bb) (bounded in (0, 1)) it does not. Try u first.
+
+**The caveat, as a prediction.** Swapping in the B-aware µ∞ with the current
+Ψ_KLu and f_L changes the window median by less than 0.5 pp and may worsen
+it (M7's attribution: µ∞ alone cost +0.89 pp on L23). (ii) is a
+precondition for (iii), not a gain on its own, and the ladder will show it.
+
+**Q22.** (b) with the range extension and the bulk-B_p check, (c) only as
+the fallback? Recommendation: yes.
+
+**JXP:**
+
+#### (iii) A Ψ_KLu over the window's ψ, refit jointly with f_L
+
+**What the data allow.** PB24 measures `KLu` only at nadir, so Ψ_KLu = K_Lu/K∞
+is a physical quantity at ψ = 180° − θs_w (ten values, 131.8–180°) and a
+calibration everywhere else: off-nadir it is constrained only through rrs,
+together with f_L. The record will say so wherever the refit is quoted.
+
+**The fit is linear.** Given µd (i), µ∞ (ii) and the exact FF Pbb, Eq. (12)
+inverts to a closure target per (sample, λ), exactly as M7's closure µ∞ did:
+`D* = [β(ψ)/bb] / (µd · rrs_PB24)`. Then
+
+`D* − (a/bb)(1 + |cos θv|/µ∞) − 1/b̃b = (a/bb)(|cos θv|/µ∞) · F(ψ, …) − (1/b̃b − 1) · f_L(ψ, λ)`,
+
+which is linear in the coefficients of F and of f_L once each is a sum of
+basis functions. One deterministic LSQ, relative weighting in D (which is
+relative weighting in rrs to first order: e_rrs = −e_D/(1 + e_D)), on the
+window of the training realisations. No optimiser.
+
+**Forms.**
+- F(ψ): a low-order polynomial (4–5 terms) in cos ψ, not a quartic in
+  degrees (the published one cancels by 78,000× at 180°).
+- Ψ_KLu's IOP dependence: products of the cos ψ basis with (1, X, L). The
+  nadir 16–84% spread of 1.03–1.68 says it is needed.
+- f_L(ψ, λ): keep TT's factorisation FL_AVE(λ) · s(ψ) with s = s₀ + s₁ sin ψ
+  (+ s₂ cos ψ); FL_AVE(λ) refit per band (bilinear with s, so two
+  alternating linear passes, both deterministic).
+- The pole (reading 5): the refit decides f_L's sign; regardless, ship a
+  smooth floor on D (as `smooth_clip` bounds outputs today) so the
+  backbone is finite everywhere and the emulator never meets a pole.
+  *Prediction:* the floor is invisible on > 99% of window values.
+
+**Two diagnostics before the refit, each cheap on the cache.**
+- **D1, the BRDF-shape test.** rrs(θv, Δφ)/rrs(nadir) at fixed
+  (realisation, θs, λ), PB24 against each ZTT variant: it separates the
+  nadir level from the angular shape. *Prediction:* ZTT's shape error alone
+  exceeds its nadir error for θv_air ≥ 40° (median |e| of the ratio > 5%)
+  and is largest toward Δφ = 0 (smallest ψ); O25 refit's shape error stays
+  below 2% everywhere in the window.
+- **D2, the nadir ceiling.** Oracle KLu/a in place of Ψ_KLu/µ∞ **plus** a
+  per-band f_L(λ) refit, at nadir (linear). *Prediction:* held-out median
+  ≤ 2.5% at nadir. Criterion: below 4% means Eq. (12)'s structure is sound
+  at nadir once its two calibrated terms agree; above 4% means the
+  quasi-single-scattering structure itself is the limit, and (iv)'s
+  alternative applies even at nadir.
+
+**Predictions for the joint refit** (window, realisation held out): median
+4–6% (criterion: below Gordon's 7.84%), non-physical < 1% of values,
+ψ ≥ 155° ≤ 3%, ψ 110.4–134° < 10%; the refit Ψ_KLu is monotone in ψ and
+within [0.8, 2.5] over 91–180°; at nadir the refit Ψ_KLu/µ∞ matches PB24's
+KLu/a to < 5% median (the one physical check available). It will not reach
+O25's 1.5%.
+
+**Q23.** Run D1 and D2 first, then the joint refit as designed (linear in
+D-space, window of the training realisations, shell as extrapolation)?
+Recommendation: yes.
+
+**JXP:**
+
+**Q24.** Give Ψ_KLu an IOP dependence (products with X, L), or keep TT's
+IOP-independent form and let f_L absorb it? Recommendation: IOP-dependent;
+the nadir spread is 30× TT's stated 2%, and f_L has no bb/a lever.
+
+**JXP:**
+
+**Q25.** f_L: refit FL_AVE(λ) per band together with s(ψ) (recommended), or
+s(ψ) only with TT's Table A3 shape kept?
+
+**JXP:**
+
+#### (iv) Keep ZTT's structure off-nadir?
+
+**For keeping it.** The explicit VSF is exact for PB24 and worth 1–1.7 pp;
+the nadir structure is sound (4.7%; 2.2% with the L23 hybrid on top); the
+joint refit (iii) is linear and cheap; the design's goal is a physics-
+anchored backbone whose residual the emulator learns.
+
+**Against.** After (iii), ZTT off-nadir is a calibrated model (its Ψ_KLu is
+unmeasurable off-nadir); the pole at finite bb/a is structural and only a
+floor hides it; the best case I predict is ~5% against O25's 1.5% with no
+phase-function input at all; and the emulator then has three times as much
+to learn. O25's per-B_p residual says the phase function is a 1–2% effect
+on top of a geometry-calibrated form, not the other way round.
+
+**An alternative backbone with the VSF explicit, (B).** O25's form with the
+phase function entering where single scattering puts it, in `rrs`:
+
+`rrs = (Gw0 + Gw1 w_w) · w_w · β̃_w(ψ)/β̃_w(π) + (Gp0 + Gp1 w_p) · w_p · Pbb(ψ; B_p)/Pbb(ψ; B_ref)`,
+
+with w_w = bb_w/(a + bb), w_p = bb_p/(a + bb), Pbb the FF backward phase
+function already in `ztt.P_bb_from_phase`, B_ref = 0.015 (PB24's median),
+and the G's **parametric in geometry** — a low-order polynomial in
+(cos θs, cos θv_w, cos Δφ) per coefficient, ~10–15 numbers each — so the
+model is smooth and differentiable in every input, including B_p. The G's
+absorb multiple scattering; the ratio factors carry the sample's phase
+function at single-scattering order. Fitting is linear in the G's: per node
+first (the task-6 fitter), then parametric. `Rrs` through the task-4
+transfer.
+
+*Predictions for (B)* (window, realisation held out): (B1) the node form
+with the Pbb factor scores ≤ 1.3% (from 1.51%) and its lowest B_p bin falls
+from 2.43% to ≤ 1.6%; (B2) the parametric-geometry form is within 0.3 pp
+of the node form in the window and holds ≤ 6% in the shell (where the
+window-fitted LUT gives 12.97%); (B3) on L23 (nadir, three suns) it is
+≤ 0.7% rRMS (O25 refit on L23: 0.69%). If (B1) fails, the phase function is
+not a multiplicative single-scattering effect and (B) is no better than
+O25.
+
+**(C): both arms in task 8**, through the task-6 runner, with the decision
+rule written now:
+
+- ZTT (arm A) stays the backbone only if the joint refit meets its window
+  criterion — median below Gordon's 7.84%, non-physical < 1% — and L23
+  held-out rRMS stays within 0.5 pp of 2.90%.
+- If A passes and B is better by more than 2 pp in the window, B becomes
+  the backbone: the VSF is still explicit, and the emulator's residual is
+  smaller.
+- If A fails, B is the backbone provided it meets ≤ 2% in the window.
+
+**Recommendation.** (C). Each arm is deterministic LSQ and cheap beside a
+scoring run; the decision is then measured, not argued. My own prediction:
+B wins by more than 2 pp.
+
+**Q26.** Arm A only, arm B only, or both (recommended)?
+
+**JXP:**
+
+**Q27.** The decision rule above, or a different weighting of physical
+structure against held-out error?
+
+**JXP:**
+
+#### (v) The emulator retrain
+
+**Facts.** The shipped emulator (hidden (16, 16), 433 parameters, seven
+features) was trained at nadir, Δφ = 0, B_p 0.010–0.018, 350–750 nm, on
+the TT2017 backbone; its domain check flags 99.6% of PB24's window samples.
+Without the fallback it is 7.31% in the window (2.2% at nadir, 14.4% at
+70°). The inelastic corrections (`fl_corr_l23.npz`, `raman_corr_l23.npz`)
+are pinned to the same backbone.
+
+**What the retrain needs, whichever backbone wins.**
+- Features: add cos θv_w and cos Δφ (ψ is derivable; the net should see the
+  two angles the BRDF depends on), `wave_nm` to 800; B_p stays. The
+  envelope (M5 task 10) becomes the window and travels with the weights;
+  the shell is reported as extrapolation.
+- Training set: PB24's realisation split (4000 realisations, window
+  geometries, every band), held out on the 1000; L23's three suns scored
+  as the cross-dataset check, **with H supplied** (L23 carries no
+  `Esdir_Es_ratio`, so it gets the PB24 default; *prediction:* M7's L23
+  c(θs′) and (i)'s PB24 c(θs′) agree within 2% at 0–60°, which is the
+  evidence that the PB24 sky default transfers to L23's sky; if they do
+  not, L23 needs its own H and the cross-dataset number says so).
+- Scale: 1.5 × 10⁹ window samples. `fit()` is full-batch (M5 Q16) and
+  cannot take this; the retrain streams minibatches from the memmapped
+  cache (every 5th band, a seeded 10% of geometries per realisation per
+  epoch), fixed seed and fixed order, scored afterwards on the full window
+  through the task-6 runner.
+- Finding 1b: `hybrid.forward` raises a `DomainWarning` when the weights
+  record FF training and the batch lacks `ff_B`; a `strict=True` keyword
+  raises instead. Not silent (the Sullivan–FF gap is 1–1.7 pp, five times
+  the hybrid's own target), not a refusal (M7 Q9 allowed the fallback in
+  `rrs_ZTT`).
+- δ_max = 0.5 stays; the backbone must be non-physical on 0% of window
+  values before training (M5's oracle), which is why (iii)'s floor or
+  (B)'s positivity comes first.
+
+*Predictions:* on backbone B the hybrid scores ≤ 0.7% median, q90 ≤ 2.5% in
+the window held out, ≤ 3% in the shell; on backbone A, ≤ 1.0% if A has zero
+non-physical values in the window, and worse than Gordon wherever it does
+not.
+
+**Q28.** Retrain scope as above, including the two inelastic corrections on
+the new backbone in the same task (recommended, since every pinned hybrid
+number moves once anyway), or the emulator alone first?
+
+**JXP:**
+
+#### Task 8's acceptance
+
+The proposed gate ("beats ZTT (L23 µ∞) on PB24 held out, inside the window
+and on everything; non-physical share falls; L23 reported") is too easy:
+ZTT (TT2017 µ∞, FF) already beats it at 8.70%, and "everything" includes
+the shell, which no model fits.
+
+**Q29.** Replace it with: window held-out median below Gordon's 7.84% with
+non-physical < 1% for any ZTT-family backbone, ≤ 2% for arm B; L23
+held-out rRMS within 0.5 pp of 2.90% (arm A) or ≤ 0.7% (arm B); everything,
+shell and in-water-only reported, never gated; the ladder with
+order-independent attribution as M7; and every rung's prediction above
+carried into the script's generated markdown before its outcome.
+
+**JXP:**
 
 ## Logs
 
@@ -1724,3 +2095,51 @@ Created from `rt_fit_ztt.md` task 8.
   in-water-only set (ZTT median > 100%, ~39% non-physical); the downwelling
   transfer's failure in the shell; the emulator's domain (99.6% fallback).
 - No state-changing git command was run (read-only `git status` only).
+
+### 2026-11-16 — Task 7: the design discussion (Claude Fable 5.1)
+
+- **No code changed.** Read: this doc (tasks 6–8, Q&A/Plan, the task 6 log),
+  record §7c.6 and §7b.7–§7b.11 (M7's fits, closure, ladder, hand-off),
+  §7.16–§7.18 (M5's ZTT internals, the VSF axis, the review), design
+  §1–§4.6, M7's Q&A (Q2b, Q5, Q16–Q20, finding 1b), `baseline_report.md`
+  and the breakdown, KLu, ψ, µd, eigen and O25-refit CSVs, `ztt.py`
+  (`rrs_ZTT`, `Md_plus`, `mu_d_l23`, `f_L`, `psi_KLu`), `baselines.Rrs_o25`,
+  the emulator's domain machinery and the shipped weights' metadata.
+- **Written:** Q&A/Design (Q21–Q29), items (i)–(v) each with options,
+  predictions and a recommendation; record §7c.7.
+- **One scratch evaluation** (package functions, no data, not committed):
+  Eq. (12)'s denominator `D = (a/bb)(1 + |cos θv|Ψ_KLu/µ∞) + (1 − f_L)/b̃b
+  + f_L` has a second sign-flip mechanism besides ψ < 110.4°. With TT's
+  f_L = 1.03–1.11 the last two terms are negative for B_p < 0.03 at nadir
+  and for every B_p off-nadir, so D < 0 above a finite bb/a that scales
+  with b̃b/(f_L − 1): 0.49 at nadir and 0.17 at ψ = 135° for B_p = 0.005;
+  2.6 and 0.61 for B_p = 0.015. With 37% of PB24's (realisation, λ) pairs
+  above bb/a = 0.1 this explains the non-physical values at ψ ≥ 134°
+  (1.2–5.6%), the lowest-B_p bin being worst for every ZTT variant, and
+  the 10⁵–10⁶% rRMS.
+- **Reading of task 6 for design.** The error is in the geometry (every
+  model grows with θv_air; ZTT fastest, 4.7 → 15.3%, and Gordon with no θv
+  term beats it beyond ~15–25°); at nadir ZTT's structure works (4.7%) and
+  the L23 hybrid transfers to PB24's B_p range (2.2%); µd is nearly solved
+  (0.52% at bb/a < 0.1 with the data H and c(θs′)); the physical µ∞ exposes
+  Ψ_KLu (20% high at nadir, IOP spread 1.03–1.68) rather than fixing rrs;
+  O25's form is the standard (1.51%) and its residual has a 1–2% B_p
+  signature; in-water-only and shell are diagnostic cuts only.
+- **Recommendations.** (i) ship H_PB24(θs′, λ) behind the seam and refit
+  c(θs′) + M*_d on PB24's window suns, as `variant="pb24"`; (ii) Eq. (8)
+  with ln B_p terms, range extended (try u = bb/(a + bb)), an emulator only
+  as fallback; (iii) D1 (BRDF-shape test) and D2 (nadir ceiling with oracle
+  KLu/a + refit f_L) first, then the joint Ψ_KLu/f_L refit, which is linear
+  in D-space (closure target D* = β(ψ)/bb/(µd·rrs)), with an IOP-dependent
+  Ψ_KLu and a smooth floor on D; (iv) run both arms in task 8 — A = the
+  recalibrated ZTT, B = O25's form with the FF Pbb ratio explicit and
+  parametric geometry — under a decision rule written now (A stays only if
+  it beats Gordon's 7.84% with < 1% non-physical and holds L23; B wins if
+  better by > 2 pp); my prediction is that B wins; (v) retrain with cos θv,
+  cos Δφ and 800 nm features, minibatched from the cache, with finding 1b
+  as a `DomainWarning` plus `strict=`, inelastic corrections included.
+- **Task 8's gate** proposed to change: beat Gordon in the window (not ZTT
+  (L23 µ∞), which TT2017 FF already beats), hold L23, report the shell and
+  in-water-only without gating (Q29).
+- No state-changing git command was run (read-only `git status`, `git
+  diff`, `git log` only).

@@ -2906,7 +2906,8 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 
 ## 7c. M8 — ZTT to PB24
 
-*Status: in progress (tasks 1–4 of 8 done, 2026-11-04). Decisions Q1–Q17 and
+*Status: in progress (tasks 1–7 of 8 done, 2026-11-16; task 7 is the design
+discussion, §7c.7, awaiting JXP's answers Q21–Q29). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3538,6 +3539,73 @@ registry, the hybrid's 751–800 nm rows are separate, the transfer-error rows
 are present, every value counted, the markdown generated from the CSVs with
 each prediction before its outcome, the streamed O25 fit equals
 `fit_o25_table`); plus task 5c's worker-policy tests.
+
+### 7c.7 Task 7 — the design discussion (no code)
+
+*Written 2026-11-16 (Fable 5.1). The options, predictions and questions
+Q21–Q29 are in
+[`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md)
+Q&A/Design; JXP's answers there fix task 8's scope. This section records
+what task 6's numbers say for design, and one finding measured on the way.*
+
+**How task 6 reads for design** (window, realisation held out, median).
+
+1. The error is in the geometry: every model's error grows with θv_air
+   (Gordon 6.5 → 11.2%, O25 refit 1.2 → 2.5%, ZTT (L23 µ∞, FF) 4.7 →
+   15.3%, hybrid 2.2 → 14.4%), and Gordon, with no view-angle term, beats
+   ZTT beyond θv_air ≈ 15–25°. Per ψ, ZTT is 4.5–5.8% at ψ ≥ 155° (Gordon
+   8.5–8.7%) and 11–12% at 134–145° (Gordon 6.8%). ZTT's ψ terms (Ψ_KLu,
+   f_L, cos θv) are the problem; its phase-function terms are exact for
+   PB24 and worth 1–1.7 pp.
+2. At nadir the structure works (4.7%) and the L23-trained hybrid
+   transfers to PB24's B_p range (2.2%, against O25 refit's 1.2%).
+3. µd is nearly solved (0.52% at bb/a < 0.1 with the data H and c(θs′));
+   what remains is M⁺_d's sky-tied form (0.859, P3) and the bb/a ≥ 0.59
+   clamp (13.6% on 4.6% of pairs).
+4. The physical µ∞ exposes Ψ_KLu rather than fixing rrs: ZTT's K_Lu/a at
+   nadir is 20% above PB24's with an IOP spread of 1.03–1.68, and the
+   oracle worsens rrs because f_L is tuned to the wrong Ψ_KLu.
+5. O25's form is the standard (1.51%, zero non-physical); its residual has
+   a 1–2% B_p signature (2.43% at B_p ≤ 0.011, 1.11% at ≥ 0.018), and its
+   node values vary smoothly enough in geometry for a parametric form.
+
+**Measured: Eq. (12) has a pole at finite bb/a.** With the package's own
+`f_L` and `psi_KLu` (scratch, no data): the denominator
+`D = (a/bb)(1 + |cos θv| Ψ_KLu/µ∞) + (1 − f_L)/b̃b + f_L` has its last two
+terms negative for B_p < 0.03 at nadir and for every B_p off-nadir
+(f_L = 1.03–1.11 from Table A3 × the sin ψ scaling), at −(f_L − 1)/b̃b ≈ −0.9
+to −20. D < 0 above bb/a = (1 + |cos θv|Ψ_KLu/µ∞)/[(f_L − 1)/b̃b − f_L]:
+for B_p = 0.005, 0.49 at nadir and 0.17 at ψ = 135°; for 0.015, 2.6 and
+0.61. PB24 has 37% of its (realisation, λ) pairs above bb/a = 0.1. This is
+the second sign-flip mechanism beside Ψ_KLu < 0 at ψ < 110.4° (§7.16), and
+it explains the non-physical values inside ZTT's own ψ domain (1.2–5.6% at
+ψ ≥ 134°), the lowest-B_p bin being worst for every ZTT variant, and the
+10⁵–10⁶% rRMS. Any ZTT-family backbone needs f_L ≤ 1/(1 − b̃b) or a
+smooth floor on D; the emulator cannot repair a pole (§7.12's oracle).
+
+**Recommended for task 8** (each with a prediction in the Q&A):
+(i) a PB24 diffuse-fraction table H(θs′, λ) behind the per-sample seam and a
+c(θs′) + M*_d refit on the window suns, as `variant="pb24"`; (ii) Eq. (8)
+with ln B_p terms over PB24's range; (iii) two diagnostics (the BRDF-shape
+ratio rrs(θv, Δφ)/rrs(nadir), and a nadir ceiling with oracle KLu/a plus a
+refit f_L(λ)), then a joint Ψ_KLu/f_L refit that is **linear in D-space**
+(closure target D* = β(ψ)/bb/(µd·rrs), as §7b.9's closure µ∞ was linear in
+1/µ∞), with an IOP-dependent Ψ_KLu and a floor on D; (iv) a second arm, B:
+O25's bivariate form with the FF Pbb ratio explicit at single-scattering
+order and parametric geometry, run beside the recalibrated ZTT under a
+decision rule fixed before the fits (ZTT stays only if it beats Gordon's
+7.84% with < 1% non-physical and holds L23; B wins if better by > 2 pp);
+(v) the emulator retrain on the surviving backbone with cos θv, cos Δφ and
+800 nm features, minibatched from the cache, finding 1b as a
+`DomainWarning` with `strict=`. Task 8's gate is proposed to become "beat
+Gordon in the window, hold L23, report the shell and in-water-only without
+gating" (Q29).
+
+**Predicted before any test** (the ones a reader should hold the record
+to): the joint ZTT refit reaches 4–6% in the window with < 1% non-physical,
+not O25's 1.5%; arm B reaches ≤ 1.3% with the Pbb factor and flattens its
+B_p bins; the B-aware µ∞ alone changes rrs by < 0.5 pp; the nadir ceiling
+(oracle KLu/a + refit f_L) is ≤ 2.5%; the hybrid on arm B reaches ≤ 0.7%.
 
 ## 8. Cross-cutting conventions (as implemented)
 
