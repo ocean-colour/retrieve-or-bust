@@ -106,6 +106,9 @@ are now eight: old task 1 → tasks 1–4, old task 2 → tasks 5–6, old task 
 task 7, old task 4 → task 8. Task numbers quoted inside the Q&A above refer to
 the original list.*
 
+*Revised again 2026-11-16 (Claude Fable 5.1) after
+Q21–Q29: task 8 is now 8a–8d.*
+
 **Applies to every task.**
 - Python in `ocean14` from the repo root; JXP runs all git in both repos;
   `ocpy` work goes on its `pb24` branch.
@@ -343,23 +346,122 @@ Fable 5.2 Log your work.
    Pose numbered questions; JXP chooses.
    Use Opus 5.5. Log your work.
 
-8. **Task 8 — Implement the chosen backbone and assess it on PB24.** Scope
-   per task 7's decisions, following M7's pattern:
-   - a deterministic fit script `design/py/fit_ztt_pb24.py` with `--check`,
-     fitting on the realisation split's training rows;
-   - coefficients shipped as constants with provenance, including the
-     PB24-fitted default H(θs′, λ);
-   - a new `variant` on `rrs_ZTT` (e.g. `"pb24"`), leaving `"l23"` and
-     `"tt2017"` bit for bit;
-   - an additive ladder with order-independent attribution, run through
-     task 6's script so the numbers are comparable.
-   **Acceptance (proposed; confirm in task 7):** the new backbone beats
-   ZTT (L23 µ∞) on PB24 held-out realisations, inside the window *and* on
-   everything; the share of non-physical rrs falls; L23 numbers are reported
-   too, so a PB24 gain that costs L23 shows. Then a notebook
-   (`notebooks/RT/rt_fit_ztt_pb24.ipynb`), a review pass over the M8 diff, the
-   record's §7c completed, a report update (`reports/`, regenerated into
-   `docs/`), and a hand-off that names the emulator retrain.
+8. **Task 8 — Implement the recalibrated ZTT backbone, "ZTT (PB24)", and
+   assess it on PB24.** *Revised 2026-11-16 (Claude Fable 5.1) after task 7's
+   decisions Q21–Q29: arm A only (Q26; the O25-form backbone gets its own
+   prompt doc), no emulator retrain in M8 (Q28), the Q29 gate. Split into
+   8a–8d, each ending with a log entry and JXP's review. M7's pattern
+   throughout: deterministic linear LSQ with `--check`, fits on the
+   realisation split's training rows, constants shipped with provenance,
+   `"l23"` and `"tt2017"` bit for bit, the hybrid pinned to its backbone.
+   Every prediction below is from Q&A/Design and is restated in the log
+   beside its outcome.*
+
+   **8a — The IOP-side terms: H, µd, µ∞.** `design/py/fit_ztt_pb24.py`
+   (staged like `fit_ztt_l23.py`, writing `design/ztt_pb24/coefficients.json`,
+   `metrics.{json,md}`, `probes.json` and residual figures) and the
+   constants it ships in `ztt.py`:
+   - **`H_PB24(θs′, λ)`** (Q21a): the 10 × 451 table of 1 − `Esdir_Es_ratio`,
+     asserted realisation-independent (float32-exact across the training
+     realisations; a test), interpolated linearly in cos θs′ and λ, as
+     `diffuse_fraction_pb24`. It is the default behind the
+     `Geometry.diffuse_fraction` seam for the new variant (a supplied H
+     overrides it); TT's H stays the default of `"l23"` and `"tt2017"`.
+     Provenance names PB24's sky (RADTRANX, V = 40 km, US Navy aerosol).
+   - **µd** (Q21b): c(θs′) refit jointly with M*_d (Eq. 17, eight
+     coefficients) by M7's exact linearisation, with the data H inside
+     M⁺_d, against PB24's `mu_d`, on the window suns (0–70°) of the training
+     realisations, all bands; the (X, L) box is PB24's range (bb/a to 20,
+     η_bb to 4e-6), output-bounded as M7. Reported per θs (80° and 87.75°
+     as extrapolation) and per bb/a.
+   - **µ∞** (Q22a): Eq. (8)'s sixteen terms refit to the task-6 eigen
+     product (`pb24_mu_inf_eigen_v1.npz`) on the training realisations,
+     relative residuals, same box, no B_p term. Reported per bb/a and per
+     B_p bin, so the trend the form cannot absorb is on record.
+   - **`rrs_ZTT(variant="pb24")`** wired with these three; `MU_INF_MODELS`
+     and `MU_D_MODELS` gain `"pb24"`; Ψ_KLu, f_L and the FF Pbb are the L23
+     variant's until 8b.
+   **Predictions:** leaving the 30° and 60° nodes out, the H table
+   interpolates to within 1% of H (< 0.3% in µd); µd median |dev| < 0.5% at
+   every θs ≤ 70° and at bb/a < 0.59, < 3% at bb/a ≥ 0.59 if Eq. (17)'s cubic
+   holds over five decades (if not, the residual at bb/a > 2 says so and is
+   reported, not fixed); µ∞ median |dev| ≈ 0.9% from the eigen value with
+   the ±2% B_p trend remaining; the 8a variant moves the window median by
+   less than 0.5 pp from ZTT (L23 µ∞, FF) and may worsen it.
+   **Gate:** `--check` byte-identical; the committed constants reproduce
+   `probes.json` through `ztt` to 1e-12 (no data needed); L23 value pins,
+   the `mode="ztt"` pin and the emulator digest unchanged; a test that fails
+   if any fit touches held-out rows (as task 4); float64 gradient vs FD
+   through the H table and the new coefficients.
+   Use Opus 5.5. Log your work.
+
+   **8b — Ψ_KLu and f_L, jointly** (Q23–Q25, Q30). Two diagnostics first,
+   then the refit, on the window of the training realisations:
+   - **D1, the BRDF-shape test:** rrs(θv, Δφ)/rrs(nadir) at fixed
+     (realisation, θs, λ), PB24 against the 8a variant, per θv_air and Δφ,
+     with the task-6 O25 refit LUT beside it. *Prediction:* ZTT's shape
+     error alone exceeds 5% (median) at θv_air ≥ 40° and is largest toward
+     Δφ = 0; O25's stays below 2% everywhere in the window.
+   - **D2, the nadir ceiling:** Ψ_KLu/µ∞ := PB24's KLu/a plus a per-band
+     f_L(λ) refit, nadir only, linear. *Prediction:* ≤ 2.5% median held out;
+     above 4% means Eq. (12)'s structure itself limits, and the log says so.
+   - **The joint refit, linear in D-space.** The closure target per
+     (sample, λ) is D* = [β(ψ)/bb] / (µd · rrs_PB24) with 8a's µd and µ∞
+     and the exact FF Pbb; then
+     D* − (a/bb)(1 + |cos θv|/µ∞) − 1/b̃b = (a/bb)(|cos θv|/µ∞)·F(ψ)
+     − (1/b̃b − 1)·f_L(ψ, λ). F(ψ) stays IOP-independent (Q24) as a
+     low-order polynomial in cos ψ over 91–180° (Q30); f_L = FL_AVE(λ) ·
+     (s₀ + s₁ sin ψ + s₂ cos ψ) with FL_AVE(λ) per band, 451 values,
+     interpolated on other grids (Q25). Two alternating linear passes with
+     a fixed pass count, relative weighting in D, `--check`.
+   - **A smooth floor on D**, `OUT_CLAMP_WIDTH`-style, so the variant is
+     finite everywhere; its footprint (share of window values moved by more
+     than 1e-4) is reported. *Prediction:* under 1%.
+   - `"pb24"` complete: `psi_KLu_pb24`, `f_L_pb24`, the floor, constants
+     with provenance; `rrs_ZTT`'s docstring says that off-nadir Ψ_KLu is a
+     calibration through rrs, physical only at nadir.
+   **Predictions** (window, realisation held out): median 4–6%,
+   non-physical < 1% of values, ψ ≥ 155° ≤ 3%, ψ 110.4–134° < 10%; the
+   refit Ψ_KLu monotone in ψ and within [0.8, 2.5] over 91–180°; at nadir
+   the refit Ψ_KLu/µ∞ within 5% (median) of PB24's KLu/a.
+   **Gate:** as 8a, plus the exact closure D* returns rrs to float64
+   rounding on the fixture; the floor is bit-invisible on `probes.json`;
+   the D-space normal equations equal a direct `lstsq` on the fixture.
+   Use Opus 5.5. Log your work.
+
+   **8c — The ladder and the acceptance gate** (Q27, Q29, Q31). Through
+   `design/py/run_pb24_baseline.py`, extended with the rungs as registry
+   entries and a selection flag so only new rows are scored (same memory
+   policy, same streaming, byte-identical rerun; task-6 rows reused, not
+   recomputed): ZTT (L23 µ∞, FF) → + H_PB24 → + c(θs′)/M*_d refit → + µ∞
+   refit → + joint Ψ_KLu/f_L → + floor = **"ZTT (PB24)"**; the D2 ceiling
+   and the oracle KLu/a rung beside; order-independent attribution (each
+   term added alone to the L23 variant and removed alone from "ZTT (PB24)");
+   every task-6 cut and breakdown; L23 held-out rRMS at 0°/30°/60° through
+   `run_ztt_l23.py` for the new variant with H from the PB24 table
+   (*prediction:* M7's L23 c(θs′) and 8a's agree within 2% at 0–60°; if not,
+   L23 needs its own H and the cross-dataset number says so). Each rung's
+   prediction goes into the generated markdown before its outcome.
+   **Acceptance (Q29):** window held-out median below Gordon's 7.84% **and**
+   non-physical < 1% of values; L23 held-out rRMS within 0.5 pp of 2.90%;
+   everything, the shell and the in-water-only set reported, never gated.
+   Pass or fail stated plainly; no tuning to pass. On a pass, `"pb24"`
+   becomes `rrs_ZTT`'s default, re-baselining the `mode="ztt"` pins
+   deliberately as M7 did, the hybrid staying pinned (Q31); on a fail it
+   ships opt-in and the hand-off says why.
+   Use Opus 5.5. Log your work.
+
+   **8d — Close M8.** An executed notebook
+   `notebooks/RT/rt_fit_ztt_pb24.ipynb`; a review pass over the M8 diff (fix
+   or log every finding); record §7c completed (status, results, module
+   index, test counts); the elastic report gains §10 "Update (M8)" and
+   `reports/report_pb24_baseline.md` a dated addendum with the ladder, both
+   regenerated into `docs/`; and a hand-off naming (1) the emulator retrain
+   on the surviving backbone (Q28: cos θv and cos Δφ features, 800 nm,
+   minibatched from the cache, finding 1b as a `DomainWarning` with
+   `strict=`), (2) the O25-form backbone with the explicit Pbb factor and
+   parametric geometry (Q26, its own prompt doc), and (3) µ∞'s B_p term
+   (Q22) if the ladder shows the trend matters.
    Use Opus 5.5. Log your work.
 
 
@@ -978,7 +1080,7 @@ variant keeps M7's c(θs′) with whatever H it is given, unchanged.
 fit all ten suns, which buys the shell at the cost of the window.
 Recommendation: window suns.
 
-**JXP:**
+**JXP:** Yes, let us go with the recommendation.
 
 #### (ii) µ∞ from the eigenproblem on PB24
 
@@ -1019,7 +1121,7 @@ precondition for (iii), not a gain on its own, and the ladder will show it.
 **Q22.** (b) with the range extension and the bulk-B_p check, (c) only as
 the fallback? Recommendation: yes.
 
-**JXP:**
+**JXP:**  Let us stick with (a) for now.  I am leary to add another B term
 
 #### (iii) A Ψ_KLu over the window's ψ, refit jointly with f_L
 
@@ -1077,18 +1179,18 @@ O25's 1.5%.
 D-space, window of the training realisations, shell as extrapolation)?
 Recommendation: yes.
 
-**JXP:**
+**JXP:**  Ok, let us go with the recommendation.
 
 **Q24.** Give Ψ_KLu an IOP dependence (products with X, L), or keep TT's
 IOP-independent form and let f_L absorb it? Recommendation: IOP-dependent;
 the nadir spread is 30× TT's stated 2%, and f_L has no bb/a lever.
 
-**JXP:**
+**JXP:** Keep TT's IOP-independent form.  We are going to stick close to its formulation for this analysis. 
 
 **Q25.** f_L: refit FL_AVE(λ) per band together with s(ψ) (recommended), or
 s(ψ) only with TT's Table A3 shape kept?
 
-**JXP:**
+**JXP:** Ok, refit FL_AVE(λ) per band together with s(ψ).
 
 #### (iv) Keep ZTT's structure off-nadir?
 
@@ -1145,12 +1247,12 @@ B wins by more than 2 pp.
 
 **Q26.** Arm A only, arm B only, or both (recommended)?
 
-**JXP:**
+**JXP:** Arm A only.  We will perform a separate optimization using O25 as the backbone in a separate prompt doc.
 
 **Q27.** The decision rule above, or a different weighting of physical
 structure against held-out error?
 
-**JXP:**
+**JXP:**  The decision rule above is fine.
 
 #### (v) The emulator retrain
 
@@ -1196,7 +1298,8 @@ not.
 the new backbone in the same task (recommended, since every pinned hybrid
 number moves once anyway), or the emulator alone first?
 
-**JXP:**
+**JXP:**  We are not going to retrain the emulator yet.  We are focused on the backbone first
+and foremost.
 
 #### Task 8's acceptance
 
@@ -1212,7 +1315,45 @@ shell and in-water-only reported, never gated; the ladder with
 order-independent attribution as M7; and every rung's prediction above
 carried into the script's generated markdown before its outcome.
 
-**JXP:**
+**JXP:** Ok, let's use that new gate.
+
+#### Decisions Q21–Q29, and what changed in task 8 — Claude (Fable 5.1), 2026-11-16
+
+**Settled by your answers.** (i) The H_PB24(θs′, λ) table behind the seam and
+the c(θs′) + M*_d refit on the window suns, as `variant="pb24"` (Q21).
+(ii) Eq. (8) refit alone to PB24's eigen µ∞, no B_p term; the ±2% B_p trend
+stays on record as a measured residual, and the term is a hand-off item
+(Q22). (iii) D1 and D2 first, then the joint refit in D-space (Q23), with
+Ψ_KLu IOP-independent as TT wrote it (Q24) and f_L with FL_AVE(λ) per band
+and s(ψ) (Q25). (iv) Arm A only; the O25-form backbone with the explicit
+Pbb factor moves to its own prompt doc (Q26); the decision rule stands for
+arm A, so its B clauses are moot (Q27). (v) No emulator retrain in M8; the
+hand-off names it (Q28). The gate is Q29's.
+
+**Consequences taken in task 8.** It is now 8a (H, µd, µ∞), 8b (D1, D2,
+the joint Ψ_KLu/f_L refit, the floor), 8c (the ladder and the gate) and
+8d (closing M8), each with its predictions copied from this section and a
+gate; the O25 rows in the ladder come from task 6 unchanged; the emulator is
+untouched except by the hand-off. Two choices I made that you may overturn
+are Q30 and Q31.
+
+**Q30.** F(ψ)'s basis. TT's quartic in ψ-degrees cancels by 78,000× at
+180° and loses five figures in float32 (the `F_psi` docstring). Fitting the
+same low-order polynomial in cos ψ keeps TT's role for the term (an
+IOP-independent function of ψ alone) with no cancellation. Recommendation:
+cos ψ; the alternative is TT's basis in degrees, re-centred at 180°.
+
+**JXP:** Ok, use your recommendation.
+
+**Q31.** If 8c's gate passes, does `"pb24"` become `rrs_ZTT`'s default
+(re-baselining the `mode="ztt"` pins deliberately, as M7 did when `"l23"`
+took over; the hybrid stays pinned to its own backbone either way), or
+does it ship opt-in with `"l23"` kept as the default until the emulator is
+retrained? Recommendation: default on a pass, since the L23 clause of the
+gate guards the L23 numbers.
+
+**JXP:**  Yes, default on a pass.  It is likely we will use it even if 
+it doesn't pass.
 
 ## Logs
 
@@ -2148,3 +2289,22 @@ Created from `rt_fit_ztt.md` task 8.
   The elastic report's M8 section waits for task 8.
 - No state-changing git command was run (read-only `git status`, `git
   diff`, `git log` only).
+
+### 2026-11-16 — Task 7 follow-up: JXP's answers Q21–Q29, task 8 revised (Claude Fable 5.1)
+
+- Read JXP's answers under Q&A/Design. Decisions: (i) H table + c(θs′)/M*_d
+  refit as `variant="pb24"`, window suns (Q21); (ii) Eq. (8) refit alone,
+  no B_p term (Q22); (iii) D1, D2, then the D-space joint refit (Q23),
+  Ψ_KLu IOP-independent (Q24), f_L with FL_AVE(λ) per band and s(ψ) (Q25);
+  (iv) arm A only, the O25-form backbone in a separate prompt doc (Q26),
+  the decision rule kept (Q27); (v) no emulator retrain in M8 (Q28); the
+  new gate (Q29).
+- **Task 8 rewritten** as 8a–8d (H/µd/µ∞; Ψ_KLu and f_L with D1/D2 and the
+  floor; the ladder and the gate; closing M8), each with the Q&A/Design
+  predictions and a gate, "Use Opus 5.5. Log your work." on each. The Tasks
+  preamble notes the revision.
+- **Two new questions**, Q30 (F(ψ) basis: cos ψ recommended) and Q31
+  (`"pb24"` as the default on a pass), in a dated round at the end of
+  Q&A/Design. Record §7c.7 and the §7c status line updated with the
+  decisions.
+- No code changed; ruff unaffected. No state-changing git command was run.

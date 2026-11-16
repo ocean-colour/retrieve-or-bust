@@ -2907,7 +2907,7 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 ## 7c. M8 — ZTT to PB24
 
 *Status: in progress (tasks 1–7 of 8 done, 2026-11-16; task 7 is the design
-discussion, §7c.7, awaiting JXP's answers Q21–Q29). Decisions Q1–Q17 and
+discussion, §7c.7; Q21–Q29 answered and task 8 scoped as 8a–8d). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3545,7 +3545,7 @@ each prediction before its outcome, the streamed O25 fit equals
 *Written 2026-11-16 (Fable 5.1). The options, predictions and questions
 Q21–Q29 are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md)
-Q&A/Design; JXP's answers there fix task 8's scope. This section records
+Q&A/Design; JXP's answers there fixed task 8's scope (below). This section records
 what task 6's numbers say for design, and one finding measured on the way.*
 
 **How task 6 reads for design** (window, realisation held out, median).
@@ -3606,6 +3606,15 @@ to): the joint ZTT refit reaches 4–6% in the window with < 1% non-physical,
 not O25's 1.5%; arm B reaches ≤ 1.3% with the Pbb factor and flattens its
 B_p bins; the B-aware µ∞ alone changes rrs by < 0.5 pp; the nadir ceiling
 (oracle KLu/a + refit f_L) is ≤ 2.5%; the hybrid on arm B reaches ≤ 0.7%.
+
+**Decided (JXP, 2026-11-16, Q21–Q29).** (i) as recommended, as
+`variant="pb24"`; (ii) Eq. (8) refit alone, **no B_p term** (the trend stays
+a recorded residual); (iii) D1, D2, then the D-space joint refit with an
+IOP-independent Ψ_KLu and f_L = FL_AVE(λ) per band × s(ψ); (iv) **arm A
+only** — the O25-form backbone gets its own prompt doc — under the decision
+rule above; (v) **no emulator retrain in M8**. The gate is Q29's. Task 8 is
+now 8a (H, µd, µ∞), 8b (Ψ_KLu/f_L, floor), 8c (ladder, gate), 8d (close
+M8); Q30 (F(ψ) basis) and Q31 (`"pb24"` as default on a pass) are open.
 
 ## 8. Cross-cutting conventions (as implemented)
 
