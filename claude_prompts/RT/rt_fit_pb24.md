@@ -2141,5 +2141,10 @@ Created from `rt_fit_ztt.md` task 8.
 - **Task 8's gate** proposed to change: beat Gordon in the window (not ZTT
   (L23 µ∞), which TT2017 FF already beats), hold L23, report the shell and
   in-water-only without gating (Q29).
+- **Follow-up (JXP's request, same day):** a short standalone note on the
+  task 6 results, `reports/report_pb24_baseline.md` (headline table,
+  predictions and outcomes, the task 7 reading), using the committed
+  `design/ztt_pb24/baseline_fig_*.png` by relative link, not regenerated.
+  The elastic report's M8 section waits for task 8.
 - No state-changing git command was run (read-only `git status`, `git
   diff`, `git log` only).
