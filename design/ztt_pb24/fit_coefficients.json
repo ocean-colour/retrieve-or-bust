@@ -1,0 +1,94 @@
+{
+  "about": "ZTT fitted to PB24 (M8 task 8a, rt_fit_pb24.md Q21-Q22). Report as 'ZTT (PB24)'. mu_d: Eq. (17) M*_d jointly with c(theta_s') on TT's M+_d with PB24's own diffuse fraction, against PB24 mu_d, window suns. mu_inf: Eq. (8) to the eigen mu_inf on PB24 IOPs and FF pair, no B_p term.",
+  "clamp_box_X_lo_hi_L_lo_hi": [
+    -4.205851915186109,
+    1.2285661070062504,
+    -5.056076609727998,
+    -0.0017276344807632311
+  ],
+  "fit": {
+    "H_all_max_abs_diff": 0.0,
+    "H_file": "files/diffuse_fraction_pb24.npz",
+    "H_file_bytes": 17328,
+    "H_shape": [
+      10,
+      451
+    ],
+    "H_train_max_abs_diff": 0.0,
+    "c_at_nodes": {
+      "10": 0.9967537514271253,
+      "20": 0.9929075748459281,
+      "30": 0.9894607050149141,
+      "40": 0.9682245267142943,
+      "50": 0.9462444301916373,
+      "60": 0.9298088073386657,
+      "70": 0.9157720751240919
+    },
+    "chunk": 250,
+    "eigen_product": "pb24_mu_inf_eigen_v1.npz",
+    "eigen_version": 1,
+    "mu_d_design_condition": 328.07054902017194,
+    "mu_d_n_rows": 14432000,
+    "mu_d_nodes_deg": [
+      0.0,
+      10.0,
+      20.0,
+      30.0,
+      40.0,
+      50.0,
+      60.0,
+      70.0
+    ],
+    "mu_d_residual_norm": 39.616568871289935,
+    "mu_inf_design_condition": 1385.5681424445518,
+    "mu_inf_n_rows": 1804000,
+    "mu_inf_residual_norm": 27.732970512862106,
+    "n_all_realisations": 5000,
+    "n_test_realisations": 1000,
+    "n_train_realisations": 4000,
+    "quick": false,
+    "split": "realisations, SPLIT_SEED=23, test_fraction=0.2",
+    "sun_max_deg": 70.0,
+    "train_digest": "3dd4bcb017fcded0f23f7a899cf091b6fd64e74736f77261d1eec92ca541219c"
+  },
+  "md_plus_corr_c1_c2": [
+    -0.14396867927226809,
+    0.018416894768715587
+  ],
+  "md_star_coeffs_m1_m8": [
+    -0.0038808591531856998,
+    -0.012520018504516502,
+    -0.01735221961009114,
+    -0.09617021774965247,
+    -0.013557833203465472,
+    -0.23878541741698955,
+    0.007519636892949682,
+    0.8222051423461154
+  ],
+  "md_star_out_range": [
+    0.5188474099856758,
+    1.0579228041730246
+  ],
+  "mu_inf_coeffs_m1_m16": [
+    0.001579666317308423,
+    0.0021735695271569433,
+    -0.03224377697203383,
+    -0.013809383461016886,
+    -0.0010122522850343992,
+    -0.05143424378751467,
+    -0.22799224742165938,
+    -0.15578216091513747,
+    -0.021181878575983446,
+    -0.1528731881609277,
+    -0.35546094744201245,
+    -0.5634061625211141,
+    0.006596981487185379,
+    0.049053367638090636,
+    0.10874196386435862,
+    0.3399167524959902
+  ],
+  "mu_inf_out_range": [
+    0.06568731709685627,
+    0.999
+  ]
+}

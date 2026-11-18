@@ -2906,8 +2906,9 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 
 ## 7c. M8 — ZTT to PB24
 
-*Status: in progress (tasks 1–7 of 8 done, 2026-11-16; task 7 is the design
-discussion, §7c.7; Q21–Q29 answered and task 8 scoped as 8a–8d). Decisions Q1–Q17 and
+*Status: in progress (tasks 1–7, 8a and 8b of 8a–8d done, 2026-11-16; task 7
+is the design discussion, §7c.7; 8a is §7c.8; 8b, whose joint refit fails
+its predictions, is §7c.9). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3616,6 +3617,182 @@ rule above; (v) **no emulator retrain in M8**. The gate is Q29's. Task 8 is
 now 8a (H, µd, µ∞), 8b (Ψ_KLu/f_L, floor), 8c (ladder, gate), 8d (close
 M8); Q30 (F(ψ) basis) and Q31 (`"pb24"` as default on a pass) are open.
 
+### 7c.8 Task 8a as built — H, µd and µ∞ fitted to PB24
+
+**Nothing re-baselined.** A third `rrs_ZTT` variant, `"pb24"`, beside
+`"l23"` (still the default, Q31 decides in 8c) and `"tt2017"`, both bit for
+bit; additive constants and functions; one package data file.
+
+**Built.**
+- `design/py/fit_ztt_pb24.py` → `design/ztt_pb24/fit_*` (coefficients,
+  metrics, probes, markdown, two figures) and
+  `robust/rt/files/diffuse_fraction_pb24.npz`. Fits on the realisation
+  split's 4,000 training realisations, all 451 bands, by a **streamed
+  Householder QR** (`StreamingLSQ`: the triangular factor of `[D | b]` is
+  updated chunk by chunk, 250 realisations in id order; conditioning is the
+  design's own, not squared; `--check` is byte-identical).
+- **(h) The diffuse-fraction table** `H(θs′, λ) = 1 − Esdir_Es_ratio`
+  (Q21a): an above-surface quantity, bit-identical across all 5,000 files
+  (asserted on the training ones, reported on all), 10 × 451, served by
+  `ztt.diffuse_fraction_pb24` bilinearly in **(sec θs′, λ)**, flat outside.
+  The variable was chosen by measurement, not as written in the task
+  (cos θs′): leaving each interior node out, sec θs′ reproduces H to
+  0.11/0.14/0.21/0.39/1.0/3.1% at 10–60° where cos θs′ gives
+  0.14/0.39/0.80/1.6/3.3/6.9%; in M⁺_d the 60° case costs 0.24% at most.
+  It is the default H of `"pb24"`; a `Geometry.diffuse_fraction` overrides
+  it.
+- **(d) µd** (Q21b): Eq. (17)'s M*_d jointly with c(θs′) on TT's M⁺_d with
+  the table H, against PB24's `mu_d` on the window suns (0–70°; 14.4 M rows),
+  M7's exact linearisation generalised to eight suns (seven free g_θ = 1/c
+  nodes, then the quadratic by LSQ). Box = PB24's training range (bb/a
+  6e-5–17, η_bb 9e-6–1), outputs bounded as M7.
+- **(i) µ∞** (Q22a): Eq. (8)'s sixteen terms to the task-6 eigen product on
+  every training (realisation, λ) (1.8 M rows), relative residuals, same
+  box, **no B_p term**.
+- `ztt.py`: `MU_INF_PB24_COEFFS`, `MD_STAR_PB24_COEFFS`, `MD_PLUS_CORR_PB24`,
+  `ZTT_PB24_BOX`, `MU_INF_PB24_RANGE`, `MD_STAR_PB24_RANGE`,
+  `ZTT_PB24_N_TRAINING`/`_DIGEST` (the leak guard), `mu_infinity_pb24`,
+  `mu_d_pb24`, `diffuse_fraction_pb24`, `H_PB24_FILE`; `"pb24"` in
+  `VARIANTS`, `MU_INF_MODELS`, `MU_D_MODELS`; `rrs_ZTT` wires it with the FF
+  Pbb as `"l23"`. Ψ_KLu and f_L are TT's until 8b.
+
+**Results, held out** (1,000 realisations; `fit_metrics.md`).
+
+| term | PB24 fit | L23 fit, same H | TT (A2 / TT2017) |
+|---|---|---|---|
+| µd per sun 0–70°, median % | 0.51 / 0.50 / 0.50 / 0.96 / 0.41 / 0.63 / 0.52 / 0.71 | 0.55 … 2.25 (60°), 5.69 (70°) | 1.34 … 5.90, 7.45 |
+| µd, 80° / 87.75° (extrapolation) | −4.6 / −14.9 | −13.9 / −26.9 | +5.0 / −4.4 |
+| µd by bb/a < 0.1 / 0.1–0.59 / 0.59–2 / > 2 | 0.4–0.5 / 0.83 / 1.93 / 2.99 | 0.4–0.8 / 1.12 / 12.3 / 31.0 | 1.5–1.9 / 3.8 / 10.5 / 71 |
+| µ∞ vs eigen, all, median % | 1.10 | 0.90 | 1.78 |
+| µ∞ by bb/a < 0.001 / 0.001–0.01 / 0.01–0.1 / 0.1–0.59 / 0.59–2 / > 2 | 0.70 / 0.78 / 1.21 / 1.96 / 1.80 / 2.68 | 0.18 / 0.25 / 1.01 / 2.39 / 48 / 166 | 3.5 / 0.27 / 0.95 / 5.1 / 9.9 / 99 |
+| µ∞ B_p trend, median signed, B_p < 0.003 → > 0.03 | +1.69 → −3.11 | +1.08 → −3.05 | +1.09 → −0.03 |
+
+**Predictions, outcomes.** H within 1% leaving 30°/60° out: 30° yes, 60° no
+at double spacing (1.15% median, 3.1% max), µd effect < 0.3% yes. µd < 0.5%
+at every window sun: **no**, 0.4–1.0%; the cause is the quadratic c(θs′),
+whose seven free nodes (0.9968, 0.9929, 0.9895, 0.9682, 0.9462, 0.9298,
+0.9158 at 10–70°, a step between 30° and 40°) it misses by up to 0.85%
+(Q32). µd < 3% beyond bb/a 0.59: yes (1.9%, 3.0%). µ∞ ≈ 0.9% with the B_p
+trend remaining: yes, 1.10% and +1.7 → −3.1%; the cubic in X exceeds 1% at
+bb/a > 2: yes, 2.7%. The cost of the five-decade range is in the bulk
+(0.7–0.8% at bb/a < 0.01 where the L23 fit has 0.2%); capping X at bb/a = 2
+or 0.59 was measured (1.20%, 1.25% overall, worse) and not shipped.
+
+**Gate.** `--check` identical (JSON, markdown, the H file, both PNGs);
+probes through the shipped evaluators to 1e-12 without data; shipped
+constants equal the committed JSON; the training digest pins the fitting
+set; evaluators vs the script's designs 1.7e-7 / 2.3e-8 where no guard
+acts; float64 gradients vs FD through the table and constants to 1e-6;
+finite far outside the box; the miniature run recovers a synthetic Eq. (8)
+to 1e-6 and passes `--check`. L23 pins, the `mode="ztt"` pin and the
+emulator digest unchanged. Suite 890 passed / 5 skipped with the data, 810 /
+85 without; ruff clean.
+
+**Tests:** `robust/tests/test_ztt_pb24.py` (25 items, 17 functions): the committed fit through
+`ztt`, the leak guard, the metrics' headline, the H table against the
+miniature's files (bit for bit, every realisation), interpolation
+properties (exact at nodes, linear in sec θs′ and in λ, flat outside,
+monotone, shapes) and its gradient, the variant's composition and default
+H, gradients and finiteness, the script's design matrices, `StreamingLSQ`
+against `lstsq` and its chunk determinism, exact recovery by the joint µd
+fit at eight suns and by the µ∞ fit, the node-to-quadratic step, and the
+end-to-end miniature run. `test_ztt.py`'s per-variant H test now uses each
+variant's own default.
+
+### 7c.9 Task 8b as built — Ψ_KLu and f_L refit jointly; the predictions fail
+
+**Nothing re-baselined.** `"l23"` and `"tt2017"` bit for bit; the two new
+`rrs_ZTT` options (`angular_model`, `floor`) default to each variant's own
+pair and to no floor there. `DEFAULT_VARIANT` stays `"l23"`.
+
+**Built.**
+- `design/py/fit_ztt_pb24_angular.py` → `design/ztt_pb24/angular_*`
+  (coefficients, metrics, probes, markdown, three figures). Window (θs,
+  θv_air ≤ 70°) of the realisation split, all 451 bands. **Linear in
+  D-space**: with 8a's µd and µ∞ and the exact FF Pbb, Equation (12)
+  inverts to a closure denominator `D* = [β(ψ)/bb]/(µd · rrs_PB24)` per
+  (sample, λ), and `D* − (a/bb)(1 + |cos θv|/µ∞) − 1/b̃b =
+  (a/bb)(|cos θv|/µ∞) F(ψ) − (1/b̃b − 1) f_L(ψ, λ)` is linear in the
+  coefficients of F and f_L. One streamed pass (1.50 G rows; chunks of 10
+  realisations, 4 staggered workers in a `systemd-run` scope, 15 min)
+  accumulates the **block normal equations** — the F block, the per-band
+  f_L blocks and their cross terms, float64, summed in chunk order — the
+  sufficient statistics of every linear fit in that column space; the
+  alternating passes for the bilinear f_L (12 rounds, fixed), the order
+  sensitivity and the residuals then run in memory. Weighting 1/D* per row.
+- **D1, the BRDF-shape test**: rrs(θv, Δφ)/rrs(nadir) at fixed
+  (realisation, θs, λ), per (θv_air, Δφ) node, for TT's pair on the 8a
+  terms, the O25 refit LUT (in Rrs) and the final variant.
+- **D2, the nadir ceiling**: Ψ_KLu/µ∞ := PB24's KLu/a plus a per-band
+  f_L(λ), nadir only, linear, with 8a's µd and with PB24's own.
+- `ztt.py`: `PSI_KLU_PB24_COEFFS` (F as a polynomial in u = 1 + cos ψ,
+  Legendre-accumulated in t = 2u − 1, converted exactly; five terms, TT's
+  order, decided before the fit), `FL_AVE_PB24` on `FL_AVE_PB24_WAVE` (451
+  values, mean 1, rounded to 1e-6), `FL_S_PB24`, `D_FLOOR_PB24` = (0.5, 0.01);
+  `F_psi_pb24`, `psi_KLu_pb24`, `f_L_pb24`, `denominator_floor_pb24` (a
+  one-sided softplus); `ANGULAR_MODELS`; `rrs_ZTT(variant="pb24")` complete,
+  its docstring stating that off-nadir Ψ_KLu is a calibration through rrs,
+  physical only at nadir.
+
+**Results, held out** (1,000 realisations, window; `angular_metrics.md`).
+
+| | ZTT (PB24), 8b | 8a variant (TT's pair) | note |
+|---|---|---|---|
+| median \| err \| | **10.86%** | 8.96% | Gordon 7.84% |
+| q90 / rRMS (finite) / non-physical | 24% / 21% / **0%** | 88% / 2.5e5% / 5.87% | unfloored 8b: 0.08% |
+| by θs, 0° → 70° | 7.7 → 18.7% | 9.8 → 12.4% | |
+| by θv_air, 0° → 70° | 11.4 → 10.0% | 4.4 → 13.9% | |
+| ψ ≥ 155° / 110.4–134° | 9.9 / 12.8% | 5.0 / 12.8% | |
+| bb/a < 0.001 / 0.001–0.01 / 0.01–0.1 / 0.1–0.59 / 0.59–2 / > 2 | 15.0 / 13.0 / 7.4 / 11.3 / 14.8 / 149% | 5.1 / 5.3 / 9.7 / 12.0 / 155 / 171% | |
+| D1 shape, pooled per θv 10° → 70° | 0.4 → 3.8% | 1.6 → 12.9% | O25 refit (Rrs): 0.5 → 2.8% |
+| D2 nadir ceiling (oracle KLu/a + f_L(λ)) | 2.84% (2.74% with PB24's µd) | | criterion 4% |
+| Ψ_KLu over 91–180° | 0.742–0.885, minimum near 113° | 1.02 (180°) … 1.32 (135°) | |
+| nadir Ψ_KLu/µ∞ ÷ KLu/a, 0° → 70° | 1.04 → 0.71 (16% median \| dev \|) | 1.20 at every sun | |
+| floor footprint (> 1e-4) | 0.35% | | D* ≥ 1.096 on the training window |
+
+**Predictions, outcomes.** D1's "> 5% at θv ≥ 40°" yes (7.7%; 5.6% at 30°
+already); "largest toward Δφ = 0" no — toward Δφ = 180° (129% at θv = 70°);
+"O25 below 2% everywhere" no (2.1–2.8% pooled at θv ≥ 50°, 5.3% per node).
+D2's "≤ 2.5%" no, narrowly (2.84%); below the 4% criterion, so the
+structure is sound at nadir. The joint refit's "4–6%" no (10.86%);
+"non-physical < 1%" yes (0%); "ψ ≥ 155° ≤ 3%" no; "110.4–134° < 10%" no;
+"monotone, within [0.8, 2.5]" no; "nadir within 5%" no; "floor under 1%"
+yes.
+
+**Why.** F(ψ) is exhausted: 3 to 7 terms give 15.5% rRMS in D alike. One
+function of ψ alone cannot carry both the nadir sun trend (K_Lu/a·µ∞ rises
+0.85 → 1.15 from θs = 0° to 70°, which TT's quartic follows at a constant
+1.20×) and the off-nadir view shape; dominated by 103 off-nadir geometries
+per sun, the refit follows the shape (D1 good) and loses the level (the by-θs
+column). In clear water D ≈ (a/bb)(1 + |cos θv| Ψ/µ∞), only Ψ/µ∞ matters,
+and its nadir spread at fixed θs (0.89–1.44, 16–84%) is IOP dependence
+that Ψ(ψ)/µ∞(X, L) does not have — the Q24 choice. **Measured in scratch**
+(the same fit with wider F columns, F(ψ) × modifiers; not shipped; held
+out, floored): (1, X) 7.97%; (1, X, L) **6.76%**; (1, X, L, cos θs_w)
+**5.83%** with the by-θs run 5.0 → 8.0% and D1 1.75% at θv = 70°;
++ X cos θs_w 5.69%; all 0% non-physical. The question (Q33 in the prompt
+doc) is which form 8c should ladder; the shipped form is Q24's.
+
+**Gate.** `--check` identical (JSON, markdown, PNGs). Probes through
+`rrs_ZTT(variant="pb24")` to 1e-12 without data, with the table H and with
+the data's H; the floor bit-invisible on every probe; constants == the
+committed JSON; leak digest 8a's. On the fixture: the closure D* returns
+rrs to 1e-13; the script's D-space pieces equal `rrs_ZTT`'s to 1e-12; the
+block normal equations equal a direct `lstsq` for both passes, and the
+statistics' residual the explicit one; a synthetic (F, s, FL) recovered to
+1e-8; Legendre → u to 1e-13; gradients vs FD through θv, Δφ, B_p to 1e-6;
+finite and differentiable where the unfloored D is negative; the miniature
+run passes its own `--check`. Suite 908 passed / 5 skipped with the data,
+828 / 85 without; ruff clean.
+
+**Tests:** `robust/tests/test_ztt_pb24_angular.py` (18): the committed fit
+through `rrs_ZTT`, the metrics' claims recomputed, the floor's properties,
+`f_L_pb24`'s interpolation and overrides, `psi_KLu_pb24` as a polynomial in
+cos ψ, the conversion, the switches (bit-identity of the other variants;
+the variant composed from every override), gradients, the closure, the
+D-space pieces, the normal equations, the synthetic recovery, the end-to-end
+miniature run. `test_ztt_pb24.py`'s composition test gains the two switches.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -3751,7 +3928,9 @@ robust/
       pb24_cache.py    ✅ M8  PB24 memmap caches: build/open/verify (§7c.2)
       pb24_eigen.py    ✅ M8  the eigen µ∞ product: save/load (§7c.6)
     ztt.py             ✅ M2  ZTT; M7: variant="l23" (default) / "tt2017",
-                             µ∞/µd refits, closure µ∞, clamps (§7b.7-9)
+                             µ∞/µd refits, closure µ∞, clamps (§7b.7-9);
+                             M8: variant="pb24", the H table (§7c.8), the
+                             angular refit + floor, angular_model= (§7c.9)
     phase.py           ✅ M7  Fournier–Forand (Mobley 2002), L23 FF mixture
     asymptotic.py      ✅ M7  µ∞ from the asymptotic RTE eigenproblem (fitting-only); M8 KernelGrid (§7c.6)
     emulator.py        ✅ M3  relative-δ Flax MLP + Optax training, save/load;
@@ -3763,6 +3942,7 @@ robust/
                              M8: o25_published_table, fit_o25_table(rrs_max=) (§7c.5)
     files/
       emulator_l23.npz ✅ M3  trained MLP(16,16) weights (6.5 kB, committed)
+      diffuse_fraction_pb24.npz ✅ M8 PB24's H(θs′, λ), 10 × 451 (17 kB; §7c.8)
   tests/
     __init__.py        ✅
     conftest.py        ✅ needs_l23 marker, jax_x64 fixture
@@ -3781,6 +3961,8 @@ robust/
     test_phase.py      ✅ M7 28 tests — task 2
     test_asymptotic.py ✅ M7 16 tests — task 3
     test_ztt_l23.py    ✅ M7 34 tests — tasks 3-6 (incl. the acceptance gate)
+    test_ztt_pb24.py   ✅ M8 25 tests — task 8a (the PB24 fit, the H table)
+    test_ztt_pb24_angular.py ✅ M8 18 tests — task 8b (Ψ_KLu/f_L refit, the floor, D-space gates)
     test_pb24_cache.py ✅ M8 24 tests — task 2
     test_pb24.py       ✅ M5; M8 60 tests — task 3 (above-water geometry)
     files/pb24_cache_small.zip ✅ M8 2.2 MB zip, 3 realisations, 4-D at every 10th band
@@ -3792,6 +3974,8 @@ design/py/
   run_validation.py          ✅ M4 the §6 protocol; writes design/validation/
   build_l23_profile_product.py ✅ M7 caches the profile product; coverage figure
   fit_ztt_l23.py             ✅ M7 µ∞ (eigen), µd, closure fits; --check
+  fit_ztt_pb24.py            ✅ M8 task 8a H table, µd, µ∞ fitted to PB24 → ztt_pb24/fit_*; --check
+  fit_ztt_pb24_angular.py    ✅ M8 task 8b D1, D2, the Ψ_KLu/f_L refit in D-space → ztt_pb24/angular_*; --check
   run_ztt_l23.py             ✅ M7 the ladder + acceptance gate
   explore_mu_inf_eigen.py    ✅ M7 exploratory (Q13 evidence), not pipeline
   build_pb24_cache.py        ✅ M8 builds/verifies the PB24 cache; --check, --rebuild-check

@@ -1029,8 +1029,9 @@ def test_none_diffuse_fraction_is_tts_H_bit_for_bit():
             np.asarray(Z.Md_plus(theta, V)), np.asarray(Z.Md_plus(theta, V, H=None))
         )
 
-    # Through the model: geometry.diffuse_fraction = TT's own H, broadcast to
-    # the spectrum, gives the None result exactly, in both variants.
+    # Through the model: geometry.diffuse_fraction = the variant's own default
+    # H (TT's for "l23" and "tt2017"; the PB24 table for "pb24", M8 task 8a),
+    # broadcast to the spectrum, gives the None result exactly.
     n = 3
     iops = simple_iops(shape=(n, N))
     phase = simple_params()
@@ -1040,8 +1041,10 @@ def test_none_diffuse_fraction_is_tts_H_bit_for_bit():
         dphi=jnp.asarray([0.0, 90.0, 150.0]),
     )
     tt_H = jnp.broadcast_to(Z.diffuse_fraction(base.theta_s)[:, None], (n, N))
-    with_H = dataclasses.replace(base, diffuse_fraction=tt_H)
+    pb24_H = Z.diffuse_fraction_pb24(base.theta_s)
     for variant in Z.VARIANTS:
+        default_H = pb24_H if variant == "pb24" else tt_H
+        with_H = dataclasses.replace(base, diffuse_fraction=default_H)
         np.testing.assert_array_equal(
             np.asarray(Z.rrs_ZTT(iops, phase, with_H, variant=variant)),
             np.asarray(Z.rrs_ZTT(iops, phase, base, variant=variant)),

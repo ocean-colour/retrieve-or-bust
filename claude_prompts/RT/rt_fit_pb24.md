@@ -107,7 +107,9 @@ task 7, old task 4 → task 8. Task numbers quoted inside the Q&A above refer to
 the original list.*
 
 *Revised again 2026-11-16 (Claude Fable 5.1) after
-Q21–Q29: task 8 is now 8a–8d.*
+Q21–Q29: task 8 is now 8a–8d. 8a and 8b are done (see the logs); 8b's
+joint refit fails most of its predictions, and Q33 asks what 8c should
+run.*
 
 **Applies to every task.**
 - Python in `ocean14` from the repo root; JXP runs all git in both repos;
@@ -1355,6 +1357,81 @@ gate guards the L23 numbers.
 **JXP:**  Yes, default on a pass.  It is likely we will use it even if 
 it doesn't pass.
 
+#### Task 8a question — Claude (Fable 5.1), 2026-11-16
+
+**Q32.** The quadratic c(θs′) = 1 + c₁u + c₂u² (Q21b, M7's form) does not
+follow PB24's seven free nodes: fitted jointly with M*_d, the nodes read
+0.9968 (10°), 0.9929, 0.9895 (30°), 0.9682 (40°), 0.9462, 0.9298, 0.9158 (70°)
+— a step between 30° and 40° — and the quadratic misses them by +0.11,
+−0.15, **−0.85**, −0.09, +0.49, +0.30, −0.28%. That is the whole of the
+held-out µd error now: 0.41–0.96% median per sun (0.96% at 30°) against the
+0.5% predicted. Options: (a) keep the quadratic as decided (shipped now;
+0.5–1% in µd is small against the backbone's 10%, and the ladder in 8c will
+say whether it matters); (b) ship the seven nodes and interpolate c(θs′)
+linearly in u between them (exact at PB24's suns, a 7-number table instead
+of 2; halves the window µd error; needs a new evaluator beside
+`md_plus_correction`). Recommendation: (a) for 8b and 8c; revisit with the
+ladder, since 8b's joint refit absorbs a smooth µd residual anyway.
+
+**JXP:** Ok, use your recommendation.
+
+#### Task 8b question — Claude (Fable 5.1), 2026-11-16
+
+**Q33.** The joint refit as specified fails most of its predictions, and the
+cause is the form chosen in Q24, so 8c should not run until this is decided.
+Held out, window: the refit **fixes what TT's pair gets wrong** — the BRDF
+shape (D1: rrs(θv, Δφ)/rrs(nadir) to 0.4–3.8% median per θv, against
+1.6–12.9% for TT's pair and 0.5–2.8% for the O25 refit in Rrs), the
+non-physical values (0% against 5.9%), q90 (24% against 88%) — but the
+**level is worse**: median 10.86% against 8.96% for the 8a variant and
+Gordon's 7.84%, 7.7% at θs = 0° growing to 18.7% at 70°, and 13–15% in the
+clearest waters (bb/a < 0.01) where TT's pair reads 5%. Adding terms to
+F(ψ) does nothing (3 to 7 terms: 15.5% rRMS in D alike): a function of ψ
+alone is exhausted. Two things it cannot carry: (i) at nadir the truth
+K_Lu/a·µ∞ *rises* with θs (0.85 at 0° to 1.15 at 70°; TT's quartic follows
+it at a constant 1.20×) while the off-nadir shape pulls F the other way, and
+the refit, dominated by 103 off-nadir geometries per sun, follows the shape
+(nadir ratio 1.04 at 0°, 0.71 at 70°); (ii) in clear water D is
+(a/bb)(1 + |cos θv| Ψ/µ∞) and only Ψ/µ∞ matters, whose nadir spread at fixed
+θs is 0.89–1.44 (16–84%) — IOP dependence that Ψ(ψ)/µ∞(X, L) does not have.
+D2 confirms the structure itself is sound at nadir (2.84% with the oracle
+KLu/a and a per-band f_L; 2.74% with PB24's own µd).
+
+**Measured, not shipped** (a scratch copy of the script with more columns
+in the same linear fit — same statistics, solver, floor and scoring; held
+out, window, floored; one 15-minute pass):
+
+| Ψ_KLu = 1 + F, F = | columns | median | q90 | ψ ≥ 155° | 110.4–134° | θs 0° / 70° | D1 pooled, θv = 70° |
+|---|---|---|---|---|---|---|---|
+| F(ψ) (shipped, Q24) | 5 | 10.86 | 24.3 | 9.88 | 12.84 | 7.7 / 18.7 | 3.79 |
+| F(ψ) · (1, X) | 10 | 7.97 | 21.4 | 7.14 | 8.74 | 7.0 / 13.5 | 4.31 |
+| F(ψ) · (1, X, L) — design (iii)'s recommendation | 15 | **6.76** | 17.7 | 5.83 | 7.63 | 5.1 / 13.3 | 4.23 |
+| F(ψ) · (1, X, L, cos θs_w) | 20 | **5.83** | 14.7 | 5.02 | 6.74 | 5.0 / 8.0 | 1.75 |
+| + X · cos θs_w | 25 | 5.69 | 14.6 | 4.93 | 6.58 | 5.2 / 6.8 | 1.63 |
+
+(X = log10 bb/a, L = log10 η_bb clamped to the 8a box; the Legendre quintic
+in cos ψ times each modifier; non-physical 0% in every row, floor footprint
+≤ 0.03%; 8a variant for scale: 8.96 / 88 / 5.00 / 12.78 / 9.8 / 12.4 /
+12.86.) By bb/a, (1, X, L) reads 6.0 / 3.9 / 5.5 / 10.4 / 13.0 / 53% across
+the six bins where the shipped form reads 15 / 13 / 7.4 / 11.3 / 14.8 / 149%.
+
+Options: **(a)** ship as built (done; the log records the failed
+predictions) and run 8c on it — the ladder attributes the terms, and the
+gate fails on the median (10.86 > 7.84); **(b)** reverse Q24 to design
+(iii)'s form, Ψ_KLu = 1 + F(ψ)·(1, X, L): beats Gordon (6.76%), misses the
+4–6% prediction, stays inside TT's premise (Ψ a function of ψ and, like µ∞
+and µd, of (X, L)); **(c)** (b) plus the cos θs_w modifier: 5.83%, the sun
+trend at nadir nearly flat (5.0 → 8.0%), the shape 1.8% — but Ψ_KLu is then
+no longer a function of ψ alone, which was TT's reason for the ψ
+restatement (§2.1); **(d)** stop the ZTT arm here and go to the O25-form
+backbone (Q26). Each of (b)/(c) is one more run of the same script with the
+basis widened (the solver, the gates and `--check` are unchanged), a
+`F_psi_pb24` that takes (X, L[, θs]) and new constants; 8c would then
+ladder that variant. Recommendation: **(c)**, with (b) if you want Ψ_KLu
+kept to ψ and the IOPs.
+
+**JXP:**
+
 ## Logs
 
 ### 2026-10-31 — Plan: doc created (Claude Opus 5.5)
@@ -2308,3 +2385,161 @@ Created from `rt_fit_ztt.md` task 8.
   Q&A/Design. Record §7c.7 and the §7c status line updated with the
   decisions.
 - No code changed; ruff unaffected. No state-changing git command was run.
+
+### 2026-11-16 — Task 8a: H, µd, µ∞ fitted to PB24 (Claude Fable 5.1)
+
+- **Nothing re-baselined.** `"l23"` and `"tt2017"` are bit for bit (their
+  pins pass); `DEFAULT_VARIANT` stays `"l23"` until 8c (Q31). Additive only:
+  a third variant, three new tuple members, new constants/functions, one
+  package data file.
+- **Built.** `design/py/fit_ztt_pb24.py` (stages h/d/i, `--check`, `--quick`,
+  `--dry-run`, `--cache-dir`, `--eigen`, `--out-dir`, `--h-file`) →
+  `design/ztt_pb24/fit_{coefficients,metrics,probes}.json`, `fit_metrics.md`,
+  `fit_fig_mu_d.png`, `fit_fig_mu_inf.png`, and the shipped table
+  `robust/rt/files/diffuse_fraction_pb24.npz` (17,328 B, fixed zip
+  timestamps). In `ztt.py`: `H_PB24_FILE`, `diffuse_fraction_pb24`
+  (bilinear in (sec θs′, λ), flat outside), `MU_INF_PB24_COEFFS`,
+  `MD_STAR_PB24_COEFFS`, `MD_PLUS_CORR_PB24`, `ZTT_PB24_BOX`,
+  `MU_INF_PB24_RANGE`, `MD_STAR_PB24_RANGE`, `ZTT_PB24_N_TRAINING`,
+  `ZTT_PB24_TRAINING_DIGEST`, `mu_infinity_pb24`, `mu_d_pb24`;
+  `VARIANTS`/`MU_INF_MODELS`/`MU_D_MODELS` gain `"pb24"`; `rrs_ZTT` wires it
+  (FF Pbb as `"l23"`; the table H when the geometry carries none). Tests:
+  `robust/tests/test_ztt_pb24.py` (25 items, 17 functions), `test_ztt.py`'s per-variant H test
+  updated for the table default. Record §7c.8, module index.
+- **Decisions.** (i) Fits by a streamed Householder QR over chunks of 250
+  realisations in id order (`StreamingLSQ`): deterministic, conditioning of
+  the design itself (µd 328, µ∞ 1,390), nothing of size n_rows held.
+  (ii) The µd fit generalises M7's exact linearisation to eight suns: seven
+  free g_θ = 1/c nodes, then the quadratic fitted to them by LSQ (form test
+  reported). (iii) **H interpolation variable changed from cos θs′ (the task
+  text) to the air mass sec θs′, by measurement:** leaving each interior
+  node out, sec reproduces H to 0.11/0.14/0.21/0.39/1.0/3.1% at 10–60°
+  where cos gives 0.14/0.39/0.80/1.6/3.3/6.9% and θ itself 1.5–8.3%; the
+  shipped spacing is half the leave-one-out spacing. (iv) The eigen product
+  is read as is (version 1; `--eigen` for another). (v) `Esdir_Es_ratio` is
+  asserted bit-identical across the training realisations (a `RuntimeError`
+  otherwise) and reported across all 5,000: max |Δ| = 0 both.
+  (vi) The split is restricted to the cache's realisations when the cache is
+  a miniature, so the fixture test runs the script end to end.
+- **Predictions → outcomes** (held out, 1,000 realisations, 451 bands).
+  *H:* "within 1% of H leaving 30°/60° out, < 0.3% in µd" — 30° **confirmed**
+  (0.21% max); 60° **not confirmed** for H at double spacing (1.15% median,
+  3.1% max) but **confirmed** for µd (0.24% max in M⁺_d). *µd:* "< 0.5% at
+  every θs ≤ 70°" — **not confirmed**: 0.51/0.50/0.50/0.96/0.41/0.63/0.52/
+  0.71% at 0–70° (the quadratic's node residuals, Q32); "< 0.5% at
+  bb/a < 0.59" — 0.53/0.42/0.45/0.83% per bin, **not confirmed** in
+  [0.1, 0.59); "< 3% at bb/a ≥ 0.59" — 1.93% (0.59–2) and 2.99% (≥ 2),
+  **confirmed** (narrowly); 80°/87.75° within 5%/15% — −4.64/−14.93%,
+  **confirmed**. For scale: the L23 fit with the same H reads 2.25/5.69% at
+  60/70° and 12.3/31.0% at bb/a ≥ 0.59; Table A2 5.9/7.5% and 10.5/71%.
+  *µ∞:* "≈ 0.9% median, no better than L23's 0.91%, trend remaining" —
+  **confirmed**: 1.10% (L23 fit 0.90%, TT2017 1.78%); the B_p trend +1.69%
+  (B_p < 0.003) → −3.11% (> 0.03). "Eq. (8)'s cubic in X exceeds 1% at
+  bb/a > 2" — **confirmed**, 2.68% there (L23 fit 166%, TT2017 99%). The
+  cost of the range shows in the bulk: 0.70/0.78/1.21% at bb/a < 0.001 /
+  0.001–0.01 / 0.01–0.1 where the L23 fit reads 0.18/0.25/1.01%. Measured
+  alternatives (scratch, not shipped): capping X at bb/a = 2 or at 0.5946
+  gives 1.20% and 1.25% overall — worse — so the full box is shipped as
+  specified (Q22a).
+- **Gate.** `--check`: "identical" (every JSON, the markdown, the H file and
+  both PNGs). Probes through `mu_infinity_pb24`/`mu_d_pb24`/
+  `diffuse_fraction_pb24` to 1e-12 (no data). Shipped constants == the
+  committed JSON. Leak guard: the digest is the training ids' and nothing
+  else. Evaluators vs the script's designs where no guard acts: µ∞ 1.7e-7,
+  µd 2.3e-8 (the soft clamps' tails at ten widths). float64 gradient vs FD
+  through the table and the new constants (a, bb_p, B_p, θs = 33°, w_ph)
+  to 1e-6; finite far outside the box. The miniature run recovers a
+  synthetic Eq. (8) to 1e-6 and passes `--check`. Suite: `890 passed, 5
+  skipped` with the data (4:55); `env -u OS_COLOR`: `810 passed, 85 skipped`
+  (3:23). `ruff check`/`format --check`: clean (71 files).
+- **Not measured here:** the 8a variant's rrs (the ladder is 8c). The
+  prediction stands: < 0.5 pp from ZTT (L23 µ∞, FF) in the window, possibly
+  worse.
+- No state-changing git command was run.
+
+### 2026-11-16 — Task 8b: Ψ_KLu and f_L refit jointly; the predictions fail (Claude Fable 5.1)
+
+- **Nothing re-baselined.** `"l23"` and `"tt2017"` bit for bit (their pins
+  pass; a test asserts the new switches at their defaults change no bit);
+  `DEFAULT_VARIANT` stays `"l23"`. Additive: two keyword-only `rrs_ZTT`
+  options (`angular_model` in `ANGULAR_MODELS = ("tt", "pb24")`, `floor`),
+  new constants and functions.
+- **Built.** `design/py/fit_ztt_pb24_angular.py` (D1, D2, the joint refit,
+  the floor; `--check`, `--quick`, `--dry-run`, `--workers` ≤ 6 staggered,
+  `--cache-dir`, `--out-dir`) → `design/ztt_pb24/angular_{coefficients,
+  metrics,probes}.json`, `angular_metrics.md`, `angular_fig_{terms,d1_shape,
+  heldout}.png`. In `ztt.py`: `PSI_KLU_PB24_COEFFS` (F as a polynomial in
+  u = 1 + cos ψ, Q30), `FL_AVE_PB24` (451 values, mean 1, rounded to 1e-6)
+  with `FL_AVE_PB24_WAVE`, `FL_S_PB24` (s0, s1, s2), `D_FLOOR_PB24`,
+  `F_psi_pb24`, `psi_KLu_pb24`, `f_L_pb24` (overrides `fl_ave`/`fl_wave`/`s`
+  for the fit script), `denominator_floor_pb24`; `rrs_ZTT(variant="pb24")`
+  now uses them and floors the denominator; its docstring says off-nadir
+  Ψ_KLu is a calibration through rrs, physical only at nadir. Tests:
+  `robust/tests/test_ztt_pb24_angular.py` (18); `test_ztt_pb24.py`'s
+  composition test gains the two switches. Record §7c.9, module index.
+- **Decisions.** (i) The fit is linear in D-space as designed: one streamed
+  pass over the training window (4,000 realisations × 832 geometries × 451
+  bands = 1.50 G rows, chunks of 10 realisations, 4 workers in a
+  `systemd-run` scope, 15 min) accumulates the **block normal equations**
+  (the F block, the per-band f_L blocks and their cross terms, in float64,
+  summed in chunk order) — the sufficient statistics of every linear fit in
+  that column space — so the alternating passes (12 rounds, fixed; last
+  change 2e-13), the order sensitivity (3–7 terms) and the residuals run in
+  memory; the held-out pass accumulates the same blocks and scores the
+  variant in rrs through the baseline's histogram machinery. (ii) F(ψ) is
+  accumulated in the Legendre basis of t = 2(1 + cos ψ) − 1 and converted
+  exactly to monomials in u = 1 + cos ψ for shipping (no cancellation at
+  180°); five terms, TT's order, decided before the fit, and the order rule
+  (ship five unless its held-out residual exceeds four's) did not trigger.
+  (iii) Relative weighting 1/D* per row. (iv) FL_AVE normalised to mean 1
+  after every pass B, the scale in s. (v) The floor is a one-sided softplus
+  (lo = 0.5, width = 0.01); D* on the training window is ≥ 1.096 (asserted
+  above 2·lo). (vi) D1 is reported on the held-out side (and kept on the
+  training side in the JSON); O25 in its own quantity, Rrs.
+- **Predictions → outcomes** (held out, window, 1,000 realisations).
+  *D1:* "ZTT's shape error > 5% at θv_air ≥ 40°" — **confirmed** (pooled
+  7.7% at 40°; already 5.6% at 30°); "largest toward Δφ = 0" — **not
+  confirmed**: largest toward Δφ = 180° (at θv = 70°: 11.7% at Δφ = 0,
+  129% at 165–180°); "O25's below 2% everywhere" — **not confirmed**:
+  pooled 2.1–2.8% at θv ≥ 50°, up to 5.3% per node (below 2% pooled for
+  θv ≤ 40°). The refit's own shape: 0.4–3.8% pooled, better than O25's at
+  every θv. *D2:* "≤ 2.5%" — **not confirmed**, narrowly: 2.84% median
+  (2.74% with PB24's own µd), q90 13%; below the 4% criterion, so Equation
+  (12)'s structure is sound at nadir once Ψ_KLu/µ∞ and f_L are right.
+  *Joint refit:* median 4–6% — **not confirmed**: **10.86%** (8a variant
+  8.96%, Gordon 7.84%); non-physical < 1% — **confirmed** (0% floored,
+  0.08% unfloored, against 5.87%); ψ ≥ 155° ≤ 3% — **no** (9.88%);
+  ψ 110.4–134° < 10% — **no** (12.84%); Ψ_KLu monotone and within
+  [0.8, 2.5] — **no** (0.742–0.885, a minimum near 113°); nadir Ψ_KLu/µ∞
+  within 5% of KLu/a — **no** (16.3% median |dev|; the ratio runs 1.04 at
+  0° to 0.71 at 70°, where TT's pair holds 1.20 at every sun); the floor
+  moves < 1% — **confirmed** (0.35%). q90 24% and rRMS 21% against 88% and
+  2.5e5% for the 8a variant.
+- **Why** (Q33 has the full reading): F(ψ) is exhausted (3–7 terms: 15.5%
+  rRMS in D alike); one function of ψ cannot carry both the nadir sun trend
+  (K_Lu/a·µ∞ rises 0.85 → 1.15 from 0° to 70°) and the off-nadir view
+  shape, and in clear water the level needs an IOP dependence Ψ(ψ)/µ∞(X, L)
+  lacks (nadir spread 0.89–1.44 at fixed θs). **Measured in scratch** (same
+  fit with wider F columns; not shipped): F(ψ)·(1, X, L) 6.76%, + cos θs_w
+  5.83%, + X cos θs_w 5.69%, all 0% non-physical; the table is in Q33.
+- **Gate.** `--check`: "identical" (every JSON, the markdown, the three
+  PNGs; 1,408 s with 4 workers beside another job). Probes through
+  `rrs_ZTT(variant="pb24")` with the table H and with the data's H to
+  1e-12, no data; the floor bit-invisible on every probe; shipped constants
+  == the committed JSON; the leak digest is 8a's. On the fixture: the
+  closure D* returns rrs to 1e-13; the script's D-space pieces with the
+  shipped constants equal `rrs_ZTT`'s to 1e-12 (TT's pair to 1e-9 where it
+  crosses D = 0); the block normal equations equal a direct `lstsq` for
+  both passes and the residual from the statistics equals the explicit
+  one; the alternating solve recovers a synthetic (F, s, FL) to 1e-8; the
+  Legendre → u conversion to 1e-13; gradients vs FD through θv, Δφ and B_p
+  to 1e-6; the variant finite and differentiable where the unfloored
+  denominator is negative; the miniature run passes its own `--check`.
+  Suite: `908 passed, 5 skipped` with the data (11:39, beside the scratch
+  job); `env -u OS_COLOR`: `828 passed, 85 skipped` (8:17). `ruff check` /
+  `format --check` clean (73 files).
+- **Deviation from the task text:** none in what was fitted; the shipped
+  form is Q24's. The scratch alternatives are measurements for Q33, not
+  shipped code.
+- **8c waits on Q33** (which form the ladder should carry). No
+  state-changing git command was run.

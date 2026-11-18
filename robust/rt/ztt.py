@@ -70,6 +70,10 @@ sixteen numbers arrive. See Q4 in
 
 from __future__ import annotations
 
+import functools
+import json
+from pathlib import Path
+
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
@@ -141,6 +145,30 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     "MU_INF_L23_CLOSURE_RANGE",
     "mu_d_l23",
     "mu_inf_closure",
+    # The PB24 fit (M8 task 8a)
+    "H_PB24_FILE",
+    "diffuse_fraction_pb24",
+    "MU_INF_PB24_COEFFS",
+    "MD_STAR_PB24_COEFFS",
+    "MD_PLUS_CORR_PB24",
+    "ZTT_PB24_BOX",
+    "MU_INF_PB24_RANGE",
+    "MD_STAR_PB24_RANGE",
+    "ZTT_PB24_N_TRAINING",
+    "ZTT_PB24_TRAINING_DIGEST",
+    "mu_infinity_pb24",
+    "mu_d_pb24",
+    # The PB24 angular terms (M8 task 8b)
+    "ANGULAR_MODELS",
+    "PSI_KLU_PB24_COEFFS",
+    "FL_AVE_PB24_WAVE",
+    "FL_AVE_PB24",
+    "FL_S_PB24",
+    "D_FLOOR_PB24",
+    "F_psi_pb24",
+    "psi_KLu_pb24",
+    "f_L_pb24",
+    "denominator_floor_pb24",
 ]
 
 #: Refractive index of seawater used for Snell refraction (paper §2.1). The
@@ -1226,14 +1254,21 @@ MU_INF_L23_CLOSURE_RANGE = (0.4135738177525006, 0.994010053503653)
 
 #: The backbone variants :func:`rrs_ZTT` knows. ``"l23"`` -- the M7 refit µ∞
 #: and µd, plus L23's FF phase function where ``PhaseParams`` carries it -- is
-#: the default. ``"tt2017"`` is the M0–M6 model, bit for bit.
-VARIANTS = ("l23", "tt2017")
+#: the default. ``"tt2017"`` is the M0–M6 model, bit for bit. ``"pb24"`` (M8
+#: tasks 8a–8b) is "ZTT (PB24)": the PB24 diffuse-fraction table behind the
+#: seam, µd and µ∞ refit to PB24, FF Pbb as ``"l23"``, Ψ_KLu and f_L refit
+#: jointly through PB24's ``rrs`` (:func:`psi_KLu_pb24`, :func:`f_L_pb24`),
+#: and the denominator floor (:func:`denominator_floor_pb24`).
+VARIANTS = ("l23", "tt2017", "pb24")
 #: str: The default of :func:`rrs_ZTT`'s ``variant``.
 DEFAULT_VARIANT = "l23"
 #: µ∞ choices for ``mu_inf_model``. ``"l23_closure"`` is M7 task 5's ceiling.
-MU_INF_MODELS = ("l23", "l23_closure", "tt2017")
+MU_INF_MODELS = ("l23", "l23_closure", "tt2017", "pb24")
 #: µd choices for ``mu_d_model`` (the ladder of M7 task 6 toggles it alone).
-MU_D_MODELS = ("l23", "tt2017")
+MU_D_MODELS = ("l23", "tt2017", "pb24")
+#: Ψ_KLu / f_L choices for ``angular_model`` (M8 task 8b): ``"tt"`` is TT's
+#: pair (Equations (4), (6) and (31)); ``"pb24"`` the joint PB24 refit.
+ANGULAR_MODELS = ("tt", "pb24")
 
 
 def mu_infinity_l23(bb_over_a, eta_bb):
@@ -1321,6 +1356,462 @@ def mu_d_l23(
     )
 
 
+# ------------------------------------------- the PB24 diffuse fraction (M8) --
+#: The shipped PB24 diffuse-fraction table (M8 task 8a, ``rt_fit_pb24.md`` Q21a):
+#: ``H(θs', λ) = 1 − Esdir_Es_ratio`` on PB24's ten sun zeniths × 451 bands,
+#: written by ``design/py/fit_ztt_pb24.py``. The field is an above-surface
+#: quantity and is identical in every one of the 5,000 files (checked bit for
+#: bit by the script and by a test), so the table *is* PB24's sky: RADTRAN-X
+#: irradiances, 40 km visibility, US Navy maritime aerosol, 354.9 DU ozone
+#: (Pitarch & Brando 2025). Another sky needs its own H through
+#: ``Geometry.diffuse_fraction``.
+H_PB24_FILE = "files/diffuse_fraction_pb24.npz"
+
+
+@functools.lru_cache(maxsize=1)
+def _h_pb24_table() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
+    """``(sec θs' ascending, λ ascending, H (n_theta, n_wave), provenance)``
+    from :data:`H_PB24_FILE`, read once."""
+    path = Path(__file__).parent / H_PB24_FILE
+    with np.load(path) as data:
+        theta_s = np.asarray(data["theta_s"], dtype=np.float64)
+        wave = np.asarray(data["wave"], dtype=np.float64)
+        H = np.asarray(data["H"], dtype=np.float64)
+        provenance = json.loads(str(data["provenance"]))
+    sec = 1.0 / np.cos(np.deg2rad(theta_s))  # air mass, ascending with θs'
+    order = np.argsort(sec)
+    return sec[order], wave, H[order], provenance
+
+
+def _bilinear(x_nodes, y_nodes, table, x, y):
+    """Bilinear interpolation of ``table (n_x, n_y)`` at ``x (..., 1)`` or
+    scalar and ``y (n,)``, giving ``(..., n)``; both node arrays ascending;
+    inputs clamped to the node range (flat outside, as a sky table should be)."""
+    xn, yn, F = jnp.asarray(x_nodes), jnp.asarray(y_nodes), jnp.asarray(table)
+    x = jnp.clip(jnp.asarray(x), xn[0], xn[-1])
+    y = jnp.clip(jnp.asarray(y), yn[0], yn[-1])
+    i = jnp.clip(jnp.searchsorted(xn, x, side="right") - 1, 0, xn.size - 2)
+    j = jnp.clip(jnp.searchsorted(yn, y, side="right") - 1, 0, yn.size - 2)
+    tx = (x - xn[i]) / (xn[i + 1] - xn[i])
+    ty = (y - yn[j]) / (yn[j + 1] - yn[j])
+    f00, f01 = F[i, j], F[i, j + 1]
+    f10, f11 = F[i + 1, j], F[i + 1, j + 1]
+    return (1 - tx) * ((1 - ty) * f00 + ty * f01) + tx * ((1 - ty) * f10 + ty * f11)
+
+
+def diffuse_fraction_pb24(theta_s_air_deg, wave: Float[Array, " wave"] | None = None):
+    """PB24's diffuse fraction ``H(θs', λ)`` from the shipped table (M8 task 8a).
+
+    Linear in the air mass ``sec θs'`` between PB24's ten sun zeniths
+    (0–87.75°) and linear in λ between its 451 bands (350–800 nm); flat
+    outside both ranges (so finite at θs' → 90°). The variable was chosen by
+    measurement (M8 task 8a): leaving each interior node out and interpolating
+    it from its neighbours, ``sec θs'`` reproduces H within 0.1–3.1% at
+    10–60° where ``cos θs'`` gives 0.1–6.9% and θs' itself 1.5–8.3%; the real
+    node spacing is half the leave-one-out spacing. At the nodes it is the
+    files' ``1 − Esdir_Es_ratio`` exactly (the table stores the float32
+    values). This is the default ``H`` of the ``"pb24"`` variant
+    (:func:`mu_d_pb24`); a ``Geometry.diffuse_fraction`` overrides it.
+
+    Parameters
+    ----------
+    theta_s_air_deg : Array
+        Above-water solar zenith (degrees), shape ``(...)`` -- one spectrum per
+        entry; a trailing axis of length 1 (``rrs_ZTT`` passes ``(..., 1)``) is
+        accepted as it is.
+    wave : Array, optional
+        Wavelengths (nm); defaults to the canonical grid.
+
+    Returns
+    -------
+    Array
+        ``H``, shape ``(..., n_wave)``.
+    """
+    sec_nodes, wave_nodes, table, _ = _h_pb24_table()
+    wave = conventions.canonical_wave() if wave is None else jnp.asarray(wave)
+    theta = jnp.asarray(theta_s_air_deg)
+    if theta.ndim and theta.shape[-1] != 1:
+        theta = theta[..., None]
+    x = 1.0 / jnp.cos(jnp.deg2rad(theta))
+    return _bilinear(sec_nodes, wave_nodes, table, x, wave)
+
+
+# ------------------------------------------------- the PB24 fit (M8 8a) --
+#: **"ZTT (PB24)", the IOP-side terms** (M8 task 8a, ``rt_fit_pb24.md`` Q21–Q22;
+#: record §7c.8). Fitted by ``design/py/fit_ztt_pb24.py`` on the realisation
+#: split's 4,000 training realisations (``design/ztt_pb24/splits.json``), all
+#: 451 bands, by streamed Householder QR; ``design/ztt_pb24/fit_coefficients.json``
+#: is the source and ``--check`` keeps these honest. Equation (8)'s sixteen
+#: coefficients refit to the eigen µ∞ on PB24's own IOPs and FF pair (task 6's
+#: product), relative residuals, **no B_p term** (Q22): held out, median
+#: |error| 1.10% (L23's fit: 0.90% in the bulk but +48% beyond its clamp), with
+#: the B_p trend the form cannot absorb left in (+1.7% at B_p < 0.003, −3.1%
+#: at > 0.03).
+MU_INF_PB24_COEFFS = (
+    0.001579666317308423,
+    0.0021735695271569433,
+    -0.03224377697203383,
+    -0.013809383461016886,
+    -0.0010122522850343992,
+    -0.05143424378751467,
+    -0.22799224742165938,
+    -0.15578216091513747,
+    -0.021181878575983446,
+    -0.1528731881609277,
+    -0.35546094744201245,
+    -0.5634061625211141,
+    0.006596981487185379,
+    0.049053367638090636,
+    0.10874196386435862,
+    0.3399167524959902,
+)
+
+#: Equation (17)'s eight ``M*_d`` coefficients refit to PB24's ``mu_d`` *jointly*
+#: with :data:`MD_PLUS_CORR_PB24`, with the PB24 diffuse fraction inside TT's
+#: ``M+_d``, on the window suns (θs' ≤ 70°; 14.4 M rows). Held out: 0.4–1.0%
+#: median per sun at 0–70°, 0.4–0.8% at bb/a < 0.59 and 1.9% / 3.0% at
+#: 0.59–2 / > 2 (the L23 fit with the same H: 12% / 31% there).
+MD_STAR_PB24_COEFFS = (
+    -0.0038808591531856998,
+    -0.012520018504516502,
+    -0.01735221961009114,
+    -0.09617021774965247,
+    -0.013557833203465472,
+    -0.23878541741698955,
+    0.007519636892949682,
+    0.8222051423461154,
+)
+
+#: ``(c1, c2)`` of :func:`md_plus_correction` for PB24's sky, fitted to the
+#: seven free nodes 10–70° (c(30°) = 0.981, c(60°) = 0.933); the quadratic
+#: leaves node residuals of up to 0.85% (at 30°), the form's limit.
+MD_PLUS_CORR_PB24 = (-0.14396867927226809, 0.018416894768715587)
+
+#: ``(X_lo, X_hi, L_lo, L_hi)``: the (log10 bb/a, log10 η_bb) range of PB24's
+#: training rows -- bb/a 6e-5 to 17, η_bb 9e-6 to 1 -- which both PB24 refits
+#: clamp their inputs to (as :data:`ZTT_L23_BOX` does for L23).
+ZTT_PB24_BOX = (
+    -4.205851915186109,
+    1.2285661070062504,
+    -5.056076609727998,
+    -0.0017276344807632311,
+)
+
+#: Output guards, as M7's: the training range plus 5 × :data:`OUT_CLAMP_WIDTH`,
+#: µ∞ capped below 1.
+MU_INF_PB24_RANGE = (0.06568731709685627, 0.999)
+#: tuple: The same guard for ``M*_d``.
+MD_STAR_PB24_RANGE = (0.5188474099856758, 1.0579228041730246)
+
+#: The leak guard (as the Fresnel transfer's): the number and the digest
+#: (:func:`robust.rt.conventions.realisation_digest`) of the realisation ids
+#: every PB24 fit above was made on. A test checks they are the realisation
+#: split's training ids and nothing else.
+ZTT_PB24_N_TRAINING = 4000
+ZTT_PB24_TRAINING_DIGEST = (
+    "3dd4bcb017fcded0f23f7a899cf091b6fd64e74736f77261d1eec92ca541219c"
+)
+
+
+def mu_infinity_pb24(bb_over_a, eta_bb):
+    """µ∞ from the PB24 refit of Equation (8), clamped and guarded.
+
+    Parameters
+    ----------
+    bb_over_a, eta_bb : Array
+
+    Returns
+    -------
+    Array
+        µ∞, dimensionless.
+    """
+    return mu_infinity(
+        bb_over_a,
+        eta_bb,
+        MU_INF_PB24_COEFFS,
+        box=ZTT_PB24_BOX,
+        out_range=MU_INF_PB24_RANGE,
+    )
+
+
+def mu_d_pb24(
+    theta_s_air_deg,
+    bb_over_a,
+    eta_bb,
+    *,
+    H=None,
+    wave: Float[Array, " wave"] | None = None,
+):
+    """µd from the PB24 fit: TT's ``M+_d`` with PB24's H × c_PB24(θs') × refit
+    ``M*_d``.
+
+    Parameters
+    ----------
+    theta_s_air_deg : Array
+        Above-water solar zenith (degrees).
+    bb_over_a, eta_bb : Array
+    H : Array, optional
+        The diffuse fraction. ``None`` (default) takes PB24's own,
+        :func:`diffuse_fraction_pb24` at ``(theta_s_air_deg, wave)``; a
+        ``Geometry.diffuse_fraction`` arrives here through :func:`rrs_ZTT`.
+        TT's ``H(θs', V)`` is never used by this variant.
+    wave : Array, optional
+        Wavelengths (nm) for the table lookup when ``H`` is ``None``;
+        defaults to the canonical grid.
+
+    Returns
+    -------
+    Array
+        µd, dimensionless.
+    """
+    if H is None:
+        H = diffuse_fraction_pb24(theta_s_air_deg, wave)
+    return mu_d(
+        theta_s_air_deg,
+        bb_over_a,
+        eta_bb,
+        md_star_coeffs=MD_STAR_PB24_COEFFS,
+        md_plus_corr=MD_PLUS_CORR_PB24,
+        box=ZTT_PB24_BOX,
+        md_star_range=MD_STAR_PB24_RANGE,
+        H=H,
+    )
+
+
+# ------------------------------------------- the PB24 angular terms (M8 8b) --
+#: **"ZTT (PB24)", the angular terms** (M8 task 8b, ``rt_fit_pb24.md`` Q23–Q25,
+#: Q30; record §7c.9). Fitted by ``design/py/fit_ztt_pb24_angular.py`` on the
+#: window (θs, θv_air ≤ 70°) of the realisation split's 4,000 training
+#: realisations, all 451 bands, **linearly in D-space**: with 8a's µd and µ∞
+#: and the exact FF Pbb, Equation (12) inverts to a closure denominator
+#: ``D* = [β(ψ)/bb] / (µd · rrs_PB24)`` per (sample, λ), and
+#: ``D* − (a/bb)(1 + |cos θv|/µ∞) − 1/b̃b``
+#: ``= (a/bb)(|cos θv|/µ∞) F(ψ) − (1/b̃b − 1) f_L(ψ, λ)``
+#: is linear in the coefficients of ``F`` and ``f_L``; relative weighting in
+#: D (relative weighting in rrs to first order); two alternating linear passes
+#: for the bilinear ``f_L``; ``design/ztt_pb24/angular_coefficients.json`` is
+#: the source and ``--check`` keeps these honest.
+#:
+#: **Off-nadir, Ψ_KLu is a calibration through rrs, not a measured K_Lu/K∞**:
+#: PB24 tabulates ``KLu`` at nadir only, so the refit is physical at
+#: ψ = 180° − θs_w (where it is checked against PB24's KLu/a) and a fitted
+#: BRDF shape elsewhere.
+#:
+#: ``F(ψ)`` as a polynomial in ``u = 1 + cos ψ`` (a polynomial in cos ψ, Q30,
+#: written so that ψ = 180° is ``u = 0`` and there is no cancellation: TT's
+#: quartic in degrees cancels by 78,000× there). Highest order first, for
+#: ``jnp.polyval``; Ψ_KLu = 1 + F. **Measured** (held out, window): the
+#: refit Ψ_KLu is 0.74–0.89 over 91–180° (TT's: 1.02 at 180°, 1.32 at 135°),
+#: not monotone; it fixes the BRDF *shape* (rrs(θv, Δφ)/rrs(nadir) to 0.4–3.8%
+#: median per θv against 1.6–12.9% for TT's pair) and removes every
+#: non-physical value, but the *level* is worse: window median 10.86%
+#: against 8.96% with TT's pair, growing with θs, because one function of ψ
+#: alone cannot follow both the nadir sun trend (K_Lu/a rises with θs; TT's
+#: pair follows it at a constant 1.20×) and the off-nadir view shape (record
+#: §7c.9). Adding F terms does not help (3–7 terms: 15.5% rRMS in D alike).
+PSI_KLU_PB24_COEFFS = (
+    -0.49165067238411775,
+    1.7652985900107052,
+    -1.261974730012199,
+    -0.010032317710123306,
+    -0.11519048273114063,
+)
+
+#: Wavelengths of :data:`FL_AVE_PB24` (nm): PB24's 1 nm grid, 350–800 nm.
+FL_AVE_PB24_WAVE = np.arange(350.0, 800.0 + 0.5, 1.0)
+
+#: ``f_L,ave(λ)`` refit per band (Q25), normalised to a mean of 1 over
+#: 350–800 nm (the scale lives in :data:`FL_S_PB24`); rounded to 1e-6. Flatter
+#: than Table A3 (0.993–1.010 against 0.981–1.026): with PB24's own µd and
+#: FF Pbb in the closure, little of the spectral shape remains.
+FL_AVE_PB24 = np.array(
+    [
+        1.009770, 1.009721, 1.009672, 1.009620, 1.009571, 1.009529, 1.009477, 1.009423,
+        1.009369, 1.009317, 1.009269, 1.009220, 1.009184, 1.009134, 1.009084, 1.009033,
+        1.008983, 1.008933, 1.008884, 1.008845, 1.008797, 1.008746, 1.008697, 1.008648,
+        1.008598, 1.008548, 1.008499, 1.008460, 1.008410, 1.008361, 1.008311, 1.008260,
+        1.008209, 1.008157, 1.008106, 1.008055, 1.008013, 1.007962, 1.007911, 1.007862,
+        1.007812, 1.007761, 1.007711, 1.007660, 1.007612, 1.007582, 1.007535, 1.007487,
+        1.007441, 1.007396, 1.007352, 1.007309, 1.007266, 1.007221, 1.007178, 1.007138,
+        1.007094, 1.007046, 1.006999, 1.006953, 1.006908, 1.006861, 1.006814, 1.006769,
+        1.006724, 1.006678, 1.006641, 1.006597, 1.006551, 1.006507, 1.006461, 1.006416,
+        1.006370, 1.006324, 1.006278, 1.006234, 1.006190, 1.006146, 1.006112, 1.006070,
+        1.006029, 1.005988, 1.005947, 1.005906, 1.005865, 1.005825, 1.005785, 1.005749,
+        1.005712, 1.005676, 1.005639, 1.005612, 1.005576, 1.005539, 1.005501, 1.005467,
+        1.005431, 1.005392, 1.005353, 1.005312, 1.005271, 1.005222, 1.005172, 1.005118,
+        1.005065, 1.005010, 1.004963, 1.004908, 1.004853, 1.004798, 1.004743, 1.004690,
+        1.004637, 1.004582, 1.004527, 1.004472, 1.004416, 1.004358, 1.004299, 1.004243,
+        1.004187, 1.004130, 1.004080, 1.004023, 1.003965, 1.003908, 1.003850, 1.003793,
+        1.003735, 1.003677, 1.003620, 1.003563, 1.003506, 1.003449, 1.003392, 1.003335,
+        1.003278, 1.003223, 1.003168, 1.003114, 1.003067, 1.003014, 1.002960, 1.002909,
+        1.002856, 1.002805, 1.002753, 1.002703, 1.002651, 1.002597, 1.002541, 1.002486,
+        1.002429, 1.002373, 1.002316, 1.002263, 1.002209, 1.002158, 1.002106, 1.002054,
+        1.002006, 1.001950, 1.001893, 1.001831, 1.001769, 1.001700, 1.001631, 1.001556,
+        1.001480, 1.001406, 1.001331, 1.001255, 1.001177, 1.001100, 1.001024, 1.000948,
+        1.000872, 1.000797, 1.000722, 1.000648, 1.000573, 1.000500, 1.000425, 1.000356,
+        1.000282, 1.000208, 1.000134, 1.000060, 0.999986, 0.999912, 0.999837, 0.999762,
+        0.999687, 0.999613, 0.999537, 0.999462, 0.999387, 0.999310, 0.999232, 0.999156,
+        0.999079, 0.998998, 0.998916, 0.998831, 0.998747, 0.998661, 0.998575, 0.998488,
+        0.998409, 0.998325, 0.998241, 0.998158, 0.998077, 0.997997, 0.997920, 0.997844,
+        0.997771, 0.997703, 0.997637, 0.997575, 0.997514, 0.997458, 0.997404, 0.997355,
+        0.997307, 0.997264, 0.997223, 0.997185, 0.997147, 0.997117, 0.997087, 0.997060,
+        0.997035, 0.997016, 0.996996, 0.996978, 0.996959, 0.996942, 0.996921, 0.996906,
+        0.996890, 0.996871, 0.996850, 0.996833, 0.996815, 0.996803, 0.996790, 0.996779,
+        0.996769, 0.996774, 0.996781, 0.996746, 0.996714, 0.996707, 0.996702, 0.996688,
+        0.996678, 0.996666, 0.996657, 0.996646, 0.996636, 0.996628, 0.996620, 0.996613,
+        0.996606, 0.996599, 0.996591, 0.996583, 0.996574, 0.996569, 0.996567, 0.996557,
+        0.996546, 0.996533, 0.996521, 0.996509, 0.996497, 0.996488, 0.996478, 0.996462,
+        0.996445, 0.996436, 0.996428, 0.996415, 0.996402, 0.996388, 0.996373, 0.996359,
+        0.996345, 0.996327, 0.996307, 0.996297, 0.996286, 0.996271, 0.996257, 0.996244,
+        0.996232, 0.996228, 0.996229, 0.996231, 0.996240, 0.996273, 0.996315, 0.996368,
+        0.996431, 0.996506, 0.996592, 0.996694, 0.996800, 0.996918, 0.997042, 0.997152,
+        0.997264, 0.997371, 0.997476, 0.997573, 0.997664, 0.997749, 0.997826, 0.997889,
+        0.997942, 0.997990, 0.998028, 0.998043, 0.998046, 0.998037, 0.998014, 0.997987,
+        0.997943, 0.997871, 0.997783, 0.997689, 0.997579, 0.997451, 0.997306, 0.997146,
+        0.996970, 0.996781, 0.996577, 0.996365, 0.996141, 0.995907, 0.995663, 0.995419,
+        0.995171, 0.994928, 0.994690, 0.994456, 0.994232, 0.994014, 0.993814, 0.993655,
+        0.993513, 0.993391, 0.993283, 0.993196, 0.993119, 0.993052, 0.992992, 0.992970,
+        0.992960, 0.992950, 0.992946, 0.992961, 0.992979, 0.993028, 0.993079, 0.993148,
+        0.993223, 0.993336, 0.993455, 0.993552, 0.993647, 0.993760, 0.993870, 0.994025,
+        0.994181, 0.994328, 0.994471, 0.994757, 0.995043, 0.995142, 0.995247, 0.995360,
+        0.995470, 0.995562, 0.995653, 0.995719, 0.995791, 0.995863, 0.995934, 0.995967,
+        0.995999, 0.996030, 0.996068, 0.996090, 0.996111, 0.996113, 0.996116, 0.996124,
+        0.996129, 0.996126, 0.996119, 0.996114, 0.996110, 0.996095, 0.996080, 0.996058,
+        0.996043, 0.996022, 0.995999, 0.995970, 0.995941, 0.995916, 0.995887, 0.995860,
+        0.995839, 0.995761, 0.995687, 0.995616, 0.995547, 0.995494, 0.995442, 0.995387,
+        0.995330, 0.995264, 0.995190, 0.995101, 0.995016, 0.994922, 0.994832, 0.994745,
+        0.994658, 0.994571, 0.994483, 0.994408, 0.994336, 0.994280, 0.994223, 0.994164,
+        0.994106, 0.994043, 0.993981, 0.993929, 0.993882, 0.993870, 0.993855, 0.993831,
+        0.993823, 0.993806, 0.993826,
+    ]
+)  # fmt: skip
+
+#: ``(s0, s1, s2)`` of the ψ scaling ``s(ψ) = s0 + s1 sin ψ + s2 cos ψ`` of
+#: :func:`f_L_pb24` (TT's Equation (31) has ``s2 = 0``): 1.023–1.034 over
+#: 91–180° where TT's reads 1.04–1.12, so ``(1 − f_L)/b̃b`` is small and the
+#: second sign-flip mechanism of M8 task 7 (f_L > 1 at low B_p) is nearly
+#: gone -- 0.08% of window values unfloored, none floored.
+FL_S_PB24 = (1.019010949931932, 0.004188609681042782, -0.01471603702979093)
+
+#: ``(lo, width)`` of :func:`denominator_floor_pb24`: a smooth lower bound on
+#: Equation (12)'s denominator D so that the variant is finite everywhere.
+#: PB24's own D* exceeds 1.09 on every training window value; the floor at
+#: 0.5 is invisible there (a softplus corner of width 0.01 moves D by
+#: ``width · ln(1 + e^{(lo − D)/width})``: below float64 resolution for
+#: D > 0.9). Measured footprint: 0.35% of held-out window values moved by
+#: more than 1e-4, all where the unfloored D is near or below zero.
+D_FLOOR_PB24 = (0.5, 0.01)
+
+
+def F_psi_pb24(psi_deg: Float[Array, "..."], coeffs=None) -> Float[Array, "..."]:
+    """``F(ψ)`` of the PB24 refit: a polynomial in ``u = 1 + cos ψ``.
+
+    Parameters
+    ----------
+    psi_deg : Array
+        In-water scattering angle (degrees).
+    coeffs : sequence of float, optional
+        Highest order first; default :data:`PSI_KLU_PB24_COEFFS`.
+
+    Returns
+    -------
+    Array
+        ``F(ψ)``, dimensionless; ``Ψ_KLu = 1 + F``.
+    """
+    c = PSI_KLU_PB24_COEFFS if coeffs is None else coeffs
+    u = 1.0 + jnp.cos(jnp.deg2rad(jnp.asarray(psi_deg)))
+    return jnp.polyval(jnp.asarray(c, dtype=u.dtype), u)
+
+
+def psi_KLu_pb24(psi_deg: Float[Array, "..."], coeffs=None) -> Float[Array, "..."]:
+    """``Ψ_KLu(ψ) = 1 + F(ψ)`` of the PB24 refit (:func:`F_psi_pb24`).
+
+    Physical (K_Lu/K∞) at nadir, ψ = 180° − θs_w, where PB24 measures
+    ``KLu``; off-nadir a calibration of Equation (12)'s BRDF shape through
+    ``rrs`` (M8 task 8b).
+
+    Parameters
+    ----------
+    psi_deg : Array
+        In-water scattering angle (degrees).
+    coeffs : sequence of float, optional
+        As :func:`F_psi_pb24`.
+
+    Returns
+    -------
+    Array
+        ``Ψ_KLu``, dimensionless.
+    """
+    return 1.0 + F_psi_pb24(psi_deg, coeffs)
+
+
+def f_L_pb24(
+    psi_deg,
+    wave: Float[Array, " wave"] | None = None,
+    *,
+    fl_ave=None,
+    fl_wave=None,
+    s=None,
+):
+    """``f_L(ψ, λ) = f_L,ave(λ) [s0 + s1 sin ψ + s2 cos ψ]`` of the PB24 refit.
+
+    TT's factorisation (Equation (31)) with the spectral shape refit per band
+    (:data:`FL_AVE_PB24`, Q25) and a cos ψ term added to the scaling
+    (:data:`FL_S_PB24`).
+
+    Parameters
+    ----------
+    psi_deg : Array
+        In-water scattering angle (degrees).
+    wave : Array, optional
+        Wavelengths (nm); defaults to the canonical grid. Linear interpolation
+        on :data:`FL_AVE_PB24_WAVE`, flat outside 350–800 nm.
+    fl_ave, fl_wave, s : optional
+        Override the shipped spectral shape (on ``fl_wave``, default
+        :data:`FL_AVE_PB24_WAVE`) and ``(s0, s1, s2)``; the fit script
+        evaluates its candidates this way.
+
+    Returns
+    -------
+    Array
+        ``f_L``, dimensionless, broadcasting ψ against λ.
+    """
+    wave = conventions.canonical_wave() if wave is None else jnp.asarray(wave)
+    fl_ave = FL_AVE_PB24 if fl_ave is None else fl_ave
+    fl_wave = FL_AVE_PB24_WAVE if fl_wave is None else fl_wave
+    s0, s1, s2 = FL_S_PB24 if s is None else s
+    shape = jnp.interp(wave, jnp.asarray(fl_wave), jnp.asarray(fl_ave))
+    psi = jnp.deg2rad(jnp.asarray(psi_deg))
+    return shape * (s0 + s1 * jnp.sin(psi) + s2 * jnp.cos(psi))
+
+
+def denominator_floor_pb24(D, lo: float | None = None, width: float | None = None):
+    """A smooth lower bound on Equation (12)'s denominator: the softplus corner
+    of :func:`smooth_clip`, one-sided.
+
+    ``D + width · ln(1 + e^{(lo − D)/width})``: the identity to within
+    ``width · e^{−d/width}`` at distance ``d`` above ``lo``, ``→ lo`` far
+    below it, monotone and smooth, so ``rrs`` stays finite and differentiable
+    where the fitted denominator would cross zero (the ψ < 110° sign flip of
+    TT's form, record §7.12, and the low-B_p one of M8 task 7).
+
+    Parameters
+    ----------
+    D : Array
+    lo, width : float, optional
+        Default :data:`D_FLOOR_PB24`.
+
+    Returns
+    -------
+    Array
+    """
+    lo0, w0 = D_FLOOR_PB24
+    lo = lo0 if lo is None else lo
+    width = w0 if width is None else width
+    D = jnp.asarray(D)
+    return D + width * jnp.logaddexp(0.0, (lo - D) / width)
+
+
 def _choose(name, value, allowed):
     """Validate a string option, raising with the allowed set."""
     if value not in allowed:
@@ -1369,6 +1860,8 @@ def rrs_ZTT(
     variant: str = DEFAULT_VARIANT,
     mu_inf_model: str | None = None,
     mu_d_model: str | None = None,
+    angular_model: str | None = None,
+    floor: bool | None = None,
     theta_v_in_water: bool = False,
 ) -> Float[Array, "*batch wave"]:
     """Equation (12) — subsurface ``rrs`` from the ZTT model.
@@ -1405,21 +1898,37 @@ def rrs_ZTT(
         path back to the model exactly as published in 2018 ("ZTT 2018").
     visibility_km : float, optional
         Horizontal visibility V (km).
-    variant : {"l23", "tt2017"}, optional
+    variant : {"l23", "tt2017", "pb24"}, optional
         **M7.** Which backbone (:data:`VARIANTS`). ``"l23"``, the default, is
         "ZTT (L23 µ∞)": µ∞ and µd refit to L23 (:func:`mu_infinity_l23`,
         :func:`mu_d_l23`), and L23's two-component FF phase function wherever
         ``phase_params`` carries ``ff_B`` (Sullivan otherwise, silently).
         ``"tt2017"`` is "ZTT (TT2017 µ∞)", the M0–M6 model, bit for bit: the
-        TT2017 µ∞, Table A2's µd, and Sullivan's Pbb.
-    mu_inf_model : {"l23", "l23_closure", "tt2017"}, optional
+        TT2017 µ∞, Table A2's µd, and Sullivan's Pbb. ``"pb24"`` (**M8 tasks
+        8a–8b**) is "ZTT (PB24)": µ∞ and µd refit to PB24
+        (:func:`mu_infinity_pb24`, :func:`mu_d_pb24`), with PB24's own diffuse
+        fraction (:func:`diffuse_fraction_pb24`) when ``geometry`` carries
+        none, the FF phase function as ``"l23"``, Ψ_KLu and f_L refit jointly
+        through PB24's ``rrs`` (:func:`psi_KLu_pb24`, :func:`f_L_pb24`) and
+        the denominator floor (:func:`denominator_floor_pb24`). **Off-nadir,
+        that Ψ_KLu is a calibration through rrs, physical only at nadir**
+        (PB24 measures ``KLu`` there alone).
+    mu_inf_model : {"l23", "l23_closure", "tt2017", "pb24"}, optional
         Override the variant's µ∞ alone (:data:`MU_INF_MODELS`).
         ``"l23_closure"`` (M7 task 5) is the closure fit -- a ceiling, not
         physics (:func:`mu_infinity_l23_closure`). Precedence:
         ``mu_inf`` > ``mu_inf_coeffs`` > ``mu_inf_model`` > ``variant``.
-    mu_d_model : {"l23", "tt2017"}, optional
+    mu_d_model : {"l23", "tt2017", "pb24"}, optional
         Override the variant's µd alone (:data:`MU_D_MODELS`). The Pbb choice
         has its own override, ``P_bb``.
+    angular_model : {"tt", "pb24"}, optional
+        Override the variant's Ψ_KLu and f_L pair alone
+        (:data:`ANGULAR_MODELS`; ``"pb24"`` for the ``"pb24"`` variant,
+        ``"tt"`` otherwise). M8 task 8c's ladder toggles it.
+    floor : bool, optional
+        Apply :func:`denominator_floor_pb24` to Equation (12)'s denominator.
+        Default: the variant's (``True`` for ``"pb24"``, ``False`` otherwise,
+        which leaves ``"l23"`` and ``"tt2017"`` bit for bit).
     theta_v_in_water : bool, optional
         Read ``geometry.theta_v`` as in-water (no refraction); only for PB24's
         ``"in_water_only"`` batches. See :func:`geometry_to_paper_angles`.
@@ -1447,6 +1956,14 @@ def rrs_ZTT(
     mu_d_model = _choose(
         "mu_d_model", variant if mu_d_model is None else mu_d_model, MU_D_MODELS
     )
+    variant_angular = "pb24" if variant == "pb24" else "tt"
+    angular_model = _choose(
+        "angular_model",
+        variant_angular if angular_model is None else angular_model,
+        ANGULAR_MODELS,
+    )
+    if floor is None:
+        floor = variant == "pb24"
 
     _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(
         geometry, theta_v_in_water=theta_v_in_water
@@ -1477,6 +1994,8 @@ def rrs_ZTT(
         mu_inf_value = mu_infinity_l23(bb_over_a, eta_bb)
     elif mu_inf_model == "l23_closure":
         mu_inf_value = mu_infinity_l23_closure(bb_over_a, eta_bb)
+    elif mu_inf_model == "pb24":
+        mu_inf_value = mu_infinity_pb24(bb_over_a, eta_bb)
     else:
         mu_inf_value = mu_infinity_tt2017(bb_over_a, eta_bb)
 
@@ -1484,21 +2003,29 @@ def rrs_ZTT(
     # falls back to Sullivan's fixed shape unless the M5 fields are set, or (the
     # L23 variant only) the FF mixture of M7 task 2 is present.
     P_bb_value = (
-        P_bb_from_phase(phase_params, psi_b, use_ff=variant == "l23")
+        P_bb_from_phase(phase_params, psi_b, use_ff=variant in ("l23", "pb24"))
         if P_bb is None
         else P_bb
     )
     numerator = backward_phase_over_bb(iops, P_bb_value, psi_b)
     b_tilde = bb_tilde(iops, phase_params.B_p)
 
+    if angular_model == "pb24":
+        psi_term, fl_term = psi_KLu_pb24(psi_b), f_L_pb24(psi_b, wave)
+    else:
+        psi_term, fl_term = psi_KLu(psi_b), f_L(psi_b, wave)
     denominator = (
-        (iops.a / bb) * (1.0 - cos_theta_v * psi_KLu(psi_b) / mu_inf_value)
-        + f_L(psi_b, wave) * (1.0 - 1.0 / b_tilde)
+        (iops.a / bb) * (1.0 - cos_theta_v * psi_term / mu_inf_value)
+        + fl_term * (1.0 - 1.0 / b_tilde)
         + 1.0 / b_tilde
     )
+    if floor:
+        denominator = denominator_floor_pb24(denominator)
 
     if mu_d_model == "l23":
         mu_d_value = mu_d_l23(theta_s_air_b, bb_over_a, eta_bb, visibility_km, H=H)
+    elif mu_d_model == "pb24":
+        mu_d_value = mu_d_pb24(theta_s_air_b, bb_over_a, eta_bb, H=H, wave=wave)
     else:
         mu_d_value = mu_d(theta_s_air_b, bb_over_a, eta_bb, visibility_km, H=H)
     return numerator / (mu_d_value * denominator)
