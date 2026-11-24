@@ -109,7 +109,8 @@ the original list.*
 *Revised again 2026-11-16 (Claude Fable 5.1) after
 Q21–Q29: task 8 is now 8a–8d. 8a and 8b are done (see the logs); 8b's
 joint refit fails most of its predictions, and Q33 asks what 8c should
-run.*
+run. 8bb, the interim report
+(`design/ztt_pb24/report_ztt_pb24_interim.md`), is done (2026-11-18).*
 
 **Applies to every task.**
 - Python in `ocean14` from the repo root; JXP runs all git in both repos;
@@ -430,6 +431,17 @@ Fable 5.2 Log your work.
    rounding on the fixture; the floor is bit-invisible on `probes.json`;
    the D-space normal equations equal a direct `lstsq` on the fixture.
    Use Opus 5.5. Log your work.
+
+   **8bb - Interim report** Before proceed with 8c, I wish for you to generate
+   a report describing the current state of fitting ZTT to the PB24 data.  The report should include:
+     - A description of the current analysis
+     - A description of the current results
+     - Figures describing the results (reuse existing ones as you can)
+     - Equations describing the model
+    
+    Name it `design/ztt_pb24/report_ztt_pb24_interim.md`.
+   Note that I have not yet answered Q33.
+   Use Fable. Log your work.
 
    **8c — The ladder and the acceptance gate** (Q27, Q29, Q31). Through
    `design/py/run_pb24_baseline.py`, extended with the rungs as registry
@@ -2543,3 +2555,35 @@ Created from `rt_fit_ztt.md` task 8.
   shipped code.
 - **8c waits on Q33** (which form the ladder should carry). No
   state-changing git command was run.
+
+### 2026-11-18 — Task 8bb: the interim report (Claude Fable 5.1)
+
+- **No code changed; no number changed.** Read: this doc (Q32, Q33 and its
+  empty answer, task 8bb's text, tasks 6–8b, the task 6/7/8a/8b logs),
+  `design/ztt_pb24/baseline_report.md`, `fit_metrics.md`,
+  `angular_metrics.md` and the six figures reused, `ztt.py`'s equation
+  docstrings and `rrs_ZTT`, `reports/report_pb24_baseline.md` (the team
+  note's format), record §7c.
+- **Written:** `design/ztt_pb24/report_ztt_pb24_interim.md` (seven
+  sections): the summary and the acceptance rule; the data and the set-up
+  (window, split, error metric, `--check`); the model — Eq. (12) and its
+  pieces (10, 11, 4/6/31, 14/15/17, 8) as MyST `$$` math (the docs build
+  has `dollarmath`), a term-by-term table of what `"pb24"` replaces
+  against `"tt2017"` and `"l23"`, and the closure-space form of the joint
+  refit; the analysis so far (tasks 1–7, 8a, 8b, what 8c/8d would do);
+  the results — the task 6 headline and its findings, 8a's H/µd/µ∞, 8b's
+  D1 table, D2, the refit terms and the held-out rrs with the θs / bb/a /
+  ψ breakdowns, the prediction-versus-outcome table, the reading of why
+  the specified form fails, and the Q33 scratch table marked "measured,
+  not shipped"; where the ZTT arm stands against the gate with Q33's four
+  options restated and **marked unanswered**; files and reproduction
+  commands. Six figures reused by relative link from the same directory
+  (`baseline_fig_per_view_and_psi`, `fit_fig_mu_d`, `fit_fig_mu_inf`,
+  `angular_fig_d1_shape`, `angular_fig_terms`, `angular_fig_heldout`);
+  nothing regenerated. Every number is copied from the generated
+  markdown/JSON beside it; links checked to resolve. Record §7c.10 and
+  the §7c status line point to it.
+- **Audience:** JXP and collaborators who know the ocean-colour problem but
+  did not follow the task logs; it stands alone.
+- **No new questions.** Q33 stays open; 8c waits on it. No state-changing
+  git command was run (read-only `git status`, `git diff` only).

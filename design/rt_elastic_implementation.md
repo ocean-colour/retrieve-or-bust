@@ -2908,7 +2908,8 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 
 *Status: in progress (tasks 1–7, 8a and 8b of 8a–8d done, 2026-11-16; task 7
 is the design discussion, §7c.7; 8a is §7c.8; 8b, whose joint refit fails
-its predictions, is §7c.9). Decisions Q1–Q17 and
+its predictions, is §7c.9; the interim report of 2026-11-18 is §7c.10, and
+8c waits on Q33). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3792,6 +3793,19 @@ cos ψ, the conversion, the switches (bit-identity of the other variants;
 the variant composed from every override), gradients, the closure, the
 D-space pieces, the normal equations, the synthetic recovery, the end-to-end
 miniature run. `test_ztt_pb24.py`'s composition test gains the two switches.
+
+### 7c.10 Task 8bb — the interim report (no code)
+
+`design/ztt_pb24/report_ztt_pb24_interim.md` (2026-11-18, Fable 5.1): the
+state of the ZTT-to-PB24 fit after 8a and 8b, written to stand alone —
+the acceptance rule, the data and conventions, Equation (12) and its
+pieces as MyST math with a term-by-term table of what `"pb24"` replaces,
+the closure-space form of the joint refit, the task 6 headline, 8a's
+H/µd/µ∞ and 8b's D1/D2/refit results with the prediction-versus-outcome
+table, why the Q24 form fails, the Q33 scratch table as "measured, not
+shipped", and Q33's options marked unanswered. Six committed figures reused
+by relative link; every number copied from `baseline_report.md`,
+`fit_metrics.md` and `angular_metrics.md`. No code or number changed.
 
 ## 8. Cross-cutting conventions (as implemented)
 
