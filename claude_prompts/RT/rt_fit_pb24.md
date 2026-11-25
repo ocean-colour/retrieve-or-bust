@@ -478,8 +478,18 @@ Fable 5.2 Log your work.
    (Q22) if the ladder shows the trend matters.
    Use Opus 5.5. Log your work.
 
+9. **Task 9 — Implement a nadir-only ZTT fitted on PB24, "ZTT (PB24_nadir)"**
+   Given the findings in our interim report `design/ztt_pb24/report_ztt_pb24_interim.md`, I have decided to implement a nadir-only ZTT fitted on PB24.  The implementation should be similar to the M7 ZTT("l23") model, but fitted to the PB24 dataset
+   so that we include a larger range of bbp/bb values.  My intent would be to apply
+   this model to satellite data (Rrs) that has already been correct to
+   nadir viewing geometry.  Before we proceed, let us discuss this idea.
+   Consider it and then ask me a series of questions in the `Q&A/ZTT (PB24_nadir)` 
+   section below.  Do not code anything yet.
+   Use Fable. Log your work.
 
 ## Q&A
+
+### ZTT (PB24_nadir)
 
 ### OOM
 
