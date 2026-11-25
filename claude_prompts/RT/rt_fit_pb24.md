@@ -487,6 +487,10 @@ Fable 5.2 Log your work.
    section below.  Do not code anything yet.
    Use Fable. Log your work.
 
+   **9b** -- Implement the nadir-only ZTT fitted on PB24 after reading my responses
+   to the questions in the `Q&A/ZTT (PB24_nadir)` section below.
+   Use Fable. Log your work.
+
 ## Q&A
 
 ### ZTT (PB24_nadir)
@@ -555,7 +559,10 @@ seam, and report θs = 0 as its own first-class row. Tell me which
 correction your satellite Rrs will carry so the report can state the
 matching (θs, H).
 
-**JXP:**
+**JXP:** Ok, I like your Recommendation.  We will be applying this to PACE 
+which uses the usual BRDF corrections (Morel f/Q).  You can confirm by
+inspecting the `l2gen` code in `Oceanography/ocssw`.  Do fit over all window suns 
+at θv = 0. 
 
 **Q35. How far up the ladder?** Each rung is one linear fit on the nadir
 training rows; all would be scored and reported, the question is which
@@ -578,7 +585,7 @@ K_Lu, so the term stays physical (µ∞ and µd already depend on (X, L) in
 TT's own formulation), and the measured spread says the form needs it. If
 you prefer TT's form, (b) + (d) ships and (c) is reported beside it.
 
-**JXP:**
+**JXP:** I wish to keep to TT's form.  Let's stick to (b)
 
 **Q36. Keep the factorisation Ψ_KLu(ψ[, X, L]) / µ∞(X, L), or fit K_Lu/a
 directly?** At nadir only the product enters. (a) Keep TT's two factors:
@@ -591,7 +598,7 @@ but it leaves ZTT's formulation. Recommendation: **(a)**, with the direct
 fit (b) reported once as a diagnostic so we know what the factorisation
 costs. *Prediction:* under 0.2 pp in rrs between them.
 
-**JXP:**
+**JXP:** Go with your Recommendation.
 
 **Q37. Fit Ψ_KLu to `KLu` (physical), or through `rrs` (closure)?** 8b had
 to use closure because PB24 has no off-nadir K_Lu. At nadir both exist.
@@ -603,7 +610,7 @@ Recommendation: **(a)**, with (b) run as a comparison; if (b) beats (a)
 by more than 0.5 pp held out, that is a finding about f_L's form and it
 comes back to you before anything ships.
 
-**JXP:**
+**JXP:**  Let's only do (a)
 
 **Q38. A B_p term?** Your stated reason for PB24 is the wider range of
 particle backscattering (I read "bbp/bb" as covering both the
@@ -617,7 +624,7 @@ B_p bin and on the **B_p-band split** held out (the split that tests
 extrapolation in exactly this variable); add log10 B_p as one more
 modifier of F only if it buys more than 0.5 pp there, and ask you first.
 
-**JXP:**
+**JXP:**  Yes, go with that Recommendation.
 
 **Q39. `rrs` or `Rrs`?** Satellite data are above-water. (a) Fit in
 in-water `rrs` as every ZTT variant so far, and carry `Rrs` through the
@@ -628,7 +635,7 @@ directly from `Rrs`. Recommendation: **(a)**, and score the final variant
 in **both** spaces, with the `Rrs` number named as the one that matters
 for your application.
 
-**JXP:**
+**JXP:**  Go with your Recommendation.
 
 **Q40. The name, the API and off-nadir calls.** Proposed:
 `rrs_ZTT(variant="pb24_nadir")`, constants with provenance in `ztt.py`,
@@ -640,7 +647,7 @@ exceeds a small tolerance (traced values under `jit` cannot be checked);
 (c) raise. Recommendation: **(b)**, plus a `strict=` flag that raises.
 `"l23"`, `"tt2017"` and `"pb24"` stay bit for bit.
 
-**JXP:**
+**JXP:** Use (b)
 
 **Q41. What happens to `"pb24"`, Q33 and 8c/8d?** Task 9 reads to me as
 your answer to Q33: stop pursuing the full-geometry ZTT. Proposed:
@@ -652,7 +659,7 @@ alone) inside task 9; (iii) 8d closes M8 on the nadir variant; (iv) the
 off-nadir problem goes to the O25-form backbone (Q26). Is that right, or
 do you still want 8c run on `"pb24"` for the record?
 
-**JXP:**
+**JXP:**  That is all correct. Do not run 8c 
 
 **Q42. Acceptance, and the default.** Written before the fit, as Q29.
 Proposed gate, nadir, window suns, realisation split held out, all 451
@@ -668,7 +675,7 @@ does `"pb24_nadir"` become `rrs_ZTT`'s default (re-baselining the
 a pass. L23 is nadir-only too, so the default's domain does not shrink,
 and the PB24 fit covers 6× the B_p range and bb/a to 17 instead of 0.1.
 
-**JXP:**
+**JXP:**  Go with your Recommendation.
 
 **Q43. Raman.** PB24 here is `no_R`; satellite Rrs is not. A model fitted
 to elastic runs will under-predict clear-water Rrs in the green–red by
@@ -681,7 +688,8 @@ hybrid/emulator already does this for L23's domain). Recommendation:
 (c) as the first item of the hand-off. How do you intend to treat it in
 the satellite application?
 
-**JXP:**
+**JXP:** We are restricting to elastic.  We will apply inelastic corrections
+separately in the satellite application.
 
 **Q44. Train on PB24 alone, or PB24 + L23?** L23 at nadir overlaps PB24's
 domain with different IOP models, a different sky and (in its elastic
@@ -690,7 +698,7 @@ choices but mixes two skies inside µd and makes L23 no longer an
 independent check. Recommendation: **PB24 alone**, L23 strictly held out
 as the cross-dataset test of Q42.
 
-**JXP:**
+**JXP:** Go with your Recommendation.
 
 ### OOM
 
