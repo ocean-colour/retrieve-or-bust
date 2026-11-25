@@ -491,6 +491,207 @@ Fable 5.2 Log your work.
 
 ### ZTT (PB24_nadir)
 
+*Task 9, Claude Fable 5.2, 2026-11-25. No code, no scratch runs: every
+number below is copied from `baseline_report.md`, `angular_metrics.md` or
+the interim report. Answer inline under each **JXP:** line. Numbering
+continues from Q33.*
+
+#### The idea, read against what M8 has measured
+
+**It is the right cut.** Everything that failed in 8b is off-nadir, and
+everything that makes Eq. (12) hard to calibrate disappears at θv = 0:
+
+- **ψ stays inside TT's domain.** At nadir ψ = 180° − θs_w, so the window
+  suns (0–70°) span ψ = 135.5–180°. The sign change at 110.4° and the
+  ψ < 134° region are never visited.
+- **The conflict that sank the joint refit is gone.** One F(ψ) could not
+  carry both the nadir sun trend (K_Lu/a·µ∞ rising 0.85 → 1.15 over 0–70°)
+  and the off-nadir view shape (§5.4 of the report). With no view shape to
+  fit, ψ and θs are the same variable.
+- **Each term has its own observable.** PB24 gives `mu_d` (→ µd, done in
+  8a, 0.4–1.0% per sun), nadir `KLu` (→ Ψ_KLu/µ∞, a *physical* fit, not a
+  calibration through rrs), and nadir `rrs` (→ f_L by closure, linear).
+  Nothing is degenerate, so no alternating passes are needed.
+- **The ceiling is known: 2.84%** median held out (D2: the measured K_Lu/a
+  and a per-band f_L(λ), 8a's µd; 2.05–3.45% per sun, q90 13%).
+- **The data are small.** 8 suns × 4,000 realisations × 451 bands = 14.4 M
+  training rows (8a's µd fit was the same size): in memory, minutes, no
+  streaming, no OOM policy.
+
+**Where the nadir numbers stand** (held out, window suns, in `rrs`):
+Gordon 6.52%; ZTT (L23 µ∞, FF P_bb) ≈ 4.7% pooled (3.2–5.5% at 0–60°,
+8.9% at 70°); the D2 ceiling 2.84%. So the room is ≈ 4.7 → ≈ 3%.
+
+**What "similar to M7" does and does not give.** M7 refit only µ∞ and
+c(θs′) and kept TT's Ψ_KLu and f_L. The literal PB24 analogue is the 8a
+variant evaluated at nadir, which already exists; I expect it near 4–5%
+(it reads 4.9% at ψ 165–180° over all views) and it still has the second
+pole (f_L > 1 makes D cross zero at high bb/a: the 8a variant reads 155%
+at bb/a 0.59–2). Three things stand between that and the ceiling, each
+measured: (i) TT's Ψ_KLu/µ∞ is 20% above PB24's K_Lu/a at every sun;
+(ii) at fixed sun K_Lu/a·µ∞ has a 16–84% spread of 0.89–1.44, an IOP
+dependence that Ψ(ψ) alone lacks (the same dependence Q24 excluded
+off-nadir); (iii) TT's f_L is calibrated against TT's Ψ_KLu, so fixing
+Ψ_KLu alone *worsens* rrs (the oracle rung, 6.96 → 9.22%) and f_L must be
+refit with it.
+
+**One structural remark.** At nadir cos θv_w = 1, so Eq. (12) sees Ψ_KLu
+and µ∞ only as the product Ψ_KLu/µ∞ = K_Lu/a. µ∞ on its own is not
+identifiable from nadir rrs; what the model needs is K_Lu/a as a function
+of (θs, X, L). Q36 asks whether to keep TT's factorisation.
+
+#### Questions
+
+**Q34. Which sun geometry will the model be applied at?** "Corrected to
+nadir viewing" can mean (a) θv = 0 at the pixel's actual θs, or (b) the
+fully normalised product of the usual BRDF corrections (Morel f/Q, Lee,
+O25), which is θv = 0 **and** θs = 0. Under (b) the model is used at one
+point, ψ = 180°, and the question of the sky follows: the exact-normalised
+convention removes the atmosphere, while PB24's H at θs = 0 is the
+RADTRANX sky (V = 40 km), not zero. Recommendation: fit over all window
+suns at θv = 0 regardless (it costs nothing and covers both uses), ship
+`H_PB24` as the default H behind the existing `Geometry.diffuse_fraction`
+seam, and report θs = 0 as its own first-class row. Tell me which
+correction your satellite Rrs will carry so the report can state the
+matching (θs, H).
+
+**JXP:**
+
+**Q35. How far up the ladder?** Each rung is one linear fit on the nadir
+training rows; all would be scored and reported, the question is which
+one ships as `"pb24_nadir"`.
+- (a) **The literal M7 analogue:** 8a's H, µd, µ∞ with TT's Ψ_KLu and f_L.
+  Nothing new to fit. *Prediction:* 4–5% median, non-physical > 1% (the
+  bb/a pole).
+- (b) **+ Ψ_KLu(ψ) refit to PB24's nadir K_Lu/a, + f_L refit**
+  (FL_AVE(λ) per band × s(ψ), as Q25), Ψ_KLu IOP-independent as TT wrote
+  it. *Prediction:* 3.5–4.5%; the clear-water bins (bb/a < 0.01) remain
+  worst because of the 0.89–1.44 spread.
+- (c) **(b) with Ψ_KLu = 1 + F(ψ)·(1, X, L).** *Prediction:* 3.0–3.5%,
+  within 0.5 pp of the D2 ceiling; K_Lu/a itself to ≤ 5% median |dev|.
+- (d) (c) + the smooth floor on D from 8b (needed by any rung whose f_L
+  exceeds 1).
+
+Recommendation: **(c) + (d)**. The objection to an IOP-dependent Ψ_KLu in
+Q24 was fidelity to TT; at nadir the dependence is fitted to a *measured*
+K_Lu, so the term stays physical (µ∞ and µd already depend on (X, L) in
+TT's own formulation), and the measured spread says the form needs it. If
+you prefer TT's form, (b) + (d) ships and (c) is reported beside it.
+
+**JXP:**
+
+**Q36. Keep the factorisation Ψ_KLu(ψ[, X, L]) / µ∞(X, L), or fit K_Lu/a
+directly?** At nadir only the product enters. (a) Keep TT's two factors:
+µ∞ is 8a's Eq. (8) refit to the eigen product, Ψ_KLu is fitted as
+(K_Lu/a)·µ∞. The terms keep their meaning, 8a's code and constants are
+reused, and Ψ_KLu stays comparable with TT's quartic. (b) Fit
+G(θs, X, L) = K_Lu/a as one function and drop µ∞ from the nadir variant.
+Fewer constants, and µ∞'s ±2–3% B_p residual no longer passes through —
+but it leaves ZTT's formulation. Recommendation: **(a)**, with the direct
+fit (b) reported once as a diagnostic so we know what the factorisation
+costs. *Prediction:* under 0.2 pp in rrs between them.
+
+**JXP:**
+
+**Q37. Fit Ψ_KLu to `KLu` (physical), or through `rrs` (closure)?** 8b had
+to use closure because PB24 has no off-nadir K_Lu. At nadir both exist.
+(a) Sequential: Ψ_KLu from K_Lu/a·µ∞, then f_L by linear closure on rrs
+with Ψ_KLu fixed. Each term is tied to its own observable. (b) Joint
+closure on rrs alone, as 8b: lower rrs residual by construction, but
+Ψ_KLu may drift from the measured K_Lu to absorb f_L's errors.
+Recommendation: **(a)**, with (b) run as a comparison; if (b) beats (a)
+by more than 0.5 pp held out, that is a finding about f_L's form and it
+comes back to you before anything ships.
+
+**JXP:**
+
+**Q38. A B_p term?** Your stated reason for PB24 is the wider range of
+particle backscattering (I read "bbp/bb" as covering both the
+backscattering ratio B_p = bbp/bp, 0.0014–0.043 against L23's
+0.010–0.018, and the particle share bbp/bb = 1 − η_bb; tell me if you
+meant only one). In Eq. (12) B_p enters exactly through P_bb(ψ) and b̃b
+already. What lacks it is µ∞ (Q22: +1.7% to −3.1% across B_p) and now,
+possibly, K_Lu/a. Q22 declined a B term in µ∞. Recommendation: no B term
+in any fitted function at first; report the K_Lu/a and rrs residuals per
+B_p bin and on the **B_p-band split** held out (the split that tests
+extrapolation in exactly this variable); add log10 B_p as one more
+modifier of F only if it buys more than 0.5 pp there, and ask you first.
+
+**JXP:**
+
+**Q39. `rrs` or `Rrs`?** Satellite data are above-water. (a) Fit in
+in-water `rrs` as every ZTT variant so far, and carry `Rrs` through the
+task-4 `FresnelTransfer` (at nadir T(θv)/T(0) = 1, so it is
+Rrs = A₀·rrs/(1 − B·rrs), two numbers); refit or verify A₀, B on the
+nadir training rows and report its own error. (b) Fit the closure target
+directly from `Rrs`. Recommendation: **(a)**, and score the final variant
+in **both** spaces, with the `Rrs` number named as the one that matters
+for your application.
+
+**JXP:**
+
+**Q40. The name, the API and off-nadir calls.** Proposed:
+`rrs_ZTT(variant="pb24_nadir")`, constants with provenance in `ztt.py`,
+fitted by `design/py/fit_ztt_pb24_nadir.py` (`--check`, deterministic),
+outputs under `design/ztt_pb24/nadir_*`. When called with θv ≠ 0 the
+variant has no calibration. Options: (a) evaluate anyway, documented as
+uncalibrated; (b) emit a `DomainWarning` when a concrete `theta_v`
+exceeds a small tolerance (traced values under `jit` cannot be checked);
+(c) raise. Recommendation: **(b)**, plus a `strict=` flag that raises.
+`"l23"`, `"tt2017"` and `"pb24"` stay bit for bit.
+
+**JXP:**
+
+**Q41. What happens to `"pb24"`, Q33 and 8c/8d?** Task 9 reads to me as
+your answer to Q33: stop pursuing the full-geometry ZTT. Proposed:
+(i) Q33 is closed as "ship `"pb24"` as built, opt-in, documented as
+failing its predictions"; (ii) 8c's full ladder and gate are **not run**
+for it (≈ 2 h of compute saved; the interim report stands as its record),
+replaced by a nadir ladder (Q35's rungs, each added alone and removed
+alone) inside task 9; (iii) 8d closes M8 on the nadir variant; (iv) the
+off-nadir problem goes to the O25-form backbone (Q26). Is that right, or
+do you still want 8c run on `"pb24"` for the record?
+
+**JXP:**
+
+**Q42. Acceptance, and the default.** Written before the fit, as Q29.
+Proposed gate, nadir, window suns, realisation split held out, all 451
+bands, in `rrs`: median **below 4.0%** (the current best at nadir is
+≈ 4.7%, the ceiling 2.84%) **and** non-physical < 1% of values **and**
+L23 held-out rRMS at 0°/30°/60° within 0.5 pp of 2.90% (the cross-dataset
+check; L23's sky differs from PB24's, so this run takes TT's H, and if it
+fails the log says whether H or the K_Lu fit is responsible). Reported,
+never gated: `Rrs`, the 80° and 87.75° suns, the B_p-band split, per
+bb/a (to 17), per η_bb, per B_p, per band, per water class. On a pass,
+does `"pb24_nadir"` become `rrs_ZTT`'s default (re-baselining the
+`mode="ztt"` pins, hybrid staying pinned, as Q31)? Recommendation: yes on
+a pass. L23 is nadir-only too, so the default's domain does not shrink,
+and the PB24 fit covers 6× the B_p range and bb/a to 17 instead of 0.1.
+
+**JXP:**
+
+**Q43. Raman.** PB24 here is `no_R`; satellite Rrs is not. A model fitted
+to elastic runs will under-predict clear-water Rrs in the green–red by
+the Raman share (several per cent, more toward the red in the clearest
+waters). Options: (a) out of scope for task 9, named in the hand-off;
+(b) apply an inelastic correction to the data before retrieval; (c) add
+the L23-derived inelastic correction on top of the nadir backbone (the
+hybrid/emulator already does this for L23's domain). Recommendation:
+**(a)** for task 9, so the backbone stays a clean elastic statement, with
+(c) as the first item of the hand-off. How do you intend to treat it in
+the satellite application?
+
+**JXP:**
+
+**Q44. Train on PB24 alone, or PB24 + L23?** L23 at nadir overlaps PB24's
+domain with different IOP models, a different sky and (in its elastic
+runs) depth profiles. A joint fit would hedge against PB24-specific
+choices but mixes two skies inside µd and makes L23 no longer an
+independent check. Recommendation: **PB24 alone**, L23 strictly held out
+as the cross-dataset test of Q42.
+
+**JXP:**
+
 ### OOM
 
 *Task 5b, Claude Fable 5.1, 2026-11-14. (Fable 5.2 is not available to this
@@ -2597,3 +2798,35 @@ Created from `rt_fit_ztt.md` task 8.
   did not follow the task logs; it stands alone.
 - **No new questions.** Q33 stays open; 8c waits on it. No state-changing
   git command was run (read-only `git status`, `git diff` only).
+
+### 2026-11-25 — Task 9: the nadir-only variant, discussion opened (Claude Fable 5.2)
+
+- **No code, no scratch runs, no number changed.** Read: this doc (task 9,
+  Q24, Q33 and its empty answer, the 8a/8b/8bb logs), the interim report
+  in full, `baseline_report.md` (the nadir Ψ_KLu/µ∞-against-K_Lu/a table
+  and the oracle rung), `angular_metrics.md` (D2), the per-θv rows of
+  `baseline_breakdowns.csv`, the M7 summary in the elastic report.
+- **Written:** Q&A/ZTT (PB24_nadir): a reading of the idea against M8's
+  measurements, then **Q34–Q44**, each with a recommendation and, where a
+  fit is implied, a prediction written before any run.
+- **The reading.** At nadir ψ = 135.5–180° over the window suns (inside
+  TT's Ψ_KLu domain), the sun-trend/view-shape conflict of 8b does not
+  exist, and each term has its own observable (`mu_d`, nadir `KLu`, nadir
+  `rrs`), so the fits are sequential and linear on 14.4 M rows. Nadir,
+  held out: Gordon 6.52%, ZTT (L23 µ∞, FF) ≈ 4.7%, D2 ceiling 2.84%. The
+  literal M7 analogue (8a's terms, TT's Ψ_KLu and f_L) already exists and
+  keeps the bb/a pole; reaching the ceiling needs Ψ_KLu refit to the
+  measured K_Lu/a with an (X, L) dependence, f_L refit with it, and the
+  floor. At nadir only Ψ_KLu/µ∞ enters Eq. (12).
+- **Questions:** Q34 the sun geometry and sky of the target satellite
+  product; Q35 which rung ships (recommended: Ψ_KLu = 1 + F(ψ)·(1, X, L),
+  f_L per band, floored); Q36 keep TT's Ψ/µ∞ factorisation; Q37 fit Ψ_KLu
+  to `KLu`, f_L by closure; Q38 no B_p term unless the B_p-band split
+  shows > 0.5 pp; Q39 fit in `rrs`, score in `rrs` and `Rrs`; Q40 name,
+  API and off-nadir behaviour; Q41 whether task 9 closes Q33 and replaces
+  8c; Q42 the gate (nadir median < 4.0%, non-physical < 1%, L23 within
+  0.5 pp of 2.90%) and the default; Q43 Raman; Q44 PB24 alone.
+- **Not verified:** the ≈ 4.7% nadir figure is the interim report's
+  pooled value for the task-6 ZTT; the 8a variant's own nadir-only score
+  is not in any committed file and is predicted (4–5%), not quoted.
+- Record §7c.11 points here. No state-changing git command was run.

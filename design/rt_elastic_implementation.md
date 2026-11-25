@@ -3807,6 +3807,18 @@ shipped", and Q33's options marked unanswered. Six committed figures reused
 by relative link; every number copied from `baseline_report.md`,
 `fit_metrics.md` and `angular_metrics.md`. No code or number changed.
 
+### 7c.11 Task 9 — a nadir-only variant, discussion opened (no code)
+
+2026-11-25 (Fable 5.2). JXP proposes "ZTT (PB24_nadir)": the M7 pattern
+fitted on PB24 at θv = 0 only, for satellite Rrs already corrected to
+nadir. Nothing built or measured. The reading and questions Q34–Q44 are in
+`rt_fit_pb24.md`, Q&A/ZTT (PB24_nadir): at nadir ψ stays within 135.5–180°
+for the window suns, each of µd, Ψ_KLu/µ∞ and f_L has its own PB24
+observable (`mu_d`, nadir `KLu`, nadir `rrs`), and the known numbers are
+Gordon 6.52%, ZTT (L23 µ∞, FF) ≈ 4.7% and the D2 ceiling 2.84% (held out).
+The open choices are the rung to ship (Q35), the gate and default (Q42),
+and whether this closes Q33 and replaces 8c (Q41).
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
