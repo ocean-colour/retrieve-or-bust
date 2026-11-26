@@ -2908,8 +2908,9 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 
 *Status: in progress (tasks 1–7, 8a and 8b of 8a–8d done, 2026-11-16; task 7
 is the design discussion, §7c.7; 8a is §7c.8; 8b, whose joint refit fails
-its predictions, is §7c.9; the interim report of 2026-11-18 is §7c.10, and
-8c waits on Q33). Decisions Q1–Q17 and
+its predictions, is §7c.9; the interim report of 2026-11-18 is §7c.10;
+task 9, the nadir-only variant, is §7c.11–§7c.12: built 2026-11-25, its gate
+fails, Q45 open; 8c is not run, Q41). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3819,6 +3820,43 @@ Gordon 6.52%, ZTT (L23 µ∞, FF) ≈ 4.7% and the D2 ceiling 2.84% (held out).
 The open choices are the rung to ship (Q35), the gate and default (Q42),
 and whether this closes Q33 and replaces 8c (Q41).
 
+### 7c.12 Task 9b as built — "ZTT (PB24_nadir)"; the gate fails
+
+2026-11-25 (Fable 5.2). Decisions Q34–Q44: nadir only, TT's form (an
+IOP-independent Ψ_KLu(ψ), Q35 (b)), TT's factorisation Ψ_KLu/µ∞ (Q36),
+Ψ_KLu fitted to the measured K_Lu and f_L by closure (Q37 (a)), no B_p term
+(Q38), fitted in rrs (Q39), a `DomainWarning` off-nadir (Q40), 8c not run
+(Q41), PB24 alone (Q44).
+
+**Built.** `design/py/fit_ztt_pb24_nadir.py` → `design/ztt_pb24/nadir_*`
+(coefficients, metrics, probes, per-band CSV, three figures); in `ztt.py`
+`rrs_ZTT(variant="pb24_nadir")` with `psi_KLu_pb24_nadir`,
+`f_L_pb24_nadir` and their constants; 8a's H, µd and µ∞ and 8b's floor are
+reused. `conventions.DomainWarning` (moved from `hybrid`, re-exported).
+`robust/tests/test_ztt_pb24_nadir.py` (15 items).
+
+**The fit.** Training side of the realisation split, θv = 0, suns 0–70°,
+451 bands (14.4 M rows, in memory, ~95 s). Ψ_KLu: per sun the geometric mean
+of (KLu/a)·µ∞, then 1 + F(ψ), three terms in u = 1 + cos ψ (worst node
+misfit 0.73%), held flat below ψ = 130°. f_L = FL_AVE(λ)·(s0 + s1 sin ψ) by
+linear closure in D-space with that Ψ_KLu.
+
+**Measured** (held out; `nadir_metrics.md`). Gate (Q42): window median
+**11.00%** (< 4.0% required), non-physical 0%, L23 **11.79%** rRMS
+(≤ 3.40% required): **fail**; the default stays `"l23"` and the variant is
+opt-in. For scale: Gordon 6.52%; 8a's terms with TT's Ψ_KLu and f_L 4.36%
+(1.39% non-physical; 0% floored; L23 3.39%); the D2 ceiling 2.84%.
+Diagnostics, not shipped: Ψ_KLu = 1 + F(ψ)·(1, X, L) 4.81% (L23 8.07%); a
+direct K_Lu/a = N(θs)·Q(X, L) 3.51% (L23 5.94%); the least-squares optimum
+of any IOP-independent Ψ_KLu through rrs 11.03%.
+
+**Why.** PB24's nadir K_Lu/K∞ is not IOP-independent: at θs = 0 it runs
+from 1.00 at bb/a < 0.001 to 0.50 at bb/a > 0.6. One Ψ_KLu(ψ) fitted to all
+of it is 20% low in clear water, where K_Lu is half of Equation (12)'s
+denominator; TT's is right there and wrong in turbid water (the bb/a pole).
+No PB24-calibrated K_Lu, with or without IOP dependence, transfers to L23.
+Q45 asks what the variant should become.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -3989,6 +4027,7 @@ robust/
     test_ztt_l23.py    ✅ M7 34 tests — tasks 3-6 (incl. the acceptance gate)
     test_ztt_pb24.py   ✅ M8 25 tests — task 8a (the PB24 fit, the H table)
     test_ztt_pb24_angular.py ✅ M8 18 tests — task 8b (Ψ_KLu/f_L refit, the floor, D-space gates)
+    test_ztt_pb24_nadir.py   ✅ M8 15 tests — task 9b (the nadir-only fit: probes, gate record, DomainWarning)
     test_pb24_cache.py ✅ M8 24 tests — task 2
     test_pb24.py       ✅ M5; M8 60 tests — task 3 (above-water geometry)
     files/pb24_cache_small.zip ✅ M8 2.2 MB zip, 3 realisations, 4-D at every 10th band
@@ -4002,6 +4041,7 @@ design/py/
   fit_ztt_l23.py             ✅ M7 µ∞ (eigen), µd, closure fits; --check
   fit_ztt_pb24.py            ✅ M8 task 8a H table, µd, µ∞ fitted to PB24 → ztt_pb24/fit_*; --check
   fit_ztt_pb24_angular.py    ✅ M8 task 8b D1, D2, the Ψ_KLu/f_L refit in D-space → ztt_pb24/angular_*; --check
+  fit_ztt_pb24_nadir.py      ✅ M8 task 9b the nadir-only fit (Ψ_KLu from KLu, f_L by closure), ladder, gate → ztt_pb24/nadir_*; --check
   run_ztt_l23.py             ✅ M7 the ladder + acceptance gate
   explore_mu_inf_eigen.py    ✅ M7 exploratory (Q13 evidence), not pipeline
   build_pb24_cache.py        ✅ M8 builds/verifies the PB24 cache; --check, --rebuild-check

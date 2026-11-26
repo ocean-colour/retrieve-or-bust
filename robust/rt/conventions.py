@@ -71,6 +71,7 @@ __all__ = [  # noqa: RUF022  - grouped by role, not alphabetical
     "diffuse_transmittance",
     "TransferLike",
     "FresnelTransfer",
+    "DomainWarning",
     "FRESNEL_A0",
     "FRESNEL_B",
     "FRESNEL_TD_A0",
@@ -1033,6 +1034,17 @@ FRESNEL_PROVENANCE = (
     "linear least squares (float64 normal equations); "
     "design/py/fit_surface_fresnel.py; 2026-11-04"
 )
+
+
+class DomainWarning(UserWarning):
+    """A model was asked for inputs outside the range it was built for.
+
+    Raised by the hybrid when the emulator is asked for inputs outside its
+    training range, and by ``rrs_ZTT(variant="pb24_nadir")`` for an off-nadir
+    view (M8 task 9). Its own category, so a caller can promote it to an error
+    (``warnings.simplefilter("error", DomainWarning)``) in a pipeline that must
+    not silently extrapolate, or silence it once for a study that means to.
+    """
 
 
 def realisation_digest(ids) -> str:

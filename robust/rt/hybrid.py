@@ -92,13 +92,9 @@ _LEARNED_MODES = ("emulator", "hybrid")
 OUT_OF_DOMAIN_POLICIES = ("warn", "ztt")
 
 
-class DomainWarning(UserWarning):
-    """The emulator was asked for inputs outside its training range.
-
-    Its own category, so a caller can promote it to an error
-    (``warnings.simplefilter("error", DomainWarning)``) in a pipeline that must not
-    silently extrapolate, or silence it once for a study that means to.
-    """
+#: Defined in :mod:`robust.rt.conventions` since M8 task 9 (the nadir-only
+#: ZTT variant raises it too); the same class, re-exported here.
+DomainWarning = conventions.DomainWarning
 
 
 def _resolve_emulator(emulator):

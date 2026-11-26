@@ -700,6 +700,57 @@ as the cross-dataset test of Q42.
 
 **JXP:** Go with your Recommendation.
 
+#### Task 9b question — Claude (Fable 5.2), 2026-11-25
+
+**Q45.** The nadir fit as you specified it (Q35 (b), Q37 (a)) is built,
+shipped opt-in as `"pb24_nadir"`, and **fails its gate**: 11.00% median
+held out (criterion < 4.0%), 0% non-physical (passes), L23 11.79% rRMS
+(criterion ≤ 3.40%). It is worse than what it replaces: TT's Ψ_KLu and f_L
+on the same 8a terms read 4.36%, Gordon 6.52%. The cause is measured, not
+inferred: PB24's K_Lu/K∞ at nadir is not IOP-independent. At θs = 0 its
+median (on a 200-realisation scratch sample of the training side) falls
+from 1.00 at bb/a < 0.001 (TT's Ψ_KLu(180°) is 1.02) to 0.85
+at 0.01–0.1, 0.67 at 0.1–0.6 and 0.50 above. A single Ψ_KLu(ψ) fitted to
+all of it lands at 0.80, 20% low in clear water, where the K_Lu term is
+half of Eq. (12)'s denominator and f_L has no lever (b̃b → ½). TT's Ψ_KLu
+is right in clear water and 20–100% high in turbid water, where it
+produces the bb/a pole. Even the least-squares optimum of the form through
+rrs (a free Ψ per sun, a free f_L per sun and band) reads 11.03%: with
+PB24's bb/a range to 17 in the objective, no IOP-independent Ψ_KLu serves
+both ends. Options for what `"pb24_nadir"` should be:
+
+- **(a)** Leave it as built: opt-in, documented as failing, the record of
+  what TT's form does when fitted to the measured K_Lu.
+- **(b)** Redefine it as the literal M7 analogue: 8a's H, µd and µ∞ with
+  **TT's own Ψ_KLu and f_L**, floored (today
+  `rrs_ZTT(variant="pb24", angular_model="tt")`; nothing new to fit).
+  Measured: 4.36% median, 0% non-physical, 3.42% at θs = 0 (the geometry of
+  PACE's f/Q-normalised Rrs; the D2 ceiling there is 3.27%, Gordon 7.57%),
+  3.1–3.6% at θs ≤ 40°, 5.7–6.4% at 50–70°; L23 3.39% with TT's H (inside
+  the 0.5 pp clause by 0.01) and 3.64% with PB24's H table. It misses the
+  4.0% clause, and it is not a model for turbid water: 67% at bb/a
+  0.59–2 and 201% above 2 (Gordon: 16% and 20%), q90 21%.
+- **(c)** Give K_Lu its IOP dependence (reverses Q35). Measured as
+  diagnostics: Ψ_KLu = 1 + F(ψ)·(1, X, L) reads 4.81% on PB24 but **8.07% on
+  L23**; a direct fit K_Lu/a = N(θs)·Q(X, L) reads 3.51% on PB24 (K_Lu/a
+  itself to 1.9%) but **5.94% on L23** (8.2% at 0°, 1.5% at 60°). Neither
+  transfers. A K_Lu calibrated on PB24 with an f_L closed on PB24 does not
+  reproduce L23 at small sun angles, which is a finding about the two
+  datasets (or about Eq. (12) with a measured K_Lu) that should be
+  understood before either ships.
+- **(d)** Stop the ZTT arm for nadir too and take the O25-form backbone
+  (Q26) to PACE.
+
+Recommendation: **(b)**, stated as a clear-to-moderate-water model
+(bb/a < 0.59, which is 95% of PB24's nadir values) with a `DomainWarning`
+above that, and (c)'s L23 discrepancy as the first hand-off item. It is
+the best nadir number we have that also holds on L23, it is TT's
+formulation untouched, and at θs = 0 it is within 0.15 pp of the ceiling.
+If you choose (b): does it also become the default (it fails the 4.0%
+clause, so by Q42 as written it does not)?
+
+**JXP:**
+
 ### OOM
 
 *Task 5b, Claude Fable 5.1, 2026-11-14. (Fable 5.2 is not available to this
@@ -2838,3 +2889,106 @@ Created from `rt_fit_ztt.md` task 8.
   pooled value for the task-6 ZTT; the 8a variant's own nadir-only score
   is not in any committed file and is predicted (4–5%), not quoted.
 - Record §7c.11 points here. No state-changing git command was run.
+
+### 2026-11-25 — Task 9b: the nadir-only fit, built; the gate fails (Claude Fable 5.2)
+
+- **Nothing re-baselined.** `"l23"`, `"tt2017"` and `"pb24"` bit for bit;
+  `DEFAULT_VARIANT` stays `"l23"` (the gate failed, Q42). Additive:
+  `VARIANTS` and `ANGULAR_MODELS` gain `"pb24_nadir"`; `DomainWarning`
+  moves to `conventions` (the hybrid re-exports the same class).
+- **Built.** `design/py/fit_ztt_pb24_nadir.py` (in memory, ~95 s, one
+  process; `--check`, `--quick`, `--dry-run`, `--no-l23`, `--cache-dir`,
+  `--out-dir`) → `design/ztt_pb24/nadir_{coefficients,metrics,probes}.json`,
+  `nadir_metrics.md`, `nadir_per_band.csv`, `nadir_fig_{terms,ladder,
+  breakdowns}.png`. In `ztt.py`: `PSI_KLU_PB24_NADIR_COEFFS` (3 terms in
+  u = 1 + cos ψ), `PSI_KLU_PB24_NADIR_PSI_MIN` (130°; Ψ_KLu flat below),
+  `FL_AVE_PB24_NADIR` (451 values), `FL_S_PB24_NADIR`, `NADIR_TOL_DEG`
+  (0.5°), `psi_KLu_pb24_nadir`, `f_L_pb24_nadir`;
+  `rrs_ZTT(variant="pb24_nadir")` = 8a's H/µd/µ∞ + these + the 8b floor,
+  with a `DomainWarning` when a concrete `theta_v` exceeds the tolerance
+  (Q40 (b)). Tests: `robust/tests/test_ztt_pb24_nadir.py` (15).
+- **The fit, as decided** (Q35 (b), Q36 (a), Q37 (a), Q38, Q44). Training
+  side of the realisation split, θv = 0, suns 0–70°, 451 bands: 14,432,000
+  rows, none dropped. (i) Ψ_KLu: per sun the geometric mean of the measured
+  (KLu/a)·µ∞ (µ∞ 8a's), then 1 + F(ψ) through the eight nodes; order by a
+  rule written before the numbers (smallest count with worst node misfit
+  ≤ 1%): 3 terms, 0.73%. Ψ_KLu = 0.80 at ψ = 180° rising to 1.17 at 135.5°
+  (TT: 1.02 to 1.32). (ii) f_L = FL_AVE(λ)·(s0 + s1 sin ψ) by linear
+  closure on rrs with that Ψ_KLu, rows weighted 1/D*, 12 alternating
+  rounds (last change 0): s = (1.0299, 0.0243), FL_AVE 0.992–1.012.
+  (iii) no B_p term; (iv) PB24 alone.
+- **The gate (Q42), stated plainly: FAIL.** Held out, window suns, rrs:
+  median **11.00%** (< 4.0% required), non-physical 0% (passes), L23
+  held-out rRMS **11.79%** with TT's H (≤ 3.40% required; 11.34% with
+  PB24's H table). Not default; ships opt-in, documented as failing.
+- **Predictions → outcomes.** Rung (a) "4–5%, non-physical > 1%":
+  **confirmed** (4.36%, 1.39%). Rung (b) "3.5–4.5%": **not confirmed**
+  (11.00%; bb/a < 0.01 reads 11–14% where rung (a) reads 1–2%). Rung (c)
+  "3.0–3.5%, K_Lu/a ≤ 5%": **not confirmed** (4.81%, 5.52%). "Factorised
+  and direct K_Lu/a within 0.2 pp": **not confirmed** (4.81% against
+  3.51%). The script's pipeline reproduces task 6's nadir numbers
+  (Gordon 6.52%, L23 variant 3.71/3.77/3.24/3.19% at 0–30°) and 8b's D2
+  ceiling (2.84%) exactly.
+- **The ladder** (held out, window median %, non-physical %): Gordon 6.52,
+  0 · ZTT (L23 µ∞, FF) 4.73, 2.55 · + µd 4.84, 2.55 · + µ∞ = rung (a)
+  4.36, 1.39 · + Ψ_KLu (nadir KLu) **11.53**, 2.06 · + f_L = rung (b)
+  11.00, 0.14 · + floor = "ZTT (PB24_nadir)" 11.00, 0. Removed alone from
+  the final: Ψ_KLu → 6.48, the others 11.2–11.5. The floor moves 0.36% of
+  values. Diagnostics: rung (a) + floor 4.36, 0; TT's Ψ_KLu with f_L refit
+  5.52; rung (c) 4.81; direct K_Lu/a 3.51; D2 ceiling 2.84; the
+  least-squares optimum of TT's form through rrs 11.03.
+- **Why** (measured in scratch on 200 training realisations, then by the
+  script's breakdowns). K_Lu/K∞ at nadir depends on bb/a by a factor of
+  two (θs = 0 medians: 1.00 at
+  bb/a < 0.001, 0.85 at 0.01–0.1, 0.67 at 0.1–0.6, 0.50 above); the
+  16–84% range of the fitted Ψ_KLu/µ∞ over the measured K_Lu/a is
+  0.82–1.24. The average is 20% low in clear water, where K_Lu is half of
+  D and f_L cannot compensate; TT's Ψ_KLu is right there (which is why
+  rung (a) reads 1.4% at bb/a < 0.001) and wrong in turbid water.
+- **Tested and discarded.** After the first look I predicted that weighting
+  the node average by the K_Lu term's share of D would land near TT's
+  value and repair clear water. **Not confirmed**: the weights favour
+  turbid rows (the share is larger there), the nodes fall to 0.70, and rrs
+  reads 15.01%. Reported as a diagnostic; the geometric mean ships.
+- **Reported, never gated.** In Rrs through the shipped downwelling
+  Fresnel transfer: 10.23% (Gordon at θs = 0: 7.37%, the variant 10.76%);
+  the transfer alone is 1.53% at nadir, and a nadir refit of its two
+  numbers (A0 0.5252, B 1.889) would be 0.84% (not shipped). Suns 80° and
+  87.75°: 12.7% and 12.1%. B_p-band split, refit on its training side:
+  11.11% (Gordon 6.18%, rung (a) 4.59%). By B_p, K_Lu/a's median ratio is
+  0.82–1.00 with no monotone trend, so no B_p term is proposed (Q38). Per
+  bb/a, η_bb, B_p, water class and band: `nadir_metrics.md`,
+  `nadir_per_band.csv`.
+- **L23, never fitted** (held-out rRMS %, TT's H): default 2.90; rung (a)
+  3.39 (3.64 with PB24's H); "ZTT (PB24_nadir)" 11.79; rung (c) 8.07;
+  direct K_Lu/a 5.94 (8.15 at 0°, 1.54 at 60°). No PB24-calibrated K_Lu
+  transfers to L23.
+- **Q34, checked in `ocssw`.** `l2gen/brdf.c`: with the f/Q bit
+  (`FOQMOREL`) the correction is `foq0/foq` with `foq0` at
+  (solz, senz, phi) = (0, 0, 0), and the solar Fresnel bit normalises the
+  sun as well, so the corrected Rrs is at θs = 0, θv = 0. The source
+  default is `brdf_opt = 0`; the PACE mission default lives in the OCSSW
+  share tree, which is not in this checkout, so the value PACE uses was
+  not confirmed here. θs = 0 is a first-class column of every table.
+- **Decisions and deviations.** (i) f_L's ψ scaling is TT's two-term
+  Eq. (31), not 8b's three-term one ("keep to TT's form"; the three-term
+  form changes the D-space residual by 0.09 pp). (ii) The floor is part of
+  the variant (my Q35 text said (b) + (d) would ship). (iii) No `strict=`
+  flag (Q40 answer: "(b)"). (iv) The L23 clause is read as pooled held-out
+  rRMS ≤ 2.90 + 0.5. (v) 8c was not run (Q41). (vi) Rung (c), the direct
+  fit and the form optimum are diagnostics I had said would be reported;
+  none ships.
+- **Gate of the build.** `--check`: "identical" (five text files, three
+  PNGs). Probes through `rrs_ZTT(variant="pb24_nadir")` with the H table
+  and the data's H to 1e-12, no data; shipped constants == the JSON; the
+  leak digest is 8a's; the script's composition == `rrs_ZTT` to 1e-12 for
+  the variant, rung (a) and the L23 variant; the alternating f_L solve
+  recovers a synthetic truth to 1e-10; gradients vs FD to 1e-6; the
+  miniature run passes its own `--check`. Suite: `923 passed, 5 skipped` with
+  the data; `env -u OS_COLOR`: `843 passed, 85 skipped`. One existing test
+  that loops over `VARIANTS` (`test_none_diffuse_fraction_is_tts_H_bit_for_bit`)
+  now gives the new variant its PB24 default H and silences its off-nadir
+  warning; 8b's `ANGULAR_MODELS` pin gains the new name. `ruff check` / `format --check`
+  clean on `robust` and `design` (75 files).
+- **Open:** Q45 (what `"pb24_nadir"` should be). Record §7c.12. No
+  state-changing git command was run.

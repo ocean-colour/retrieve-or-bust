@@ -72,6 +72,7 @@ from __future__ import annotations
 
 import functools
 import json
+import warnings
 from pathlib import Path
 
 import jax.numpy as jnp
@@ -169,6 +170,14 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     "psi_KLu_pb24",
     "f_L_pb24",
     "denominator_floor_pb24",
+    # The nadir-only PB24 fit (M8 task 9)
+    "NADIR_TOL_DEG",
+    "PSI_KLU_PB24_NADIR_COEFFS",
+    "PSI_KLU_PB24_NADIR_PSI_MIN",
+    "FL_AVE_PB24_NADIR",
+    "FL_S_PB24_NADIR",
+    "psi_KLu_pb24_nadir",
+    "f_L_pb24_nadir",
 ]
 
 #: Refractive index of seawater used for Snell refraction (paper §2.1). The
@@ -1259,7 +1268,11 @@ MU_INF_L23_CLOSURE_RANGE = (0.4135738177525006, 0.994010053503653)
 #: seam, µd and µ∞ refit to PB24, FF Pbb as ``"l23"``, Ψ_KLu and f_L refit
 #: jointly through PB24's ``rrs`` (:func:`psi_KLu_pb24`, :func:`f_L_pb24`),
 #: and the denominator floor (:func:`denominator_floor_pb24`).
-VARIANTS = ("l23", "tt2017", "pb24")
+#: ``"pb24_nadir"`` (M8 task 9) is "ZTT (PB24_nadir)": the ``"pb24"`` variant's
+#: IOP-side terms with Ψ_KLu fitted to PB24's *measured* nadir ``KLu`` and f_L by
+#: closure on nadir ``rrs`` (:func:`psi_KLu_pb24_nadir`, :func:`f_L_pb24_nadir`).
+#: **Calibrated at θv = 0 only.**
+VARIANTS = ("l23", "tt2017", "pb24", "pb24_nadir")
 #: str: The default of :func:`rrs_ZTT`'s ``variant``.
 DEFAULT_VARIANT = "l23"
 #: µ∞ choices for ``mu_inf_model``. ``"l23_closure"`` is M7 task 5's ceiling.
@@ -1268,7 +1281,8 @@ MU_INF_MODELS = ("l23", "l23_closure", "tt2017", "pb24")
 MU_D_MODELS = ("l23", "tt2017", "pb24")
 #: Ψ_KLu / f_L choices for ``angular_model`` (M8 task 8b): ``"tt"`` is TT's
 #: pair (Equations (4), (6) and (31)); ``"pb24"`` the joint PB24 refit.
-ANGULAR_MODELS = ("tt", "pb24")
+#: ``"pb24_nadir"`` is the nadir-only pair of M8 task 9.
+ANGULAR_MODELS = ("tt", "pb24", "pb24_nadir")
 
 
 def mu_infinity_l23(bb_over_a, eta_bb):
@@ -1812,6 +1826,204 @@ def denominator_floor_pb24(D, lo: float | None = None, width: float | None = Non
     return D + width * jnp.logaddexp(0.0, (lo - D) / width)
 
 
+# --------------------------------- the nadir-only PB24 terms (M8 task 9) --
+#: float: Above-water view zenith (degrees) beyond which
+#: ``rrs_ZTT(variant="pb24_nadir")`` warns
+#: (:class:`robust.rt.conventions.DomainWarning`) when ``geometry.theta_v`` is a
+#: concrete array (``rt_fit_pb24.md`` Q40).
+NADIR_TOL_DEG = 0.5
+
+#: float: The smallest scattering angle (degrees) the nadir Ψ_KLu polynomial
+#: is evaluated at; below it Ψ_KLu is held flat. Nadir viewing reaches
+#: ψ = 131.8° at PB24's largest sun (87.75°), and the fit used 135.5–180°
+#: (suns 0–70°), so anything below this is an off-nadir call the variant has
+#: no calibration for.
+PSI_KLU_PB24_NADIR_PSI_MIN = 130.0
+
+#: **"ZTT (PB24_nadir)", Ψ_KLu** (M8 task 9, ``rt_fit_pb24.md`` Q35 (b), Q36 (a),
+#: Q37 (a); record §7c.12). ``Ψ_KLu(ψ) = 1 + F(ψ)``, ``F`` a polynomial in
+#: ``u = 1 + cos ψ`` (highest order first), IOP-independent as TT wrote it,
+#: fitted by ``design/py/fit_ztt_pb24_nadir.py`` to PB24's **measured** nadir
+#: ``KLu``: per window sun the geometric mean of ``(KLu/a) · µ∞`` (µ∞ the 8a
+#: refit, :func:`mu_infinity_pb24`) over the realisation split's training
+#: rows and all 451 bands, then the polynomial through those eight nodes.
+#: ``design/ztt_pb24/nadir_coefficients.json`` is the source and ``--check``
+#: keeps it honest.
+#:
+#: **Measured, and it fails its gate** (``design/ztt_pb24/nadir_metrics.md``;
+#: held out, suns 0–70°, all bands): Ψ_KLu runs 0.80 at ψ = 180° to 1.17 at
+#: 135.5° (TT's: 1.02 to 1.32) and reproduces PB24's KLu/a to 15.6% (median
+#: |dev|; TT's pair 20.3%), but ``rrs`` reads **11.00% median** where TT's
+#: Ψ_KLu and f_L on the same 8a terms read 4.36% and Gordon 6.52%; on L23 it
+#: reads 11.8% rRMS against the default's 2.90%. The measured K_Lu/K∞ is not
+#: IOP-independent -- at θs = 0 it falls from 1.00 at bb/a < 0.001 (TT's
+#: value) to 0.5 at bb/a > 0.6 -- so its average is 20% low exactly where
+#: ``rrs`` is clearest. The variant is therefore **opt-in and not
+#: recommended**; ``rrs_ZTT(variant="pb24", angular_model="tt")`` (8a's terms,
+#: TT's pair, floored) is the better nadir model today (``rt_fit_pb24.md``
+#: Q45).
+PSI_KLU_PB24_NADIR_COEFFS = (
+    1.6048298222426556,
+    0.8039000600433032,
+    -0.196688728781297,
+)
+
+#: ``f_L,ave(λ)`` of the nadir fit on :data:`FL_AVE_PB24_WAVE` (mean 1 over
+#: 350–800 nm, rounded to 1e-6): per band, by linear closure on PB24's nadir
+#: ``rrs`` with the Ψ_KLu above, 8a's µd and µ∞ and the exact FF Pbb.
+FL_AVE_PB24_NADIR = np.array(
+    [
+        1.011986, 1.011917, 1.011849, 1.011778, 1.011711, 1.011647, 1.011576, 1.011502,
+        1.011430, 1.011360, 1.011295, 1.011229, 1.011172, 1.011106, 1.011039, 1.010971,
+        1.010906, 1.010840, 1.010775, 1.010716, 1.010653, 1.010587, 1.010523, 1.010459,
+        1.010394, 1.010328, 1.010265, 1.010207, 1.010144, 1.010079, 1.010015, 1.009950,
+        1.009884, 1.009817, 1.009750, 1.009685, 1.009625, 1.009560, 1.009495, 1.009431,
+        1.009367, 1.009302, 1.009239, 1.009174, 1.009112, 1.009063, 1.009003, 1.008942,
+        1.008884, 1.008827, 1.008772, 1.008717, 1.008663, 1.008607, 1.008553, 1.008500,
+        1.008446, 1.008386, 1.008327, 1.008272, 1.008215, 1.008157, 1.008100, 1.008043,
+        1.007988, 1.007931, 1.007879, 1.007824, 1.007768, 1.007713, 1.007657, 1.007600,
+        1.007544, 1.007487, 1.007430, 1.007376, 1.007322, 1.007269, 1.007221, 1.007170,
+        1.007120, 1.007069, 1.007019, 1.006969, 1.006919, 1.006869, 1.006820, 1.006776,
+        1.006730, 1.006685, 1.006639, 1.006601, 1.006556, 1.006510, 1.006463, 1.006419,
+        1.006374, 1.006326, 1.006277, 1.006226, 1.006175, 1.006115, 1.006055, 1.005989,
+        1.005924, 1.005857, 1.005796, 1.005729, 1.005664, 1.005597, 1.005531, 1.005467,
+        1.005403, 1.005337, 1.005271, 1.005204, 1.005137, 1.005067, 1.004997, 1.004930,
+        1.004862, 1.004794, 1.004731, 1.004662, 1.004592, 1.004524, 1.004455, 1.004386,
+        1.004318, 1.004249, 1.004180, 1.004112, 1.004044, 1.003976, 1.003908, 1.003841,
+        1.003773, 1.003708, 1.003642, 1.003579, 1.003519, 1.003457, 1.003393, 1.003332,
+        1.003269, 1.003209, 1.003148, 1.003088, 1.003027, 1.002963, 1.002896, 1.002832,
+        1.002765, 1.002699, 1.002632, 1.002570, 1.002507, 1.002447, 1.002386, 1.002325,
+        1.002267, 1.002202, 1.002135, 1.002063, 1.001991, 1.001910, 1.001829, 1.001741,
+        1.001653, 1.001565, 1.001478, 1.001389, 1.001298, 1.001208, 1.001119, 1.001030,
+        1.000942, 1.000854, 1.000767, 1.000680, 1.000593, 1.000507, 1.000420, 1.000337,
+        1.000251, 1.000164, 1.000078, 0.999993, 0.999907, 0.999820, 0.999733, 0.999646,
+        0.999558, 0.999473, 0.999385, 0.999299, 0.999211, 0.999122, 0.999032, 0.998943,
+        0.998855, 0.998761, 0.998666, 0.998568, 0.998471, 0.998372, 0.998272, 0.998172,
+        0.998077, 0.997980, 0.997884, 0.997788, 0.997694, 0.997602, 0.997513, 0.997426,
+        0.997341, 0.997263, 0.997187, 0.997114, 0.997045, 0.996979, 0.996917, 0.996859,
+        0.996803, 0.996753, 0.996705, 0.996661, 0.996617, 0.996580, 0.996546, 0.996514,
+        0.996485, 0.996462, 0.996438, 0.996417, 0.996394, 0.996373, 0.996348, 0.996331,
+        0.996312, 0.996289, 0.996265, 0.996246, 0.996225, 0.996213, 0.996197, 0.996186,
+        0.996175, 0.996182, 0.996191, 0.996150, 0.996113, 0.996105, 0.996100, 0.996083,
+        0.996072, 0.996057, 0.996046, 0.996032, 0.996019, 0.996009, 0.996000, 0.995990,
+        0.995981, 0.995972, 0.995962, 0.995952, 0.995941, 0.995935, 0.995930, 0.995918,
+        0.995904, 0.995890, 0.995875, 0.995861, 0.995847, 0.995836, 0.995824, 0.995805,
+        0.995785, 0.995775, 0.995765, 0.995750, 0.995734, 0.995717, 0.995700, 0.995684,
+        0.995667, 0.995646, 0.995623, 0.995611, 0.995599, 0.995581, 0.995565, 0.995549,
+        0.995536, 0.995531, 0.995532, 0.995534, 0.995545, 0.995583, 0.995633, 0.995694,
+        0.995767, 0.995856, 0.995956, 0.996074, 0.996198, 0.996338, 0.996484, 0.996614,
+        0.996748, 0.996875, 0.997001, 0.997117, 0.997227, 0.997329, 0.997422, 0.997498,
+        0.997562, 0.997621, 0.997666, 0.997686, 0.997689, 0.997680, 0.997652, 0.997619,
+        0.997567, 0.997481, 0.997375, 0.997263, 0.997131, 0.996977, 0.996804, 0.996613,
+        0.996404, 0.996179, 0.995938, 0.995688, 0.995425, 0.995151, 0.994867, 0.994583,
+        0.994297, 0.994016, 0.993742, 0.993472, 0.993214, 0.992963, 0.992730, 0.992547,
+        0.992383, 0.992241, 0.992116, 0.992014, 0.991925, 0.991846, 0.991775, 0.991748,
+        0.991735, 0.991721, 0.991715, 0.991730, 0.991750, 0.991804, 0.991862, 0.991940,
+        0.992025, 0.992154, 0.992291, 0.992401, 0.992510, 0.992639, 0.992765, 0.992943,
+        0.993123, 0.993292, 0.993458, 0.993788, 0.994119, 0.994234, 0.994356, 0.994486,
+        0.994613, 0.994720, 0.994826, 0.994902, 0.994985, 0.995068, 0.995151, 0.995188,
+        0.995225, 0.995261, 0.995305, 0.995330, 0.995356, 0.995358, 0.995361, 0.995367,
+        0.995373, 0.995369, 0.995361, 0.995355, 0.995351, 0.995332, 0.995315, 0.995289,
+        0.995271, 0.995247, 0.995220, 0.995186, 0.995152, 0.995123, 0.995089, 0.995057,
+        0.995032, 0.994941, 0.994854, 0.994772, 0.994691, 0.994630, 0.994569, 0.994504,
+        0.994437, 0.994360, 0.994274, 0.994170, 0.994070, 0.993960, 0.993855, 0.993754,
+        0.993652, 0.993550, 0.993448, 0.993361, 0.993277, 0.993212, 0.993146, 0.993077,
+        0.993009, 0.992936, 0.992864, 0.992804, 0.992750, 0.992736, 0.992719, 0.992690,
+        0.992680, 0.992661, 0.992683,
+    ]
+)  # fmt: skip
+
+#: ``(s0, s1)`` of TT's Equation (31) scaling ``s(ψ) = s0 + s1 sin ψ``, refit
+#: with :data:`FL_AVE_PB24_NADIR` (TT: 1.0405, 0.07762).
+FL_S_PB24_NADIR = (1.0298524509404359, 0.024252437303698925)
+
+
+def psi_KLu_pb24_nadir(
+    psi_deg: Float[Array, "..."], coeffs=None
+) -> Float[Array, "..."]:
+    """``Ψ_KLu(ψ) = 1 + F(ψ)`` of the nadir-only PB24 fit (M8 task 9).
+
+    A measured K_Lu/K∞: fitted to PB24's nadir ``KLu`` at ψ = 180° − θs_w.
+    Held flat below :data:`PSI_KLU_PB24_NADIR_PSI_MIN`, where no nadir
+    geometry reaches and the polynomial would extrapolate.
+
+    Parameters
+    ----------
+    psi_deg : Array
+        In-water scattering angle (degrees).
+    coeffs : sequence of float, optional
+        Polynomial in ``u = 1 + cos ψ``, highest order first; default
+        :data:`PSI_KLU_PB24_NADIR_COEFFS`.
+
+    Returns
+    -------
+    Array
+        ``Ψ_KLu``, dimensionless.
+    """
+    c = PSI_KLU_PB24_NADIR_COEFFS if coeffs is None else coeffs
+    u = 1.0 + jnp.cos(jnp.deg2rad(jnp.asarray(psi_deg)))
+    u_max = 1.0 + np.cos(np.deg2rad(PSI_KLU_PB24_NADIR_PSI_MIN))
+    u = jnp.minimum(u, u_max)
+    return 1.0 + jnp.polyval(jnp.asarray(c, dtype=u.dtype), u)
+
+
+def f_L_pb24_nadir(
+    psi_deg,
+    wave: Float[Array, " wave"] | None = None,
+    *,
+    fl_ave=None,
+    fl_wave=None,
+    s=None,
+):
+    """``f_L(ψ, λ) = f_L,ave(λ) [s0 + s1 sin ψ]`` of the nadir-only PB24 fit.
+
+    TT's Equation (31) form with both factors refit (M8 task 9).
+
+    Parameters
+    ----------
+    psi_deg : Array
+        In-water scattering angle (degrees).
+    wave : Array, optional
+        Wavelengths (nm); defaults to the canonical grid. Linear interpolation
+        on :data:`FL_AVE_PB24_WAVE`, flat outside 350–800 nm.
+    fl_ave, fl_wave, s : optional
+        Override the shipped spectral shape (on ``fl_wave``) and ``(s0, s1)``;
+        the fit script evaluates its candidates this way.
+
+    Returns
+    -------
+    Array
+        ``f_L``, dimensionless, broadcasting ψ against λ.
+    """
+    s0, s1 = FL_S_PB24_NADIR if s is None else s
+    return f_L_pb24(
+        psi_deg,
+        wave,
+        fl_ave=FL_AVE_PB24_NADIR if fl_ave is None else fl_ave,
+        fl_wave=fl_wave,
+        s=(s0, s1, 0.0),
+    )
+
+
+def _warn_if_off_nadir(theta_v) -> None:
+    """:class:`~robust.rt.conventions.DomainWarning` when a *concrete*
+    ``theta_v`` exceeds :data:`NADIR_TOL_DEG` (traced values cannot be
+    inspected and pass silently)."""
+    import jax
+
+    if isinstance(theta_v, jax.core.Tracer):
+        return
+    worst = float(np.max(np.abs(np.asarray(theta_v))))
+    if worst > NADIR_TOL_DEG:
+        warnings.warn(
+            f'rrs_ZTT(variant="pb24_nadir") is calibrated at nadir only; '
+            f"geometry.theta_v reaches {worst:g}° (tolerance {NADIR_TOL_DEG:g}°). "
+            "Off-nadir it is uncalibrated.",
+            conventions.DomainWarning,
+            stacklevel=3,
+        )
+
+
 def _choose(name, value, allowed):
     """Validate a string option, raising with the allowed set."""
     if value not in allowed:
@@ -1898,7 +2110,7 @@ def rrs_ZTT(
         path back to the model exactly as published in 2018 ("ZTT 2018").
     visibility_km : float, optional
         Horizontal visibility V (km).
-    variant : {"l23", "tt2017", "pb24"}, optional
+    variant : {"l23", "tt2017", "pb24", "pb24_nadir"}, optional
         **M7.** Which backbone (:data:`VARIANTS`). ``"l23"``, the default, is
         "ZTT (L23 µ∞)": µ∞ and µd refit to L23 (:func:`mu_infinity_l23`,
         :func:`mu_d_l23`), and L23's two-component FF phase function wherever
@@ -1913,6 +2125,12 @@ def rrs_ZTT(
         the denominator floor (:func:`denominator_floor_pb24`). **Off-nadir,
         that Ψ_KLu is a calibration through rrs, physical only at nadir**
         (PB24 measures ``KLu`` there alone).
+        ``"pb24_nadir"`` (**M8 task 9**) is "ZTT (PB24_nadir)": the same
+        IOP-side terms, Ψ_KLu fitted to PB24's measured nadir ``KLu`` and f_L
+        by closure on nadir ``rrs`` (:func:`psi_KLu_pb24_nadir`,
+        :func:`f_L_pb24_nadir`), floored. **Nadir viewing only**: a concrete
+        ``geometry.theta_v`` beyond :data:`NADIR_TOL_DEG` raises a
+        :class:`~robust.rt.conventions.DomainWarning`.
     mu_inf_model : {"l23", "l23_closure", "tt2017", "pb24"}, optional
         Override the variant's µ∞ alone (:data:`MU_INF_MODELS`).
         ``"l23_closure"`` (M7 task 5) is the closure fit -- a ceiling, not
@@ -1921,13 +2139,14 @@ def rrs_ZTT(
     mu_d_model : {"l23", "tt2017", "pb24"}, optional
         Override the variant's µd alone (:data:`MU_D_MODELS`). The Pbb choice
         has its own override, ``P_bb``.
-    angular_model : {"tt", "pb24"}, optional
+    angular_model : {"tt", "pb24", "pb24_nadir"}, optional
         Override the variant's Ψ_KLu and f_L pair alone
-        (:data:`ANGULAR_MODELS`; ``"pb24"`` for the ``"pb24"`` variant,
-        ``"tt"`` otherwise). M8 task 8c's ladder toggles it.
+        (:data:`ANGULAR_MODELS`; the variant's own for the two PB24 variants,
+        ``"tt"`` otherwise).
     floor : bool, optional
         Apply :func:`denominator_floor_pb24` to Equation (12)'s denominator.
-        Default: the variant's (``True`` for ``"pb24"``, ``False`` otherwise,
+        Default: the variant's (``True`` for ``"pb24"`` and ``"pb24_nadir"``,
+        ``False`` otherwise,
         which leaves ``"l23"`` and ``"tt2017"`` bit for bit).
     theta_v_in_water : bool, optional
         Read ``geometry.theta_v`` as in-water (no refraction); only for PB24's
@@ -1950,20 +2169,26 @@ def rrs_ZTT(
             "(Equation (8) coefficients m1..m16)."
         )
     _choose("variant", variant, VARIANTS)
+    is_pb24 = variant in ("pb24", "pb24_nadir")
+    iop_side = "pb24" if is_pb24 else variant
     mu_inf_model = _choose(
-        "mu_inf_model", variant if mu_inf_model is None else mu_inf_model, MU_INF_MODELS
+        "mu_inf_model",
+        iop_side if mu_inf_model is None else mu_inf_model,
+        MU_INF_MODELS,
     )
     mu_d_model = _choose(
-        "mu_d_model", variant if mu_d_model is None else mu_d_model, MU_D_MODELS
+        "mu_d_model", iop_side if mu_d_model is None else mu_d_model, MU_D_MODELS
     )
-    variant_angular = "pb24" if variant == "pb24" else "tt"
+    variant_angular = variant if is_pb24 else "tt"
+    if variant == "pb24_nadir":
+        _warn_if_off_nadir(geometry.theta_v)
     angular_model = _choose(
         "angular_model",
         variant_angular if angular_model is None else angular_model,
         ANGULAR_MODELS,
     )
     if floor is None:
-        floor = variant == "pb24"
+        floor = is_pb24
 
     _, theta_s_air, theta_v_paper, psi = geometry_to_paper_angles(
         geometry, theta_v_in_water=theta_v_in_water
@@ -2003,7 +2228,7 @@ def rrs_ZTT(
     # falls back to Sullivan's fixed shape unless the M5 fields are set, or (the
     # L23 variant only) the FF mixture of M7 task 2 is present.
     P_bb_value = (
-        P_bb_from_phase(phase_params, psi_b, use_ff=variant in ("l23", "pb24"))
+        P_bb_from_phase(phase_params, psi_b, use_ff=variant != "tt2017")
         if P_bb is None
         else P_bb
     )
@@ -2012,6 +2237,8 @@ def rrs_ZTT(
 
     if angular_model == "pb24":
         psi_term, fl_term = psi_KLu_pb24(psi_b), f_L_pb24(psi_b, wave)
+    elif angular_model == "pb24_nadir":
+        psi_term, fl_term = psi_KLu_pb24_nadir(psi_b), f_L_pb24_nadir(psi_b, wave)
     else:
         psi_term, fl_term = psi_KLu(psi_b), f_L(psi_b, wave)
     denominator = (

@@ -241,7 +241,7 @@ def test_l23_and_tt2017_are_untouched_by_the_new_switches(jax_x64):
         assert np.all(
             np.asarray(Z.rrs_ZTT(*args, variant=variant, angular_model="pb24")) != base
         )
-    assert Z.ANGULAR_MODELS == ("tt", "pb24")
+    assert Z.ANGULAR_MODELS == ("tt", "pb24", "pb24_nadir")
     with pytest.raises(ValueError, match="angular_model"):
         Z.rrs_ZTT(*args, angular_model="nope")
 
