@@ -4,11 +4,14 @@ Tests for the nadir-only PB24 fit of ZTT (M8 task 9, ``rt_fit_pb24.md`` Q34–Q4
 - The committed fit (``design/ztt_pb24/nadir_*.json``) is re-evaluated through
   ``rrs_ZTT(variant="pb24_nadir")`` with no dataset; the shipped constants
   equal the committed fit; the leak guard is 8a's digest.
-- The committed metrics record the gate's outcome (it **fails**), so the
-  default variant is still ``"l23"``.
+- Since task 9c (Q45) the variant is 8a's terms with TT's Ψ_KLu and f_L,
+  floored, and is ``rrs_ZTT``'s default; the measured-K_Lu fit of task 9b is
+  a record behind ``angular_model="pb24_klu"``. The committed metrics record
+  the gate (the median clause is missed) and the decision.
 - The variant composes from its overrides, leaves the other variants bit for
-  bit, warns (``DomainWarning``) off-nadir on concrete angles only, holds
-  Ψ_KLu flat below its ψ range, and is differentiable.
+  bit, warns (``DomainWarning``) off-nadir and above its bb/a limit on
+  concrete inputs only, and is differentiable; the record's Ψ_KLu is flat
+  below its ψ range.
 - The script's pieces: the Legendre → u conversion, the f_L alternating solve
   against a synthetic truth, its composition against ``rrs_ZTT``; and an end to
   end run with ``--check`` on the committed cache miniature.
@@ -112,49 +115,89 @@ def test_shipped_constants_match_the_committed_fit(fit):
 def test_probes_reproduce_through_rrs_ztt(fit, jax_x64):
     """**Gate**: the committed numbers come back through ``rrs_ZTT`` with the
     shipped constants -- with the H table and with the data's H supplied -- to
-    float64 rounding, with no dataset."""
+    float64 rounding, with no dataset: the variant (TT's pair, floored) and,
+    beside it, the measured-K_Lu fit through ``angular_model="pb24_klu"``."""
     _, probes, _ = fit
     assert len(probes) == 12
     for p in probes:
-        for with_H in (False, True):
-            args = probe_containers(p, with_H)
-            rrs = float(Z.rrs_ZTT(*args, variant="pb24_nadir")[0])
-            assert rrs == pytest.approx(p["rrs_variant"], rel=1e-12)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", C.DomainWarning)  # probes span every bb/a
+            for with_H in (False, True):
+                args = probe_containers(p, with_H)
+                rrs = float(Z.rrs_ZTT(*args, variant="pb24_nadir")[0])
+                assert rrs == pytest.approx(p["rrs_variant"], rel=1e-12)
+                assert rrs == float(Z.rrs_ZTT(*args)[0])  # it is the default
+                klu = Z.rrs_ZTT(*args, variant="pb24_nadir", angular_model="pb24_klu")
+                assert float(klu[0]) == pytest.approx(p["rrs_klu_fit"], rel=1e-12)
         psi = jnp.asarray(p["psi"])
+        assert float(Z.psi_KLu(psi)) == pytest.approx(p["psi_KLu"], rel=1e-12)
+        assert float(Z.f_L(psi, args[3])[0]) == pytest.approx(p["f_L"], rel=1e-12)
         assert float(Z.psi_KLu_pb24_nadir(psi)) == pytest.approx(
-            p["psi_KLu"], rel=1e-12
+            p["psi_KLu_klu_fit"], rel=1e-12
         )
         assert float(Z.f_L_pb24_nadir(psi, args[3])[0]) == pytest.approx(
-            p["f_L"], rel=1e-12
+            p["f_L_klu_fit"], rel=1e-12
         )
         assert float(Z.denominator_floor_pb24(p["D_no_floor"])) == pytest.approx(
             p["D_floored"], rel=1e-12
         )
+        assert p["bb_over_a"] == pytest.approx(
+            (p["bb_w"] + p["bb_p"]) / p["a"], rel=1e-12
+        )
         assert p["rrs_PB24"] > 0
 
 
-def test_metrics_record_the_gate_and_the_default_follows_it(fit):
-    """The acceptance gate was written before the fit (Q42) and its outcome
-    is in the committed metrics. It fails, so ``"pb24_nadir"`` is opt-in and
-    the default variant has not moved."""
-    _, _, m = fit
+def test_metrics_record_the_gate_and_the_decision(fit):
+    """The acceptance gate was written before the fit (Q42) and its outcome is
+    in the committed metrics. The variant as redefined by Q45 passes the
+    non-physical and L23 clauses and misses the 4.0% median clause; it is the
+    default by JXP's decision (Q45), which the metrics also record. The
+    measured-K_Lu fit of task 9b, which failed outright, is kept beside it."""
+    c, _, m = fit
     g = m["gate"]
     final = m["heldout_rrs"][FINAL]["window"]
     assert g["median_abs"] == final["median_abs"]
     assert g["median_pass"] == (final["median_abs"] < g["median_below"] == 0.04)
+    assert g["median_pass"] is False
     assert g["nonphysical_pass"] is True and final["nonphysical_fraction"] == 0.0
-    assert g["l23_pass"] == (
-        g["l23_heldout_rrms"] <= g["l23_reference"] + g["l23_tolerance_pp"]
+    assert g["l23_pass"] is True
+    assert g["l23_heldout_rrms"] <= g["l23_reference"] + g["l23_tolerance_pp"]
+    assert g["pass"] is False and "Q45" in g["default_by_decision"]
+    assert Z.DEFAULT_VARIANT == "pb24_nadir"
+    assert c["variant_pb24_nadir"] == {
+        "mu_d": "pb24 (8a)",
+        "mu_inf": "pb24 (8a)",
+        "angular_model": "tt",
+        "floor": True,
+        "bb_over_a_max": Z.NADIR_BB_OVER_A_MAX,
+        "theta_v_tol_deg": Z.NADIR_TOL_DEG,
+    }
+    # The numbers the docstrings and the report quote.
+    hs = m["heldout_rrs"]
+    pct = lambda v: 100 * v  # noqa: E731
+    assert pct(hs["standard Gordon"]["window"]["median_abs"]) == pytest.approx(
+        6.52, abs=0.005
     )
-    assert g["pass"] == (g["median_pass"] and g["nonphysical_pass"] and g["l23_pass"])
-    assert g["pass"] is False
-    assert Z.DEFAULT_VARIANT == "l23"
-    # The numbers the docstrings quote.
-    gordon = m["heldout_rrs"]["standard Gordon"]["window"]["median_abs"]
-    assert 100 * gordon == pytest.approx(6.52, abs=0.005)
-    assert 100 * final["median_abs"] == pytest.approx(11.00, abs=0.005)
+    assert pct(hs["ZTT (L23 µ∞), PB24 FF Pbb"]["window"]["median_abs"]) == (
+        pytest.approx(4.73, abs=0.005)
+    )
+    assert pct(final["median_abs"]) == pytest.approx(4.36, abs=0.005)
+    assert pct(hs[FINAL]["in_domain"]["median_abs"]) == pytest.approx(4.03, abs=0.005)
+    assert pct(hs[FINAL]["in_domain"]["share_of_window"]) == pytest.approx(
+        95.4, abs=0.05
+    )
+    assert pct(hs[FINAL]["per_theta_s"]["0"]["median_abs"]) == pytest.approx(
+        3.42, abs=0.005
+    )
+    assert g["l23_heldout_rrms"] == pytest.approx(3.39, abs=0.005)
+    assert pct(g["klu_fit_record"]["median_abs"]) == pytest.approx(11.00, abs=0.005)
+    assert g["klu_fit_record"]["l23_heldout_rrms"] == pytest.approx(11.79, abs=0.005)
     d2 = m["diagnostics"]["D2 ceiling: measured KLu/a, per-band f_L(λ), 8a's µd"]
-    assert 100 * d2["window"]["median_abs"] == pytest.approx(2.84, abs=0.005)
+    assert pct(d2["window"]["median_abs"]) == pytest.approx(2.84, abs=0.005)
+    # In the bins beyond the domain the variant is far worse than Gordon.
+    for key in ("bb/a[0.5946, 2)", "bb/a[2, inf)"):
+        assert hs[FINAL]["groups"][key]["median_abs"] > 0.5
+        assert hs["standard Gordon"]["groups"][key]["median_abs"] < 0.25
 
 
 def test_fitted_psi_klu_meets_its_nodes(fit, jax_x64):
@@ -172,56 +215,72 @@ def test_fitted_psi_klu_meets_its_nodes(fit, jax_x64):
 
 
 # ------------------------------------------------------- the variant's API --
-def test_variant_composes_and_leaves_the_others_alone(jax_x64):
+def test_variant_composes_and_is_the_default(jax_x64):
     args = fixture_case(jnp.float64, 0.15, 0.003, 0.0126, 0.4, 30.0, theta_v=0.0)
     assert Z.VARIANTS == ("l23", "tt2017", "pb24", "pb24_nadir")
-    assert Z.ANGULAR_MODELS == ("tt", "pb24", "pb24_nadir")
+    assert Z.ANGULAR_MODELS == ("tt", "pb24", "pb24_klu")
+    assert Z.DEFAULT_VARIANT == "pb24_nadir"
     whole = np.asarray(Z.rrs_ZTT(*args, variant="pb24_nadir"))
+    np.testing.assert_array_equal(whole, np.asarray(Z.rrs_ZTT(*args)))
     composed = np.asarray(
         Z.rrs_ZTT(
             *args,
             variant="l23",
             mu_inf_model="pb24",
             mu_d_model="pb24",
-            angular_model="pb24_nadir",
+            angular_model="tt",
             floor=True,
         )
     )
     np.testing.assert_array_equal(whole, composed)
-    from_pb24 = np.asarray(Z.rrs_ZTT(*args, variant="pb24", angular_model="pb24_nadir"))
+    from_pb24 = np.asarray(Z.rrs_ZTT(*args, variant="pb24", angular_model="tt"))
     np.testing.assert_array_equal(whole, from_pb24)
+    klu = np.asarray(Z.rrs_ZTT(*args, variant="pb24_nadir", angular_model="pb24_klu"))
     for other in ("l23", "tt2017", "pb24"):
         assert np.all(whole != np.asarray(Z.rrs_ZTT(*args, variant=other)))
+    assert np.all(whole != klu)
     assert np.all(np.isfinite(whole)) and np.all(whole > 0)
+    # Here the floor is invisible (D is far above it): TT's pair on 8a's terms.
+    np.testing.assert_array_equal(
+        whole, np.asarray(Z.rrs_ZTT(*args, variant="pb24_nadir", floor=False))
+    )
 
 
-def test_off_nadir_warns_on_concrete_angles_only(jax_x64):
-    """Q40 (b): a ``DomainWarning`` beyond ``NADIR_TOL_DEG`` when ``theta_v``
-    is concrete; silent at nadir, under ``jit`` and for the other variants."""
+def test_domain_warnings_fire_on_concrete_inputs_only(jax_x64):
+    """Q40 (b) and Q45: a ``DomainWarning`` when a concrete ``theta_v`` exceeds
+    ``NADIR_TOL_DEG`` or a concrete bb/a exceeds ``NADIR_BB_OVER_A_MAX``;
+    silent inside both, under ``jit``, and for the other variants."""
     assert H.DomainWarning is C.DomainWarning
     nadir = fixture_case(jnp.float64, 0.15, 0.003, 0.0126, 0.4, 30.0, theta_v=0.0)
     off = fixture_case(jnp.float64, 0.15, 0.003, 0.0126, 0.4, 30.0, theta_v=20.0)
+    turbid = fixture_case(jnp.float64, 0.1, 0.08, 0.02, 0.4, 30.0, theta_v=0.0)
+    assert float(jnp.max(turbid[0].bb / turbid[0].a)) > Z.NADIR_BB_OVER_A_MAX
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        Z.rrs_ZTT(*nadir, variant="pb24_nadir")
+        Z.rrs_ZTT(*nadir)
         within = Geometry(
             theta_s=nadir[2].theta_s,
             theta_v=jnp.asarray(Z.NADIR_TOL_DEG),
             dphi=nadir[2].dphi,
         )
-        Z.rrs_ZTT(nadir[0], nadir[1], within, nadir[3], variant="pb24_nadir")
-        Z.rrs_ZTT(*off, variant="pb24")
-        Z.rrs_ZTT(*off)
+        Z.rrs_ZTT(nadir[0], nadir[1], within, nadir[3])
+        for other in ("l23", "tt2017", "pb24"):
+            Z.rrs_ZTT(*off, variant=other)
+            Z.rrs_ZTT(*turbid, variant=other)
 
         @jax.jit
-        def traced(theta_v):
+        def traced(theta_v, a):
             g = Geometry(theta_s=off[2].theta_s, theta_v=theta_v, dphi=off[2].dphi)
-            return Z.rrs_ZTT(off[0], off[1], g, off[3], variant="pb24_nadir")
+            iops = IOPs(a=a, bb_w=turbid[0].bb_w, bb_p=turbid[0].bb_p)
+            return Z.rrs_ZTT(iops, off[1], g, off[3])
 
-        assert np.all(np.isfinite(np.asarray(traced(jnp.asarray(20.0)))))
+        assert np.all(np.isfinite(np.asarray(traced(jnp.asarray(20.0), turbid[0].a))))
     with pytest.warns(C.DomainWarning, match="calibrated at nadir only"):
-        out = Z.rrs_ZTT(*off, variant="pb24_nadir")
+        out = Z.rrs_ZTT(*off)
     assert np.all(np.isfinite(np.asarray(out)))
+    with pytest.warns(C.DomainWarning, match="clear-to-moderate-water"):
+        out = Z.rrs_ZTT(*turbid, variant="pb24_nadir")
+    assert np.all(np.isfinite(np.asarray(out))) and np.all(np.asarray(out) > 0)
 
 
 def test_psi_klu_is_flat_below_its_range(jax_x64):
@@ -254,7 +313,7 @@ def test_variant_gradient_matches_finite_differences(jax_x64, name, step):
 
     def scalar(value):
         p = dict(base, **{name: value})
-        return jnp.sum(Z.rrs_ZTT(*fixture_case(jnp.float64, **p), variant="pb24_nadir"))
+        return jnp.sum(Z.rrs_ZTT(*fixture_case(jnp.float64, **p)))
 
     x0 = jnp.asarray(base[name], dtype=jnp.float64)
     h = jnp.asarray(step, dtype=jnp.float64)
@@ -344,20 +403,16 @@ def test_script_composition_equals_rrs_ztt(script, fit, jax_x64):
     )
     pc = script.pieces(iops, phase, geometry, wave, Hs)
     mine, _ = script.variant_rrs(pc, model)
-    shipped = np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave, variant="pb24_nadir"))
+    shipped = np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave))
     np.testing.assert_allclose(mine, shipped, rtol=1e-12)
-    rung_a, _ = script.variant_rrs(pc, model, ("pb24", "pb24", "tt", "tt", False))
+    assert script.SPEC_FINAL == ("pb24", "pb24", "tt", "tt", True)
+    klu, _ = script.variant_rrs(pc, model, script.SPEC_KLU)
     np.testing.assert_allclose(
-        rung_a,
-        np.asarray(
-            Z.rrs_ZTT(
-                iops, phase, geometry, wave, variant="pb24",
-                angular_model="tt", floor=False,
-            )
-        ),
+        klu,
+        np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave, angular_model="pb24_klu")),
         rtol=1e-12,
-    )  # fmt: skip
-    base, _ = script.variant_rrs(pc, model, ("l23", "l23", "tt", "tt", False))
+    )
+    base, _ = script.variant_rrs(pc, model, script.SPEC_BASE)
     np.testing.assert_allclose(
         base,
         np.asarray(Z.rrs_ZTT(iops, phase, geometry, wave, variant="l23")),

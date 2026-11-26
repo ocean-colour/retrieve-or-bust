@@ -312,7 +312,7 @@ def rrs_forward(
         heads = _resolve_corrections(corrections)
 
     if mode == "ztt":
-        # The backbone alone: rrs_ZTT's default variant ("l23" since M7 task 4).
+        # The backbone alone: rrs_ZTT's default variant ("pb24_nadir" since M8 9c).
         rrs_ztt = _ztt.rrs_ZTT(iops, phase_params, geometry, wave)
         return _apply_inelastic(rrs_ztt, iops, geometry, wave, inelastic, heads)
 

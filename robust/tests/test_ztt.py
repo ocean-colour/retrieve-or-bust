@@ -326,6 +326,11 @@ def test_gradient_matches_finite_differences(jax_x64, name, step):
             Geometry.nadir(p["theta_s"]),
             wave,
             P_bb=P_BB_NOMINAL,
+            # Pinned to "l23" at M8 task 9c: the new default's H is a table,
+            # piecewise linear in sec θs with a node at 30°, where a central
+            # difference straddles the kink (test_ztt_pb24_nadir covers it
+            # off the nodes).
+            variant="l23",
         )
         return jnp.sum(rrs)
 
@@ -463,7 +468,7 @@ def test_l23_variant_zenith_trend_on_real_scenes():
     n = int((batch.zenith == 0).sum())
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
     truth = np.asarray(C.Rrs_to_rrs(batch.Rrs)).reshape(3, n, -1)
-    model = np.asarray(Z.rrs_ZTT(*args)).reshape(3, n, -1)
+    model = np.asarray(Z.rrs_ZTT(*args, variant="l23")).reshape(3, n, -1)
     r30, r60 = (float(np.median(model[k] / model[0])) for k in (1, 2))
     assert 1.0 > r30 > r60
     assert 0.950 < r30 < 0.968
@@ -919,14 +924,16 @@ def _nadir_reference_inputs(ref):
 
 def _nadir_outputs(ref):
     hybrid, iops, phase, geometry, wave = _nadir_reference_inputs(ref)
-    rrs_l23 = Z.rrs_ZTT(iops, phase, geometry, wave)
+    # "l23" by name since M8 task 9c moved rrs_ZTT's default to "pb24_nadir".
+    # The reference's ``forward_ztt`` entry was the "l23" default too; that
+    # path now follows the new default and is pinned in test_env instead.
+    rrs_l23 = Z.rrs_ZTT(iops, phase, geometry, wave, variant="l23")
     return {
         "rrs_l23": rrs_l23,
         "rrs_tt2017": Z.rrs_ZTT(iops, phase, geometry, wave, variant="tt2017"),
-        "Rrs_l23": Z.Rrs_ZTT(iops, phase, geometry, wave),
+        "Rrs_l23": Z.Rrs_ZTT(iops, phase, geometry, wave, variant="l23"),
         "mu_inf_closure": Z.mu_inf_closure(iops, phase, geometry, rrs_l23, wave),
         "psi": Z.geometry_to_paper_angles(geometry)[3],
-        "forward_ztt": hybrid.forward(iops, phase, geometry, wave, "ztt"),
         "forward_hybrid": hybrid.forward(
             iops, phase, geometry, wave, check_domain=False
         ),
@@ -1076,8 +1083,8 @@ def test_the_diffuse_fraction_reaches_mu_d_and_only_mu_d():
         th, bb / iops.a, iops.bb_w / bb, H=H
     )
     np.testing.assert_allclose(
-        np.asarray(Z.rrs_ZTT(iops, phase, with_H)),
-        np.asarray(Z.rrs_ZTT(iops, phase, base) * ratio),
+        np.asarray(Z.rrs_ZTT(iops, phase, with_H, variant="l23")),
+        np.asarray(Z.rrs_ZTT(iops, phase, base, variant="l23") * ratio),
         rtol=2e-6,
     )
     assert not np.allclose(np.asarray(ratio), 1.0)
@@ -1095,9 +1102,11 @@ def test_vmap_and_jit_with_a_diffuse_fraction():
         diffuse_fraction=jnp.broadcast_to(jnp.linspace(0.25, 0.1, N), (n, N)),
     )
     wave = C.canonical_wave()
-    batched = Z.rrs_ZTT(iops, phase, geometry, wave)
-    mapped = jax.vmap(lambda i, p, g: Z.rrs_ZTT(i, p, g, wave))(iops, phase, geometry)
-    jitted = jax.jit(lambda i, p, g: Z.rrs_ZTT(i, p, g, wave))(iops, phase, geometry)
+    # "l23": off-nadir, and float32 at the new default's floor is not 1e-6 clean.
+    f = lambda i, p, g: Z.rrs_ZTT(i, p, g, wave, variant="l23")  # noqa: E731
+    batched = f(iops, phase, geometry)
+    mapped = jax.vmap(f)(iops, phase, geometry)
+    jitted = jax.jit(f)(iops, phase, geometry)
 
     assert mapped.shape == batched.shape == (n, N)
     np.testing.assert_allclose(np.asarray(mapped), np.asarray(batched), rtol=1e-6)
@@ -1165,12 +1174,15 @@ def test_pb24_fixture_batch_runs_with_its_own_diffuse_fraction(pb24_small_batch)
     """Data-free: the loader's ``(n, λ)`` diffuse fraction drives µd, finite."""
     batch = pb24_small_batch
     sub = P_select_first(batch, 64)
-    with_H = Z.rrs_ZTT(sub.iops, sub.phase_params, sub.geometry, sub.wave)
+    with_H = Z.rrs_ZTT(
+        sub.iops, sub.phase_params, sub.geometry, sub.wave, variant="l23"
+    )
     without = Z.rrs_ZTT(
         sub.iops,
         sub.phase_params,
         dataclasses.replace(sub.geometry, diffuse_fraction=None),
         sub.wave,
+        variant="l23",  # TT's H when none is given (the default's is PB24's)
     )
     assert sub.geometry.diffuse_fraction.shape == with_H.shape
     assert np.all(np.isfinite(np.asarray(with_H)))

@@ -375,6 +375,10 @@ def test_the_backbone_path_produces_pinned_numbers(l23_small_batch):
     a visible act. Before M7 this path had no value pin at all, which is how the
     move could otherwise have gone unseen. The old numbers are kept beside the
     new, reached through ``variant="tt2017"``, so the diff is the record.
+
+    **Deliberately re-baselined again at M8 task 9c** (``rt_fit_pb24.md`` Q45):
+    the default moved from "l23" to "pb24_nadir" ("ZTT (PB24_nadir)"). The
+    "l23" numbers are kept beside the new ones in the same way.
     """
     import jax.numpy as jnp
 
@@ -384,8 +388,12 @@ def test_the_backbone_path_produces_pinned_numbers(l23_small_batch):
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
     out = rt.forward(*args, "ztt")
     assert out.dtype == jnp.float32
-    assert float(jnp.mean(out)) == pytest.approx(2.891557523981e-03, rel=1e-6)
-    assert float(out[0, 40]) == pytest.approx(1.203589490615e-03, rel=1e-6)
+    assert float(jnp.mean(out)) == pytest.approx(2.915894845501e-03, rel=1e-6)
+    assert float(out[0, 40]) == pytest.approx(1.174191595055e-03, rel=1e-6)
+
+    m7 = rt.conventions.rrs_to_Rrs(rt.ztt.rrs_ZTT(*args, variant="l23"))
+    assert float(jnp.mean(m7)) == pytest.approx(2.891557523981e-03, rel=1e-6)
+    assert float(m7[0, 40]) == pytest.approx(1.203589490615e-03, rel=1e-6)
 
     old = rt.conventions.rrs_to_Rrs(rt.ztt.rrs_ZTT(*args, variant="tt2017"))
     assert float(jnp.mean(old)) == pytest.approx(2.946892287582e-03, rel=1e-6)

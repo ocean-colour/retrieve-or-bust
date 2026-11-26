@@ -99,7 +99,8 @@ def scores(toy_fit, l23_small_batch):
     truth = C.Rrs_to_rrs(batch.Rrs)
     outputs = {
         # The emulator's *own* backbone (M7 task 4; review finding 2a). Since
-        # rrs_ZTT defaults to "l23", ``mode="ztt"`` is a different backbone from
+        # rrs_ZTT no longer defaults to "tt2017", ``mode="ztt"`` is a different
+        # backbone from
         # a "tt2017" emulator's, and comparing against it would no longer show
         # what the learned half adds to the backbone it corrects.
         "ztt": Z.rrs_ZTT(*batch_args(batch), variant=emulator.backbone_variant),
@@ -205,7 +206,7 @@ def test_additivity_holds_exactly_in_rrs_space(toy_fit, l23_small_batch):
     args = batch_args(l23_small_batch)
 
     # The decomposition is against the backbone the emulator was trained on (M7
-    # task 4). Since rrs_ZTT's default became "l23", ``mode="ztt"`` evaluates a
+    # task 4). Since rrs_ZTT's default left "tt2017", ``mode="ztt"`` evaluates a
     # *different* backbone from a "tt2017" emulator's hybrid, until the emulator
     # is retrained (rt_fit_ztt.md Q2b, Q18) -- asserted below so it is visible.
     ztt_part = Z.rrs_ZTT(*args, variant=emulator.backbone_variant)

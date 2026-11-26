@@ -19,6 +19,9 @@ Figures written beside this script:
 - ``fig_architecture.png``  -- the hybrid forward-model dataflow.
 - ``fig_rrms_ladder.png``   -- per-wavelength rRMS, five models, held-out scenes.
 - ``fig_unseen_zenith.png`` -- the unseen-60 deg comparison with the seed spread.
+- ``fig_pb24_view_and_psi.png``, ``fig_ztt_pb24_nadir_ladder.png``,
+  ``fig_ztt_pb24_nadir_breakdowns.png`` -- M8: copies of committed figures in
+  ``design/ztt_pb24/`` (:func:`copy_pb24_figures`).
 - ``fig_ztt_l23_ladder.png`` -- M7: the ZTT backbone refit to L23, per solar
   zenith, one L23 term added per step.
 
@@ -288,9 +291,31 @@ def fig_ztt_l23_ladder():
     plt.close(fig)
 
 
+#: M8 (report §10): figures **reused**, not redrawn -- byte-for-byte copies of
+#: the committed PB24 figures under ``design/ztt_pb24/`` (written by
+#: ``run_pb24_baseline.py`` and ``fit_ztt_pb24_nadir.py``), placed beside the
+#: report under the ``fig_*`` names the docs build expects.
+PB24_FIGURES = {
+    "fig_pb24_view_and_psi.png": "baseline_fig_per_view_and_psi.png",
+    "fig_ztt_pb24_nadir_ladder.png": "nadir_fig_ladder.png",
+    "fig_ztt_pb24_nadir_breakdowns.png": "nadir_fig_breakdowns.png",
+}
+
+
+def copy_pb24_figures():
+    """M8: copy the committed PB24 figures the report reuses (see
+    :data:`PB24_FIGURES`)."""
+    import shutil
+
+    source = HERE.parent / "design" / "ztt_pb24"
+    for name, original in PB24_FIGURES.items():
+        shutil.copyfile(source / original, HERE / name)
+
+
 if __name__ == "__main__":
     fig_architecture()
     fig_rrms_ladder()
     fig_unseen_zenith()
     fig_ztt_l23_ladder()
-    print(f"wrote 4 figures to {HERE}")
+    copy_pb24_figures()
+    print(f"wrote 4 figures and copied {len(PB24_FIGURES)} to {HERE}")

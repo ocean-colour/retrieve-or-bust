@@ -3000,3 +3000,81 @@ Created from `rt_fit_ztt.md` task 8.
   clean on `robust` and `design` (75 files).
 - **Open:** Q45 (what `"pb24_nadir"` should be). Record §7c.12. No
   state-changing git command was run.
+
+### 2026-11-26 — Task 9c: "ZTT (PB24_nadir)" redefined and made the default (Claude Fable 5.2)
+
+- **A deliberate re-baseline, called out first.** `DEFAULT_VARIANT` moved
+  from `"l23"` to `"pb24_nadir"` (Q45: "do make it the default"), so
+  `rrs_ZTT(...)` with no variant and `forward(mode="ztt")` changed. Pins
+  moved, old values kept beside the new under `variant="l23"`:
+  `test_env.py::test_the_backbone_path_produces_pinned_numbers` (mean
+  2.891558e-3 → 2.915895e-3; `[0, 40]` 1.203589e-3 → 1.174192e-3) and
+  `test_ztt_l23.py::test_default_backbone_with_ff_on_real_scenes_is_pinned`
+  (3.135152e-3 → 3.165416e-3; 1.204367e-3 → 1.174950e-3). `"l23"`,
+  `"tt2017"` and `"pb24"` are bit for bit; the hybrid stays pinned to
+  `"tt2017"`, so the L23 value pins of the hybrid and the emulator digest
+  did not move.
+- **The variant, per Q45 (b).** `"pb24_nadir"` = 8a's H table, µd and µ∞,
+  the FF Pbb, **TT's own Ψ_KLu and f_L**, the 8b floor. Nothing new fitted.
+  Its domain is enforced by `DomainWarning`s on concrete inputs: `theta_v`
+  beyond `NADIR_TOL_DEG` (0.5°) and, new, bb/a beyond
+  `NADIR_BB_OVER_A_MAX` (0.5946). 9b's measured-K_Lu fit is kept as a
+  record behind `angular_model="pb24_klu"` (`ANGULAR_MODELS` is now
+  `("tt", "pb24", "pb24_klu")`).
+- **Tests that named the old default implicitly now name it.** Fourteen
+  tests moved with the default. Two are the re-baselines above; three assert
+  the default or the option tuples; the other nine were about the L23
+  variant and now pass `variant="l23"`: the θs gradient (the new default's
+  H table has a node at 30°, where a central difference straddles a kink),
+  the zenith trend, the pre-task-4 nadir reference (its `forward_ztt` entry
+  is dropped from that check), the µd-ratio, vmap/jit and PB24-fixture H
+  tests in `test_ztt.py`; the closure round trip in `test_ztt_l23.py` (and
+  the M7 gate, for clarity); three unusable-backbone tests in
+  `test_emulator.py` (the new default is floored, so never unusable).
+- **Measured** (`nadir_metrics.md`, regenerated; held out, nadir, suns
+  0–70°, 451 bands). Median **4.36%** (Gordon 6.52%, the L23 variant
+  4.73%), q90 21.2%, non-physical 0%; per sun 3.42 / 3.45 / 3.30 / 3.12 /
+  3.57 / 5.65 / 6.11 / 6.39% (Gordon wins from 60°); inside
+  bb/a ≤ 0.5946 (95.4% of values) **4.03%**; beyond, 67% and 228% (Gordon
+  16% and 20%). By bb/a it is 1.4 / 2.1 / 6.4 / 8.4% in the four in-domain
+  bins against Gordon's 7.5 / 10.7 / 6.6 / 3.3%: a clear-water model. In
+  Rrs through the shipped downwelling transfer 4.91% (4.42% at θs = 0;
+  Gordon 7.37%). B_p-band split held out 4.59% (Gordon 6.18%). L23 held-out
+  rRMS 3.39% with TT's H and 3.64% as called by default (PB24's H table),
+  against 2.90% for `"l23"`.
+- **The Q42 gate, stated plainly.** Non-physical: pass. L23 (≤ 3.40% with
+  TT's H): pass, by 0.01. Median below 4.0%: **missed** (4.36%; 4.03%
+  inside the domain). The variant is the default by JXP's decision, not by
+  the gate; `nadir_metrics.json` records both.
+- **Costs of the default worth knowing.** (i) On L23 a default call is
+  0.74 pp worse than before (2.90 → 3.64%), since `"l23"` was fitted there
+  and the new default uses PB24's sky. (ii) Any default call off-nadir or
+  above bb/a 0.59 now warns. (iii) `forward(mode="ztt")` and
+  `forward(mode="hybrid")` still use different backbones.
+- **Built / changed.** `ztt.py` (the variant, `NADIR_BB_OVER_A_MAX`,
+  `_warn_if_outside_nadir_domain`, docstrings); `fit_ztt_pb24_nadir.py`
+  (scores the redefined variant: ladder base → + µd → + µ∞ → + floor; the
+  measured-K_Lu fit as record rows; a bb/a-domain table; probes for both;
+  relabelled figures); `test_ztt_pb24_nadir.py` (15, rewritten for the
+  variant, the decision record and both warnings); the tests above.
+- **The elastic report** (`reports/report_rt_elastic_model.md`, v1.2; the
+  task text's `report_rt_elastic.md`): a summary paragraph, §10 "Update
+  (M8)" (PB24 and the baseline, what transferred, why the measured K_Lu
+  does not help, the new default with its table, domain, Rrs, L23, the gate
+  outcome, claims and non-claims, next steps), the document map and
+  references. **Figures reused**: three byte-for-byte copies of committed
+  `design/ztt_pb24/` figures (`fig_pb24_view_and_psi.png`,
+  `fig_ztt_pb24_nadir_ladder.png`, `fig_ztt_pb24_nadir_breakdowns.png`) via
+  `make_report_figures.py::copy_pb24_figures`; `DOCS_FIGURES` now eleven
+  and the docs copy regenerates.
+- **Not done.** 8c and 8d (Q41). No executed notebook. `strict=` flag (Q40).
+  The nadir refit of the Fresnel transfer (measured: 0.84% against 1.53%).
+- **Gate of the build.** `--check`: "identical" (five text files,
+  three PNGs); the report's figure copies equal their sources byte for
+  byte. Suite: `923 passed, 5 skipped` with the data; `env -u OS_COLOR`:
+  `843 passed, 85 skipped`. About ten existing tests that call the default
+  off-nadir now emit the new `DomainWarning` (they pass; none was silenced).
+  `ruff check` / `format --check` clean on `robust` and `design`.
+- **Hand-off** (record §7c.13): task 10, the O25 form optimised for nadir;
+  why PB24-calibrated K_Lu fails on L23 at small suns; the emulator
+  retrain. No state-changing git command was run.

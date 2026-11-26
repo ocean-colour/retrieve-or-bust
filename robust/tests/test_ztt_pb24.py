@@ -222,7 +222,7 @@ def test_options_include_pb24_and_compose(jax_x64):
     angular pair and the floor); it differs from the other variants."""
     args = fixture_case(jnp.float64, 0.15, 0.003, 0.0126, 0.4, 30.0)
     assert "pb24" in Z.VARIANTS and "pb24" in Z.MU_INF_MODELS
-    assert "pb24" in Z.MU_D_MODELS and Z.DEFAULT_VARIANT == "l23"
+    assert "pb24" in Z.MU_D_MODELS and Z.DEFAULT_VARIANT != "pb24"
     whole = np.asarray(Z.rrs_ZTT(*args, variant="pb24"))
     composed = np.asarray(
         Z.rrs_ZTT(

@@ -172,6 +172,7 @@ __all__ = [  # noqa: RUF022  - grouped by role, following the paper's assembly
     "denominator_floor_pb24",
     # The nadir-only PB24 fit (M8 task 9)
     "NADIR_TOL_DEG",
+    "NADIR_BB_OVER_A_MAX",
     "PSI_KLU_PB24_NADIR_COEFFS",
     "PSI_KLU_PB24_NADIR_PSI_MIN",
     "FL_AVE_PB24_NADIR",
@@ -1262,27 +1263,36 @@ MU_INF_L23_CLOSURE_RANGE = (0.4135738177525006, 0.994010053503653)
 
 
 #: The backbone variants :func:`rrs_ZTT` knows. ``"l23"`` -- the M7 refit µ∞
-#: and µd, plus L23's FF phase function where ``PhaseParams`` carries it -- is
-#: the default. ``"tt2017"`` is the M0–M6 model, bit for bit. ``"pb24"`` (M8
+#: and µd, plus L23's FF phase function where ``PhaseParams`` carries it -- was
+#: the default from M7 to M8 task 9c. ``"tt2017"`` is the M0–M6 model, bit for
+#: bit. ``"pb24"`` (M8
 #: tasks 8a–8b) is "ZTT (PB24)": the PB24 diffuse-fraction table behind the
 #: seam, µd and µ∞ refit to PB24, FF Pbb as ``"l23"``, Ψ_KLu and f_L refit
 #: jointly through PB24's ``rrs`` (:func:`psi_KLu_pb24`, :func:`f_L_pb24`),
 #: and the denominator floor (:func:`denominator_floor_pb24`).
-#: ``"pb24_nadir"`` (M8 task 9) is "ZTT (PB24_nadir)": the ``"pb24"`` variant's
-#: IOP-side terms with Ψ_KLu fitted to PB24's *measured* nadir ``KLu`` and f_L by
-#: closure on nadir ``rrs`` (:func:`psi_KLu_pb24_nadir`, :func:`f_L_pb24_nadir`).
-#: **Calibrated at θv = 0 only.**
+#: ``"pb24_nadir"`` (M8 task 9, ``rt_fit_pb24.md`` Q45) is "ZTT (PB24_nadir)",
+#: **the default**: the ``"pb24"`` variant's IOP-side terms (PB24's diffuse
+#: fraction, µd and µ∞ of task 8a) with **TT's own Ψ_KLu and f_L** and the
+#: denominator floor -- the M7 pattern on PB24. **For nadir viewing (θv = 0)
+#: and bb/a below** :data:`NADIR_BB_OVER_A_MAX`; outside either it warns.
 VARIANTS = ("l23", "tt2017", "pb24", "pb24_nadir")
-#: str: The default of :func:`rrs_ZTT`'s ``variant``.
-DEFAULT_VARIANT = "l23"
+#: str: The default of :func:`rrs_ZTT`'s ``variant``. ``"pb24_nadir"`` since M8
+#: task 9c (JXP's decision, Q45): held out on PB24 at nadir it reads 4.36%
+#: median against 4.73% for ``"l23"`` and 6.52% for Gordon, with no
+#: non-physical value; on L23 its held-out rRMS is 3.64% with its own (PB24)
+#: diffuse fraction and 3.39% with TT's, against 2.90% for ``"l23"``, which
+#: was fitted there.
+DEFAULT_VARIANT = "pb24_nadir"
 #: µ∞ choices for ``mu_inf_model``. ``"l23_closure"`` is M7 task 5's ceiling.
 MU_INF_MODELS = ("l23", "l23_closure", "tt2017", "pb24")
 #: µd choices for ``mu_d_model`` (the ladder of M7 task 6 toggles it alone).
 MU_D_MODELS = ("l23", "tt2017", "pb24")
 #: Ψ_KLu / f_L choices for ``angular_model`` (M8 task 8b): ``"tt"`` is TT's
 #: pair (Equations (4), (6) and (31)); ``"pb24"`` the joint PB24 refit.
-#: ``"pb24_nadir"`` is the nadir-only pair of M8 task 9.
-ANGULAR_MODELS = ("tt", "pb24", "pb24_nadir")
+#: ``"pb24_klu"`` is the nadir pair fitted to PB24's measured ``KLu`` (M8 task
+#: 9b; :func:`psi_KLu_pb24_nadir`, :func:`f_L_pb24_nadir`) -- kept as a
+#: record, used by no variant: it failed its gate (11.00% median).
+ANGULAR_MODELS = ("tt", "pb24", "pb24_klu")
 
 
 def mu_infinity_l23(bb_over_a, eta_bb):
@@ -1833,6 +1843,14 @@ def denominator_floor_pb24(D, lo: float | None = None, width: float | None = Non
 #: concrete array (``rt_fit_pb24.md`` Q40).
 NADIR_TOL_DEG = 0.5
 
+#: float: The ``bb/a`` above which ``rrs_ZTT(variant="pb24_nadir")`` warns
+#: (``rt_fit_pb24.md`` Q45). Below it (95% of PB24's nadir values) the variant
+#: reads 1.4–8.4% median per bb/a bin, held out (4.03% pooled); above it
+#: Equation (12) with TT's f_L > 1 nears its second pole and reads 67% at
+#: bb/a 0.59–2 and 228% beyond (Gordon: 16% and 20%). The floor keeps it
+#: finite there, not right.
+NADIR_BB_OVER_A_MAX = 0.5946
+
 #: float: The smallest scattering angle (degrees) the nadir Ψ_KLu polynomial
 #: is evaluated at; below it Ψ_KLu is held flat. Nadir viewing reaches
 #: ψ = 131.8° at PB24's largest sun (87.75°), and the fit used 135.5–180°
@@ -1840,8 +1858,11 @@ NADIR_TOL_DEG = 0.5
 #: no calibration for.
 PSI_KLU_PB24_NADIR_PSI_MIN = 130.0
 
-#: **"ZTT (PB24_nadir)", Ψ_KLu** (M8 task 9, ``rt_fit_pb24.md`` Q35 (b), Q36 (a),
-#: Q37 (a); record §7c.12). ``Ψ_KLu(ψ) = 1 + F(ψ)``, ``F`` a polynomial in
+#: **The measured-K_Lu nadir fit, Ψ_KLu** (``angular_model="pb24_klu"``; M8
+#: task 9b, ``rt_fit_pb24.md`` Q35 (b), Q36 (a), Q37 (a); record §7c.12).
+#: This was "ZTT (PB24_nadir)" as first built; after Q45 the variant of that
+#: name uses TT's pair instead and this fit is kept as the record.
+#: ``Ψ_KLu(ψ) = 1 + F(ψ)``, ``F`` a polynomial in
 #: ``u = 1 + cos ψ`` (highest order first), IOP-independent as TT wrote it,
 #: fitted by ``design/py/fit_ztt_pb24_nadir.py`` to PB24's **measured** nadir
 #: ``KLu``: per window sun the geometric mean of ``(KLu/a) · µ∞`` (µ∞ the 8a
@@ -1855,13 +1876,11 @@ PSI_KLU_PB24_NADIR_PSI_MIN = 130.0
 #: 135.5° (TT's: 1.02 to 1.32) and reproduces PB24's KLu/a to 15.6% (median
 #: |dev|; TT's pair 20.3%), but ``rrs`` reads **11.00% median** where TT's
 #: Ψ_KLu and f_L on the same 8a terms read 4.36% and Gordon 6.52%; on L23 it
-#: reads 11.8% rRMS against the default's 2.90%. The measured K_Lu/K∞ is not
+#: reads 11.8% rRMS against 2.90% for ``"l23"``. The measured K_Lu/K∞ is not
 #: IOP-independent -- at θs = 0 it falls from 1.00 at bb/a < 0.001 (TT's
 #: value) to 0.5 at bb/a > 0.6 -- so its average is 20% low exactly where
-#: ``rrs`` is clearest. The variant is therefore **opt-in and not
-#: recommended**; ``rrs_ZTT(variant="pb24", angular_model="tt")`` (8a's terms,
-#: TT's pair, floored) is the better nadir model today (``rt_fit_pb24.md``
-#: Q45).
+#: ``rrs`` is clearest. The pair is therefore **not used by any variant**;
+#: ``"pb24_nadir"`` takes TT's pair (``rt_fit_pb24.md`` Q45).
 PSI_KLU_PB24_NADIR_COEFFS = (
     1.6048298222426556,
     0.8039000600433032,
@@ -2005,23 +2024,36 @@ def f_L_pb24_nadir(
     )
 
 
-def _warn_if_off_nadir(theta_v) -> None:
+def _warn_if_outside_nadir_domain(theta_v, a, bb) -> None:
     """:class:`~robust.rt.conventions.DomainWarning` when a *concrete*
-    ``theta_v`` exceeds :data:`NADIR_TOL_DEG` (traced values cannot be
-    inspected and pass silently)."""
+    ``theta_v`` exceeds :data:`NADIR_TOL_DEG` or a concrete ``bb/a`` exceeds
+    :data:`NADIR_BB_OVER_A_MAX` (traced values cannot be inspected and pass
+    silently)."""
     import jax
 
-    if isinstance(theta_v, jax.core.Tracer):
-        return
-    worst = float(np.max(np.abs(np.asarray(theta_v))))
-    if worst > NADIR_TOL_DEG:
-        warnings.warn(
-            f'rrs_ZTT(variant="pb24_nadir") is calibrated at nadir only; '
-            f"geometry.theta_v reaches {worst:g}° (tolerance {NADIR_TOL_DEG:g}°). "
-            "Off-nadir it is uncalibrated.",
-            conventions.DomainWarning,
-            stacklevel=3,
-        )
+    if not isinstance(theta_v, jax.core.Tracer):
+        worst = float(np.max(np.abs(np.asarray(theta_v))))
+        if worst > NADIR_TOL_DEG:
+            warnings.warn(
+                f'rrs_ZTT(variant="pb24_nadir") is calibrated at nadir only; '
+                f"geometry.theta_v reaches {worst:g}° (tolerance "
+                f"{NADIR_TOL_DEG:g}°). Off-nadir it is uncalibrated.",
+                conventions.DomainWarning,
+                stacklevel=3,
+            )
+    if not isinstance(a, jax.core.Tracer) and not isinstance(bb, jax.core.Tracer):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.asarray(bb) / np.asarray(a)
+        worst = float(np.nanmax(ratio)) if ratio.size else 0.0
+        if worst > NADIR_BB_OVER_A_MAX:
+            warnings.warn(
+                f'rrs_ZTT(variant="pb24_nadir") is a clear-to-moderate-water '
+                f"model; bb/a reaches {worst:.3g} (limit "
+                f"{NADIR_BB_OVER_A_MAX:g}). Above it the error grows to tens of "
+                "per cent and beyond.",
+                conventions.DomainWarning,
+                stacklevel=3,
+            )
 
 
 def _choose(name, value, allowed):
@@ -2095,7 +2127,8 @@ def rrs_ZTT(
         ``geometry.diffuse_fraction`` is set it replaces TT's ``H(θs', V)`` in
         µd (M8 task 4, Q10a); it must broadcast against the ``(..., n_wave)``
         spectra -- ``(n_sample, n_wave)`` from the PB24 loader, ``(n_wave,)``
-        per sample under ``vmap``. ``None`` (default) is TT's H, bit for bit.
+        per sample under ``vmap``. ``None`` (default) is the variant's own H:
+        the PB24 table for the two PB24 variants, TT's (bit for bit) otherwise.
     wave : Array, optional
         Wavelengths (nm); defaults to the canonical grid.
     P_bb : Array, optional
@@ -2110,8 +2143,18 @@ def rrs_ZTT(
         path back to the model exactly as published in 2018 ("ZTT 2018").
     visibility_km : float, optional
         Horizontal visibility V (km).
-    variant : {"l23", "tt2017", "pb24", "pb24_nadir"}, optional
-        **M7.** Which backbone (:data:`VARIANTS`). ``"l23"``, the default, is
+    variant : {"pb24_nadir", "l23", "tt2017", "pb24"}, optional
+        Which backbone (:data:`VARIANTS`). ``"pb24_nadir"``, **the default
+        since M8 task 9c**, is "ZTT (PB24_nadir)": PB24's diffuse fraction
+        (:func:`diffuse_fraction_pb24`, when ``geometry`` carries none), µd
+        and µ∞ refit to PB24 (:func:`mu_d_pb24`, :func:`mu_infinity_pb24`),
+        the FF phase function wherever ``phase_params`` carries ``ff_B``, TT's
+        own Ψ_KLu and f_L (:func:`psi_KLu`, :func:`f_L`) and the denominator
+        floor. **Nadir viewing and bb/a ≤** :data:`NADIR_BB_OVER_A_MAX`: a
+        concrete ``geometry.theta_v`` beyond :data:`NADIR_TOL_DEG`, or a
+        concrete bb/a beyond the limit, raises a
+        :class:`~robust.rt.conventions.DomainWarning` (the value is still
+        returned). ``"l23"``, the default from M7 until then, is
         "ZTT (L23 µ∞)": µ∞ and µd refit to L23 (:func:`mu_infinity_l23`,
         :func:`mu_d_l23`), and L23's two-component FF phase function wherever
         ``phase_params`` carries ``ff_B`` (Sullivan otherwise, silently).
@@ -2125,12 +2168,6 @@ def rrs_ZTT(
         the denominator floor (:func:`denominator_floor_pb24`). **Off-nadir,
         that Ψ_KLu is a calibration through rrs, physical only at nadir**
         (PB24 measures ``KLu`` there alone).
-        ``"pb24_nadir"`` (**M8 task 9**) is "ZTT (PB24_nadir)": the same
-        IOP-side terms, Ψ_KLu fitted to PB24's measured nadir ``KLu`` and f_L
-        by closure on nadir ``rrs`` (:func:`psi_KLu_pb24_nadir`,
-        :func:`f_L_pb24_nadir`), floored. **Nadir viewing only**: a concrete
-        ``geometry.theta_v`` beyond :data:`NADIR_TOL_DEG` raises a
-        :class:`~robust.rt.conventions.DomainWarning`.
     mu_inf_model : {"l23", "l23_closure", "tt2017", "pb24"}, optional
         Override the variant's µ∞ alone (:data:`MU_INF_MODELS`).
         ``"l23_closure"`` (M7 task 5) is the closure fit -- a ceiling, not
@@ -2139,10 +2176,11 @@ def rrs_ZTT(
     mu_d_model : {"l23", "tt2017", "pb24"}, optional
         Override the variant's µd alone (:data:`MU_D_MODELS`). The Pbb choice
         has its own override, ``P_bb``.
-    angular_model : {"tt", "pb24", "pb24_nadir"}, optional
+    angular_model : {"tt", "pb24", "pb24_klu"}, optional
         Override the variant's Ψ_KLu and f_L pair alone
-        (:data:`ANGULAR_MODELS`; the variant's own for the two PB24 variants,
-        ``"tt"`` otherwise).
+        (:data:`ANGULAR_MODELS`; ``"pb24"`` for the ``"pb24"`` variant,
+        ``"tt"`` otherwise). ``"pb24_klu"`` is the measured-K_Lu nadir fit of
+        M8 task 9b, a record no variant uses.
     floor : bool, optional
         Apply :func:`denominator_floor_pb24` to Equation (12)'s denominator.
         Default: the variant's (``True`` for ``"pb24"`` and ``"pb24_nadir"``,
@@ -2179,9 +2217,9 @@ def rrs_ZTT(
     mu_d_model = _choose(
         "mu_d_model", iop_side if mu_d_model is None else mu_d_model, MU_D_MODELS
     )
-    variant_angular = variant if is_pb24 else "tt"
+    variant_angular = "pb24" if variant == "pb24" else "tt"
     if variant == "pb24_nadir":
-        _warn_if_off_nadir(geometry.theta_v)
+        _warn_if_outside_nadir_domain(geometry.theta_v, iops.a, iops.bb)
     angular_model = _choose(
         "angular_model",
         variant_angular if angular_model is None else angular_model,
@@ -2237,7 +2275,7 @@ def rrs_ZTT(
 
     if angular_model == "pb24":
         psi_term, fl_term = psi_KLu_pb24(psi_b), f_L_pb24(psi_b, wave)
-    elif angular_model == "pb24_nadir":
+    elif angular_model == "pb24_klu":
         psi_term, fl_term = psi_KLu_pb24_nadir(psi_b), f_L_pb24_nadir(psi_b, wave)
     else:
         psi_term, fl_term = psi_KLu(psi_b), f_L(psi_b, wave)

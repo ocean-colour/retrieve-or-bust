@@ -1,7 +1,15 @@
 #!/usr/bin/env python
 """
-Fit the nadir-only ZTT to PB24 -- M8 task 9, ``rt_fit_pb24.md`` (Q34–Q44;
-"ZTT (PB24_nadir)").
+Fit and score the nadir-only ZTT on PB24 -- M8 task 9, ``rt_fit_pb24.md``
+(Q34–Q45; "ZTT (PB24_nadir)").
+
+**Since task 9c (Q45)** the variant ``"pb24_nadir"`` is task 8a's H, µd and µ∞
+with **TT's own Ψ_KLu and f_L**, floored: it has nothing fitted here, and this
+script is where it is scored (the ladder, the gate, its bb/a domain, ``Rrs``,
+L23). The fit described below -- Ψ_KLu from PB24's measured K_Lu, f_L by
+closure, the variant as first built in task 9b -- failed its gate and is kept
+as a record (``angular_model="pb24_klu"``); its constants are still written
+by, and checked against, this script.
 
 At nadir (θv = 0) Equation (12) is
 
@@ -143,36 +151,51 @@ IOP_NAMES = ("aw", "aph", "ag", "aNAP", "bph", "bNAP", "bbw", "bbph", "bbNAP")
 
 NAME_C = "Ψ_KLu = 1 + F(ψ)·(1, X, L) — rung (c), not shipped"
 NAME_DIRECT = "direct KLu/a = N(θs)·Q(X, L), no µ∞ — Q36 (b), not shipped"
+#: The variant, as redefined by Q45 (M8 task 9c): 8a's µd, µ∞ and H with TT's
+#: own Ψ_KLu and f_L, floored. Specs are (µd, µ∞, Ψ_KLu, f_L, floor); "nadir"
+#: names the measured-K_Lu pair fitted here (``angular_model="pb24_klu"``).
 FINAL = "+ floor = ZTT (PB24_nadir)"
-RUNG_A = "+ µ∞ (PB24) = rung (a), the 8a variant"
-RUNG_B = "+ f_L (nadir closure) = rung (b)"
+RUNG_A = "+ µ∞ (PB24) = rung (a)"
+RUNG_B = "rung (b): + Ψ_KLu from KLu, + f_L by closure (no floor)"
+KLU = "measured-K_Lu fit, floored (9b's variant; a record)"
 BASE = "ZTT (L23 µ∞), PB24 FF Pbb"
 GORDON = "standard Gordon"
+SPEC_BASE = ("l23", "l23", "tt", "tt", False)
+SPEC_RUNG_A = ("pb24", "pb24", "tt", "tt", False)
+SPEC_FINAL = ("pb24", "pb24", "tt", "tt", True)
+SPEC_KLU = ("pb24", "pb24", "nadir", "nadir", True)
 
-#: The ladder: label -> (µd, µ∞, Ψ_KLu, f_L, floor).
+#: The ladder to the variant.
 LADDER = (
-    (BASE, ("l23", "l23", "tt", "tt", False)),
+    (BASE, SPEC_BASE),
     ("+ µd (PB24)", ("pb24", "l23", "tt", "tt", False)),
-    (RUNG_A, ("pb24", "pb24", "tt", "tt", False)),
-    ("+ Ψ_KLu (nadir KLu)", ("pb24", "pb24", "nadir", "tt", False)),
-    (RUNG_B, ("pb24", "pb24", "nadir", "nadir", False)),
-    (FINAL, ("pb24", "pb24", "nadir", "nadir", True)),
+    (RUNG_A, SPEC_RUNG_A),
+    (FINAL, SPEC_FINAL),
 )
-#: Each term alone: (added to BASE, removed from FINAL).
-ALONE = {
-    "µd": (("pb24", "l23", "tt", "tt", False), ("l23", "pb24", "nadir", "nadir", True)),
-    "µ∞": (("l23", "pb24", "tt", "tt", False), ("pb24", "l23", "nadir", "nadir", True)),
-    "Ψ_KLu": (
-        ("l23", "l23", "nadir", "tt", False),
-        ("pb24", "pb24", "tt", "nadir", True),
+#: The measured-K_Lu fit of task 9b (Q35 (b)), continued from rung (a): scored
+#: beside the ladder as the record of why the variant keeps TT's pair.
+RECORD = (
+    (
+        "rung (a) + Ψ_KLu from KLu (TT's f_L, no floor)",
+        ("pb24", "pb24", "nadir", "tt", False),
     ),
-    "f_L": (
-        ("l23", "l23", "tt", "nadir", False),
+    (RUNG_B, ("pb24", "pb24", "nadir", "nadir", False)),
+    (KLU, SPEC_KLU),
+)
+#: Each term alone: (added to BASE, changed alone in FINAL). For the three
+#: terms the variant has, "changed" is removed; for the two it does not have,
+#: it is the measured-K_Lu term swapped in.
+ALONE = {
+    "µd": (("pb24", "l23", "tt", "tt", False), ("l23", "pb24", "tt", "tt", True)),
+    "µ∞": (("l23", "pb24", "tt", "tt", False), ("pb24", "l23", "tt", "tt", True)),
+    "floor": (("l23", "l23", "tt", "tt", True), SPEC_RUNG_A),
+    "Ψ_KLu from KLu (swapped in)": (
+        ("l23", "l23", "nadir", "tt", False),
         ("pb24", "pb24", "nadir", "tt", True),
     ),
-    "floor": (
-        ("l23", "l23", "tt", "tt", True),
-        ("pb24", "pb24", "nadir", "nadir", False),
+    "f_L by closure (swapped in)": (
+        ("l23", "l23", "tt", "nadir", False),
+        ("pb24", "pb24", "tt", "nadir", True),
     ),
 }
 
@@ -282,7 +305,7 @@ def fl_term(kind, psi, wave, model) -> np.ndarray:
     )
 
 
-def variant_rrs(pc: dict, model, spec=("pb24", "pb24", "nadir", "nadir", True)):
+def variant_rrs(pc: dict, model, spec=SPEC_FINAL):
     """``rrs (n, W)`` of a (µd, µ∞, Ψ_KLu, f_L, floor) combination from
     :func:`pieces`; the default is "ZTT (PB24_nadir)". Returns
     ``(rrs, D_unfloored)``."""
@@ -769,8 +792,15 @@ def summary(pred, truth, T: Nadir, classes=None) -> dict:
     (window suns only) by bb/a, η_bb, B_p and water class."""
     win = T.window[None, :, None]
     out = {"window": stat(pred, truth, win), "per_theta_s": {}, "groups": {}}
+    inside = T.pc["bb_over_a"] <= Z.NADIR_BB_OVER_A_MAX
+    out["in_domain"] = stat(pred, truth, win & inside)
+    out["in_domain"]["share_of_window"] = float(np.mean(inside[:, T.window]))
+    out["per_theta_s_in_domain"] = {}
     for k, ts in enumerate(T.theta_s):
         out["per_theta_s"][f"{ts:g}"] = stat(pred[:, k], truth[:, k])
+        out["per_theta_s_in_domain"][f"{ts:g}"] = stat(
+            pred[:, k], truth[:, k], inside[:, k]
+        )
     for prefix, values, edges in (
         ("bb/a", T.pc["bb_over_a"], BBA_EDGES),
         ("eta_bb", T.pc["eta_bb"], ETA_EDGES),
@@ -902,9 +932,7 @@ def l23_check(model, extras=None) -> dict | None:
     for sky, H in skies.items():
         pc = pieces(*args, H)
         preds[f"ZTT (PB24_nadir), {sky}"] = variant_rrs(pc, model)[0]
-        preds[f"rung (a), {sky}"] = variant_rrs(
-            pc, model, ("pb24", "pb24", "tt", "tt", False)
-        )[0]
+        preds[f"measured-K_Lu fit (9b), {sky}"] = variant_rrs(pc, model, SPEC_KLU)[0]
     pc = pieces(*args, skies["TT's H (V = 15 km) -- the gate"])
     for name, (K_fn, fl_model) in (extras or {}).items():
         K = K_fn(pc, ts)
@@ -934,10 +962,13 @@ def probes(T: Nadir, raw_iops: dict, model) -> list[dict]:
     rows = rng.integers(0, T.ids.size, n)
     suns = rng.integers(0, T.theta_s.size, n)
     bands = rng.integers(0, T.wave.size, n)
-    Psi = psi_term("nadir", T.psi, model)
-    fl = fl_term("nadir", T.psi, T.wave, model)
-    rrs, D = rrs_from(T, K_of(T, "nadir", model), fl[None], floor=True)
+    Psi = psi_term("tt", T.psi, model)
+    fl = fl_term("tt", T.psi, T.wave, model)
+    rrs, D = rrs_from(T, K_of(T, "tt", model), fl[None], floor=True)
     Df = np.asarray(Z.denominator_floor_pb24(D, *D_FLOOR))
+    Psi_k = psi_term("nadir", T.psi, model)
+    fl_k = fl_term("nadir", T.psi, T.wave, model)
+    rrs_k = rrs_from(T, K_of(T, "nadir", model), fl_k[None], floor=True)[0]
     out = []
     for r, k, w in zip(rows, suns, bands, strict=True):
         r, k, w = int(r), int(k), int(w)
@@ -959,6 +990,10 @@ def probes(T: Nadir, raw_iops: dict, model) -> list[dict]:
                 "D_no_floor": float(D[r, k, w]),
                 "D_floored": float(Df[r, k, w]),
                 "rrs_variant": float(rrs[r, k, w]),
+                "bb_over_a": float(T.pc["bb_over_a"][r, k, w]),
+                "psi_KLu_klu_fit": float(Psi_k[k]),
+                "f_L_klu_fit": float(fl_k[k, w]),
+                "rrs_klu_fit": float(rrs_k[r, k, w]),
                 "rrs_PB24": float(T.rrs[r, k, w]),
             }
         )
@@ -1048,7 +1083,7 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
     say("scoring the ladder")
     truth = Tte.rrs
     preds = {GORDON: Tte.gordon}
-    for label, spec in LADDER:
+    for label, spec in (*LADDER, *RECORD):
         preds[label] = spec_rrs(Tte, spec, model)
     scores = {k: summary(v, truth, Tte, classes) for k, v in preds.items()}
     alone = {}
@@ -1057,12 +1092,15 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
             "added_alone_to_base": stat(
                 spec_rrs(Tte, add, model), truth, Tte.window[None, :, None]
             ),
-            "removed_alone_from_final": stat(
+            "changed_alone_in_final": stat(
                 spec_rrs(Tte, rem, model), truth, Tte.window[None, :, None]
             ),
         }
     D_final = rrs_from(
-        Tte, K_te, fl_term("nadir", Tte.psi, Tte.wave, model)[None], floor=False
+        Tte,
+        K_of(Tte, "tt", model),
+        fl_term("tt", Tte.psi, Tte.wave, model)[None],
+        floor=False,
     )[1]
     Dw = D_final[:, Tte.window]
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -1103,7 +1141,7 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
             continue
         other = fits[w][0]
         name = f"Ψ_KLu(ψ) with “{w}” node averages — not shipped"
-        pred = spec_rrs(Tte, LADDER[5][1], other)
+        pred = spec_rrs(Tte, SPEC_KLU, other)
         diagnostics[name] = summary(pred, truth, Tte)
         klu[name] = klu_summary(K_of(Tte, "nadir", other), Tte)
     for name, (Ktr, Kte) in diag_K.items():
@@ -1129,9 +1167,6 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
         float(np.nanmax(ceil["fl"])),
     ]
     klu[name] = klu_summary(K_ceil, Tte)
-    diagnostics["rung (a) + floor (the literal M7 analogue, finite)"] = summary(
-        spec_rrs(Tte, ("pb24", "pb24", "tt", "tt", True), model), truth, Tte
-    )
     klu["Ψ_KLu(ψ) nadir fit / µ∞ — shipped"] = klu_summary(K_te, Tte)
     klu["TT's Ψ_KLu / µ∞(PB24)"] = klu_summary(K_of(Tte, "tt", model), Tte)
     # D2, the ceiling: measured KLu/a, per-band f_L; with 8a's µd and PB24's own.
@@ -1161,9 +1196,9 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
             "s": list(bp_model["s"]),
             "heldout": {
                 GORDON: stat(Bte.gordon, Bte.rrs, winb),
-                BASE: stat(spec_rrs(Bte, LADDER[0][1], bp_model), Bte.rrs, winb),
-                RUNG_A: stat(spec_rrs(Bte, LADDER[2][1], bp_model), Bte.rrs, winb),
-                FINAL: stat(spec_rrs(Bte, LADDER[5][1], bp_model), Bte.rrs, winb),
+                BASE: stat(spec_rrs(Bte, SPEC_BASE, bp_model), Bte.rrs, winb),
+                FINAL: stat(spec_rrs(Bte, SPEC_FINAL, bp_model), Bte.rrs, winb),
+                KLU: stat(spec_rrs(Bte, SPEC_KLU, bp_model), Bte.rrs, winb),
             },
             "klu": klu_summary(K_of(Bte, "nadir", bp_model), Bte)["window"],
         }
@@ -1196,7 +1231,7 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
     win = Tte.window
     for w, lam in enumerate(Tte.wave):
         row = [f"{lam:g}"]
-        for name in (GORDON, BASE, RUNG_A, RUNG_B, FINAL):
+        for name in (GORDON, BASE, FINAL, KLU):
             row.append(
                 "{:.4f}".format(
                     100 * stat(preds[name][:, win, w], truth[:, win, w])["median_abs"]
@@ -1206,7 +1241,7 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
             f"{100 * stat(Rrs_final[:, win, w], Tte.Rrs[:, win, w])['median_abs']:.4f}"
         )
         per_band.append(row)
-    band_header = ["wave_nm", GORDON, BASE, RUNG_A, RUNG_B, FINAL, f"{FINAL}, Rrs"]
+    band_header = ["wave_nm", GORDON, BASE, FINAL, KLU, f"{FINAL}, Rrs"]
 
     # ---- L23 ----------------------------------------------------------------------
     say("L23")
@@ -1232,6 +1267,15 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
     gate["pass"] = bool(
         gate["median_pass"] and gate["nonphysical_pass"] and gate["l23_pass"]
     )  # an L23 clause that was not run does not pass
+    gate["default_by_decision"] = "rt_fit_pb24.md Q45 (JXP, 2026-11-26)"
+    klu_gate = scores[KLU]["window"]
+    gate["klu_fit_record"] = {
+        "median_abs": klu_gate["median_abs"],
+        "nonphysical_fraction": klu_gate["nonphysical_fraction"],
+        "l23_heldout_rrms": None
+        if l23 is None
+        else l23["measured-K_Lu fit (9b), TT's H (V = 15 km) -- the gate"]["held-out"],
+    }
 
     tried = {
         str(n): {
@@ -1279,14 +1323,26 @@ def run(*, quick: bool, cache_dir=None, progress=True, with_l23=True):
         "gate": gate,
     }
     coefficients = {
-        "about": "ZTT (PB24_nadir), M8 task 9 (rt_fit_pb24.md Q34-Q44). Nadir "
-        "viewing only. Psi_KLu = 1 + F(psi), F a polynomial in u = 1 + cos(psi) "
+        "about": "The measured-K_Lu nadir fit of M8 task 9b (rt_fit_pb24.md "
+        "Q34-Q44), angular_model='pb24_klu': a record, used by no variant. "
+        "After Q45 the variant 'pb24_nadir' is task 8a's mu_d, mu_inf and H with "
+        "TT's own Psi_KLu and f_L, floored; it has no constants of its own and "
+        "is scored by the same script (nadir_metrics). The fit recorded here: "
+        "Psi_KLu = 1 + F(psi), F a polynomial in u = 1 + cos(psi) "
         "(highest order first), fitted to PB24's measured nadir KLu: a per-sun "
         "average of (KLu/a) * mu_inf(PB24, 8a) (psi_klu_node_weighting), then the "
         "polynomial through the eight window nodes. f_L = FL_AVE(lambda) * "
         "(s0 + s1 sin psi), by "
         "linear closure on nadir rrs with that Psi_KLu, 8a's mu_d and the FF Pbb. "
         "mu_d, mu_inf and H are task 8a's; D floored as task 8b.",
+        "variant_pb24_nadir": {
+            "mu_d": "pb24 (8a)",
+            "mu_inf": "pb24 (8a)",
+            "angular_model": "tt",
+            "floor": True,
+            "bb_over_a_max": Z.NADIR_BB_OVER_A_MAX,
+            "theta_v_tol_deg": Z.NADIR_TOL_DEG,
+        },
         "n_f_terms": psi_fit["n_terms"],
         "psi_klu_node_weighting": chosen,
         "psi_klu_coeffs_u_highest_first": list(model["coeffs"]),
@@ -1353,6 +1409,30 @@ def outcomes(m) -> list[str]:
     ]
 
 
+def domain_lines(m) -> list[str]:
+    """The variant inside its stated bb/a domain, beside Gordon and the base."""
+    hs = m["heldout_rrs"]
+    share = hs[FINAL]["in_domain"]["share_of_window"]
+    suns = list(hs[FINAL]["per_theta_s_in_domain"])
+    out = [
+        f"**Inside the variant's domain** (bb/a ≤ {Z.NADIR_BB_OVER_A_MAX:g}: "
+        f"{pct(share, 1)}% of the held-out nadir values), median |err| % in rrs:",
+        "",
+        "| model | window | q90 | " + " | ".join(f"{t}°" for t in suns) + " |",
+        "|---|---|---|" + "---|" * len(suns),
+    ]
+    for name in (GORDON, BASE, FINAL, KLU):
+        d = hs[name]["in_domain"]
+        out.append(
+            f"| {name} | {pct(d['median_abs'])} | {pct(d['q90_abs'])} | "
+            + " | ".join(
+                pct(hs[name]["per_theta_s_in_domain"][t]["median_abs"]) for t in suns
+            )
+            + " |"
+        )
+    return out
+
+
 def report(c, m, *, quick: bool) -> str:
     f, g = c["fit"], m["gate"]
     hs = m["heldout_rrs"]
@@ -1360,10 +1440,19 @@ def report(c, m, *, quick: bool) -> str:
     win_suns = [t for t in suns if float(t) <= ANGLE_MAX_DEG]
     verdict = lambda ok: "–" if ok is None else ("**pass**" if ok else "**FAIL**")  # noqa: E731
     L = [
-        "# ZTT (PB24_nadir) — the nadir-only ZTT fitted to PB24 (M8 task 9)",
+        "# ZTT (PB24_nadir) — the nadir-only ZTT on PB24 (M8 task 9)",
         "",
         "*Generated by `design/py/fit_ztt_pb24_nadir.py`"
         f"{' --quick' if quick else ''}. Do not edit by hand.*",
+        "",
+        '**The variant (Q45, task 9c).** `rrs_ZTT(variant="pb24_nadir")`, the '
+        "package default, is task 8a's H, µd and µ∞ fitted to PB24 with **TT's own "
+        "Ψ_KLu and f_L** and the floor on the denominator: the M7 pattern on "
+        "PB24. It is for nadir viewing and "
+        f"bb/a ≤ {Z.NADIR_BB_OVER_A_MAX:g} (a `DomainWarning` outside either). The "
+        "variant as first built in task 9b, with Ψ_KLu fitted to PB24's measured "
+        "K_Lu and f_L by closure (Q35 (b)), failed its gate and is kept here as a "
+        'record (`angular_model="pb24_klu"`).',
         "",
         f"Nadir viewing (θv = 0), realisation split: fitted on "
         f"**{f['n_train_realisations']} training realisations** (digest "
@@ -1377,6 +1466,9 @@ def report(c, m, *, quick: bool) -> str:
         *[f"- {p}" for p in PREDICTIONS],
         "",
         "## The acceptance gate (Q42, written before the fit)",
+        "",
+        "For the variant as now defined. It misses the median clause and is the "
+        "default by decision (Q45), not by the gate.",
         "",
         "| clause | value | criterion | |",
         "|---|---|---|---|",
@@ -1393,13 +1485,24 @@ def report(c, m, *, quick: bool) -> str:
         + f" | ≤ {g['l23_reference']:.2f} + {g['l23_tolerance_pp']:.1f} pp | "
         f"{verdict(g['l23_pass'])} |",
         "",
-        f"**Gate: {'PASS' if g['pass'] else 'FAIL'}.**",
+        f"**Gate: {'PASS' if g['pass'] else 'FAIL'}.** For the record, the "
+        "measured-K_Lu fit of task 9b read "
+        f"{pct(g['klu_fit_record']['median_abs'])}% median, "
+        f"{pct(g['klu_fit_record']['nonphysical_fraction'], 4)}% non-physical and "
+        + (
+            "(L23 not run)"
+            if g["klu_fit_record"]["l23_heldout_rrms"] is None
+            else f"{g['klu_fit_record']['l23_heldout_rrms']:.2f}% on L23"
+        )
+        + ".",
+        "",
+        *domain_lines(m),
         "",
         "## Predictions against outcomes",
         "",
         *outcomes(m),
         "",
-        "## The fitted terms",
+        "## The measured-K_Lu fit (task 9b; a record, used by no variant)",
         "",
         f"- Ψ_KLu = 1 + F(ψ), {c['n_f_terms']} terms in u = 1 + cos ψ (rule: the "
         f"smallest count whose worst node misfit is ≤ {100 * NODE_TOL:g}%); "
@@ -1533,22 +1636,33 @@ def report(c, m, *, quick: bool) -> str:
     ]
     for label, _ in LADDER:
         L.append(ladder_row(label, hs[label], bold=label == FINAL))
+    L += [
+        "",
+        "The measured-K_Lu fit of task 9b, continued from rung (a) (a record):",
+        "",
+        head,
+        sep,
+    ]
+    for label, _ in RECORD:
+        L.append(ladder_row(label, hs[label]))
     L += ["", "Diagnostics (not shipped), same columns:", "", head, sep]
     for name, s in m["diagnostics"].items():
         L.append(ladder_row(name, s))
     L += [
         "",
         "Attribution (window median, %): each term added alone to "
-        f"“{BASE}” ({pct(hs[BASE]['window']['median_abs'])}) and removed alone from "
-        f"“{FINAL}” ({pct(hs[FINAL]['window']['median_abs'])}).",
+        f"“{BASE}” ({pct(hs[BASE]['window']['median_abs'])}) and changed alone in "
+        f"“{FINAL}” ({pct(hs[FINAL]['window']['median_abs'])}): removed, for the "
+        "three terms the variant has; swapped in, for the two measured-K_Lu terms "
+        "it does not.",
         "",
-        "| term | added alone | removed alone |",
+        "| term | added alone to the base | changed alone in the variant |",
         "|---|---|---|",
     ]
     for term, v in m["alone"].items():
         L.append(
             f"| {term} | {pct(v['added_alone_to_base']['median_abs'])} | "
-            f"{pct(v['removed_alone_from_final']['median_abs'])} |"
+            f"{pct(v['changed_alone_in_final']['median_abs'])} |"
         )
     fp = m["floor_footprint"]
     L += [
@@ -1561,7 +1675,7 @@ def report(c, m, *, quick: bool) -> str:
         "",
         "## Breakdowns (held out, window suns, median |err| %)",
     ]
-    cols = (GORDON, BASE, RUNG_A, FINAL)
+    cols = (GORDON, BASE, FINAL, KLU)
     for prefix, title in (
         ("bb/a[", "bb/a"),
         ("eta_bb[", "η_bb = bbw/bb"),
@@ -1590,11 +1704,12 @@ def report(c, m, *, quick: bool) -> str:
     }
     L += [
         "",
-        "## The B_p-band split (Q38): refit on its training side, scored on the "
-        "held-out B_p band",
+        "## The B_p-band split (Q38): scored on the held-out B_p band",
         "",
         f"{bp['n_train']} training and {bp['n_test']} held-out realisations (the "
-        "middle B_p quantile band is held out); the same form and order, refit.",
+        "middle B_p quantile band is held out). The variant has nothing fitted "
+        "here (its 8a terms are the realisation split's); the measured-K_Lu fit "
+        "is refit on this split's training side, same form and order.",
         "",
         "| model | median | q90 | non-physical |",
         "|---|---|---|---|",
@@ -1605,7 +1720,7 @@ def report(c, m, *, quick: bool) -> str:
             f"{pct(v['nonphysical_fraction'], 3)} |"
         )
     L.append(
-        f"\nKLu/a held out on this split: median ratio "
+        f"\nKLu/a of the measured-K_Lu fit, held out on this split: median ratio "
         f"{bp['klu']['median_ratio']:.4f}, median |dev| "
         f"{pct(bp['klu']['median_abs_dev'])}%."
     )
@@ -1617,7 +1732,7 @@ def report(c, m, *, quick: bool) -> str:
         "At nadir the transfer is Rrs = A·rrs/(1 − B·rrs), A = A0 (θv-only form) "
         "or A0·t_d/T(0) (downwelling form, with the sample's H). “Transfer alone” "
         "applies it to PB24's own rrs; “variant” to ZTT (PB24_nadir). Held out, "
-        "window suns.",
+        "window suns, every bb/a.",
         "",
         "| transfer | A0 | B | transfer alone, median | variant in Rrs, median | q90 |",
         "|---|---|---|---|---|---|",
@@ -1720,10 +1835,9 @@ def outputs(coefficients, metrics, probes_, bands, *, quick: bool) -> dict[str, 
 COLORS = {
     GORDON: "#5c5c5c",
     BASE: "#E69F00",
-    RUNG_A: "#56B4E9",
+    KLU: "#56B4E9",
     FINAL: "#0072B2",
     "ceiling": "#009E73",
-    "tt": "#D55E00",
 }
 FIGURES = (
     f"{PREFIX}fig_terms.png",
@@ -1778,17 +1892,16 @@ def figures(c, m, out: Path) -> None:
     ax.plot(
         psi,
         np.asarray(Z.psi_KLu_pb24_nadir(jnp.asarray(psi), coeffs)),
-        color=COLORS[FINAL],
+        color=COLORS[KLU],
         lw=2,
-        label="nadir fit, Ψ_KLu(ψ)",
+        label="measured-K_Lu fit (9b, a record)",
     )
     ax.plot(
         psi,
         np.asarray(Z.psi_KLu(jnp.asarray(psi))),
-        color=COLORS["tt"],
-        lw=2,
-        ls="--",
-        label="TT Eqs (4), (6)",
+        color=COLORS[FINAL],
+        lw=2.4,
+        label="TT Eqs (4), (6): used by ZTT (PB24_nadir)",
     )
     ax.plot(
         psi_n[win],
@@ -1814,14 +1927,19 @@ def figures(c, m, out: Path) -> None:
     ax = axes[1]
     rad = np.deg2rad(psi)
     s0, s1 = c["fl_s_s0_s1"]
-    ax.plot(psi, s0 + s1 * np.sin(rad), color=COLORS[FINAL], lw=2, label="nadir fit")
+    ax.plot(
+        psi,
+        s0 + s1 * np.sin(rad),
+        color=COLORS[KLU],
+        lw=2,
+        label="measured-K_Lu fit (9b)",
+    )
     ax.plot(
         psi,
         Z.FL_OFFSET + Z.FL_SIN_COEFF * np.sin(rad),
-        color=COLORS["tt"],
-        lw=2,
-        ls="--",
-        label="TT Eq. (31)",
+        color=COLORS[FINAL],
+        lw=2.4,
+        label="TT Eq. (31): used by the variant",
     )
     ax.axhline(1.0, color="#5c5c5c", lw=0.8, ls=":")
     ax.set_xlabel("ψ (deg)")
@@ -1832,17 +1950,16 @@ def figures(c, m, out: Path) -> None:
     ax.plot(
         c["fl_ave_wave_nm"],
         c["fl_ave_per_band"],
-        color=COLORS[FINAL],
+        color=COLORS[KLU],
         lw=2,
-        label="nadir fit",
+        label="measured-K_Lu fit (9b)",
     )
     ax.plot(
         Z.FL_AVE_WAVE,
         Z.FL_AVE / Z.FL_AVE.mean(),
-        color=COLORS["tt"],
-        lw=2,
-        ls="--",
-        label="TT Table A3 (mean 1)",
+        color=COLORS[FINAL],
+        lw=2.4,
+        label="TT Table A3 (mean 1): used by the variant",
     )
     ax.set_xlabel("wavelength (nm)")
     ax.set_ylabel("FL_AVE(λ)")
@@ -1860,8 +1977,13 @@ def figures(c, m, out: Path) -> None:
     series = [
         (GORDON, hs[GORDON], COLORS[GORDON], "-"),
         (BASE, hs[BASE], COLORS[BASE], "-"),
-        ("rung (a): 8a terms, TT's Ψ_KLu and f_L", hs[RUNG_A], COLORS[RUNG_A], "-"),
-        ("ZTT (PB24_nadir)", hs[FINAL], COLORS[FINAL], "-"),
+        (
+            "ZTT (PB24_nadir): 8a terms, TT's Ψ_KLu and f_L",
+            hs[FINAL],
+            COLORS[FINAL],
+            "-",
+        ),
+        ("measured-K_Lu fit (9b, a record)", hs[KLU], COLORS[KLU], "-"),
         (
             "ceiling: measured K_Lu/a (D2)",
             m["diagnostics"][ceiling],
@@ -1905,7 +2027,7 @@ def figures(c, m, out: Path) -> None:
         keys = [k for k in hs[FINAL]["groups"] if k.startswith(prefix)]
         for name, label in (
             (GORDON, GORDON),
-            (RUNG_A, "rung (a)"),
+            (KLU, "measured-K_Lu fit (9b, a record)"),
             (FINAL, "ZTT (PB24_nadir)"),
         ):
             y = [100 * (hs[name]["groups"][k]["median_abs"] or np.nan) for k in keys]
@@ -1925,6 +2047,18 @@ def figures(c, m, out: Path) -> None:
         ax.set_title(title, loc="left", fontsize=10.5)
         ax.set_yscale("log")
         _plain_log_axis(ax)
+    limit = [k for k in hs[FINAL]["groups"] if k.startswith("bb/a[")]
+    edge = [i for i, k in enumerate(limit) if k.startswith("bb/a[0.5946")]
+    if edge:
+        axes[0].axvline(edge[0] - 0.5, color="#5c5c5c", lw=0.8, ls=":")
+        axes[0].text(
+            edge[0] - 0.45,
+            axes[0].get_ylim()[0] * 1.15,
+            "outside the\nvariant's domain",
+            fontsize=8,
+            color="#5c5c5c",
+            va="bottom",
+        )
     axes[0].set_ylabel("median |rrs error| (%), held out, suns 0–70°")
     axes[0].legend(fontsize=8)
     fig.tight_layout()

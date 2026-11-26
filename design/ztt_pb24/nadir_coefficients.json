@@ -1,5 +1,5 @@
 {
-  "about": "ZTT (PB24_nadir), M8 task 9 (rt_fit_pb24.md Q34-Q44). Nadir viewing only. Psi_KLu = 1 + F(psi), F a polynomial in u = 1 + cos(psi) (highest order first), fitted to PB24's measured nadir KLu: a per-sun average of (KLu/a) * mu_inf(PB24, 8a) (psi_klu_node_weighting), then the polynomial through the eight window nodes. f_L = FL_AVE(lambda) * (s0 + s1 sin psi), by linear closure on nadir rrs with that Psi_KLu, 8a's mu_d and the FF Pbb. mu_d, mu_inf and H are task 8a's; D floored as task 8b.",
+  "about": "The measured-K_Lu nadir fit of M8 task 9b (rt_fit_pb24.md Q34-Q44), angular_model='pb24_klu': a record, used by no variant. After Q45 the variant 'pb24_nadir' is task 8a's mu_d, mu_inf and H with TT's own Psi_KLu and f_L, floored; it has no constants of its own and is scored by the same script (nadir_metrics). The fit recorded here: Psi_KLu = 1 + F(psi), F a polynomial in u = 1 + cos(psi) (highest order first), fitted to PB24's measured nadir KLu: a per-sun average of (KLu/a) * mu_inf(PB24, 8a) (psi_klu_node_weighting), then the polynomial through the eight window nodes. f_L = FL_AVE(lambda) * (s0 + s1 sin psi), by linear closure on nadir rrs with that Psi_KLu, 8a's mu_d and the FF Pbb. mu_d, mu_inf and H are task 8a's; D floored as task 8b.",
   "d_floor_lo_width": [
     0.5,
     0.01
@@ -937,5 +937,13 @@
     -0.196688728781297
   ],
   "psi_klu_node_weighting": "geometric",
-  "psi_min_deg": 130.0
+  "psi_min_deg": 130.0,
+  "variant_pb24_nadir": {
+    "angular_model": "tt",
+    "bb_over_a_max": 0.5946,
+    "floor": true,
+    "mu_d": "pb24 (8a)",
+    "mu_inf": "pb24 (8a)",
+    "theta_v_tol_deg": 0.5
+  }
 }

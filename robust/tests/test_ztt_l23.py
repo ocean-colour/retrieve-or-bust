@@ -268,15 +268,17 @@ def test_tt2017_variant_is_bit_for_bit_the_pre_m7_model():
     assert hashlib.sha256(rrs.tobytes()).hexdigest() == PRE_M7_TT2017_SHA256
 
 
-def test_default_variant_is_l23_and_differs():
+def test_default_variant_is_named_and_differs():
+    """The default was "l23" from M7 task 4 until M8 task 9c made it
+    "pb24_nadir" (``rt_fit_pb24.md`` Q45); "l23" is still there by name."""
     args = fixture_args()
-    assert Z.DEFAULT_VARIANT == "l23"
+    assert Z.DEFAULT_VARIANT == "pb24_nadir"
+    default = np.asarray(Z.rrs_ZTT(*args))
     np.testing.assert_array_equal(
-        np.asarray(Z.rrs_ZTT(*args)), np.asarray(Z.rrs_ZTT(*args, variant="l23"))
+        default, np.asarray(Z.rrs_ZTT(*args, variant="pb24_nadir"))
     )
-    assert not np.array_equal(
-        np.asarray(Z.rrs_ZTT(*args)), np.asarray(Z.rrs_ZTT(*args, variant="tt2017"))
-    )
+    for other in ("l23", "tt2017"):
+        assert not np.array_equal(default, np.asarray(Z.rrs_ZTT(*args, variant=other)))
 
 
 def test_component_switches_compose(jax_x64):
@@ -467,7 +469,7 @@ def test_closure_reproduces_the_reference_exactly(jax_x64):
     batch = L.load_batch(reader=L.npz_reader(L23_SMALL_FIXTURE))
     truth = jnp.asarray(C.Rrs_to_rrs(batch.Rrs), jnp.float64)
     mu = Z.mu_inf_closure(iops, phase, geometry, truth, wave)
-    back = Z.rrs_ZTT(iops, phase, geometry, wave, mu_inf=mu)
+    back = Z.rrs_ZTT(iops, phase, geometry, wave, mu_inf=mu, variant="l23")
     np.testing.assert_allclose(np.asarray(back), np.asarray(truth), rtol=1e-12)
     # The fixture has no FF fields, so this closure uses Sullivan's Pbb, and
     # then 8.4% of it exceeds 1. With L23's own FF phase function (the release
@@ -532,7 +534,7 @@ def test_acceptance_gate_on_the_release():
     held = L.make_splits(batch).scene_test
     truth = C.Rrs_to_rrs(batch.Rrs)
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
-    new = Z.rrs_ZTT(*args)
+    new = Z.rrs_ZTT(*args, variant="l23")
     old = Z.rrs_ZTT(*args, variant="tt2017")
     for z in (0, 30, 60):
         m = held & (batch.zenith == z)
@@ -558,8 +560,12 @@ def test_default_backbone_with_ff_on_real_scenes_is_pinned():
     assert batch.phase_params.ff_B is not None
     args = (batch.iops, batch.phase_params, batch.geometry, batch.wave)
     out = rt.forward(*args, "ztt")
-    assert float(jnp.mean(out)) == pytest.approx(3.135152393952e-03, rel=1e-6)
-    assert float(out[0, 40]) == pytest.approx(1.204367028549e-03, rel=1e-6)
+    # Re-baselined at M8 task 9c: the default is "pb24_nadir" (Q45).
+    assert float(jnp.mean(out)) == pytest.approx(3.165415721014e-03, rel=1e-6)
+    assert float(out[0, 40]) == pytest.approx(1.174950157292e-03, rel=1e-6)
+    m7 = C.rrs_to_Rrs(Z.rrs_ZTT(*args, variant="l23"))  # the M7 default, by name
+    assert float(jnp.mean(m7)) == pytest.approx(3.135152393952e-03, rel=1e-6)
+    assert float(m7[0, 40]) == pytest.approx(1.204367028549e-03, rel=1e-6)
 
     sullivan = dataclasses.replace(batch.phase_params, ff_B=None, ff_weight=None)
     truth = C.Rrs_to_rrs(batch.Rrs)

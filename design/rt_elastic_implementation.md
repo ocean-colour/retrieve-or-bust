@@ -2909,8 +2909,9 @@ with the data (the skips are PB24, off disk); **707 passed, 71 skipped** with
 *Status: in progress (tasks 1–7, 8a and 8b of 8a–8d done, 2026-11-16; task 7
 is the design discussion, §7c.7; 8a is §7c.8; 8b, whose joint refit fails
 its predictions, is §7c.9; the interim report of 2026-11-18 is §7c.10;
-task 9, the nadir-only variant, is §7c.11–§7c.12: built 2026-11-25, its gate
-fails, Q45 open; 8c is not run, Q41). Decisions Q1–Q17 and
+task 9, the nadir-only variant, is §7c.11–§7c.13: built 2026-11-25,
+redefined by Q45 and made `rrs_ZTT`'s default 2026-11-26; 8c and 8d are not
+run, Q41). Decisions Q1–Q17 and
 their reasoning are in
 [`claude_prompts/RT/rt_fit_pb24.md`](../claude_prompts/RT/rt_fit_pb24.md).*
 
@@ -3857,6 +3858,69 @@ denominator; TT's is right there and wrong in turbid water (the bb/a pole).
 No PB24-calibrated K_Lu, with or without IOP dependence, transfers to L23.
 Q45 asks what the variant should become.
 
+### 7c.13 Task 9c as built — "ZTT (PB24_nadir)" redefined, and the default
+
+2026-11-26 (Fable 5.2). JXP's answer to Q45: option (b), and make it the
+default.
+
+**The variant now.** `rrs_ZTT(variant="pb24_nadir")` = 8a's H table, µd and
+µ∞ (`diffuse_fraction_pb24`, `mu_d_pb24`, `mu_infinity_pb24`), the FF Pbb,
+**TT's own Ψ_KLu and f_L** (`angular_model="tt"`), and 8b's floor. Nothing
+new is fitted. It is `variant="pb24", angular_model="tt"` under its own
+name, with a stated domain: a concrete `theta_v` beyond `NADIR_TOL_DEG`
+(0.5°) or a concrete bb/a beyond `NADIR_BB_OVER_A_MAX` (0.5946) raises a
+`DomainWarning`; traced values pass silently. The measured-K_Lu fit of 9b
+(§7c.12) is kept as a record behind `angular_model="pb24_klu"`
+(`psi_KLu_pb24_nadir`, `f_L_pb24_nadir`); no variant uses it.
+
+**The default moved: a deliberate re-baseline.** `DEFAULT_VARIANT` is
+`"pb24_nadir"` (was `"l23"` since M7), so `forward(mode="ztt")` evaluates
+it. Pins moved, old values kept beside the new, by name:
+`test_env.py::test_the_backbone_path_produces_pinned_numbers` (mean
+2.891558e-3 → 2.915895e-3; `[0, 40]` 1.203589e-3 → 1.174192e-3) and
+`test_ztt_l23.py::test_default_backbone_with_ff_on_real_scenes_is_pinned`
+(3.135152e-3 → 3.165416e-3; 1.204367e-3 → 1.174950e-3). Tests that were
+about the L23 variant and reached it through the default now name it
+(`variant="l23"`): in `test_ztt.py` the θs gradient (the new default's H
+table has a node at 30°, where a central difference straddles the kink), the
+zenith trend, the pre-task-4 nadir reference (its `forward_ztt` entry is
+dropped; that path is pinned in `test_env`), the µd-ratio and vmap/jit
+tests and the PB24-fixture H test; in `test_ztt_l23.py` the closure round
+trip and the M7 acceptance gate; in `test_emulator.py` the three
+unusable-backbone tests (the new default is floored, so never unusable).
+`"l23"`, `"tt2017"` and `"pb24"` are bit for bit; the hybrid stays pinned to
+its emulator's backbone (`"tt2017"`), so its numbers and the emulator digest
+do not move.
+
+**Measured** (`design/ztt_pb24/nadir_metrics.md`, regenerated; held out,
+nadir, suns 0–70°). Window median **4.36%** (Gordon 6.52%, the L23 variant
+4.73%), q90 21.2%, non-physical 0%; 3.42% at θs = 0; **4.03%** inside
+bb/a ≤ 0.5946 (95.4% of values); 67% and 228% in the two bins beyond. In Rrs
+through the shipped downwelling Fresnel transfer 4.91% (4.42% at θs = 0;
+Gordon 7.37%). B_p-band split held out: 4.59%. L23 held-out rRMS: 3.39% with
+TT's H, 3.64% as called by default (PB24's H table); the L23 variant 2.90%.
+The Q42 gate: median clause **missed** (4.36% ≥ 4.0%), non-physical and L23
+clauses passed; the default is by decision (Q45), which `nadir_metrics.json`
+records.
+
+**Also changed.** `design/py/fit_ztt_pb24_nadir.py` scores the variant as
+redefined (ladder base → + µd → + µ∞ → + floor) with the measured-K_Lu fit
+as record rows, a bb/a-domain table, probes for both, and relabelled
+figures; `--check` identical. `reports/report_rt_elastic_model.md` is v1.2:
+a summary paragraph, §10 "Update (M8)", three figures reused as copies of
+committed `design/ztt_pb24/` figures (`make_report_figures.py::
+copy_pb24_figures`; `DOCS_FIGURES` now eleven). 8c and 8d were not run
+(Q41); this section and the report's §10 close the ZTT arm of M8.
+
+**Hand-off.** (1) Task 10: a prompt doc to optimise the O25 form for nadir
+viewing. (2) Why PB24-calibrated K_Lu models fail on L23 at small sun
+angles (8.2% at 0°, 1.5% at 60° for the direct fit). (3) The emulator
+retrain on the surviving backbone (Q28), including a `DomainWarning` for an
+"l23" emulator without `ff_B` (review finding 1b). (4) µ∞'s B_p term (Q22)
+stays unbuilt: at nadir the variant's error is flat in B_p. (5) A nadir
+refit of the Fresnel transfer's two numbers (0.84% against 1.53%) is
+measured and not shipped.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
@@ -4027,7 +4091,7 @@ robust/
     test_ztt_l23.py    ✅ M7 34 tests — tasks 3-6 (incl. the acceptance gate)
     test_ztt_pb24.py   ✅ M8 25 tests — task 8a (the PB24 fit, the H table)
     test_ztt_pb24_angular.py ✅ M8 18 tests — task 8b (Ψ_KLu/f_L refit, the floor, D-space gates)
-    test_ztt_pb24_nadir.py   ✅ M8 15 tests — task 9b (the nadir-only fit: probes, gate record, DomainWarning)
+    test_ztt_pb24_nadir.py   ✅ M8 15 tests — task 9b–9c (the default variant: probes, gate and decision record, DomainWarnings)
     test_pb24_cache.py ✅ M8 24 tests — task 2
     test_pb24.py       ✅ M5; M8 60 tests — task 3 (above-water geometry)
     files/pb24_cache_small.zip ✅ M8 2.2 MB zip, 3 realisations, 4-D at every 10th band
@@ -4041,7 +4105,7 @@ design/py/
   fit_ztt_l23.py             ✅ M7 µ∞ (eigen), µd, closure fits; --check
   fit_ztt_pb24.py            ✅ M8 task 8a H table, µd, µ∞ fitted to PB24 → ztt_pb24/fit_*; --check
   fit_ztt_pb24_angular.py    ✅ M8 task 8b D1, D2, the Ψ_KLu/f_L refit in D-space → ztt_pb24/angular_*; --check
-  fit_ztt_pb24_nadir.py      ✅ M8 task 9b the nadir-only fit (Ψ_KLu from KLu, f_L by closure), ladder, gate → ztt_pb24/nadir_*; --check
+  fit_ztt_pb24_nadir.py      ✅ M8 task 9b–9c "ZTT (PB24_nadir)" scored (ladder, gate, domain, Rrs, L23) + the measured-K_Lu fit as a record → ztt_pb24/nadir_*; --check
   run_ztt_l23.py             ✅ M7 the ladder + acceptance gate
   explore_mu_inf_eigen.py    ✅ M7 exploratory (Q13 evidence), not pipeline
   build_pb24_cache.py        ✅ M8 builds/verifies the PB24 cache; --check, --rebuild-check

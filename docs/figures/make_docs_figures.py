@@ -5,7 +5,7 @@ Two modes, and the difference between them matters:
 **Copy mode (the default, and the only mode a documentation build ever runs).**
 Pure ``pathlib``/``shutil``/``re``. It does two things:
 
-1. Copies the eight committed ``reports/fig_*.png`` into ``docs/_static/``.
+1. Copies the eleven committed ``reports/fig_*.png`` into ``docs/_static/``.
 2. Writes ``docs/reports/report_rt_{elastic,inelastic}_model.md`` as *generated
    copies* of the two reports under ``reports/``, with two mechanical rewrites
    and a generated-file banner.
@@ -97,9 +97,9 @@ STATIC_DIR = _DOCS_DIR / "_static"
 #: Where the generated report pages go (``docs/reports/index.md``'s toctree).
 REPORTS_OUT_DIR = _DOCS_DIR / "reports"
 
-#: Every figure the site renders, by filename under ``reports/``. All eight of
-#: them: four from the elastic report (M7 added the ZTT-L23 ladder), four from
-#: the inelastic one. The
+#: Every figure the site renders, by filename under ``reports/``. All eleven of
+#: them: seven from the elastic report (M7 added the ZTT-L23 ladder, M8 three
+#: PB24 figures), four from the inelastic one. The
 #: inelastic architecture diagram is also the front page's hero (DocQ7).
 DOCS_FIGURES = (
     "fig_architecture.png",
@@ -107,9 +107,12 @@ DOCS_FIGURES = (
     "fig_inelastic_deltas.png",
     "fig_inelastic_rrms_ladder.png",
     "fig_inelastic_unseen_zenith.png",
+    "fig_pb24_view_and_psi.png",
     "fig_rrms_ladder.png",
     "fig_unseen_zenith.png",
     "fig_ztt_l23_ladder.png",
+    "fig_ztt_pb24_nadir_breakdowns.png",
+    "fig_ztt_pb24_nadir_ladder.png",
 )
 
 #: The two reports rendered in-site, by filename under ``reports/``.

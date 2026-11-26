@@ -1002,7 +1002,10 @@ def test_fit_pb24_trains_only_on_a_usable_backbone():
         geometry_stride=(1, 4, 4),
     )
     splits = P.make_splits(batch, kinds=("realisation",))
-    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    # "l23" by name (M8 task 9c): the new default is floored, so never unusable.
+    rrs_ztt = Z.rrs_ZTT(
+        batch.iops, batch.phase_params, batch.geometry, batch.wave, variant="l23"
+    )
     usable = E.backbone_is_usable(rrs_ztt)
     config = E.EmulatorConfig(steps=20, seed=23)
 
@@ -1110,7 +1113,10 @@ def test_fit_pb24_trains_on_the_split_it_is_asked_for():
         geometry_stride=(1, 4, 4),
     )
     splits = P.make_splits(batch, kinds=("realisation", "bp_band"))
-    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    # "l23" by name (M8 task 9c): the new default is floored, so never unusable.
+    rrs_ztt = Z.rrs_ZTT(
+        batch.iops, batch.phase_params, batch.geometry, batch.wave, variant="l23"
+    )
     usable = E.backbone_is_usable(rrs_ztt)
     config = E.EmulatorConfig(steps=10, seed=23)
 
@@ -1161,7 +1167,10 @@ def test_excluding_an_unusable_backbone_also_narrows_the_geometry():
         angles="window",
         geometry_stride=(1, 2, 2),
     )
-    rrs_ztt = Z.rrs_ZTT(batch.iops, batch.phase_params, batch.geometry, batch.wave)
+    # "l23" by name (M8 task 9c): the new default is floored, so never unusable.
+    rrs_ztt = Z.rrs_ZTT(
+        batch.iops, batch.phase_params, batch.geometry, batch.wave, variant="l23"
+    )
     usable = E.backbone_is_usable(rrs_ztt)
 
     assert 0.05 < (~usable).mean() < 0.6, "nothing excluded, or nearly everything"
