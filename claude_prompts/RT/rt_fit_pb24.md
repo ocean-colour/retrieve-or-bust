@@ -491,6 +491,12 @@ Fable 5.2 Log your work.
    to the questions in the `Q&A/ZTT (PB24_nadir)` section below.
    Use Fable. Log your work.
 
+   **9c finish ZTT (PB24_nadir)** -- I have answered Q45.  Read that response and proceed accordingly,
+   including revising our main report on elastic models. 
+   I will then proceed to task 10, which will ask to build a prompt doc
+   to optimize the O25 model for nadir viewing geometry.
+   Use Fable. Log your work.
+
 ## Q&A
 
 ### ZTT (PB24_nadir)
@@ -749,7 +755,9 @@ formulation untouched, and at θs = 0 it is within 0.15 pp of the ceiling.
 If you choose (b): does it also become the default (it fails the 4.0%
 clause, so by Q42 as written it does not)?
 
-**JXP:**
+**JXP:** . Yes, I like this Recommendation.  And do make it the default.
+Also update the `reports/report_rt_elastic.md` file to reflect these developments.
+Reuse figures wherever you can.
 
 ### OOM
 
