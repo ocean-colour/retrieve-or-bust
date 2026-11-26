@@ -3083,3 +3083,27 @@ Created from `rt_fit_ztt.md` task 8.
 - **Hand-off** (record §7c.13): task 10, the O25 form optimised for nadir;
   why PB24-calibrated K_Lu fails on L23 at small suns; the emulator
   retrain. No state-changing git command was run.
+
+### 2026-11-26 — Task 10: the O25-nadir prompt doc (Claude Fable 5.2)
+
+- **No code, no runs.** Created `claude_prompts/RT/rt_fit_o25_nadir.md`
+  (milestone M9): context, what M8 established about the O25 form (the
+  code, the nadir numbers, where the node refit's error sits, the untested
+  "arm B" predictions of design (iv)), working agreements, a Plan prompt,
+  six draft tasks (nadir baseline → residual diagnostics → design
+  discussion → fit and ship → ladder and gate → close), and `Q&A/Init`
+  with Q1–Q16, each with a recommendation.
+- **Numbers quoted there, and their source.** Nadir, held out, from
+  `baseline_breakdowns.csv` (θv_air = 0 rows): O25 node refit, relatively
+  weighted, 1.16% median / 3.77% q90 / 2.39% rRMS in `Rrs` (1.68% once in
+  `rrs`); the paper's objective 3.11%; as published 3.09%. From
+  `nadir_metrics.md`: ZTT (PB24_nadir) 4.36% in `rrs`, 4.91% in `Rrs`;
+  Gordon 6.52%. Breakdowns by band, B_p, sun and class are the whole
+  window's, labelled as such; nadir-only ones are that doc's task 1.
+- **Questions that shape the work:** forward form only (Q1); fit in `Rrs`
+  (Q2); G's smooth in θs rather than a node table (Q3); wavelength and the
+  sky (Q4); how far the form may move, including an explicit phase
+  function (Q5) and whether the retrieval will know B_p (Q6); the gate
+  (Q10) and whether a pass makes it a `forward` backbone (Q12).
+- M9 continues in that doc; its log starts there. No state-changing git
+  command was run.

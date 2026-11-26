@@ -3921,6 +3921,14 @@ stays unbuilt: at nadir the variant's error is flat in B_p. (5) A nadir
 refit of the Fresnel transfer's two numbers (0.84% against 1.53%) is
 measured and not shipped.
 
+### 7c.14 Task 10 — the O25-nadir prompt doc (no code)
+
+2026-11-26 (Fable 5.2). `claude_prompts/RT/rt_fit_o25_nadir.md` opens
+milestone M9: optimise the O25 form for nadir viewing on PB24. It records
+what M8 measured (the node refit reads 1.16% median in `Rrs` at nadir, held
+out, against 3.09% as published and 4.91% for ZTT (PB24_nadir)), six draft
+tasks and questions Q1–Q16. M9's record will be §7d.
+
 ## 8. Cross-cutting conventions (as implemented)
 
 ### 8.0 The frozen `forward` API (M5 task 15)
