@@ -497,6 +497,11 @@ Fable 5.2 Log your work.
    to optimize the O25 model for nadir viewing geometry.
    Use Fable. Log your work.
 
+10. **Task 10 -- Build a prompt doc to optimize the O25 model for nadir viewing geometry**  Based on the work so far, including that for O25, let us build a prompt doc to optimize the O25 model for nadir viewing geometry.  Call it `claude_prompts/RT/rt_fit_o25_nadir.md`.  We will focus primarily on the P24 dataset.  Proceed to
+create the doc, and include a set of questions in a `Q&A/Init` section within the doc.
+I will then proceed to run through the tasks.  Probably with Opus 5.5.
+For this task, however, use Fable. Log your work.
+
 ## Q&A
 
 ### ZTT (PB24_nadir)
